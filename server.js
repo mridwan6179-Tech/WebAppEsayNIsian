@@ -39,6 +39,21 @@ app.use((req, res, next) => {
 // Static Files
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Otomatis sinkronisasi Turso Cloud untuk request API
+app.use((req, res, next) => {
+  if (req.path && req.path.startsWith('/api/')) {
+    db.syncCloud();
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+      res.on('finish', () => {
+        if (res.statusCode >= 200 && res.statusCode < 400) {
+          db.syncCloud(true);
+        }
+      });
+    }
+  }
+  next();
+});
+
 // ----------------------------------------------------
 // ROUTE: Autentikasi Guru (FR-01)
 // ----------------------------------------------------

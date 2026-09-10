@@ -60,12 +60,17 @@ try {
   console.warn('⚠️ Pragma setting notice:', e.message);
 }
 
-db.syncCloud = function() {
+let lastSyncTime = 0;
+db.syncCloud = function(force = false) {
   if (typeof db.sync === 'function') {
-    try {
-      db.sync();
-    } catch (e) {
-      console.warn('⚠️ Turso sync warning:', e.message);
+    const now = Date.now();
+    if (force || now - lastSyncTime > 5000) {
+      lastSyncTime = now;
+      try {
+        db.sync();
+      } catch (e) {
+        console.warn('⚠️ Turso sync warning:', e.message);
+      }
     }
   }
 };
