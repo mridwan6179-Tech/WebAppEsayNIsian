@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Portal — Sistem Ulangan AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+
+  <!-- LOGIN CONTAINER -->
+  <div id="section-login" class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-6 sm:p-8 rounded-2xl shadow-2xl space-y-6">
+      <div class="text-center space-y-2">
+        <div class="w-12 h-12 bg-blue-600/20 text-blue-400 rounded-xl flex items-center justify-center mx-auto border border-blue-500/30">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+        </div>
+        <h1 class="text-xl font-bold text-white tracking-tight">Portal Administrator</h1>
+        <p class="text-xs text-slate-400">Kelola Akun Guru, Password & API Key Gemini</p>
+      </div>
+
+      <div id="login-alert" class="hidden p-3 rounded-xl text-xs bg-red-500/10 border border-red-500/30 text-red-400"></div>
+
+      <form id="form-login" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Username Admin</label>
+          <input type="text" id="login-username" required placeholder="admin" value="admin"
+            class="w-full px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-900/80 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-sm outline-none transition">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Password</label>
+          <input type="password" id="login-password" required placeholder="••••••••" value="admin123"
+            class="w-full px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-900/80 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-sm outline-none transition">
+        </div>
+
+        <div class="flex items-center justify-between text-xs">
+          <label class="flex items-center space-x-2 text-slate-300 cursor-pointer select-none">
+            <input type="checkbox" id="login-remember" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-blue-500">
+            <span>Ingat Saya (30 Hari)</span>
+          </label>
+        </div>
+
+        <button type="submit" id="btn-login"
+          class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition duration-150 shadow-lg shadow-blue-600/20 text-sm">
+          Masuk ke Dashboard Admin
+        </button>
+
+        <div class="text-center pt-2">
+          <a href="/guru.html" class="text-xs text-slate-400 hover:text-slate-200 transition">&larr; Buka Portal Guru</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- DASHBOARD CONTAINER -->
+  <div id="section-dashboard" class="hidden min-h-screen flex flex-col">
+    <!-- Top Navbar -->
+    <header class="bg-slate-800/80 backdrop-blur border-b border-slate-700 sticky top-0 z-30">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-md shadow-blue-600/30">
+            A
+          </div>
+          <div>
+            <h1 class="text-sm font-bold text-white">Administrator Panel</h1>
+            <p class="text-[11px] text-slate-400">Sistem Ulangan AI Sekolah</p>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-4">
+          <a href="/guru.html" target="_blank" class="hidden sm:inline-flex items-center space-x-1.5 text-xs text-blue-400 hover:text-blue-300 transition">
+            <span>Buka Portal Guru</span>
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+          </a>
+          <span class="text-slate-600 hidden sm:inline">&bull;</span>
+          <span id="admin-display-name" class="text-xs font-semibold text-slate-300">Admin</span>
+          <button id="btn-logout" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-lg transition">
+            Keluar
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Tabs -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-6">
+      
+      <!-- Navigasi Tab -->
+      <div class="flex space-x-3 border-b border-slate-700 pb-3 text-sm">
+        <button id="tab-btn-guru" class="px-4 py-2 font-bold text-blue-400 border-b-2 border-blue-500 rounded-t-lg bg-slate-800/40 transition">
+          👥 Manajemen Guru & Password
+        </button>
+        <button id="tab-btn-ai" class="px-4 py-2 font-medium text-slate-400 hover:text-slate-200 rounded-t-lg transition">
+          ⚡ Multi-Key Gemini AI (Backup & Failover)
+        </button>
+      </div>
+
+      <!-- TAB 1: MANAJEMEN GURU -->
+      <section id="tab-content-guru" class="space-y-6">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-white">Daftar Akun Guru</h2>
+            <p class="text-xs text-slate-400">Kelola akun guru yang memiliki hak akses membuat ulangan dan menilai ujian.</p>
+          </div>
+          <button id="btn-show-add-guru" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs flex items-center space-x-1.5 shadow-lg shadow-blue-600/20 transition">
+            <span>+ Tambah Guru Baru</span>
+          </button>
+        </div>
+
+        <!-- Tabel Guru -->
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden shadow-sm">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-900/60 text-slate-400 uppercase font-semibold border-b border-slate-700">
+                <tr>
+                  <th class="p-3.5">Nama Guru</th>
+                  <th class="p-3.5">Email Login</th>
+                  <th class="p-3.5">Total Ulangan</th>
+                  <th class="p-3.5">Total Peserta</th>
+                  <th class="p-3.5">Tanggal Dibuat</th>
+                  <th class="p-3.5 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="guru-table-body" class="divide-y divide-slate-700 text-slate-200">
+                <tr>
+                  <td colspan="6" class="p-6 text-center text-slate-400">Memuat data guru...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: MULTI-KEY GEMINI AI (BACKUP & FAILOVER) -->
+      <section id="tab-content-ai" class="hidden space-y-6">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-white">Multi-Key Gemini AI (Backup & Failover)</h2>
+            <p class="text-xs text-slate-400">Tambah lebih dari 1 Gemini API Key untuk cadangan. Sistem otomatis beralih ke kunci berikutnya jika kuota habis (*failover*).</p>
+          </div>
+          <button id="btn-show-add-key" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs flex items-center space-x-1.5 shadow-lg shadow-blue-600/20 transition">
+            <span>+ Tambah Kunci Gemini Cadangan</span>
+          </button>
+        </div>
+
+        <!-- Tabel Multi-Key Gemini -->
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden shadow-sm">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-900/60 text-slate-400 uppercase font-semibold border-b border-slate-700">
+                <tr>
+                  <th class="p-3.5">Prioritas</th>
+                  <th class="p-3.5">Label Kunci</th>
+                  <th class="p-3.5">API Key Terenkripsi</th>
+                  <th class="p-3.5">Status Aktif</th>
+                  <th class="p-3.5">Kondisi AI</th>
+                  <th class="p-3.5">Terakhir Diuji</th>
+                  <th class="p-3.5 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="ai-keys-table-body" class="divide-y divide-slate-700 text-slate-200">
+                <tr>
+                  <td colspan="7" class="p-6 text-center text-slate-400">Memuat daftar API Key Gemini...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Info Card Kemampuan AI -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl space-y-3">
+            <h3 class="font-bold text-sm text-white flex items-center space-x-2">
+              <span>🛡️ Cara Kerja Otomatis Failover Kunci AI</span>
+            </h3>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Jika kunci utama mencapai batas request per menit (HTTP 429) atau habis kuota harian, sistem <strong>langsung mengalihkan penilaian ke kunci cadangan</strong> secara instan tanpa mengganggu siswa yang sedang mengumpulkan jawaban.
+            </p>
+            <div class="text-[11px] text-slate-400 space-y-1 bg-slate-900/60 p-3 rounded-xl border border-slate-700/60">
+              <p>• Dapatkan kunci tambahan gratis di <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-blue-400 underline font-semibold">Google AI Studio</a>.</p>
+              <p>• Urutkan prioritas (1 = Kunci Utama, 2 = Cadangan Pertama, dst).</p>
+            </div>
+          </div>
+
+          <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl space-y-3">
+            <h3 class="font-bold text-sm text-white flex items-center space-x-2">
+              <span>🌐 Multilingual & Anti-Cheat Cerdas</span>
+            </h3>
+            <ul class="text-xs text-slate-300 space-y-1.5 list-disc list-inside">
+              <li><strong>Bahasa Arab:</strong> Paham teks berharakat & gundul, gramatika nahwu/sharaf, toleransi variasi hamzah (أ/إ/آ) & ta marbuthah (ة/ه).</li>
+              <li><strong>Bahasa Inggris:</strong> Evaluasi grammar, tenses, reading comprehension, dan essay analitis.</li>
+              <li><strong>Anti-Pengelabuan AI:</strong> Kebal terhadap prompt injection atau manipulasi instruksi di akhir jawaban siswa.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- MODAL TAMBAH GURU -->
+  <div id="modal-add-guru" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-6 rounded-2xl shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+        <h3 class="font-bold text-white text-base">Tambah Akun Guru Baru</h3>
+        <button id="btn-close-modal-add" class="text-slate-400 hover:text-white">&times;</button>
+      </div>
+
+      <form id="form-add-guru" class="space-y-3.5 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Nama Lengkap & Gelar</label>
+          <input type="text" id="add-guru-nama" required placeholder="Contoh: Dra. Siti Rahmawati, M.Pd."
+            class="w-full px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white outline-none focus:border-blue-500">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Email Guru (Untuk Login)</label>
+          <input type="email" id="add-guru-email" required placeholder="siti@sekolah.id"
+            class="w-full px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white outline-none focus:border-blue-500">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Password Awal</label>
+          <input type="password" id="add-guru-password" required placeholder="Minimal 6 karakter"
+            class="w-full px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white outline-none focus:border-blue-500">
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-2">
+          <button type="button" id="btn-cancel-add-guru" class="px-4 py-2 text-slate-400 hover:text-white">Batal</button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition">
+            Simpan Akun Guru
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL EDIT GURU & RESET PASSWORD -->
+  <div id="modal-edit-guru" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-6 rounded-2xl shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+        <h3 class="font-bold text-white text-base">Edit Akun Guru & Reset Password</h3>
+        <button id="btn-close-modal-edit" class="text-slate-400 hover:text-white">&times;</button>
+      </div>
+
+      <form id="form-edit-guru" class="space-y-3.5 text-xs">
+        <input type="hidden" id="edit-guru-id">
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Nama Lengkap</label>
+          <input type="text" id="edit-guru-nama" required
+            class="w-full px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white outline-none focus:border-blue-500">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Email Login</label>
+          <input type="email" id="edit-guru-email" required
+            class="w-full px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white outline-none focus:border-blue-500">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Password Baru (Kosongkan jika tidak ingin mengubah)</label>
+          <input type="password" id="edit-guru-password" placeholder="Ketik password baru untuk mereset..."
+            class="w-full px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white outline-none focus:border-blue-500">
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-2">
+          <button type="button" id="btn-cancel-edit-guru" class="px-4 py-2 text-slate-400 hover:text-white">Batal</button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition">
+            Simpan Perubahan
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL TAMBAH KUNCI GEMINI -->
+  <div id="modal-add-key" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-6 rounded-2xl shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+        <h3 class="font-bold text-white text-base">Tambah Gemini API Key (Cadangan/Backup)</h3>
+        <button id="btn-close-modal-key" class="text-slate-400 hover:text-white">&times;</button>
+      </div>
+
+      <form id="form-add-key" class="space-y-3.5 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Label Kunci</label>
+          <input type="text" id="add-key-label" required placeholder="Contoh: Akun Cadangan 2 / Akun Lab Komputer"
+            class="w-full px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white outline-none focus:border-blue-500">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Gemini API Key</label>
+          <input type="text" id="add-key-val" required placeholder="AIzaSy..."
+            class="w-full px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white font-mono outline-none focus:border-blue-500">
+          <p class="text-[11px] text-slate-400 mt-1">Dapatkan di <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-blue-400 underline">Google AI Studio</a>.</p>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Prioritas (1 = Kunci Utama, 2 = Cadangan Pertama, dst)</label>
+          <input type="number" id="add-key-priority" min="1" max="99" value="2" required
+            class="w-full px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white outline-none focus:border-blue-500">
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-2">
+          <button type="button" id="btn-cancel-add-key" class="px-4 py-2 text-slate-400 hover:text-white">Batal</button>
+          <button type="submit" id="btn-submit-add-key" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition shadow-md shadow-blue-600/20">
+            Simpan Kunci AI
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // State Admin
+    let currentAdmin = null;
+
+    // Helper fetch dengan dukungan Cookie dan Authorization Header
+    function adminFetch(url, options = {}) {
+      const token = sessionStorage.getItem('admin_token') || localStorage.getItem('admin_token');
+      options.headers = options.headers || {};
+      if (token && !options.headers['Authorization']) {
+        options.headers['Authorization'] = 'Bearer ' + token;
+      }
+      return fetch(url, options);
+    }
+
+    // Check Admin Session on Load & Auto-fill Remembered Username
+    async function checkAuth() {
+      const savedUser = localStorage.getItem('admin_remembered_username');
+      if (savedUser) {
+        const uInput = document.getElementById('login-username');
+        if (uInput) uInput.value = savedUser;
+        const rCheck = document.getElementById('login-remember');
+        if (rCheck) rCheck.checked = true;
+      }
+
+      try {
+        const res = await adminFetch('/api/admin/me');
+        const data = await res.json();
+        if (res.ok && data.success) {
+          currentAdmin = data.admin;
+          document.getElementById('admin-display-name').textContent = currentAdmin.nama || currentAdmin.username;
+          document.getElementById('section-login').classList.add('hidden');
+          document.getElementById('section-dashboard').classList.remove('hidden');
+          loadGuruList();
+          loadAiKeys();
+        } else {
+          document.getElementById('section-login').classList.remove('hidden');
+          document.getElementById('section-dashboard').classList.add('hidden');
+        }
+      } catch (err) {
+        document.getElementById('section-login').classList.remove('hidden');
+        document.getElementById('section-dashboard').classList.add('hidden');
+      }
+    }
+
+    // Login Form Submit with Remember Me
+    document.getElementById('form-login').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const alertBox = document.getElementById('login-alert');
+      alertBox.classList.add('hidden');
+
+      const username = document.getElementById('login-username').value.trim();
+      const password = document.getElementById('login-password').value.trim();
+      const remember_me = document.getElementById('login-remember').checked;
+      const btn = document.getElementById('btn-login');
+
+      btn.disabled = true;
+      btn.textContent = 'Memverifikasi...';
+
+      try {
+        const res = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password, remember_me })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          if (remember_me) {
+            localStorage.setItem('admin_remembered_username', username);
+            if (data.token) localStorage.setItem('admin_token', data.token);
+          } else {
+            localStorage.removeItem('admin_remembered_username');
+            localStorage.removeItem('admin_token');
+          }
+          if (data.token) {
+            sessionStorage.setItem('admin_token', data.token);
+          }
+          checkAuth();
+        } else {
+          alertBox.textContent = data.message || 'Login gagal';
+          alertBox.classList.remove('hidden');
+        }
+      } catch (err) {
+        alertBox.textContent = 'Gagal menghubungi server: ' + (err.message || 'Koneksi terputus');
+        alertBox.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Masuk ke Dashboard Admin';
+      }
+    });
+
+    // Logout
+    document.getElementById('btn-logout').onclick = async () => {
+      sessionStorage.removeItem('admin_token');
+      localStorage.removeItem('admin_token');
+      await adminFetch('/api/admin/logout', { method: 'POST' });
+      location.reload();
+    };
+
+    // Tab Switching
+    const tabBtnGuru = document.getElementById('tab-btn-guru');
+    const tabBtnAi = document.getElementById('tab-btn-ai');
+    const tabContentGuru = document.getElementById('tab-content-guru');
+    const tabContentAi = document.getElementById('tab-content-ai');
+
+    tabBtnGuru.onclick = () => {
+      tabBtnGuru.className = 'px-4 py-2 font-bold text-blue-400 border-b-2 border-blue-500 rounded-t-lg bg-slate-800/40 transition';
+      tabBtnAi.className = 'px-4 py-2 font-medium text-slate-400 hover:text-slate-200 rounded-t-lg transition';
+      tabContentGuru.classList.remove('hidden');
+      tabContentAi.classList.add('hidden');
+      loadGuruList();
+    };
+
+    tabBtnAi.onclick = () => {
+      tabBtnAi.className = 'px-4 py-2 font-bold text-blue-400 border-b-2 border-blue-500 rounded-t-lg bg-slate-800/40 transition';
+      tabBtnGuru.className = 'px-4 py-2 font-medium text-slate-400 hover:text-slate-200 rounded-t-lg transition';
+      tabContentAi.classList.remove('hidden');
+      tabContentGuru.classList.add('hidden');
+      loadAiKeys();
+    };
+
+    // ==========================================
+    // MANAJEMEN GURU
+    // ==========================================
+    async function loadGuruList() {
+      try {
+        const res = await adminFetch('/api/admin/guru');
+        const data = await res.json();
+        const tbody = document.getElementById('guru-table-body');
+        tbody.innerHTML = '';
+
+        if (!data.data || data.data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-400">Belum ada data guru.</td></tr>';
+          return;
+        }
+
+        data.data.forEach(g => {
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-slate-700/30 transition';
+          tr.innerHTML = `
+            <td class="p-3.5 font-semibold text-white">${g.nama}</td>
+            <td class="p-3.5 font-mono text-slate-300">${g.email}</td>
+            <td class="p-3.5"><span class="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-semibold">${g.total_ulangan || 0}</span></td>
+            <td class="p-3.5"><span class="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 font-semibold">${g.total_peserta || 0}</span></td>
+            <td class="p-3.5 text-slate-400">${g.created_at ? new Date(g.created_at).toLocaleDateString('id-ID') : '-'}</td>
+            <td class="p-3.5 text-right space-x-2">
+              <button onclick="openEditGuruModal(${g.id}, '${escapeHtml(g.nama)}', '${escapeHtml(g.email)}')"
+                class="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-blue-400 font-semibold rounded-lg transition">
+                Edit / Reset Password
+              </button>
+              <button onclick="hapusGuru(${g.id}, '${escapeHtml(g.nama)}')"
+                class="px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-semibold rounded-lg transition">
+                Hapus
+              </button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    // Modal Tambah Guru
+    const modalAddGuru = document.getElementById('modal-add-guru');
+    document.getElementById('btn-show-add-guru').onclick = () => {
+      document.getElementById('form-add-guru').reset();
+      modalAddGuru.classList.remove('hidden');
+    };
+    document.getElementById('btn-close-modal-add').onclick = () => modalAddGuru.classList.add('hidden');
+    document.getElementById('btn-cancel-add-guru').onclick = () => modalAddGuru.classList.add('hidden');
+
+    document.getElementById('form-add-guru').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nama = document.getElementById('add-guru-nama').value.trim();
+      const email = document.getElementById('add-guru-email').value.trim();
+      const password = document.getElementById('add-guru-password').value.trim();
+
+      const res = await adminFetch('/api/admin/guru', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nama, email, password })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        modalAddGuru.classList.add('hidden');
+        loadGuruList();
+      } else {
+        alert(data.message || 'Gagal menambahkan guru');
+      }
+    });
+
+    // Modal Edit Guru
+    const modalEditGuru = document.getElementById('modal-edit-guru');
+    window.openEditGuruModal = (id, nama, email) => {
+      document.getElementById('edit-guru-id').value = id;
+      document.getElementById('edit-guru-nama').value = nama;
+      document.getElementById('edit-guru-email').value = email;
+      document.getElementById('edit-guru-password').value = '';
+      modalEditGuru.classList.remove('hidden');
+    };
+    document.getElementById('btn-close-modal-edit').onclick = () => modalEditGuru.classList.add('hidden');
+    document.getElementById('btn-cancel-edit-guru').onclick = () => modalEditGuru.classList.add('hidden');
+
+    document.getElementById('form-edit-guru').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('edit-guru-id').value;
+      const nama = document.getElementById('edit-guru-nama').value.trim();
+      const email = document.getElementById('edit-guru-email').value.trim();
+      const password = document.getElementById('edit-guru-password').value.trim();
+
+      const payload = { nama, email };
+      if (password) payload.password = password;
+
+      const res = await adminFetch(`/api/admin/guru/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        modalEditGuru.classList.add('hidden');
+        loadGuruList();
+      } else {
+        alert(data.message || 'Gagal mengubah guru');
+      }
+    });
+
+    // Hapus Guru (Cascade)
+    window.hapusGuru = async (id, nama) => {
+      if (!confirm(`Hapus akun guru "${nama}"? Semua ulangan, bank soal, dan jawaban siswa milik guru ini akan ikut terhapus secara permanen.`)) return;
+      const res = await adminFetch(`/api/admin/guru/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        loadGuruList();
+      } else {
+        alert(data.message || 'Gagal menghapus guru');
+      }
+    };
+
+    // ==========================================
+    // MULTI-KEY GEMINI AI MANAGEMENT
+    // ==========================================
+    const modalAddKey = document.getElementById('modal-add-key');
+    document.getElementById('btn-show-add-key').onclick = () => {
+      document.getElementById('form-add-key').reset();
+      document.getElementById('add-key-priority').value = '2';
+      modalAddKey.classList.remove('hidden');
+    };
+    document.getElementById('btn-close-modal-key').onclick = () => modalAddKey.classList.add('hidden');
+    document.getElementById('btn-cancel-add-key').onclick = () => modalAddKey.classList.add('hidden');
+
+    document.getElementById('form-add-key').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const label = document.getElementById('add-key-label').value.trim();
+      const api_key = document.getElementById('add-key-val').value.trim();
+      const priority = parseInt(document.getElementById('add-key-priority').value, 10) || 1;
+      const submitBtn = document.getElementById('btn-submit-add-key');
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Menyimpan...';
+
+      try {
+        const res = await adminFetch('/api/admin/ai-keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label, api_key, priority })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          modalAddKey.classList.add('hidden');
+          loadAiKeys();
+        } else {
+          alert(data.message || 'Gagal menambahkan kunci');
+        }
+      } catch (err) {
+        alert('Gagal menghubungi server');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Simpan Kunci AI';
+      }
+    });
+
+    async function loadAiKeys() {
+      try {
+        const res = await adminFetch('/api/admin/ai-keys');
+        const data = await res.json();
+        const tbody = document.getElementById('ai-keys-table-body');
+        tbody.innerHTML = '';
+
+        if (!data.data || data.data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400">Belum ada Gemini API Key yang terdaftar. Klik "+ Tambah Kunci Gemini Cadangan".</td></tr>';
+          return;
+        }
+
+        data.data.forEach(k => {
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-slate-700/30 transition';
+
+          let statusBadge = '';
+          if (k.status === 'ok') {
+            statusBadge = '<span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/20">✅ Normal</span>';
+          } else if (k.status === 'rate_limited') {
+            statusBadge = '<span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 font-semibold border border-amber-500/20">⚠️ Limit 429</span>';
+          } else if (k.status === 'invalid') {
+            statusBadge = '<span class="px-2 py-0.5 rounded bg-red-500/10 text-red-400 font-semibold border border-red-500/20">❌ Invalid</span>';
+          } else {
+            statusBadge = '<span class="px-2 py-0.5 rounded bg-slate-700 text-slate-300 font-semibold">⚪ Belum Diuji</span>';
+          }
+
+          const isActive = Boolean(k.is_active);
+          const activeToggleBtn = isActive 
+            ? `<button onclick="toggleAiKey(${k.id}, false)" class="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-semibold rounded-lg border border-emerald-500/30 transition">Aktif</button>`
+            : `<button onclick="toggleAiKey(${k.id}, true)" class="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-slate-400 font-semibold rounded-lg transition">Nonaktif</button>`;
+
+          tr.innerHTML = `
+            <td class="p-3.5"><span class="px-2.5 py-0.5 rounded bg-blue-500/10 text-blue-400 font-bold">P${k.priority}</span></td>
+            <td class="p-3.5 font-semibold text-white">${escapeHtml(k.label)}</td>
+            <td class="p-3.5 font-mono text-slate-300">${k.masked_key}</td>
+            <td class="p-3.5">${activeToggleBtn}</td>
+            <td class="p-3.5">${statusBadge}</td>
+            <td class="p-3.5 text-slate-400 text-[11px]">${k.last_tested_at ? new Date(k.last_tested_at).toLocaleString('id-ID') : '-'}</td>
+            <td class="p-3.5 text-right space-x-2">
+              <button onclick="testAiKey(${k.id}, this)" class="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-blue-400 font-semibold rounded-lg transition">
+                ⚡ Uji
+              </button>
+              <button onclick="hapusAiKey(${k.id}, '${escapeHtml(k.label)}')" class="px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-semibold rounded-lg transition">
+                Hapus
+              </button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    window.toggleAiKey = async (id, setVal) => {
+      try {
+        const res = await adminFetch(`/api/admin/ai-keys/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_active: setVal ? 1 : 0 })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          loadAiKeys();
+        } else {
+          alert(data.message || 'Gagal mengubah status kunci');
+        }
+      } catch (err) {
+        alert('Gagal menghubungi server');
+      }
+    };
+
+    window.testAiKey = async (id, btn) => {
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Menguji...';
+
+      try {
+        const res = await adminFetch(`/api/admin/ai-keys/${id}/test`, { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert(`✅ Sukses!\n${data.message}\nModel: ${(data.kandidat || []).join(', ')}`);
+        } else {
+          alert(`❌ Gagal!\n${data.message || 'Tidak dapat terhubung'}`);
+        }
+        loadAiKeys();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    };
+
+    window.hapusAiKey = async (id, label) => {
+      if (!confirm(`Hapus kunci AI "${label}"?`)) return;
+      const res = await adminFetch(`/api/admin/ai-keys/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        loadAiKeys();
+      } else {
+        alert(data.message || 'Gagal menghapus kunci');
+      }
+    };
+
+    // Jalankan saat halaman dibuka
+    checkAuth();
+  </script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Environment Variables & Secrets (JANGAN DI-UPLOAD KE GITHUB)
+.env
+.env.local
+.env.*.local
+
+# SQLite Database & Runtime Logs
+*.sqlite*
+*.db*
+data/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
