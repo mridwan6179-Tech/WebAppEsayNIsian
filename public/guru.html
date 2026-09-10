@@ -317,7 +317,10 @@
               <div id="detail-exam-ai-rules" class="mt-2 flex items-center space-x-1.5 text-[11px] flex-wrap gap-y-1"></div>
             </div>
 
-            <div class="flex items-center space-x-2">
+            <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+              <button id="btn-open-wa-broadcast" type="button" class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 transition flex items-center space-x-1.5 shadow-sm" title="Buat Sebaran Pengumuman WhatsApp Resmi">
+                <span>📲 Sebar ke WA</span>
+              </button>
               <button id="btn-edit-exam-modal" class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 bg-slate-50 hover:bg-slate-100 transition flex items-center space-x-1" title="Ubah Jadwal, Waktu, & Pengaturan Ulangan">
                 <span>⏱️ Edit Waktu & Aturan</span>
               </button>
@@ -1028,6 +1031,59 @@
       <div class="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-100/60">
         <div id="laporan-sheet-container" class="bg-white p-6 sm:p-10 rounded-xl shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6 text-slate-800">
           <p class="text-center text-slate-400 py-10">Memuat data laporan nilai...</p>
+        </div>
+      </div>
+    </div>
+  <!-- MODAL SEBARAN WHATSAPP ULANGAN -->
+  <div id="modal-sebaran-wa" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 z-50">
+    <div class="bg-white rounded-2xl max-w-xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200">
+      <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-2xl">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold text-base shadow-sm">
+            💬
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-900 text-sm">Sebaran Pengumuman WhatsApp</h3>
+            <p class="text-[11px] text-slate-500">Teks ringkas &amp; profesional siap kirim langsung ke grup kelas siswa</p>
+          </div>
+        </div>
+        <button id="btn-close-modal-wa" class="text-slate-400 hover:text-slate-600 p-1.5 text-xl font-bold">
+          &times;
+        </button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4 text-xs flex-1">
+        <div class="flex items-center justify-between">
+          <span class="font-semibold text-slate-700">Isi Pesan WhatsApp (Dapat diedit langsung):</span>
+          <button id="btn-regen-ai-broadcast" type="button" class="text-[11px] font-bold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1 rounded-lg transition flex items-center space-x-1">
+            <span id="regen-ai-icon">✨</span>
+            <span id="regen-ai-text">Tulis Ulang via AI</span>
+          </button>
+        </div>
+
+        <textarea id="wa-broadcast-preview" rows="12" class="w-full p-3.5 font-mono text-xs rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50 text-slate-800 leading-relaxed"></textarea>
+
+        <div class="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200 text-emerald-900 text-[11px] space-y-1">
+          <p class="font-bold flex items-center space-x-1">
+            <span>💡</span>
+            <span>Kemudahan Akses Siswa:</span>
+          </p>
+          <p>Tautan di atas sudah otomatis menyertakan token ujian. Saat siswa membuka tautan dari WhatsApp, kode ujian langsung terisi otomatis.</p>
+        </div>
+      </div>
+
+      <div class="p-4 border-t border-slate-200 flex flex-wrap justify-between items-center gap-2 bg-slate-50 rounded-b-2xl">
+        <button id="btn-cancel-modal-wa" type="button" class="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition">
+          Tutup
+        </button>
+        <div class="flex items-center space-x-2">
+          <button id="btn-copy-wa-broadcast" type="button" class="px-3.5 py-2 text-xs font-bold bg-slate-800 hover:bg-slate-900 text-white rounded-xl transition flex items-center space-x-1.5 shadow-sm">
+            <span id="copy-wa-icon">📋</span>
+            <span id="copy-wa-text">Salin Pesan</span>
+          </button>
+          <button id="btn-send-wa-broadcast" type="button" class="px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition flex items-center space-x-1.5 shadow-sm">
+            <span>💬 Buka WhatsApp</span>
+          </button>
         </div>
       </div>
     </div>
@@ -2930,6 +2986,114 @@
           </div>
         </div>
       `;
+    }
+
+    // ==========================================
+    // SEBARAN PENGUMUMAN WHATSAPP (TO-THE-POINT)
+    // ==========================================
+    const modalWa = document.getElementById('modal-sebaran-wa');
+    const btnOpenWa = document.getElementById('btn-open-wa-broadcast');
+    const btnCloseWa = document.getElementById('btn-close-modal-wa');
+    const btnCancelWa = document.getElementById('btn-cancel-modal-wa');
+    const btnCopyWa = document.getElementById('btn-copy-wa-broadcast');
+    const btnSendWa = document.getElementById('btn-send-wa-broadcast');
+    const btnRegenAi = document.getElementById('btn-regen-ai-broadcast');
+    const previewWa = document.getElementById('wa-broadcast-preview');
+
+    function closeWaModal() {
+      if (modalWa) modalWa.classList.add('hidden');
+    }
+
+    if (btnOpenWa) {
+      btnOpenWa.onclick = async () => {
+        if (!activeUlanganId) {
+          alert('Pilih paket ulangan terlebih dahulu.');
+          return;
+        }
+
+        modalWa.classList.remove('hidden');
+        previewWa.value = 'Memuat draf sebaran pengumuman WhatsApp...';
+
+        try {
+          const res = await fetch(`/api/guru/ulangan/${activeUlanganId}/generate-broadcast`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ use_ai: false })
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            previewWa.value = data.text;
+          } else {
+            previewWa.value = 'Gagal memuat pesan: ' + (data.message || 'Error server');
+          }
+        } catch (err) {
+          previewWa.value = 'Gagal memuat pesan: ' + err.message;
+        }
+      };
+    }
+
+    if (btnCloseWa) btnCloseWa.onclick = closeWaModal;
+    if (btnCancelWa) btnCancelWa.onclick = closeWaModal;
+
+    if (btnCopyWa) {
+      btnCopyWa.onclick = async () => {
+        const text = previewWa.value;
+        if (!text) return;
+
+        try {
+          await navigator.clipboard.writeText(text);
+          const icon = document.getElementById('copy-wa-icon');
+          const lbl = document.getElementById('copy-wa-text');
+          if (icon) icon.textContent = '✅';
+          if (lbl) lbl.textContent = 'Tersalin ke Clipboard!';
+          setTimeout(() => {
+            if (icon) icon.textContent = '📋';
+            if (lbl) lbl.textContent = 'Salin Pesan';
+          }, 2500);
+        } catch (e) {
+          previewWa.select();
+          document.execCommand('copy');
+          alert('Teks pesan berhasil disalin!');
+        }
+      };
+    }
+
+    if (btnSendWa) {
+      btnSendWa.onclick = () => {
+        const text = previewWa.value;
+        if (!text) return;
+        const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+        window.open(waUrl, '_blank');
+      };
+    }
+
+    if (btnRegenAi) {
+      btnRegenAi.onclick = async () => {
+        if (!activeUlanganId) return;
+        const txtLabel = document.getElementById('regen-ai-text');
+        const originalText = txtLabel.textContent;
+        txtLabel.textContent = 'Menyusun via AI...';
+        btnRegenAi.disabled = true;
+
+        try {
+          const res = await fetch(`/api/guru/ulangan/${activeUlanganId}/generate-broadcast`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ use_ai: true })
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            previewWa.value = data.text;
+          } else {
+            alert(data.message || 'Gagal menyusun pesan AI');
+          }
+        } catch (err) {
+          alert('Error: ' + err.message);
+        } finally {
+          txtLabel.textContent = originalText;
+          btnRegenAi.disabled = false;
+        }
+      };
     }
   </script>
 </body>

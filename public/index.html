@@ -420,6 +420,13 @@
       }
     }
 
+    // Deteksi parameter link WhatsApp: ?kode=KODE atau ?token=KODE
+    const directKode = urlParams.get('kode') || urlParams.get('token');
+    if (directKode) {
+      inputKode.value = directKode.trim().toUpperCase();
+      checkKodeUlangan(directKode.trim().toUpperCase());
+    }
+
     // Form Masuk Ujian
     document.getElementById('form-masuk').addEventListener('submit', async (e) => {
       e.preventDefault();

@@ -898,6 +898,145 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
     }
 
     return this.fallbackOfflineQuestionGenerator(options);
+  },
+
+  // Template default pesan sebaran WhatsApp yang to-the-point dan siap kirim
+  formatDefaultWhatsAppBroadcast(ulangan, baseUrl = '') {
+    const cleanBase = (baseUrl || '').replace(/\/+$/, '');
+    const directLink = `${cleanBase}/?kode=${ulangan.kode_ujian}`;
+    const classes = (ulangan.kelas && ulangan.kelas.length > 0)
+      ? ulangan.kelas.map(k => k.nama_kelas).join(', ')
+      : (ulangan.tingkat_kelas || 'Seluruh Siswa Terdaftar');
+
+    const lines = [
+      `📢 *PEMBERITAHUAN ULANGAN ONLINE*`,
+      ``,
+      `*Mata Pelajaran:* ${ulangan.mata_pelajaran}`,
+      `*Judul Ulangan:* ${ulangan.judul}`,
+      `*Sasaran Kelas:* ${classes}`,
+      `*KKM:* ${ulangan.kkm || 75}`
+    ];
+
+    if (ulangan.durasi_menit) {
+      lines.push(`*Durasi:* ${ulangan.durasi_menit} Menit`);
+    }
+
+    const zw = ulangan.zona_waktu || 'WIB';
+    if (ulangan.tanggal_mulai || ulangan.tanggal_selesai) {
+      const tzMap = { WIB: 'Asia/Jakarta', WITA: 'Asia/Makassar', WIT: 'Asia/Jayapura' };
+      const tz = tzMap[zw] || 'Asia/Jakarta';
+      const opt = { timeZone: tz, dateStyle: 'medium', timeStyle: 'short' };
+      let jadwalText = '';
+      if (ulangan.tanggal_mulai && ulangan.tanggal_selesai) {
+        const s = new Date(ulangan.tanggal_mulai).toLocaleString('id-ID', opt);
+        const e = new Date(ulangan.tanggal_selesai).toLocaleString('id-ID', opt);
+        jadwalText = `${s} s.d ${e} ${zw}`;
+      } else if (ulangan.tanggal_mulai) {
+        jadwalText = `Mulai ${new Date(ulangan.tanggal_mulai).toLocaleString('id-ID', opt)} ${zw}`;
+      } else {
+        jadwalText = `Batas akhir ${new Date(ulangan.tanggal_selesai).toLocaleString('id-ID', opt)} ${zw}`;
+      }
+      lines.push(`*Jadwal Pengerjaan:* ${jadwalText}`);
+    }
+
+    if (ulangan.deskripsi && ulangan.deskripsi.trim()) {
+      lines.push(``);
+      lines.push(`*Petunjuk:*`);
+      lines.push(`${ulangan.deskripsi.trim()}`);
+    }
+
+    lines.push(``);
+    lines.push(`*Tautan Langsung Ujian:*`);
+    lines.push(`${directLink}`);
+    lines.push(``);
+    lines.push(`*Kode Ujian (Token):*`);
+    lines.push(`*${ulangan.kode_ujian}*`);
+    lines.push(``);
+    lines.push(`_(Buka tautan di atas untuk langsung masuk atau masukkan kode ujian saat diminta)._`);
+
+    return lines.join('\n');
+  },
+
+  // Generator sebaran WhatsApp menggunakan AI jika API key tersedia (To the point, profesional, tanpa basa-basi)
+  async generateWhatsAppBroadcast(ulangan, baseUrl = '') {
+    const defaultText = this.formatDefaultWhatsAppBroadcast(ulangan, baseUrl);
+    const availableKeys = this.getAllActiveApiKeys();
+
+    if (availableKeys.length === 0) {
+      return defaultText;
+    }
+
+    const cleanBase = (baseUrl || '').replace(/\/+$/, '');
+    const directLink = `${cleanBase}/?kode=${ulangan.kode_ujian}`;
+    const classes = (ulangan.kelas && ulangan.kelas.length > 0)
+      ? ulangan.kelas.map(k => k.nama_kelas).join(', ')
+      : (ulangan.tingkat_kelas || 'Kelas Terdaftar');
+
+    const prompt = `
+Anda adalah asisten guru profesional yang bertugas menyusun teks pengumuman sebaran WhatsApp resmi untuk ulangan siswa.
+
+ATURAN WAJIB FORMAT & GAYA BAHASA:
+1. SANGAT TO THE POINT, JELAS, DAN PROFESIONAL.
+2. DILARANG membuat kata sambutan atau basa-basi (DILARANG: "Halo siswa-siswi", "Semoga kalian sehat", "Assalamu'alaikum semuanya", dll). Langsung ke judul pengumuman dan data teknis ulangan!
+3. Gunakan formatting WhatsApp yang rapi (*tebal* untuk judul/label/kode ujian).
+4. WAJIB mencakup komponen ini secara runtut:
+   - Header: *PEMBERITAHUAN ULANGAN ONLINE*
+   - Mata Pelajaran & Judul Ulangan
+   - Sasaran Kelas: ${classes}
+   - Waktu / Durasi / Batas Pengerjaan
+   - Petunjuk / Deskripsi singkat
+   - Tautan Ujian: ${directLink}
+   - Kode Ujian (Token): *${ulangan.kode_ujian}*
+   - Catatan 1 baris singkat cara akses.
+
+DATA ULANGAN:
+- Judul: ${ulangan.judul}
+- Mata Pelajaran: ${ulangan.mata_pelajaran}
+- Sasaran Kelas: ${classes}
+- Durasi: ${ulangan.durasi_menit ? `${ulangan.durasi_menit} Menit` : 'Mengikuti jadwal jam pelajaran'}
+- Jadwal Buka: ${ulangan.tanggal_mulai || '-'}
+- Jadwal Tutup: ${ulangan.tanggal_selesai || '-'}
+- KKM: ${ulangan.kkm || 75}
+- Deskripsi: ${ulangan.deskripsi || 'Kerjakan dengan teliti, cermat, dan mandiri.'}
+- Kode Ujian: ${ulangan.kode_ujian}
+- Tautan: ${directLink}
+
+Kembalikan HANYA teks sebaran pesan WhatsApp siap kirim tanpa penjelasan pembuka/penutup apapun.
+`;
+
+    for (const keyObj of availableKeys) {
+      const activeKey = keyObj.key;
+      const candidateList = await this.getOrderedCandidateModels(activeKey);
+
+      for (const model of candidateList) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`;
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: AbortSignal.timeout(12000),
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: {
+                temperature: 0.2
+              }
+            })
+          });
+
+          if (!response.ok) continue;
+          const data = await response.json();
+          const candidate = data.candidates?.[0];
+          const textResponse = candidate?.content?.parts?.[0]?.text;
+          if (textResponse && textResponse.trim()) {
+            return textResponse.trim();
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+    }
+
+    return defaultText;
   }
 };
 

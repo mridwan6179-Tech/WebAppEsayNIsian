@@ -269,6 +269,32 @@ app.delete('/api/guru/ulangan/:id', requireGuru, (req, res) => {
   }
 });
 
+// Generator Sebaran WhatsApp Resmi & To-The-Point (AI & Template Default)
+app.post('/api/guru/ulangan/:id/generate-broadcast', requireGuru, async (req, res) => {
+  try {
+    const ulangan = examService.getUlanganById(req.params.id, req.guru.guruId);
+    if (!ulangan) {
+      return res.status(404).json({ success: false, message: 'Ulangan tidak ditemukan' });
+    }
+    const host = req.get('host') || 'localhost:3000';
+    const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+    const baseUrl = `${proto}://${host}`;
+    const { use_ai } = req.body || {};
+
+    let text;
+    if (use_ai) {
+      text = await geminiService.generateWhatsAppBroadcast(ulangan, baseUrl);
+    } else {
+      text = geminiService.formatDefaultWhatsAppBroadcast(ulangan, baseUrl);
+    }
+
+    res.json({ success: true, text });
+  } catch (err) {
+    console.error('Error generate broadcast:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // Laporan Nilai per Kelas & Ulangan (Cetak / PDF)
 app.get('/api/guru/ulangan/:id/laporan', requireGuru, (req, res) => {
   try {
