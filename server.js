@@ -15,6 +15,7 @@ const classService = require('./src/services/classService');
 const adminService = require('./src/services/adminService');
 const fileParserService = require('./src/services/fileParserService');
 const waitingRoomService = require('./src/services/waitingRoomService');
+const bankSoalService = require('./src/services/bankSoalService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -346,7 +347,10 @@ app.post('/api/guru/generate-soal', requireGuru, async (req, res) => {
       tingkat_kesulitan,
       target_total_bobot,
       jumlah_isian,
-      jumlah_essay
+      jumlah_essay,
+      is_listening,
+      bahasa,
+      deskripsi_audio
     } = req.body;
 
     if (!input_sumber || input_sumber.trim() === '') {
@@ -362,13 +366,129 @@ app.post('/api/guru/generate-soal', requireGuru, async (req, res) => {
       tingkat_kesulitan,
       target_total_bobot,
       jumlah_isian,
-      jumlah_essay
+      jumlah_essay,
+      is_listening,
+      bahasa,
+      deskripsi_audio
     });
 
     res.json(result);
   } catch (err) {
     console.error('Error generate soal AI:', err);
     res.status(err.status === 429 ? 429 : 500).json({ success: false, message: err.message });
+  }
+});
+
+// ==================== ENDPOINT BANK SOAL GURU ====================
+// Ambil semua soal dari Bank Soal milik guru (dengan filter kategori/kesulitan/listening/search)
+app.get('/api/guru/bank-soal', requireGuru, (req, res) => {
+  try {
+    const items = bankSoalService.getAll(req.guru.guruId, req.query);
+    res.json({ success: true, data: items });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Ambil daftar kategori unik dari Bank Soal
+app.get('/api/guru/bank-soal/categories', requireGuru, (req, res) => {
+  try {
+    const categories = bankSoalService.getCategories(req.guru.guruId);
+    res.json({ success: true, data: categories });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Ambil detail 1 butir Bank Soal
+app.get('/api/guru/bank-soal/:id', requireGuru, (req, res) => {
+  try {
+    const item = bankSoalService.getById(req.params.id, req.guru.guruId);
+    if (!item) {
+      return res.status(404).json({ success: false, message: 'Soal bank tidak ditemukan' });
+    }
+    res.json({ success: true, data: item });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Tambah soal baru ke Bank Soal
+app.post('/api/guru/bank-soal', requireGuru, (req, res) => {
+  try {
+    const created = bankSoalService.create(req.guru.guruId, req.body);
+    res.status(201).json({ success: true, data: created, message: 'Soal berhasil ditambahkan ke Bank Soal' });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// Tambah banyak butir soal sekaligus ke Bank Soal (misal dari AI Generator)
+app.post('/api/guru/bank-soal/bulk', requireGuru, (req, res) => {
+  try {
+    const { soal } = req.body;
+    if (!Array.isArray(soal) || soal.length === 0) {
+      return res.status(400).json({ success: false, message: 'Daftar butir soal wajib disertakan' });
+    }
+    const created = bankSoalService.createBatch(req.guru.guruId, soal);
+    res.status(201).json({ success: true, data: created, message: `${created.length} butir soal berhasil disimpan ke Bank Soal` });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// Perbarui soal di Bank Soal
+app.put('/api/guru/bank-soal/:id', requireGuru, (req, res) => {
+  try {
+    const updated = bankSoalService.update(req.params.id, req.guru.guruId, req.body);
+    res.json({ success: true, data: updated, message: 'Soal di Bank Soal berhasil diperbarui' });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// Hapus soal dari Bank Soal
+app.delete('/api/guru/bank-soal/:id', requireGuru, (req, res) => {
+  try {
+    bankSoalService.delete(req.params.id, req.guru.guruId);
+    res.json({ success: true, message: 'Soal berhasil dihapus dari Bank Soal' });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// Salin soal dari paket ulangan aktif ke Bank Soal
+app.post('/api/guru/bank-soal/copy-from-exam/:soalId', requireGuru, (req, res) => {
+  try {
+    const copied = bankSoalService.copyFromExamSoal(req.params.soalId, req.guru.guruId, req.body.kategori);
+    res.json({ success: true, data: copied, message: 'Soal berhasil disimpan ke Bank Soal' });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// Impor sekumpulan soal dari Bank Soal ke Ulangan aktif
+app.post('/api/guru/bank-soal/import-to-exam', requireGuru, (req, res) => {
+  try {
+    const { ulangan_id, bank_soal_ids } = req.body;
+    if (!ulangan_id || !Array.isArray(bank_soal_ids) || bank_soal_ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'ID ulangan dan daftar ID bank soal wajib disertakan' });
+    }
+    const imported = bankSoalService.importToExam(ulangan_id, req.guru.guruId, bank_soal_ids);
+    res.json({ success: true, data: imported, message: `${imported.length} soal berhasil diimpor ke paket ulangan` });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// AI Cerdas Pemilih Soal dari Bank Soal
+app.post('/api/guru/bank-soal/ai-pick', requireGuru, (req, res) => {
+  try {
+    const { ulangan_id } = req.body;
+    const result = bankSoalService.aiSmartPick(req.guru.guruId, ulangan_id, req.body);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
   }
 });
 
@@ -495,6 +615,16 @@ app.post('/api/guru/ulangan/:id/release', requireGuru, (req, res) => {
 app.post('/api/guru/ulangan/:id/ai/start', requireGuru, async (req, res) => {
   try {
     const result = await queueService.startReview(req.params.id);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Endpoint pemrosesan per langkah antrean AI (optimal untuk Serverless Vercel & real-time progress)
+app.post('/api/guru/ulangan/:id/ai/process-next', requireGuru, async (req, res) => {
+  try {
+    const result = await queueService.processNextAnswer(req.params.id);
     res.json(result);
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

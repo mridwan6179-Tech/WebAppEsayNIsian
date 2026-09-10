@@ -122,8 +122,19 @@
       </div>
     </header>
 
-    <!-- Konten Utama: Tabs & Panels -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Main Dashboard Nav: Ulangan vs Bank Soal -->
+    <div class="flex items-center space-x-2 border-b border-slate-200 pb-2">
+      <button id="nav-tab-ulangan" type="button" class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-blue-600 text-white shadow-sm shadow-blue-500/20">
+        <span>📝 Paket Ulangan Siswa</span>
+      </button>
+      <button id="nav-tab-bank-soal" type="button" class="px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 bg-white text-slate-700 hover:bg-slate-100 border border-slate-200">
+        <span>📂 Bank Soal Mandiri</span>
+        <span id="badge-bank-soal-count" class="bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded-full">0</span>
+      </button>
+    </div>
+
+    <!-- VIEW 1: PAKET ULANGAN SISWA -->
+    <div id="view-ulangan-mode" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       
       <!-- Panel Kiri: Daftar Ulangan & Buat Baru -->
       <div class="lg:col-span-1 space-y-4">
@@ -408,7 +419,7 @@
                 <h4 class="font-bold text-slate-800">Form Soal Baru</h4>
                 <span class="text-[10px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-100 font-medium">📐 Support Simbol Matematika KaTeX ($x^2$, $\sqrt{n}$, $$\frac{a}{b}$$)</span>
               </div>
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label class="block font-semibold mb-1">Jenis Soal</label>
                   <select id="soal-jenis" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300">
@@ -419,6 +430,10 @@
                 <div>
                   <label class="block font-semibold mb-1">Bobot Soal</label>
                   <input type="number" id="soal-bobot" min="1" max="100" value="10" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300">
+                </div>
+                <div>
+                  <label class="block font-semibold mb-1">Kategori / Bab (Opsional)</label>
+                  <input type="text" id="soal-kategori" placeholder="Contoh: Bab 1 Aljabar, Listening..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300">
                 </div>
               </div>
               <div>
@@ -444,7 +459,10 @@
                     <img id="soal-gambar-preview-img" src="" alt="Pratinjau" class="max-h-28 rounded border border-slate-200 object-contain bg-slate-50 p-1">
                     <button type="button" id="btn-clear-soal-gambar" class="absolute -top-1.5 -right-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow" title="Hapus gambar">&times;</button>
                   </div>
-                  <span class="text-[11px] text-emerald-600 font-medium self-center">✓ Gambar siap dilampirkan</span>
+                  <div class="flex flex-col justify-center">
+                    <span class="text-[11px] text-emerald-600 font-bold">✓ Gambar siap dilampirkan</span>
+                    <span id="soal-gambar-size-badge" class="text-[10px] text-slate-500 font-medium"></span>
+                  </div>
                 </div>
               </div>
 
@@ -455,6 +473,50 @@
               <div>
                 <label class="block font-semibold mb-1">Rubrik Penilaian (Opsional)</label>
                 <input type="text" id="soal-rubrik" dir="auto" placeholder="Pedoman penilaian parsial..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm">
+              </div>
+
+              <!-- Pembahasan Konsep Mendalam -->
+              <div>
+                <label class="block font-semibold mb-1 text-slate-700">💡 Pembahasan Konsep Mendalam (Wajib untuk Evaluasi & Pembelajaran Siswa)</label>
+                <textarea id="soal-pembahasan" rows="2" dir="auto" placeholder="Uraikan penjelasan mengapa kunci jawaban tersebut benar dan konsep ilmiahnya..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm"></textarea>
+              </div>
+
+              <!-- Fitur Soal Menyimak (Listening / Audio) -->
+              <div class="p-3 bg-amber-50/70 rounded-xl border border-amber-200 space-y-2.5">
+                <label class="flex items-center space-x-2 cursor-pointer select-none">
+                  <input type="checkbox" id="soal-is-listening" class="w-4 h-4 rounded text-amber-600 focus:ring-amber-500">
+                  <span class="font-bold text-amber-900 text-xs">🎧 Aktifkan Soal Menyimak (Listening / Audio)</span>
+                </label>
+
+                <div id="wrapper-soal-listening-box" class="hidden space-y-2 pt-2 border-t border-amber-200/80">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label class="block font-semibold text-amber-950 text-[11px] mb-1">Bahasa Pelajaran / Pengantar</label>
+                      <select id="soal-bahasa" class="w-full px-2 py-1 text-xs rounded-lg border border-amber-300 bg-white font-medium text-slate-800">
+                        <option value="Bahasa Inggris" selected>Bahasa Inggris (English)</option>
+                        <option value="Bahasa Arab">Bahasa Arab (العربية)</option>
+                        <option value="Bahasa Indonesia">Bahasa Indonesia</option>
+                        <option value="Bahasa Jepang">Bahasa Jepang</option>
+                        <option value="Lainnya">Lainnya / Umum</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block font-semibold text-amber-950 text-[11px] mb-1">File Audio (.mp3, .wav, .m4a)</label>
+                      <input type="file" id="soal-audio-file" accept="audio/*" class="w-full text-[11px] text-slate-500 file:mr-2 file:py-0.5 file:px-2 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-amber-100 file:text-amber-800 hover:file:bg-amber-200">
+                      <input type="hidden" id="soal-audio-url">
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block font-semibold text-amber-950 text-[11px] mb-1">Naskah Percakapan / Suara AI (Text-to-Speech):</label>
+                    <textarea id="soal-audio-script" rows="2" placeholder="Ketik teks percakapan yang dibacakan suara AI jika tidak mengunggah file mp3..." class="w-full px-2.5 py-1.5 rounded-lg border border-amber-300 text-xs bg-white"></textarea>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <button type="button" id="btn-test-soal-tts" class="text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold px-3 py-1 rounded-lg transition flex items-center space-x-1 shadow-sm">
+                      <span>🔊 Dengar Contoh Suara (TTS)</span>
+                    </button>
+                    <span class="text-[10px] text-amber-800 font-medium">Siswa hanya akan mendengar suara tanpa melihat teks naskah.</span>
+                  </div>
+                </div>
               </div>
               <div class="flex justify-end space-x-2 pt-1">
                 <button type="button" id="btn-cancel-add-soal" class="px-2.5 py-1 text-slate-600">Batal</button>
@@ -589,6 +651,101 @@
 
       </div>
     </div>
+    <!-- AKHIR VIEW 1 -->
+
+    <!-- VIEW 2: BANK SOAL MANDIRI -->
+    <div id="view-bank-soal-mode" class="hidden space-y-5">
+      <!-- Header Bank Soal -->
+      <div class="bg-gradient-to-r from-purple-900 to-indigo-900 text-white p-5 sm:p-6 rounded-2xl shadow-md flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <span class="inline-block px-2.5 py-0.5 bg-white/20 backdrop-blur-sm text-white font-bold text-[10px] sm:text-[11px] rounded-lg uppercase tracking-wider mb-2">
+            Koleksi Terpisah & Permanen
+          </span>
+          <h2 class="text-lg sm:text-xl font-black">Bank Soal & Pembahasan Konsep</h2>
+          <p class="text-xs text-purple-200 max-w-xl mt-1">
+            Koleksi soal guru terstruktur lengkap dengan kategori, tingkat kesulitan, rubrik/pembahasan mendalam, dan naskah audio listening.
+          </p>
+        </div>
+        <div class="flex items-center space-x-2 flex-wrap gap-y-2">
+          <button id="btn-open-ai-generator-bank" type="button" class="px-3.5 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 border border-purple-400/40">
+            <span>✨ Buat Soal via AI</span>
+          </button>
+          <button id="btn-open-ai-smart-pick" type="button" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5">
+            <span>🤖 AI Smart Pick</span>
+          </button>
+          <button id="btn-open-create-bank-soal" type="button" class="px-3.5 py-2 bg-white hover:bg-purple-50 text-purple-900 font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5">
+            <span>+ Buat Manual</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Ringkasan Statistik Bank Soal -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="text-[11px] text-slate-500 font-semibold block">Total Soal Bank</span>
+          <span id="bank-stat-total" class="text-2xl font-black text-slate-900">0</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="text-[11px] text-slate-500 font-semibold block">Total Kategori</span>
+          <span id="bank-stat-kategori" class="text-2xl font-black text-purple-700">0</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="text-[11px] text-slate-500 font-semibold block">Soal Menyimak (Listening)</span>
+          <span id="bank-stat-listening" class="text-2xl font-black text-amber-600">0</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="text-[11px] text-slate-500 font-semibold block">Dilengkapi Pembahasan</span>
+          <span id="bank-stat-pembahasan" class="text-2xl font-black text-emerald-600">0</span>
+        </div>
+      </div>
+
+      <!-- Filter Bar Bank Soal -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5 text-xs">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Filter Kategori</label>
+            <select id="bank-filter-kategori" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700">
+              <option value="all">Semua Kategori</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Tipe Soal</label>
+            <select id="bank-filter-jenis" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700">
+              <option value="all">Semua Tipe</option>
+              <option value="isian">Isian Singkat</option>
+              <option value="essay">Essay (Uraian)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Tingkat Kesulitan</label>
+            <select id="bank-filter-kesulitan" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700">
+              <option value="all">Semua Kesulitan</option>
+              <option value="mudah">Mudah</option>
+              <option value="sedang">Sedang</option>
+              <option value="sulit">Sulit</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Format Soal</label>
+            <select id="bank-filter-listening" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700">
+              <option value="all">Semua Format</option>
+              <option value="1">🎧 Hanya Listening (Audio)</option>
+              <option value="0">📖 Hanya Teks Standar</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">Cari Kata Kunci</label>
+            <input type="text" id="bank-filter-search" placeholder="Pertanyaan / pembahasan..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300">
+          </div>
+        </div>
+      </div>
+
+      <!-- Container Kartu Soal Bank -->
+      <div id="bank-soal-cards-container" class="space-y-3">
+        <p class="text-center text-slate-400 py-8 text-xs">Memuat koleksi Bank Soal...</p>
+      </div>
+    </div>
+    <!-- AKHIR VIEW 2 -->
   </div>
 
   <!-- MODAL REVIEW JAWABAN SISWA -->
@@ -824,6 +981,10 @@
             <span>AI Soal Generator (Gemini Flash)</span>
           </h3>
           <p class="text-xs text-slate-500">Buat soal, kunci jawaban acuan, rubrik konsep, dan bobot otomatis</p>
+          <div id="gen-target-badge" class="mt-1.5 inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-200">
+            <span>🎯 Target Penyimpanan:</span>
+            <span id="gen-target-label">Paket Ulangan</span>
+          </div>
         </div>
         <button id="btn-close-ai-generator" class="text-slate-400 hover:text-slate-600 p-1.5 text-lg font-bold">
           &times;
@@ -974,6 +1135,37 @@
               </div>
             </div>
 
+            <!-- Pilihan Soal Menyimak / Listening -->
+            <div class="p-3.5 bg-amber-50/80 rounded-xl border border-amber-200 space-y-2.5">
+              <label class="flex items-center space-x-2 cursor-pointer select-none">
+                <input type="checkbox" id="gen-is-listening" class="w-4 h-4 rounded text-amber-600 focus:ring-amber-500">
+                <span class="font-bold text-amber-900 text-xs">🎧 Buat Soal Menyimak (Listening / Audio Comprehension)</span>
+              </label>
+              <div id="wrapper-gen-listening-options" class="hidden space-y-2.5 pt-2 border-t border-amber-200/60">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label class="block font-semibold text-amber-950 text-[11px] mb-1">Pelajaran Bahasa / Pengantar</label>
+                    <select id="gen-bahasa" class="w-full px-2.5 py-1.5 rounded-lg border border-amber-300 text-xs bg-white font-medium text-slate-800">
+                      <option value="Bahasa Inggris" selected>Bahasa Inggris (English)</option>
+                      <option value="Bahasa Arab">Bahasa Arab (العربية)</option>
+                      <option value="Bahasa Indonesia">Bahasa Indonesia</option>
+                      <option value="Bahasa Jepang">Bahasa Jepang</option>
+                      <option value="Bahasa Lainnya">Bahasa Lain / Umum</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block font-semibold text-amber-950 text-[11px] mb-1">Skenario Suara AI</label>
+                    <span class="text-[11px] text-amber-800 font-medium block">AI otomatis meracik naskah & suara TTS di browser</span>
+                  </div>
+                </div>
+                <div>
+                  <label class="block font-semibold text-amber-950 text-[11px] mb-0.5">Deskripsi Skenario / Percakapan yang Ingin Dibuatkan Suaranya oleh AI (Opsional):</label>
+                  <input type="text" id="gen-deskripsi-audio" placeholder="Contoh: Percakapan dua turis di stasiun menanyakan jadwal kereta ke Tokyo..." class="w-full px-2.5 py-1.5 rounded-lg border border-amber-300 text-xs bg-white">
+                  <p class="text-[10px] text-amber-700 mt-0.5">Jika Anda tidak memiliki berkas rekaman, AI akan otomatis membuat naskah dialog percakapan dan pembicara sintetis (TTS) untuk siswa!</p>
+                </div>
+              </div>
+            </div>
+
             <div>
               <label class="block font-semibold text-slate-700 mb-1">Target Total Akumulasi Bobot</label>
               <input type="number" id="gen-target-bobot" min="10" max="1000" value="100" class="w-full max-w-xs px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs">
@@ -1011,15 +1203,258 @@
           </div>
 
           <!-- Tombol Aksi Terapkan -->
-          <div class="pt-2 flex justify-end space-x-2 border-t border-slate-100">
-            <button id="btn-close-generator-preview" type="button" class="px-4 py-2 text-slate-600 hover:bg-slate-100 font-semibold rounded-xl transition">
-              Batal
-            </button>
-            <button id="btn-apply-generated-soal" type="button" class="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl shadow transition flex items-center space-x-1.5">
-              <span>Masukkan ke Ulangan Ini</span>
+          <div class="pt-2 flex justify-between items-center border-t border-slate-100 flex-wrap gap-2">
+            <div id="gen-save-copy-bank-wrapper" class="flex items-center space-x-2">
+              <label class="flex items-center space-x-1.5 cursor-pointer text-xs text-purple-900 font-semibold select-none">
+                <input type="checkbox" id="chk-also-save-to-bank" class="w-4 h-4 text-purple-600 rounded">
+                <span>Sekaligus simpan salinan ke Bank Soal Mandiri</span>
+              </label>
+            </div>
+            <div class="flex justify-end space-x-2 ml-auto">
+              <button id="btn-close-generator-preview" type="button" class="px-4 py-2 text-slate-600 hover:bg-slate-100 font-semibold rounded-xl transition">
+                Batal
+              </button>
+              <button id="btn-apply-generated-soal" type="button" class="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl shadow transition flex items-center space-x-1.5">
+                <span id="btn-apply-generated-soal-text">Masukkan ke Ulangan Ini</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: TAMBAH / EDIT SOAL DI BANK SOAL -->
+  <div id="modal-bank-soal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+      <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-gradient-to-r from-purple-50 to-indigo-50">
+        <div>
+          <h3 id="modal-bank-soal-title" class="font-bold text-slate-900 text-sm">Tambah Soal ke Bank Soal</h3>
+          <p class="text-xs text-slate-500">Soal akan tersimpan permanen dan dapat dimasukkan ke ulangan kapan pun</p>
+        </div>
+        <button id="btn-close-modal-bank-soal" class="text-slate-400 hover:text-slate-600 p-1.5 text-lg font-bold">&times;</button>
+      </div>
+      <form id="form-bank-soal" class="p-5 overflow-y-auto space-y-4 text-xs flex-1">
+        <input type="hidden" id="bank-soal-id">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold mb-1">Kategori / Bab Pokok <span class="text-red-500">*</span></label>
+            <input type="text" id="bank-kategori" required list="bank-kategori-datalist" placeholder="Contoh: Algoritma, Listening Daily..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300">
+            <datalist id="bank-kategori-datalist"></datalist>
+          </div>
+          <div>
+            <label class="block font-semibold mb-1">Sub-Topik Materi (Opsional)</label>
+            <input type="text" id="bank-sub-topik" placeholder="Contoh: Percakapan Bandara, Looping For..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300">
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block font-semibold mb-1">Jenis Soal</label>
+            <select id="bank-jenis" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300">
+              <option value="isian">Isian Singkat</option>
+              <option value="essay">Essay (Uraian)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold mb-1">Tingkat Kesulitan</label>
+            <select id="bank-kesulitan" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300">
+              <option value="mudah">Mudah</option>
+              <option value="sedang" selected>Sedang</option>
+              <option value="sulit">Sulit</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold mb-1">Bobot Standar</label>
+            <input type="number" id="bank-bobot" min="1" max="100" value="10" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300">
+          </div>
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Pertanyaan Soal <span class="text-red-500">*</span></label>
+          <textarea id="bank-pertanyaan" required rows="3" dir="auto" placeholder="Tuliskan pertanyaan... Mendukung KaTeX ($x^2$, $\sqrt{x}$)" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm"></textarea>
+        </div>
+
+        <!-- Gambar / Diagram Soal dengan Auto-Kompresi -->
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+          <label class="block font-semibold text-slate-700">Gambar / Diagram Soal (Otomatis Dikompresi Ringan)</label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[11px] text-slate-500 mb-0.5">Unggah Foto (Otomatis Diresize & Kompres):</label>
+              <input type="file" id="bank-gambar-file" accept="image/*" class="w-full text-slate-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100">
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-500 mb-0.5">Atau URL Gambar Eksternal:</label>
+              <input type="text" id="bank-gambar-url" placeholder="https://..." class="w-full px-2.5 py-1 rounded-lg border border-slate-300">
+            </div>
+          </div>
+          <div id="bank-gambar-preview-box" class="hidden pt-1 flex items-start space-x-2">
+            <div class="relative">
+              <img id="bank-gambar-preview-img" src="" alt="Pratinjau" class="max-h-24 rounded border border-slate-200 object-contain bg-white p-1">
+              <button type="button" id="btn-clear-bank-gambar" class="absolute -top-1.5 -right-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow">&times;</button>
+            </div>
+            <span id="bank-gambar-compress-badge" class="text-[11px] text-emerald-600 font-semibold self-center">✓ Siap dilampirkan</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold mb-1">Kunci Jawaban Guru</label>
+          <textarea id="bank-kunci" rows="2" dir="auto" placeholder="Kunci jawaban acuan penilaian..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm"></textarea>
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Rubrik Penilaian (Opsional)</label>
+          <input type="text" id="bank-rubrik" dir="auto" placeholder="Panduan kualitatif penskoran..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm">
+        </div>
+        <div>
+          <label class="block font-semibold mb-1 text-slate-800">💡 Pembahasan Konsep Mendalam (Wajib untuk Bank Soal)</label>
+          <textarea id="bank-pembahasan" rows="2" dir="auto" placeholder="Penjelasan lengkap mengenai materi konsep soal dan mengapa kunci jawaban tersebut benar..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm"></textarea>
+        </div>
+
+        <!-- Sakelar Listening Audio -->
+        <div class="p-3.5 bg-amber-50/70 rounded-xl border border-amber-200 space-y-2.5">
+          <label class="flex items-center space-x-2 cursor-pointer select-none">
+            <input type="checkbox" id="bank-is-listening" class="w-4 h-4 rounded text-amber-600 focus:ring-amber-500">
+            <span class="font-bold text-amber-900 text-xs">🎧 Format Soal Menyimak (Listening / Audio)</span>
+          </label>
+          <div id="wrapper-bank-listening-box" class="hidden space-y-2 pt-2 border-t border-amber-200/80">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label class="block font-semibold text-amber-950 text-[11px] mb-1">Bahasa Pengantar</label>
+                <select id="bank-bahasa" class="w-full px-2 py-1 text-xs rounded-lg border border-amber-300 bg-white font-medium">
+                  <option value="Bahasa Inggris" selected>Bahasa Inggris (English)</option>
+                  <option value="Bahasa Arab">Bahasa Arab (العربية)</option>
+                  <option value="Bahasa Indonesia">Bahasa Indonesia</option>
+                  <option value="Bahasa Jepang">Bahasa Jepang</option>
+                  <option value="Lainnya">Lainnya / Umum</option>
+                </select>
+              </div>
+              <div>
+                <label class="block font-semibold text-amber-950 text-[11px] mb-1">File Audio (.mp3, .wav, .m4a)</label>
+                <input type="file" id="bank-audio-file" accept="audio/*" class="w-full text-[11px] text-slate-500 file:mr-2 file:py-0.5 file:px-2 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-amber-100 file:text-amber-800">
+                <input type="hidden" id="bank-audio-url">
+              </div>
+            </div>
+            <div>
+              <label class="block font-semibold text-amber-950 text-[11px] mb-1">Naskah Percakapan / Suara AI (Text-to-Speech):</label>
+              <textarea id="bank-audio-script" rows="2" placeholder="Teks dialog yang dibacakan pembicara sintetis..." class="w-full px-2.5 py-1.5 rounded-lg border border-amber-300 text-xs bg-white"></textarea>
+            </div>
+            <div class="flex items-center justify-between">
+              <button type="button" id="btn-test-bank-tts" class="text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold px-3 py-1 rounded-lg transition flex items-center space-x-1 shadow-sm">
+                <span>🔊 Dengar Suara Naskah (TTS)</span>
+              </button>
+              <span class="text-[10px] text-amber-800 font-medium">Siswa hanya mendengar suara percakapan.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+          <button type="button" id="btn-cancel-modal-bank-soal" class="px-3.5 py-1.5 text-slate-600 hover:bg-slate-100 font-semibold rounded-lg">Batal</button>
+          <button type="submit" class="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg shadow-sm">Simpan ke Bank Soal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: AI SMART PICK DARI BANK SOAL -->
+  <div id="modal-ai-smart-pick" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+      <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-gradient-to-r from-amber-50 to-orange-50">
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm flex items-center space-x-1.5">
+            <span>🤖</span>
+            <span>AI Smart Pick: Pemilih Soal Cerdas dari Bank Soal</span>
+          </h3>
+          <p class="text-xs text-slate-500">AI memilihkan butir soal paling cocok dari bank soal sesuai kriteria ulangan</p>
+        </div>
+        <button id="btn-close-modal-ai-smart-pick" class="text-slate-400 hover:text-slate-600 p-1.5 text-lg font-bold">&times;</button>
+      </div>
+      <div class="p-5 overflow-y-auto space-y-4 text-xs flex-1">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Pilih Paket Ulangan Target yang Dituju <span class="text-red-500">*</span></label>
+          <select id="smart-pick-ulangan" class="w-full px-2.5 py-2 rounded-lg border border-slate-300 bg-white font-medium text-slate-800">
+            <option value="">-- Pilih Ulangan Aktif --</option>
+          </select>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Filter Kategori di Bank Soal</label>
+            <select id="smart-pick-kategori" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white">
+              <option value="all">Semua Kategori</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Kata Kunci / Topik Khusus (Opsional)</label>
+            <input type="text" id="smart-pick-subtopik" placeholder="Contoh: Fotosintesis, Tenses..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300">
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Total Soal</label>
+            <input type="number" id="smart-pick-total" min="1" max="50" value="5" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-center font-bold">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Jumlah Isian</label>
+            <input type="number" id="smart-pick-isian" min="0" max="50" value="4" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-center font-bold">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Jumlah Essay</label>
+            <input type="number" id="smart-pick-essay" min="0" max="50" value="1" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-center font-bold">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Tingkat Kesulitan</label>
+            <select id="smart-pick-kesulitan" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white">
+              <option value="campuran">Bervariasi / Campuran</option>
+              <option value="mudah">Dominan Mudah</option>
+              <option value="sedang" selected>Dominan Sedang</option>
+              <option value="sulit">Dominan Sulit</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Format Soal</label>
+            <select id="smart-pick-listening" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white">
+              <option value="">Semua Format</option>
+              <option value="1">Hanya Soal Listening (Audio)</option>
+              <option value="0">Hanya Soal Standar (Non-Listening)</option>
+            </select>
+          </div>
+        </div>
+        <button id="btn-do-smart-pick" type="button" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold rounded-xl shadow transition flex items-center justify-center space-x-2">
+          <span>🔍 AI Smart Pick: Cari & Pilihkan Soal Sekarang</span>
+        </button>
+
+        <!-- Container Hasil AI Smart Pick -->
+        <div id="smart-pick-result-box" class="hidden space-y-3 pt-3 border-t border-slate-100">
+          <div class="flex justify-between items-center bg-amber-50 p-2.5 rounded-xl border border-amber-200 text-amber-900">
+            <span class="font-bold" id="smart-pick-result-count">Terpilih 0 soal cocok</span>
+            <span class="text-[11px]">Periksa dan centang soal yang ingin diimpor</span>
+          </div>
+          <div id="smart-pick-cards-list" class="space-y-2 max-h-64 overflow-y-auto p-1"></div>
+          <div class="flex justify-end space-x-2 pt-2">
+            <button id="btn-cancel-smart-pick" type="button" class="px-3.5 py-1.5 text-slate-600 font-semibold">Tutup</button>
+            <button id="btn-apply-smart-pick" type="button" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow transition flex items-center space-x-1.5">
+              <span>📥 Impor Soal Terpilih ke Ulangan</span>
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: QUICK IMPORT DARI SATUAN BANK SOAL KE ULANGAN -->
+  <div id="modal-quick-import-exam" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 space-y-4 text-xs">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+        <h4 class="font-bold text-slate-800">Masukkan ke Ulangan Aktif</h4>
+        <button id="btn-close-quick-import" class="text-slate-400 hover:text-slate-600 text-base font-bold">&times;</button>
+      </div>
+      <p class="text-slate-500">Pilih paket ulangan yang ingin ditambahkan soal ini:</p>
+      <select id="quick-import-select-exam" class="w-full px-2.5 py-2 rounded-lg border border-slate-300 bg-white font-medium text-slate-800">
+        <option value="">-- Pilih Ulangan --</option>
+      </select>
+      <input type="hidden" id="quick-import-bank-id">
+      <div class="flex justify-end space-x-2 pt-2">
+        <button type="button" id="btn-cancel-quick-import" class="px-3 py-1.5 text-slate-600 font-semibold">Batal</button>
+        <button type="button" id="btn-confirm-quick-import" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow">Tambahkan</button>
       </div>
     </div>
   </div>
@@ -1043,6 +1478,9 @@
               <option value="all">Semua Kelas</option>
             </select>
           </div>
+          <button id="btn-export-excel" type="button" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg transition flex items-center space-x-1 shadow">
+            <span>📥 Download Excel (.csv)</span>
+          </button>
           <button id="btn-do-print" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-lg transition flex items-center space-x-1 shadow">
             <span>Cetak / Simpan PDF</span>
           </button>
@@ -1954,23 +2392,44 @@
       container.innerHTML = '';
 
       if (soalList.length === 0) {
-        container.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">Belum ada soal. Klik "+ Tambah Manual" atau "✨ AI Generator Soal" di atas.</p>';
+        container.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">Belum ada soal. Klik "+ Tambah Manual", "📂 Ambil dari Bank Soal", atau "✨ AI Generator Soal" di atas.</p>';
         return;
       }
 
       soalList.forEach((s, idx) => {
         const item = document.createElement('div');
-        item.className = 'p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2';
+        item.className = 'p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2.5';
         item.innerHTML = `
-          <div class="flex justify-between items-start">
-            <div class="flex items-center space-x-2">
+          <div class="flex justify-between items-start gap-2">
+            <div class="flex items-center space-x-2 flex-wrap gap-y-1">
               <span class="font-bold text-slate-700">#${idx + 1}</span>
               <span class="uppercase text-[10px] font-semibold px-2 py-0.5 rounded ${s.jenis === 'essay' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">${s.jenis}</span>
               <span class="text-slate-400 font-medium">Bobot: <strong>${s.bobot}</strong></span>
+              ${s.kategori ? `<span class="bg-purple-100 text-purple-800 text-[10px] font-semibold px-2 py-0.5 rounded">${escapeHtml(s.kategori)}</span>` : ''}
+              ${s.is_listening ? `<span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded flex items-center space-x-1"><span>🎧 Menyimak (${escapeHtml(s.bahasa || 'Umum')})</span></span>` : ''}
             </div>
-            <button onclick="hapusSoal(${s.id})" class="text-red-500 hover:text-red-700 font-medium">Hapus</button>
+            <div class="flex items-center space-x-1.5 flex-shrink-0">
+              <button onclick="copyExamSoalToBank(${s.id})" type="button" class="text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 font-semibold px-2 py-0.5 rounded border border-purple-200 transition flex items-center space-x-1" title="Simpan butir soal ini ke Bank Soal Mandiri">
+                <span>💾 Simpan ke Bank</span>
+              </button>
+              <button onclick="hapusSoal(${s.id})" type="button" class="text-red-500 hover:text-red-700 font-medium px-1">Hapus</button>
+            </div>
           </div>
-          <p class="font-medium text-slate-800" dir="auto">${s.pertanyaan}</p>
+          <p class="font-medium text-slate-800 leading-relaxed" dir="auto">${s.pertanyaan}</p>
+          ${s.is_listening && (s.audio_script || s.audio_url) ? `
+            <div class="bg-amber-50/80 border border-amber-200 rounded-lg p-2.5 text-[11px] space-y-1.5">
+              <div class="flex justify-between items-center text-amber-900 font-bold">
+                <span>🎧 Naskah Percakapan / Audio Menyimak:</span>
+                ${s.audio_script ? `
+                  <button type="button" onclick="playTeacherTts(this.dataset.script, '${escapeHtml(s.bahasa || 'Bahasa Indonesia')}')" data-script="${escapeHtml(s.audio_script)}" class="px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-[10px] font-semibold flex items-center space-x-1 shadow-sm transition">
+                    <span>🔊 Uji Dengar (TTS)</span>
+                  </button>
+                ` : ''}
+              </div>
+              ${s.audio_script ? `<p class="italic text-amber-900 font-mono text-[11px] leading-normal" dir="auto">${escapeHtml(s.audio_script)}</p>` : ''}
+              ${s.audio_url ? `<audio controls src="${s.audio_url}" class="w-full mt-1 h-8"></audio>` : ''}
+            </div>
+          ` : ''}
           ${s.gambar_url ? `
             <div class="mt-1.5">
               <img src="${s.gambar_url}" alt="Gambar Soal ${idx + 1}" class="max-h-48 max-w-full rounded-lg border border-slate-200 object-contain bg-white">
@@ -1979,6 +2438,12 @@
           <div class="bg-white p-2 rounded border border-slate-200 text-slate-600" dir="auto">
             <strong class="text-slate-500">Kunci Acuan:</strong> ${s.kunci_jawaban || '(Kosong - AI akan menilai berdasarkan konsep pertanyaan)'}
           </div>
+          ${s.pembahasan ? `
+            <div class="bg-emerald-50/80 border border-emerald-200 p-2.5 rounded-lg text-emerald-900" dir="auto">
+              <strong class="text-emerald-800 block mb-0.5 text-[11px]">💡 Pembahasan Konsep Mendalam:</strong>
+              <p class="text-[11px] leading-relaxed text-emerald-950">${escapeHtml(s.pembahasan)}</p>
+            </div>
+          ` : ''}
           ${s.rubrik ? `<p class="text-slate-500 italic" dir="auto">Rubrik: ${s.rubrik}</p>` : ''}
         `;
         container.appendChild(item);
@@ -1994,24 +2459,107 @@
     const previewSoalGambarImg = document.getElementById('soal-gambar-preview-img');
     const btnClearSoalGambar = document.getElementById('btn-clear-soal-gambar');
 
+    // Fungsi Kompresi Gambar Otomatis di Sisi Klien (HTML5 Canvas -> WebP/JPEG)
+    function compressImageFile(file, maxWidth = 1000, quality = 0.75) {
+      return new Promise((resolve, reject) => {
+        if (!file || !file.type || !file.type.startsWith('image/')) {
+          return reject(new Error('File yang dipilih bukan file gambar.'));
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            let width = img.width;
+            let height = img.height;
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            let mime = 'image/webp';
+            let dataUrl = canvas.toDataURL(mime, quality);
+            if (!dataUrl.startsWith('data:image/webp')) {
+              mime = 'image/jpeg';
+              dataUrl = canvas.toDataURL(mime, quality);
+            }
+            const origSize = file.size;
+            const compSize = Math.round((dataUrl.length * 3) / 4);
+            resolve({
+              dataUrl,
+              originalSize: origSize,
+              compressedSize: compSize,
+              width,
+              height
+            });
+          };
+          img.onerror = () => reject(new Error('Gagal memuat elemen gambar.'));
+          img.src = e.target.result;
+        };
+        reader.onerror = () => reject(new Error('Gagal membaca berkas.'));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // Text-to-Speech Guru untuk Menyimak (Listening)
+    function playTeacherTts(text, language = 'Bahasa Indonesia') {
+      if (!('speechSynthesis' in window)) {
+        alert('Browser Anda belum mendukung sintesis suara (Web Speech API).');
+        return;
+      }
+      if (!text || !text.trim()) {
+        alert('Naskah percakapan / audio masih kosong.');
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      const l = (language || '').toLowerCase();
+      if (l.includes('inggris') || l.includes('english')) {
+        utterance.lang = 'en-US';
+      } else if (l.includes('arab') || l.includes('arabic')) {
+        utterance.lang = 'ar-SA';
+      } else if (l.includes('jepang') || l.includes('japanese')) {
+        utterance.lang = 'ja-JP';
+      } else {
+        utterance.lang = 'id-ID';
+      }
+      utterance.rate = 0.95;
+      window.speechSynthesis.speak(utterance);
+    }
+
     function resetGambarForm() {
       if (inputSoalGambarFile) inputSoalGambarFile.value = '';
       if (inputSoalGambarUrl) inputSoalGambarUrl.value = '';
       if (previewSoalGambarImg) previewSoalGambarImg.src = '';
       if (previewSoalGambarBox) previewSoalGambarBox.classList.add('hidden');
+      const badge = document.getElementById('soal-gambar-size-badge');
+      if (badge) badge.textContent = '';
     }
 
     if (inputSoalGambarFile) {
-      inputSoalGambarFile.addEventListener('change', (e) => {
+      inputSoalGambarFile.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          inputSoalGambarUrl.value = event.target.result;
-          previewSoalGambarImg.src = event.target.result;
+        try {
+          const res = await compressImageFile(file);
+          inputSoalGambarUrl.value = res.dataUrl;
+          previewSoalGambarImg.src = res.dataUrl;
           previewSoalGambarBox.classList.remove('hidden');
-        };
-        reader.readAsDataURL(file);
+
+          const origKb = Math.round(res.originalSize / 1024);
+          const compKb = Math.round(res.compressedSize / 1024);
+          const saved = Math.max(0, Math.round((1 - res.compressedSize / res.originalSize) * 100));
+          const badge = document.getElementById('soal-gambar-size-badge');
+          if (badge) {
+            badge.textContent = `Dikompresi: ${origKb} KB ➔ ${compKb} KB (Hemat ${saved}%)`;
+          }
+        } catch (err) {
+          alert('Gagal memproses gambar: ' + err.message);
+        }
       });
     }
 
@@ -2031,6 +2579,38 @@
       btnClearSoalGambar.addEventListener('click', resetGambarForm);
     }
 
+    // Toggle Listening di Form Soal Ulangan
+    const chkSoalListening = document.getElementById('soal-is-listening');
+    const wrapperSoalListening = document.getElementById('wrapper-soal-listening-box');
+    if (chkSoalListening && wrapperSoalListening) {
+      chkSoalListening.addEventListener('change', () => {
+        wrapperSoalListening.classList.toggle('hidden', !chkSoalListening.checked);
+      });
+    }
+
+    const btnTestSoalTts = document.getElementById('btn-test-soal-tts');
+    if (btnTestSoalTts) {
+      btnTestSoalTts.addEventListener('click', () => {
+        const script = document.getElementById('soal-audio-script')?.value;
+        const bahasa = document.getElementById('soal-bahasa')?.value;
+        playTeacherTts(script, bahasa);
+      });
+    }
+
+    const inputSoalAudioFile = document.getElementById('soal-audio-file');
+    const inputSoalAudioUrl = document.getElementById('soal-audio-url');
+    if (inputSoalAudioFile) {
+      inputSoalAudioFile.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          if (inputSoalAudioUrl) inputSoalAudioUrl.value = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
     document.getElementById('btn-show-add-soal').onclick = () => {
       formAddSoal.classList.toggle('hidden');
     };
@@ -2047,6 +2627,12 @@
         pertanyaan: document.getElementById('soal-pertanyaan').value.trim(),
         kunci_jawaban: document.getElementById('soal-kunci').value.trim(),
         rubrik: document.getElementById('soal-rubrik').value.trim(),
+        pembahasan: document.getElementById('soal-pembahasan')?.value?.trim() || null,
+        kategori: document.getElementById('soal-kategori')?.value?.trim() || null,
+        is_listening: document.getElementById('soal-is-listening')?.checked ? 1 : 0,
+        bahasa: document.getElementById('soal-bahasa')?.value || 'Bahasa Indonesia',
+        audio_script: document.getElementById('soal-audio-script')?.value?.trim() || null,
+        audio_url: inputSoalAudioUrl?.value?.trim() || null,
         gambar_url: inputSoalGambarUrl.value.trim() || null
       };
 
@@ -2058,6 +2644,7 @@
       if (res.ok) {
         formAddSoal.reset();
         resetGambarForm();
+        if (wrapperSoalListening) wrapperSoalListening.classList.add('hidden');
         formAddSoal.classList.add('hidden');
         selectUlangan(activeUlanganId);
       }
@@ -2073,13 +2660,28 @@
     // LOGIKA AI SOAL GENERATOR
     // ==========================================
     let generatedQuestionsBuffer = [];
+    let generatorTargetMode = 'ulangan'; // 'ulangan' | 'bank_soal'
 
     const modalAiGenerator = document.getElementById('modal-ai-generator');
+
+    // Buka AI Generator dari Paket Ulangan
     document.getElementById('btn-open-ai-generator').onclick = () => {
       if (!activeUlanganId) {
         alert('Pilih ulangan terlebih dahulu sebelum menggunakan AI Generator Soal.');
         return;
       }
+      generatorTargetMode = 'ulangan';
+      const targetLabel = document.getElementById('gen-target-label');
+      if (targetLabel) targetLabel.textContent = selectedExam ? `Paket Ulangan "${selectedExam.judul}"` : 'Paket Ulangan Aktif';
+      const targetBadge = document.getElementById('gen-target-badge');
+      if (targetBadge) targetBadge.className = 'mt-1.5 inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-200';
+      const wrapperCopy = document.getElementById('gen-save-copy-bank-wrapper');
+      if (wrapperCopy) wrapperCopy.classList.remove('hidden');
+      const btnApplyText = document.getElementById('btn-apply-generated-soal-text');
+      if (btnApplyText) btnApplyText.textContent = 'Masukkan ke Ulangan Ini';
+      const btnApply = document.getElementById('btn-apply-generated-soal');
+      if (btnApply) btnApply.className = 'px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl shadow transition flex items-center space-x-1.5';
+
       const subjectEl = document.getElementById('detail-exam-subject');
       if (subjectEl) {
         const parts = subjectEl.textContent.split('•');
@@ -2089,6 +2691,27 @@
       resetGeneratorUI();
       modalAiGenerator.classList.remove('hidden');
     };
+
+    // Buka AI Generator langsung dari Bank Soal Mandiri
+    const btnOpenAiBank = document.getElementById('btn-open-ai-generator-bank');
+    if (btnOpenAiBank) {
+      btnOpenAiBank.onclick = () => {
+        generatorTargetMode = 'bank_soal';
+        const targetLabel = document.getElementById('gen-target-label');
+        if (targetLabel) targetLabel.textContent = '📂 Koleksi Bank Soal Mandiri';
+        const targetBadge = document.getElementById('gen-target-badge');
+        if (targetBadge) targetBadge.className = 'mt-1.5 inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-900 border border-purple-200';
+        const wrapperCopy = document.getElementById('gen-save-copy-bank-wrapper');
+        if (wrapperCopy) wrapperCopy.classList.add('hidden');
+        const btnApplyText = document.getElementById('btn-apply-generated-soal-text');
+        if (btnApplyText) btnApplyText.textContent = '💾 Simpan Semua Soal ke Bank Soal';
+        const btnApply = document.getElementById('btn-apply-generated-soal');
+        if (btnApply) btnApply.className = 'px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow transition flex items-center space-x-1.5';
+
+        resetGeneratorUI();
+        modalAiGenerator.classList.remove('hidden');
+      };
+    }
 
     document.getElementById('btn-close-ai-generator').onclick = () => {
       modalAiGenerator.classList.add('hidden');
@@ -2345,6 +2968,10 @@
         jumlahSoal = Math.max(1, parseInt(inputGenSingle?.value, 10) || 5);
       }
 
+      const isListeningGen = document.getElementById('gen-is-listening')?.checked ? 1 : 0;
+      const bahasaGen = document.getElementById('gen-bahasa')?.value || 'Bahasa Indonesia';
+      const deskripsiAudioGen = document.getElementById('gen-deskripsi-audio')?.value?.trim() || '';
+
       const payload = {
         mode,
         input_sumber: inputSumber,
@@ -2354,7 +2981,10 @@
         jumlah_isian: jumlahIsian,
         jumlah_essay: jumlahEssay,
         tingkat_kesulitan: document.getElementById('gen-kesulitan').value,
-        target_total_bobot: Number(document.getElementById('gen-target-bobot').value) || 100
+        target_total_bobot: Number(document.getElementById('gen-target-bobot').value) || 100,
+        is_listening: isListeningGen,
+        bahasa: bahasaGen,
+        deskripsi_audio: deskripsiAudioGen
       };
 
       document.getElementById('gen-form-step').classList.add('hidden');
@@ -2413,6 +3043,27 @@
               <button type="button" class="btn-del-gen-soal text-red-500 hover:text-red-700 font-semibold ml-2">Hapus</button>
             </div>
           </div>
+
+          <!-- Pengkategorian Otomatis AI (Dapat Diubah Guru Jika Tidak Sesuai) -->
+          <div class="p-2.5 bg-purple-50/80 rounded-xl border border-purple-200 space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="block text-purple-950 font-bold text-[11px] flex items-center space-x-1">
+                <span>🏷️ Kategori & Sub-Topik Pokok</span>
+                <span class="text-[10px] text-purple-600 font-normal italic">(Diisi otomatis oleh AI, ubah jika perlu)</span>
+              </label>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[10px] text-purple-900 font-semibold mb-0.5">Kategori / Bab Pokok:</label>
+                <input type="text" value="${escapeHtml(q.kategori || '')}" placeholder="Kategori pokok..." class="gen-field-kategori w-full px-2.5 py-1 rounded-lg border border-purple-300 bg-white font-semibold text-purple-950 text-xs focus:ring-1 focus:ring-purple-500">
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-600 font-semibold mb-0.5">Sub-Topik Spesifik:</label>
+                <input type="text" value="${escapeHtml(q.sub_topik || '')}" placeholder="Sub-topik materi (opsional)..." class="gen-field-subtopik w-full px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-800 text-xs focus:ring-1 focus:ring-purple-500">
+              </div>
+            </div>
+          </div>
+
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5">Pertanyaan</label>
             <textarea rows="2" class="gen-field-pertanyaan w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white">${q.pertanyaan}</textarea>
@@ -2422,9 +3073,24 @@
             <textarea rows="2" class="gen-field-kunci w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white">${q.kunci_jawaban}</textarea>
           </div>
           <div>
-            <label class="block text-slate-600 font-semibold mb-0.5">Rubrik / Pembahasan Konsep</label>
+            <label class="block text-slate-600 font-semibold mb-0.5">Rubrik Penilaian Acuan</label>
             <input type="text" value="${q.rubrik || ''}" class="gen-field-rubrik w-full px-2.5 py-1 rounded-lg border border-slate-300 bg-white">
           </div>
+          <div>
+            <label class="block text-emerald-700 font-semibold mb-0.5">💡 Pembahasan Konsep Mendalam (Penjelasan Mengapa Benar)</label>
+            <textarea rows="2" class="gen-field-pembahasan w-full px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50/40 text-emerald-950">${q.pembahasan || ''}</textarea>
+          </div>
+          ${q.is_listening ? `
+            <div class="bg-indigo-50 border border-indigo-200 p-2.5 rounded-lg space-y-1.5">
+              <div class="flex justify-between items-center text-indigo-900 font-bold">
+                <span>🎧 Naskah Suara Listening (${escapeHtml(q.bahasa || 'Umum')}):</span>
+                <button type="button" class="btn-tts-gen-preview px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-semibold flex items-center space-x-1 shadow-sm">
+                  <span>🔊 Uji Dengar (TTS)</span>
+                </button>
+              </div>
+              <textarea rows="2" class="gen-field-audio-script w-full px-2 py-1 rounded border border-indigo-300 bg-white font-mono text-[11px]">${q.audio_script || ''}</textarea>
+            </div>
+          ` : ''}
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5">URL Gambar / Diagram (Opsional)</label>
             <input type="text" value="${q.gambar_url || ''}" placeholder="https://... atau data:image/..." class="gen-field-gambar w-full px-2.5 py-1 rounded-lg border border-slate-300 bg-white">
@@ -2439,9 +3105,19 @@
         };
 
         // Two-way bindings
+        const elKategori = card.querySelector('.gen-field-kategori');
+        if (elKategori) elKategori.oninput = (e) => { q.kategori = e.target.value.trim(); };
+        const elSubtopik = card.querySelector('.gen-field-subtopik');
+        if (elSubtopik) elSubtopik.oninput = (e) => { q.sub_topik = e.target.value.trim(); };
         card.querySelector('.gen-field-pertanyaan').oninput = (e) => { q.pertanyaan = e.target.value; };
         card.querySelector('.gen-field-kunci').oninput = (e) => { q.kunci_jawaban = e.target.value; };
         card.querySelector('.gen-field-rubrik').oninput = (e) => { q.rubrik = e.target.value; };
+        const elPembahasan = card.querySelector('.gen-field-pembahasan');
+        if (elPembahasan) elPembahasan.oninput = (e) => { q.pembahasan = e.target.value; };
+        const elAudioScript = card.querySelector('.gen-field-audio-script');
+        if (elAudioScript) elAudioScript.oninput = (e) => { q.audio_script = e.target.value; };
+        const btnTts = card.querySelector('.btn-tts-gen-preview');
+        if (btnTts) btnTts.onclick = () => playTeacherTts(q.audio_script, q.bahasa);
         card.querySelector('.gen-field-gambar').oninput = (e) => { q.gambar_url = e.target.value.trim(); };
         card.querySelector('.gen-field-jenis').onchange = (e) => { q.jenis = e.target.value; };
         card.querySelector('.gen-field-bobot').onchange = (e) => {
@@ -2455,43 +3131,123 @@
       renderMath(container);
     }
 
-    // Terapkan Soal Terpilih ke Ulangan Aktif
+    // Tutup generator preview
+    document.getElementById('btn-close-generator-preview')?.addEventListener('click', () => {
+      modalAiGenerator.classList.add('hidden');
+    });
+
+    // Terapkan Soal Terpilih (Bisa ke Bank Soal Mandiri ATAU Paket Ulangan Siswa)
     document.getElementById('btn-apply-generated-soal').onclick = async () => {
-      if (!activeUlanganId) return;
       if (generatedQuestionsBuffer.length === 0) {
         alert('Tidak ada butir soal untuk dimasukkan!');
         return;
       }
 
       const btnApply = document.getElementById('btn-apply-generated-soal');
+      const btnApplyText = document.getElementById('btn-apply-generated-soal-text');
+      const originalText = btnApplyText ? btnApplyText.textContent : 'Simpan';
       btnApply.disabled = true;
-      btnApply.textContent = 'Menyimpan butir soal...';
+      if (btnApplyText) btnApplyText.textContent = 'Menyimpan butir soal...';
 
       try {
-        for (const q of generatedQuestionsBuffer) {
-          await guruFetch(`/api/guru/ulangan/${activeUlanganId}/soal`, {
+        if (generatorTargetMode === 'bank_soal') {
+          // Simpan langsung seluruh soal ke Bank Soal Mandiri
+          const bankItems = generatedQuestionsBuffer.map(q => ({
+            kategori: (q.kategori && q.kategori.trim()) ? q.kategori.trim() : 'Umum',
+            sub_topik: (q.sub_topik && q.sub_topik.trim()) ? q.sub_topik.trim() : null,
+            jenis: q.jenis || 'isian',
+            tingkat_kesulitan: q.tingkat_kesulitan || 'sedang',
+            bobot_standar: Number(q.bobot) || 10,
+            pertanyaan: q.pertanyaan,
+            kunci_jawaban: q.kunci_jawaban,
+            rubrik: q.rubrik,
+            pembahasan: q.pembahasan,
+            is_listening: q.is_listening ? 1 : 0,
+            bahasa: q.bahasa || 'Bahasa Indonesia',
+            audio_script: q.audio_script || null,
+            audio_url: q.audio_url || null,
+            gambar_url: q.gambar_url || null
+          }));
+
+          const res = await guruFetch('/api/guru/bank-soal/bulk', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+            body: JSON.stringify({ soal: bankItems })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.message || 'Gagal menyimpan soal ke Bank Soal');
+          }
+
+          modalAiGenerator.classList.add('hidden');
+          alert(`✅ Berhasil! ${bankItems.length} butir soal hasil AI beserta kategori dan pembahasannya telah tersimpan ke Bank Soal Mandiri.`);
+          await loadBankCategories();
+          await loadBankSoal();
+        } else {
+          // Mode Target: Paket Ulangan Aktif
+          if (!activeUlanganId) {
+            alert('Pilih ulangan aktif terlebih dahulu!');
+            return;
+          }
+
+          const alsoSaveToBank = document.getElementById('chk-also-save-to-bank')?.checked;
+          const bankCopies = [];
+
+          for (const q of generatedQuestionsBuffer) {
+            const payload = {
               pertanyaan: q.pertanyaan,
               jenis: q.jenis,
               bobot: q.bobot,
               kunci_jawaban: q.kunci_jawaban,
               rubrik: q.rubrik,
+              pembahasan: q.pembahasan || null,
+              kategori: q.kategori || null,
+              sub_topik: q.sub_topik || null,
+              is_listening: q.is_listening ? 1 : 0,
+              bahasa: q.bahasa || null,
+              audio_script: q.audio_script || null,
+              audio_url: q.audio_url || null,
               gambar_url: q.gambar_url || null
-            })
-          });
-        }
+            };
 
-        modalAiGenerator.classList.add('hidden');
-        alert(`Sukses! ${generatedQuestionsBuffer.length} butir soal hasil AI berhasil ditambahkan ke ulangan.`);
-        selectUlangan(activeUlanganId);
+            await guruFetch(`/api/guru/ulangan/${activeUlanganId}/soal`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            if (alsoSaveToBank) {
+              bankCopies.push({
+                ...payload,
+                bobot_standar: q.bobot,
+                tingkat_kesulitan: q.tingkat_kesulitan || 'sedang'
+              });
+            }
+          }
+
+          if (alsoSaveToBank && bankCopies.length > 0) {
+            try {
+              await guruFetch('/api/guru/bank-soal/bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ soal: bankCopies })
+              });
+              await loadBankCategories();
+              await loadBankSoal();
+            } catch (errBank) {
+              console.warn('Peringatan simpan salinan ke bank soal:', errBank);
+            }
+          }
+
+          modalAiGenerator.classList.add('hidden');
+          alert(`✅ Sukses! ${generatedQuestionsBuffer.length} butir soal hasil AI berhasil ditambahkan ke ulangan${alsoSaveToBank ? ' & salinan tersimpan ke Bank Soal' : ''}.`);
+          selectUlangan(activeUlanganId);
+        }
       } catch (err) {
-        alert('Sebagian soal gagal disimpan: ' + err.message);
-        selectUlangan(activeUlanganId);
+        alert('Sebagian atau seluruh soal gagal disimpan: ' + err.message);
       } finally {
         btnApply.disabled = false;
-        btnApply.textContent = 'Masukkan ke Ulangan Ini';
+        if (btnApplyText) btnApplyText.textContent = originalText;
       }
     };
     let currentStudentsList = [];
@@ -2863,15 +3619,90 @@
       openReviewModal(activePengerjaanId);
     };
 
-    // AI Review Queue Controls & Status Polling
+    // AI Review Queue Controls & Status Polling (Optimal untuk Serverless Vercel & Real-time Progress)
+    let isAiReviewLoopActive = false;
+
+    function renderAiStatusUI(s, isProcessing = false) {
+      const btnStart = document.getElementById('btn-start-ai');
+      const btnStop = document.getElementById('btn-stop-ai');
+
+      if (isProcessing || s.isRunning || isAiReviewLoopActive) {
+        btnStart?.classList.add('hidden');
+        btnStop?.classList.remove('hidden');
+      } else {
+        btnStart?.classList.remove('hidden');
+        btnStop?.classList.add('hidden');
+      }
+
+      const percent = s.total > 0 ? Math.round((s.selesai / s.total) * 100) : 0;
+      const barEl = document.getElementById('ai-progress-bar');
+      const pctEl = document.getElementById('ai-progress-percent');
+      const txtEl = document.getElementById('ai-progress-text');
+      if (barEl) barEl.style.width = `${percent}%`;
+      if (pctEl) pctEl.textContent = `${percent}%`;
+      if (txtEl) {
+        txtEl.textContent = (isProcessing || s.isRunning || isAiReviewLoopActive)
+          ? `Sedang memproses antrean (${s.selesai}/${s.total} selesai, ${s.menunggu} menunggu)...`
+          : `Selesai (${s.selesai}/${s.total} jawaban ternilai)`;
+      }
+    }
+
+    async function runAiReviewLoop(ulanganId) {
+      if (isAiReviewLoopActive) return;
+      isAiReviewLoopActive = true;
+
+      const btnStart = document.getElementById('btn-start-ai');
+      const btnStop = document.getElementById('btn-stop-ai');
+      btnStart?.classList.add('hidden');
+      btnStop?.classList.remove('hidden');
+
+      try {
+        while (isAiReviewLoopActive && activeUlanganId === ulanganId) {
+          const res = await guruFetch(`/api/guru/ulangan/${ulanganId}/ai/process-next`, { method: 'POST' });
+          const data = await res.json();
+          
+          if (!res.ok || !data.success) {
+            console.warn('AI process step warning:', data.message || data.error);
+            break;
+          }
+
+          if (data.status) {
+            renderAiStatusUI(data.status, true);
+            loadPesertaList(ulanganId);
+          }
+
+          if (data.done || (data.status && data.status.menunggu === 0 && data.status.diproses === 0)) {
+            break;
+          }
+
+          // Jeda singkat antar-soal (1.5 detik) agar nyaman
+          await new Promise(r => setTimeout(r, 1500));
+        }
+      } catch (err) {
+        console.error('AI review loop error:', err);
+      } finally {
+        isAiReviewLoopActive = false;
+        await checkAiStatus(ulanganId);
+        loadPesertaList(ulanganId);
+      }
+    }
+
     document.getElementById('btn-start-ai').onclick = async () => {
       if (!confirm('Mulai antrean penilaian AI untuk jawaban yang belum dinilai?')) return;
-      await guruFetch(`/api/guru/ulangan/${activeUlanganId}/ai/start`, { method: 'POST' });
-      startAiPolling();
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/ai/start`, { method: 'POST' });
+        const data = await res.json();
+        if (data.status) {
+          renderAiStatusUI(data.status, true);
+        }
+      } catch (e) {}
+      runAiReviewLoop(activeUlanganId);
     };
 
     document.getElementById('btn-stop-ai').onclick = async () => {
+      isAiReviewLoopActive = false;
       await guruFetch(`/api/guru/ulangan/${activeUlanganId}/ai/stop`, { method: 'POST' });
+      checkAiStatus(activeUlanganId);
     };
 
     document.getElementById('btn-toggle-release').onclick = async () => {
@@ -2933,25 +3764,9 @@
         if (!res.ok || !data.success) return;
 
         const s = data.data;
-        const btnStart = document.getElementById('btn-start-ai');
-        const btnStop = document.getElementById('btn-stop-ai');
+        renderAiStatusUI(s, false);
 
-        if (s.isRunning) {
-          btnStart.classList.add('hidden');
-          btnStop.classList.remove('hidden');
-        } else {
-          btnStart.classList.remove('hidden');
-          btnStop.classList.add('hidden');
-        }
-
-        const percent = s.total > 0 ? Math.round((s.selesai / s.total) * 100) : 0;
-        document.getElementById('ai-progress-bar').style.width = `${percent}%`;
-        document.getElementById('ai-progress-percent').textContent = `${percent}%`;
-        document.getElementById('ai-progress-text').textContent = s.isRunning 
-          ? `Sedang memproses antrean (${s.selesai}/${s.total} selesai, ${s.menunggu} menunggu, jeda acak 5-13 detik)...`
-          : `Selesai (${s.selesai}/${s.total} jawaban ternilai)`;
-
-        if (!s.isRunning && aiPollingTimer) {
+        if (!s.isRunning && !isAiReviewLoopActive && aiPollingTimer) {
           clearInterval(aiPollingTimer);
           aiPollingTimer = null;
           loadPesertaList(ulanganId);
@@ -3023,7 +3838,9 @@
       }
     }
 
+    let currentLaporanData = null;
     function renderLaporanSheet(laporan) {
+      currentLaporanData = laporan;
       const u = laporan.ulangan;
       const s = laporan.statistik;
       const peserta = laporan.peserta || [];
@@ -3252,6 +4069,742 @@
         }
       };
     }
+    // =========================================================================
+    // MODUL BANK SOAL MANDIRI, SMART PICK AI & EKSPOR LAPORAN KE EXCEL (.CSV)
+    // =========================================================================
+
+    // --- State Bank Soal & Cache ---
+    let bankSoalCache = [];
+    let bankCategoriesCache = [];
+
+    // --- 1. Tab Navigation: Paket Ulangan vs Bank Soal ---
+    const navTabUlangan = document.getElementById('nav-tab-ulangan');
+    const navTabBankSoal = document.getElementById('nav-tab-bank-soal');
+    const viewUlanganMode = document.getElementById('view-ulangan-mode');
+    const viewBankSoalMode = document.getElementById('view-bank-soal-mode');
+    const badgeBankSoalCount = document.getElementById('badge-bank-soal-count');
+
+    function switchDashboardTab(tab) {
+      if (tab === 'bank-soal') {
+        navTabUlangan.className = 'px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 bg-white text-slate-700 hover:bg-slate-100 border border-slate-200';
+        navTabBankSoal.className = 'px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-purple-600 text-white shadow-sm shadow-purple-500/20';
+        viewUlanganMode.classList.add('hidden');
+        viewBankSoalMode.classList.remove('hidden');
+        loadBankCategories();
+        loadBankSoal();
+      } else {
+        navTabBankSoal.className = 'px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 bg-white text-slate-700 hover:bg-slate-100 border border-slate-200';
+        navTabUlangan.className = 'px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-blue-600 text-white shadow-sm shadow-blue-500/20';
+        viewBankSoalMode.classList.add('hidden');
+        viewUlanganMode.classList.remove('hidden');
+      }
+    }
+
+    if (navTabUlangan) navTabUlangan.addEventListener('click', () => switchDashboardTab('ulangan'));
+    if (navTabBankSoal) navTabBankSoal.addEventListener('click', () => switchDashboardTab('bank-soal'));
+
+    // --- 2. Bank Soal: Fetch Categories & List ---
+    async function loadBankCategories() {
+      try {
+        const res = await guruFetch('/api/guru/bank-soal/categories');
+        const data = await res.json();
+        if (!res.ok || !data.success) return;
+        bankCategoriesCache = data.data || [];
+
+        // Update datalist di modal
+        const datalist = document.getElementById('bank-kategori-datalist');
+        if (datalist) {
+          datalist.innerHTML = bankCategoriesCache.map(c => `<option value="${escapeHtml(c)}"></option>`).join('');
+        }
+
+        // Update filter dropdown di view bank soal
+        const filterCat = document.getElementById('bank-filter-kategori');
+        if (filterCat) {
+          const currentVal = filterCat.value;
+          filterCat.innerHTML = '<option value="all">Semua Kategori</option>' +
+            bankCategoriesCache.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+          if (bankCategoriesCache.includes(currentVal)) filterCat.value = currentVal;
+        }
+
+        // Update filter di AI Smart Pick modal
+        const smartPickCat = document.getElementById('smart-pick-kategori');
+        if (smartPickCat) {
+          smartPickCat.innerHTML = '<option value="all">Semua Kategori</option>' +
+            bankCategoriesCache.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        }
+      } catch (err) {
+        console.warn('Gagal memuat kategori bank soal:', err);
+      }
+    }
+
+    async function loadBankSoal() {
+      const container = document.getElementById('bank-soal-cards-container');
+      if (!container) return;
+
+      const kategori = document.getElementById('bank-filter-kategori')?.value || 'all';
+      const jenis = document.getElementById('bank-filter-jenis')?.value || 'all';
+      const kesulitan = document.getElementById('bank-filter-kesulitan')?.value || 'all';
+      const listening = document.getElementById('bank-filter-listening')?.value || 'all';
+      const search = document.getElementById('bank-filter-search')?.value?.trim() || '';
+
+      const queryParams = new URLSearchParams();
+      if (kategori !== 'all') queryParams.append('kategori', kategori);
+      if (jenis !== 'all') queryParams.append('jenis', jenis);
+      if (kesulitan !== 'all') queryParams.append('tingkat_kesulitan', kesulitan);
+      if (listening !== 'all') queryParams.append('is_listening', listening);
+      if (search) queryParams.append('search', search);
+
+      try {
+        const res = await guruFetch(`/api/guru/bank-soal?${queryParams.toString()}`);
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          container.innerHTML = '<p class="text-center text-red-500 py-6 text-xs">Gagal memuat koleksi bank soal.</p>';
+          return;
+        }
+
+        bankSoalCache = data.data || [];
+
+        // Hitung statistik
+        const total = bankSoalCache.length;
+        const totalCategories = new Set(bankSoalCache.map(s => s.kategori).filter(Boolean)).size;
+        const totalListening = bankSoalCache.filter(s => Number(s.is_listening) === 1).length;
+        const totalPembahasan = bankSoalCache.filter(s => s.pembahasan && s.pembahasan.trim()).length;
+
+        const statTotal = document.getElementById('bank-stat-total');
+        const statKat = document.getElementById('bank-stat-kategori');
+        const statList = document.getElementById('bank-stat-listening');
+        const statPemb = document.getElementById('bank-stat-pembahasan');
+        if (statTotal) statTotal.textContent = total;
+        if (statKat) statKat.textContent = totalCategories;
+        if (statList) statList.textContent = totalListening;
+        if (statPemb) statPemb.textContent = totalPembahasan;
+        if (badgeBankSoalCount) badgeBankSoalCount.textContent = total;
+
+        if (bankSoalCache.length === 0) {
+          container.innerHTML = `
+            <div class="bg-white p-10 rounded-2xl border border-slate-200 text-center text-slate-400 space-y-2">
+              <span class="text-3xl block">📂</span>
+              <p class="text-sm font-semibold text-slate-600">Belum ada butir soal di Bank Soal</p>
+              <p class="text-xs text-slate-400">Klik "+ Buat Soal Bank" di atas atau simpan langsung dari paket ulangan yang ada.</p>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = '';
+        bankSoalCache.forEach((item, idx) => {
+          const card = document.createElement('div');
+          card.className = 'bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3 text-xs hover:border-purple-300 transition';
+          
+          const diffBadge = item.tingkat_kesulitan === 'sulit'
+            ? 'bg-red-100 text-red-700'
+            : (item.tingkat_kesulitan === 'mudah' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700');
+
+          card.innerHTML = `
+            <div class="flex justify-between items-start gap-2">
+              <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                <span class="font-bold text-slate-900">#${idx + 1}</span>
+                <span class="px-2 py-0.5 rounded-lg bg-purple-100 text-purple-800 font-bold text-[10px]">
+                  📂 ${escapeHtml(item.kategori || 'Umum')}
+                </span>
+                ${item.sub_topik ? `<span class="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-medium">${escapeHtml(item.sub_topik)}</span>` : ''}
+                <span class="px-2 py-0.5 rounded-lg ${item.jenis === 'essay' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'} font-semibold text-[10px] uppercase">
+                  ${item.jenis}
+                </span>
+                <span class="px-2 py-0.5 rounded-lg ${diffBadge} font-semibold text-[10px] capitalize">
+                  ${item.tingkat_kesulitan || 'Sedang'}
+                </span>
+                <span class="text-slate-400 font-medium">Bobot: <strong>${item.bobot_standar}</strong></span>
+                ${item.is_listening ? `<span class="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-900 font-bold text-[10px] flex items-center space-x-1"><span>🎧 Listening (${escapeHtml(item.bahasa || 'Umum')})</span></span>` : ''}
+              </div>
+              <div class="flex items-center space-x-1.5 flex-shrink-0">
+                <button type="button" onclick="openQuickImportModal(${item.id})" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm transition flex items-center space-x-1" title="Masukkan butir soal ini ke salah satu ulangan aktif">
+                  <span>➕ Masukkan ke Ulangan</span>
+                </button>
+                <button type="button" onclick="editBankSoal(${item.id})" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition" title="Edit soal">
+                  ✏️
+                </button>
+                <button type="button" onclick="deleteBankSoal(${item.id})" class="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 font-semibold rounded-lg transition" title="Hapus dari bank soal">
+                  🗑️
+                </button>
+              </div>
+            </div>
+
+            <!-- Teks Pertanyaan -->
+            <p class="font-medium text-slate-800 leading-relaxed text-sm" dir="auto">${item.pertanyaan}</p>
+
+            <!-- Audio Script / Listening Player -->
+            ${item.is_listening && (item.audio_script || item.audio_url) ? `
+              <div class="bg-amber-50/90 border border-amber-200 rounded-xl p-3 space-y-2">
+                <div class="flex justify-between items-center text-amber-950 font-bold text-[11px]">
+                  <span>🎧 Naskah Percakapan Listening:</span>
+                  ${item.audio_script ? `
+                    <button type="button" onclick="playTeacherTts(this.dataset.script, '${escapeHtml(item.bahasa || 'Bahasa Indonesia')}')" data-script="${escapeHtml(item.audio_script)}" class="px-2.5 py-0.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-[10px] font-bold flex items-center space-x-1 shadow-sm transition">
+                      <span>🔊 Uji Dengar Suara (TTS)</span>
+                    </button>
+                  ` : ''}
+                </div>
+                ${item.audio_script ? `<p class="italic text-amber-900 font-mono text-[11px] leading-relaxed bg-white/70 p-2 rounded border border-amber-200/60" dir="auto">${escapeHtml(item.audio_script)}</p>` : ''}
+                ${item.audio_url ? `<audio controls src="${item.audio_url}" class="w-full mt-1 h-8"></audio>` : ''}
+              </div>
+            ` : ''}
+
+            <!-- Gambar / Diagram -->
+            ${item.gambar_url ? `
+              <div>
+                <img src="${item.gambar_url}" alt="Diagram" class="max-h-48 max-w-full rounded-lg border border-slate-200 object-contain bg-white">
+              </div>
+            ` : ''}
+
+            <!-- Kunci Jawaban -->
+            <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-slate-700" dir="auto">
+              <strong class="text-slate-500">Kunci Jawaban Guru:</strong> ${item.kunci_jawaban || '(Kosong)'}
+            </div>
+
+            <!-- Pembahasan Konsep Mendalam -->
+            ${item.pembahasan ? `
+              <div class="bg-emerald-50/80 border border-emerald-200 p-3 rounded-xl text-emerald-950 space-y-1" dir="auto">
+                <div class="flex items-center space-x-1.5 text-emerald-800 font-bold text-[11px]">
+                  <span>💡</span>
+                  <span>Pembahasan Konsep Mendalam:</span>
+                </div>
+                <p class="text-xs leading-relaxed">${escapeHtml(item.pembahasan)}</p>
+              </div>
+            ` : ''}
+
+            ${item.rubrik ? `<p class="text-slate-500 italic" dir="auto">Rubrik: ${item.rubrik}</p>` : ''}
+          `;
+          container.appendChild(card);
+        });
+
+        renderMath(container);
+      } catch (err) {
+        container.innerHTML = `<p class="text-center text-red-500 py-6 text-xs">Error: ${err.message}</p>`;
+      }
+    }
+
+    // Pasang Event Filter Bank Soal
+    ['bank-filter-kategori', 'bank-filter-jenis', 'bank-filter-kesulitan', 'bank-filter-listening'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', loadBankSoal);
+    });
+
+    let searchBankTimeout = null;
+    const inputBankSearch = document.getElementById('bank-filter-search');
+    if (inputBankSearch) {
+      inputBankSearch.addEventListener('input', () => {
+        clearTimeout(searchBankTimeout);
+        searchBankTimeout = setTimeout(loadBankSoal, 300);
+      });
+    }
+
+    // --- 3. CRUD Modal Bank Soal ---
+    const modalBankSoal = document.getElementById('modal-bank-soal');
+    const formBankSoal = document.getElementById('form-bank-soal');
+    const inputBankGambarFile = document.getElementById('bank-gambar-file');
+    const inputBankGambarUrl = document.getElementById('bank-gambar-url');
+    const previewBankGambarBox = document.getElementById('bank-gambar-preview-box');
+    const previewBankGambarImg = document.getElementById('bank-gambar-preview-img');
+    const btnClearBankGambar = document.getElementById('btn-clear-bank-gambar');
+    const chkBankListening = document.getElementById('bank-is-listening');
+    const wrapperBankListening = document.getElementById('wrapper-bank-listening-box');
+    const btnTestBankTts = document.getElementById('btn-test-bank-tts');
+
+    function resetBankGambarForm() {
+      if (inputBankGambarFile) inputBankGambarFile.value = '';
+      if (inputBankGambarUrl) inputBankGambarUrl.value = '';
+      if (previewBankGambarImg) previewBankGambarImg.src = '';
+      if (previewBankGambarBox) previewBankGambarBox.classList.add('hidden');
+      const badge = document.getElementById('bank-gambar-compress-badge');
+      if (badge) badge.textContent = '✓ Siap dilampirkan';
+    }
+
+    if (inputBankGambarFile) {
+      inputBankGambarFile.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+          const res = await compressImageFile(file);
+          inputBankGambarUrl.value = res.dataUrl;
+          previewBankGambarImg.src = res.dataUrl;
+          previewBankGambarBox.classList.remove('hidden');
+
+          const origKb = Math.round(res.originalSize / 1024);
+          const compKb = Math.round(res.compressedSize / 1024);
+          const saved = Math.max(0, Math.round((1 - res.compressedSize / res.originalSize) * 100));
+          const badge = document.getElementById('bank-gambar-compress-badge');
+          if (badge) {
+            badge.textContent = `Dikompresi: ${origKb} KB ➔ ${compKb} KB (Hemat ${saved}%)`;
+          }
+        } catch (err) {
+          alert('Gagal memproses gambar: ' + err.message);
+        }
+      });
+    }
+
+    if (inputBankGambarUrl) {
+      inputBankGambarUrl.addEventListener('input', (e) => {
+        const val = e.target.value.trim();
+        if (val) {
+          previewBankGambarImg.src = val;
+          previewBankGambarBox.classList.remove('hidden');
+        } else {
+          previewBankGambarBox.classList.add('hidden');
+        }
+      });
+    }
+
+    if (btnClearBankGambar) btnClearBankGambar.addEventListener('click', resetBankGambarForm);
+
+    if (chkBankListening && wrapperBankListening) {
+      chkBankListening.addEventListener('change', () => {
+        wrapperBankListening.classList.toggle('hidden', !chkBankListening.checked);
+      });
+    }
+
+    if (btnTestBankTts) {
+      btnTestBankTts.addEventListener('click', () => {
+        const script = document.getElementById('bank-audio-script')?.value;
+        const bahasa = document.getElementById('bank-bahasa')?.value;
+        playTeacherTts(script, bahasa);
+      });
+    }
+
+    const inputBankAudioFile = document.getElementById('bank-audio-file');
+    const inputBankAudioUrl = document.getElementById('bank-audio-url');
+    if (inputBankAudioFile) {
+      inputBankAudioFile.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          if (inputBankAudioUrl) inputBankAudioUrl.value = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function openCreateBankSoalModal() {
+      formBankSoal.reset();
+      document.getElementById('bank-soal-id').value = '';
+      document.getElementById('modal-bank-soal-title').textContent = 'Tambah Soal Baru ke Bank Soal';
+      resetBankGambarForm();
+      if (wrapperBankListening) wrapperBankListening.classList.add('hidden');
+      modalBankSoal.classList.remove('hidden');
+    }
+
+    document.getElementById('btn-open-create-bank-soal')?.addEventListener('click', openCreateBankSoalModal);
+    document.getElementById('btn-close-modal-bank-soal')?.addEventListener('click', () => modalBankSoal.classList.add('hidden'));
+    document.getElementById('btn-cancel-modal-bank-soal')?.addEventListener('click', () => modalBankSoal.classList.add('hidden'));
+
+    if (formBankSoal) {
+      formBankSoal.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('bank-soal-id').value;
+        const payload = {
+          kategori: document.getElementById('bank-kategori').value.trim(),
+          sub_topik: document.getElementById('bank-sub-topik').value.trim() || null,
+          jenis: document.getElementById('bank-jenis').value,
+          tingkat_kesulitan: document.getElementById('bank-kesulitan').value,
+          bobot_standar: Number(document.getElementById('bank-bobot').value) || 10,
+          pertanyaan: document.getElementById('bank-pertanyaan').value.trim(),
+          kunci_jawaban: document.getElementById('bank-kunci').value.trim() || null,
+          rubrik: document.getElementById('bank-rubrik').value.trim() || null,
+          pembahasan: document.getElementById('bank-pembahasan').value.trim() || null,
+          is_listening: document.getElementById('bank-is-listening').checked ? 1 : 0,
+          bahasa: document.getElementById('bank-bahasa').value,
+          audio_script: document.getElementById('bank-audio-script').value.trim() || null,
+          audio_url: inputBankAudioUrl?.value?.trim() || null,
+          gambar_url: inputBankGambarUrl?.value?.trim() || null
+        };
+
+        const method = id ? 'PUT' : 'POST';
+        const url = id ? `/api/guru/bank-soal/${id}` : '/api/guru/bank-soal';
+
+        try {
+          const res = await guruFetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.message || 'Gagal menyimpan soal ke Bank Soal');
+          }
+          modalBankSoal.classList.add('hidden');
+          await loadBankCategories();
+          await loadBankSoal();
+        } catch (err) {
+          alert('Error: ' + err.message);
+        }
+      });
+    }
+
+    window.editBankSoal = async (id) => {
+      try {
+        const res = await guruFetch(`/api/guru/bank-soal/${id}`);
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Gagal mengambil detail soal bank');
+        const item = data.data;
+
+        document.getElementById('bank-soal-id').value = item.id;
+        document.getElementById('modal-bank-soal-title').textContent = 'Edit Butir Soal di Bank Soal #' + item.id;
+        document.getElementById('bank-kategori').value = item.kategori || '';
+        document.getElementById('bank-sub-topik').value = item.sub_topik || '';
+        document.getElementById('bank-jenis').value = item.jenis || 'isian';
+        document.getElementById('bank-kesulitan').value = item.tingkat_kesulitan || 'sedang';
+        document.getElementById('bank-bobot').value = item.bobot_standar || 10;
+        document.getElementById('bank-pertanyaan').value = item.pertanyaan || '';
+        document.getElementById('bank-kunci').value = item.kunci_jawaban || '';
+        document.getElementById('bank-rubrik').value = item.rubrik || '';
+        document.getElementById('bank-pembahasan').value = item.pembahasan || '';
+
+        resetBankGambarForm();
+        if (item.gambar_url) {
+          inputBankGambarUrl.value = item.gambar_url;
+          previewBankGambarImg.src = item.gambar_url;
+          previewBankGambarBox.classList.remove('hidden');
+        }
+
+        const isList = Number(item.is_listening) === 1;
+        document.getElementById('bank-is-listening').checked = isList;
+        if (wrapperBankListening) wrapperBankListening.classList.toggle('hidden', !isList);
+        document.getElementById('bank-bahasa').value = item.bahasa || 'Bahasa Inggris';
+        document.getElementById('bank-audio-script').value = item.audio_script || '';
+        if (inputBankAudioUrl) inputBankAudioUrl.value = item.audio_url || '';
+
+        modalBankSoal.classList.remove('hidden');
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    };
+
+    window.deleteBankSoal = async (id) => {
+      if (!confirm('Hapus butir soal ini secara permanen dari Bank Soal?')) return;
+      try {
+        const res = await guruFetch(`/api/guru/bank-soal/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Gagal menghapus soal bank');
+        await loadBankCategories();
+        await loadBankSoal();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    };
+
+    // Salin Butir Soal dari Paket Ulangan ke Bank Soal
+    window.copyExamSoalToBank = async (soalId) => {
+      const kategori = prompt('Simpan ke Kategori Bank Soal apa? (Kosongkan untuk otomatis menggunakan nama mapel):');
+      if (kategori === null) return; // Batal
+
+      try {
+        const res = await guruFetch(`/api/guru/bank-soal/copy-from-exam/${soalId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kategori: kategori.trim() || undefined })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Gagal menyalin soal ke Bank Soal');
+
+        alert('✅ Soal berhasil disimpan ke Bank Soal Mandiri!');
+        // Update badge bank soal count
+        if (badgeBankSoalCount) {
+          const cur = parseInt(badgeBankSoalCount.textContent, 10) || 0;
+          badgeBankSoalCount.textContent = cur + 1;
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    };
+
+    // --- 4. Modal Quick Import Soal Satuan ke Ulangan ---
+    const modalQuickImport = document.getElementById('modal-quick-import-exam');
+    const selectQuickImportExam = document.getElementById('quick-import-select-exam');
+    const hiddenQuickImportBankId = document.getElementById('quick-import-bank-id');
+    const btnCancelQuickImport = document.getElementById('btn-cancel-quick-import');
+    const btnCloseQuickImport = document.getElementById('btn-close-quick-import');
+    const btnConfirmQuickImport = document.getElementById('btn-confirm-quick-import');
+
+    window.openQuickImportModal = async (bankSoalId) => {
+      hiddenQuickImportBankId.value = bankSoalId;
+      selectQuickImportExam.innerHTML = '<option value="">Memuat daftar ulangan...</option>';
+      modalQuickImport.classList.remove('hidden');
+
+      try {
+        const res = await guruFetch('/api/guru/ulangan');
+        const data = await res.json();
+        if (!res.ok || !data.success || !data.data || data.data.length === 0) {
+          selectQuickImportExam.innerHTML = '<option value="">Tidak ada paket ulangan aktif</option>';
+          return;
+        }
+        selectQuickImportExam.innerHTML = '<option value="">-- Pilih Paket Ulangan --</option>' +
+          data.data.map(u => `<option value="${u.id}">${escapeHtml(u.judul)} (${escapeHtml(u.mata_pelajaran)} - Kelas ${escapeHtml(u.tingkat_kelas)})</option>`).join('');
+        if (activeUlanganId) selectQuickImportExam.value = activeUlanganId;
+      } catch (err) {
+        selectQuickImportExam.innerHTML = '<option value="">Gagal memuat ulangan</option>';
+      }
+    };
+
+    function closeQuickImportModal() {
+      if (modalQuickImport) modalQuickImport.classList.add('hidden');
+    }
+    if (btnCancelQuickImport) btnCancelQuickImport.addEventListener('click', closeQuickImportModal);
+    if (btnCloseQuickImport) btnCloseQuickImport.addEventListener('click', closeQuickImportModal);
+
+    if (btnConfirmQuickImport) {
+      btnConfirmQuickImport.addEventListener('click', async () => {
+        const ulanganId = selectQuickImportExam.value;
+        const bankId = Number(hiddenQuickImportBankId.value);
+        if (!ulanganId) {
+          alert('Pilih paket ulangan tujuan terlebih dahulu!');
+          return;
+        }
+        try {
+          const res = await guruFetch('/api/guru/bank-soal/import-to-exam', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ulangan_id: ulanganId,
+              bank_soal_ids: [bankId]
+            })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.message || 'Gagal mengimpor soal ke ulangan');
+
+          alert('✅ Butir soal berhasil ditambahkan ke paket ulangan!');
+          closeQuickImportModal();
+          if (activeUlanganId && String(activeUlanganId) === String(ulanganId)) {
+            selectUlangan(activeUlanganId);
+          }
+        } catch (err) {
+          alert('Error: ' + err.message);
+        }
+      });
+    }
+
+    // --- 5. AI Smart Pick dari Bank Soal ---
+    const modalAiSmartPick = document.getElementById('modal-ai-smart-pick');
+    const btnOpenAiSmartPick = document.getElementById('btn-open-ai-smart-pick');
+    const btnCloseAiSmartPick = document.getElementById('btn-close-modal-ai-smart-pick');
+    const btnCancelAiSmartPick = document.getElementById('btn-cancel-smart-pick');
+    const btnDoSmartPick = document.getElementById('btn-do-smart-pick');
+    const btnApplySmartPick = document.getElementById('btn-apply-smart-pick');
+    const smartPickUlanganSelect = document.getElementById('smart-pick-ulangan');
+    const smartPickResultBox = document.getElementById('smart-pick-result-box');
+    const smartPickCardsList = document.getElementById('smart-pick-cards-list');
+    const smartPickResultCount = document.getElementById('smart-pick-result-count');
+
+    let smartPickResultsCache = [];
+
+    async function openAiSmartPickModal() {
+      smartPickResultBox.classList.add('hidden');
+      smartPickCardsList.innerHTML = '';
+      smartPickResultsCache = [];
+
+      smartPickUlanganSelect.innerHTML = '<option value="">Memuat paket ulangan...</option>';
+      modalAiSmartPick.classList.remove('hidden');
+
+      try {
+        const res = await guruFetch('/api/guru/ulangan');
+        const data = await res.json();
+        if (!res.ok || !data.success || !data.data || data.data.length === 0) {
+          smartPickUlanganSelect.innerHTML = '<option value="">Belum ada paket ulangan dibuat</option>';
+          return;
+        }
+        smartPickUlanganSelect.innerHTML = '<option value="">-- Pilih Paket Ulangan Target --</option>' +
+          data.data.map(u => `<option value="${u.id}">${escapeHtml(u.judul)} (${escapeHtml(u.mata_pelajaran)} - Kelas ${escapeHtml(u.tingkat_kelas)})</option>`).join('');
+        if (activeUlanganId) smartPickUlanganSelect.value = activeUlanganId;
+      } catch (err) {
+        smartPickUlanganSelect.innerHTML = '<option value="">Gagal memuat ulangan</option>';
+      }
+    }
+
+    if (btnOpenAiSmartPick) btnOpenAiSmartPick.addEventListener('click', openAiSmartPickModal);
+    if (btnCloseAiSmartPick) btnCloseAiSmartPick.addEventListener('click', () => modalAiSmartPick.classList.add('hidden'));
+    if (btnCancelAiSmartPick) btnCancelAiSmartPick.addEventListener('click', () => modalAiSmartPick.classList.add('hidden'));
+
+    if (btnDoSmartPick) {
+      btnDoSmartPick.addEventListener('click', async () => {
+        const targetUlangan = smartPickUlanganSelect.value;
+        if (!targetUlangan) {
+          alert('Pilih paket ulangan target terlebih dahulu!');
+          return;
+        }
+
+        const kategori = document.getElementById('smart-pick-kategori')?.value;
+        const subtopik = document.getElementById('smart-pick-subtopik')?.value?.trim();
+        const totalSoal = Number(document.getElementById('smart-pick-total')?.value) || 5;
+        const jumlahIsian = Number(document.getElementById('smart-pick-isian')?.value) || 0;
+        const jumlahEssay = Number(document.getElementById('smart-pick-essay')?.value) || 0;
+        const tingkatKesulitan = document.getElementById('smart-pick-kesulitan')?.value || 'sedang';
+        const isListening = document.getElementById('smart-pick-listening')?.value;
+
+        const payload = {
+          ulangan_id: targetUlangan,
+          kategori: (kategori && kategori !== 'all') ? kategori : undefined,
+          sub_topik: subtopik || undefined,
+          jumlah_soal: totalSoal,
+          jumlah_isian: jumlahIsian,
+          jumlah_essay: jumlahEssay,
+          tingkat_kesulitan: tingkatKesulitan,
+          is_listening: (isListening !== '' && isListening !== undefined) ? Number(isListening) : undefined
+        };
+
+        const originalText = btnDoSmartPick.innerHTML;
+        btnDoSmartPick.innerHTML = '<span>🤖 AI Sedang Menganalisis & Memilihkan Soal...</span>';
+        btnDoSmartPick.disabled = true;
+
+        try {
+          const res = await guruFetch('/api/guru/bank-soal/ai-pick', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.message || 'Gagal menjalankan AI Smart Pick');
+          }
+
+          smartPickResultsCache = data.soal || [];
+          smartPickResultCount.textContent = `Ditemukan ${smartPickResultsCache.length} butir soal yang cocok dari Bank Soal`;
+
+          if (smartPickResultsCache.length === 0) {
+            smartPickCardsList.innerHTML = '<p class="p-4 text-center text-slate-400">Tidak ada soal di bank soal yang cocok dengan kriteria filter tersebut.</p>';
+          } else {
+            smartPickCardsList.innerHTML = smartPickResultsCache.map((item, i) => `
+              <label class="flex items-start space-x-3 p-3 bg-white rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-amber-400 transition">
+                <input type="checkbox" checked value="${item.id}" class="smart-pick-item-check mt-1 w-4 h-4 text-amber-600 rounded">
+                <div class="space-y-1 flex-1">
+                  <div class="flex items-center space-x-2 text-[10px]">
+                    <span class="font-bold text-slate-900">#${i + 1}</span>
+                    <span class="px-1.5 py-0.5 bg-purple-100 text-purple-800 rounded font-semibold">${escapeHtml(item.kategori || 'Umum')}</span>
+                    <span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded uppercase font-semibold">${item.jenis}</span>
+                    <span class="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded capitalize font-medium">${item.tingkat_kesulitan || 'Sedang'}</span>
+                    ${item.is_listening ? '<span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded font-bold">🎧 Listening</span>' : ''}
+                  </div>
+                  <p class="font-medium text-slate-800 text-xs">${escapeHtml(item.pertanyaan)}</p>
+                  ${item.pembahasan ? `<p class="text-[11px] text-emerald-800 italic">💡 ${escapeHtml(item.pembahasan)}</p>` : ''}
+                </div>
+              </label>
+            `).join('');
+          }
+
+          smartPickResultBox.classList.remove('hidden');
+        } catch (err) {
+          alert('Error AI Smart Pick: ' + err.message);
+        } finally {
+          btnDoSmartPick.innerHTML = originalText;
+          btnDoSmartPick.disabled = false;
+        }
+      });
+    }
+
+    if (btnApplySmartPick) {
+      btnApplySmartPick.addEventListener('click', async () => {
+        const targetUlangan = smartPickUlanganSelect.value;
+        const checkedBoxes = Array.from(document.querySelectorAll('.smart-pick-item-check:checked'));
+        if (checkedBoxes.length === 0) {
+          alert('Pilih sekurang-kurangnya 1 butir soal untuk diimpor.');
+          return;
+        }
+
+        const selectedIds = checkedBoxes.map(cb => Number(cb.value));
+
+        try {
+          const res = await guruFetch('/api/guru/bank-soal/import-to-exam', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ulangan_id: targetUlangan,
+              bank_soal_ids: selectedIds
+            })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.message || 'Gagal mengimpor soal ke ulangan');
+
+          alert(`✅ Berhasil mengimpor ${selectedIds.length} butir soal ke paket ulangan!`);
+          modalAiSmartPick.classList.add('hidden');
+          if (activeUlanganId && String(activeUlanganId) === String(targetUlangan)) {
+            selectUlangan(activeUlanganId);
+          }
+        } catch (err) {
+          alert('Error: ' + err.message);
+        }
+      });
+    }
+
+    // --- 6. Ekspor Rekap Nilai ke Excel (.CSV dengan BOM UTF-8) ---
+    const btnExportExcel = document.getElementById('btn-export-excel');
+    if (btnExportExcel) {
+      btnExportExcel.addEventListener('click', () => {
+        if (!currentLaporanData || !currentLaporanData.ulangan) {
+          alert('Data laporan belum dimuat.');
+          return;
+        }
+
+        const u = currentLaporanData.ulangan;
+        const s = currentLaporanData.statistik || {};
+        const peserta = currentLaporanData.peserta || [];
+        const examKkm = u.kkm || 75;
+
+        const rows = [
+          ['REKAPITULASI HASIL NILAI ULANGAN SISWA'],
+          ['Judul Ulangan', u.judul || ''],
+          ['Mata Pelajaran', u.mata_pelajaran || ''],
+          ['Tingkat Kelas', u.tingkat_kelas || ''],
+          ['Kode Ujian', u.kode_ujian || ''],
+          ['KKM Standar', String(examKkm)],
+          ['Filter Kelas', currentLaporanData.filter_kelas === 'all' ? 'Semua Kelas' : (currentLaporanData.filter_kelas || 'Semua Kelas')],
+          ['Waktu Ekspor', new Date().toLocaleString('id-ID')],
+          [],
+          ['RINGKASAN STATISTIK KELAS'],
+          ['Total Peserta', String(s.total_peserta || 0)],
+          ['Total Mengumpulkan Jawaban', String(s.total_submitted || 0)],
+          ['Nilai Rata-Rata', String(s.rata_rata || 0)],
+          ['Nilai Tertinggi', String(s.nilai_tertinggi || 0)],
+          ['Nilai Terendah', String(s.nilai_terendah || 0)],
+          ['Ketuntasan Siswa (Nilai >= ' + examKkm + ')', String(s.tuntas_count || 0) + ' dari ' + String(s.total_submitted || 0) + ' siswa'],
+          [],
+          ['No', 'Nama Siswa', 'Kelas', 'Status Pengerjaan', 'Waktu Submit', 'Nilai AI', 'Nilai Akhir', 'Keterangan KKM']
+        ];
+
+        peserta.forEach((p, idx) => {
+          const finalScore = p.nilai_final !== null ? p.nilai_final : (p.nilai_ai !== null ? p.nilai_ai : '');
+          const isTuntas = typeof finalScore === 'number' ? (finalScore >= examKkm ? 'TUNTAS' : 'BELUM TUNTAS') : '-';
+          const submitTime = p.waktu_selesai ? new Date(p.waktu_selesai).toLocaleString('id-ID') : '-';
+          const statusText = p.status === 'submitted'
+            ? (p.auto_submitted ? 'Auto-submit (Waktu Habis)' : 'Selesai (Manual)')
+            : 'Belum Kumpul';
+
+          rows.push([
+            String(idx + 1),
+            p.nama_siswa || '',
+            p.kelas_siswa || '',
+            statusText,
+            submitTime,
+            String(p.nilai_ai !== null ? p.nilai_ai : ''),
+            String(finalScore),
+            isTuntas
+          ]);
+        });
+
+        // Format CSV dengan UTF-8 BOM (﻿) agar Microsoft Excel di Windows membaca karakter lokal/aksen/simbol dengan benar
+        const csvContent = '\uFEFF' + rows.map(r => r.map(cell => '"' + String(cell ?? '').replace(/"/g, '""') + '"').join(',')).join('\r\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const cleanTitle = (u.judul || 'Ulangan').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const cleanKelas = (currentLaporanData.filter_kelas || 'Semua').replace(/[^a-zA-Z0-9_-]/g, '_');
+        link.href = url;
+        link.download = 'Laporan_Nilai_' + cleanTitle + '_' + cleanKelas + '.csv';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      });
+    }
+
   </script>
 </body>
 </html>

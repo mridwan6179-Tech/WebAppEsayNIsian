@@ -584,6 +584,49 @@
       }
     }
 
+    const audioPlayCounts = {};
+    window.incrementAudioPlay = function(soalId) {
+      audioPlayCounts[soalId] = (audioPlayCounts[soalId] || 0) + 1;
+      const el = document.getElementById(`audio-play-count-${soalId}`);
+      if (el) el.textContent = `Diputar: ${audioPlayCounts[soalId]} kali`;
+    };
+
+    window.playStudentTts = function(soalId, encodedScript, bahasa) {
+      window.incrementAudioPlay(soalId);
+      const text = decodeURIComponent(encodedScript);
+      if (!window.speechSynthesis) {
+        alert('Browser Anda belum mendukung pemutaran suara Text-to-Speech.');
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      const bLower = (bahasa || '').toLowerCase();
+      if (bLower.includes('inggris') || bLower.includes('en')) {
+        utterance.lang = 'en-US';
+      } else if (bLower.includes('arab') || bLower.includes('ar')) {
+        utterance.lang = 'ar-SA';
+      } else if (bLower.includes('jepang') || bLower.includes('ja')) {
+        utterance.lang = 'ja-JP';
+      } else {
+        utterance.lang = 'id-ID';
+      }
+      utterance.rate = 0.9;
+      window.speechSynthesis.speak(utterance);
+    };
+
+    window.insertSymbol = function(fieldName, sym) {
+      const el = document.querySelector(`[name="${fieldName}"]`);
+      if (!el) return;
+      const start = el.selectionStart || 0;
+      const end = el.selectionEnd || 0;
+      const val = el.value || '';
+      el.value = val.substring(0, start) + sym + val.substring(end);
+      el.focus();
+      const nextPos = start + sym.length;
+      el.setSelectionRange(nextPos, nextPos);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+
     let countdownInterval = null;
     let isSubmitting = false;
 
@@ -728,7 +771,39 @@
               <img src="${s.gambar_url}" alt="Gambar Soal ${idx + 1}" class="max-h-60 sm:max-h-72 w-auto max-w-full object-contain rounded-lg">
             </div>
           ` : ''}
-          <div>
+          ${s.is_listening ? `
+            <div class="mb-3.5 p-3.5 bg-amber-50/90 border border-amber-200 rounded-xl space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-amber-900 flex items-center space-x-1.5">
+                  <span>🎧</span>
+                  <span>Soal Menyimak (${s.bahasa || 'Audio Listening'})</span>
+                </span>
+                <span class="text-[11px] text-amber-700 font-medium" id="audio-play-count-${s.id}">Diputar: 0 kali</span>
+              </div>
+              ${s.audio_url ? `
+                <audio controls class="w-full h-9 rounded-lg" onplay="incrementAudioPlay('${s.id}')">
+                  <source src="${s.audio_url}">
+                  Browser Anda tidak mendukung pemutar audio.
+                </audio>
+              ` : ''}
+              ${(s.audio_script && !s.audio_url) ? `
+                <div class="flex items-center space-x-2">
+                  <button type="button" onclick="playStudentTts('${s.id}', '${encodeURIComponent(s.audio_script)}', '${s.bahasa || 'en-US'}')" class="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center space-x-1.5">
+                    <span>🔊</span>
+                    <span>Putar Audio Percakapan</span>
+                  </button>
+                  <span class="text-[11px] text-slate-500">Dengarkan naskah percakapan dengan cermat</span>
+                </div>
+              ` : ''}
+            </div>
+          ` : ''}
+          <div class="space-y-1.5">
+            <div class="flex items-center space-x-1 overflow-x-auto py-1 text-xs">
+              <span class="text-[10px] text-slate-400 font-semibold uppercase mr-1">Simbol:</span>
+              ${['²', '³', '√', '°', 'π', '×', '÷', '±', '½', '¼', '≠', '≤', '≥', '∞', 'Δ', 'α', 'β', 'θ', 'Ω'].map(sym => 
+                `<button type="button" tabindex="-1" onclick="insertSymbol('soal_${s.id}', '${sym}')" class="px-1.5 py-0.5 bg-slate-100 hover:bg-blue-100 hover:text-blue-700 text-slate-700 font-mono text-xs rounded border border-slate-200 transition">${sym}</button>`
+              ).join('')}
+            </div>
             ${isEssay 
               ? `<textarea name="soal_${s.id}" data-soal-id="${s.id}" rows="3" dir="auto" placeholder="Ketik jawaban essay Anda di sini..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base sm:text-sm transition leading-relaxed"></textarea>`
               : `<input type="text" name="soal_${s.id}" data-soal-id="${s.id}" dir="auto" placeholder="Ketik jawaban singkat Anda..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base sm:text-sm transition">`

@@ -256,6 +256,29 @@ function initDatabase() {
       last_error TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS bank_soal (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guru_id INTEGER NOT NULL,
+      kategori TEXT NOT NULL,
+      sub_topik TEXT DEFAULT NULL,
+      tingkat_kelas TEXT DEFAULT NULL,
+      jenis TEXT CHECK(jenis IN ('isian', 'essay')) NOT NULL,
+      pertanyaan TEXT NOT NULL,
+      kunci_jawaban TEXT DEFAULT NULL,
+      rubrik TEXT DEFAULT NULL,
+      pembahasan TEXT DEFAULT NULL,
+      tingkat_kesulitan TEXT DEFAULT 'sedang',
+      bobot_standar REAL DEFAULT 10,
+      gambar_url TEXT DEFAULT NULL,
+      audio_url TEXT DEFAULT NULL,
+      audio_script TEXT DEFAULT NULL,
+      is_listening INTEGER DEFAULT 0,
+      bahasa TEXT DEFAULT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (guru_id) REFERENCES guru(id) ON DELETE CASCADE
+    );
   `);
 
   // Migrasi aman untuk database yang sudah ada
@@ -278,6 +301,16 @@ function initDatabase() {
   try { db.exec('ALTER TABLE ulangan ADD COLUMN instruksi_penilaian_khusus TEXT DEFAULT NULL;'); } catch (e) {}
   try { db.exec('ALTER TABLE ulangan ADD COLUMN jumlah_soal_isian INTEGER DEFAULT NULL;'); } catch (e) {}
   try { db.exec('ALTER TABLE ulangan ADD COLUMN jumlah_soal_essay INTEGER DEFAULT NULL;'); } catch (e) {}
+  try { db.exec('ALTER TABLE soal ADD COLUMN pembahasan TEXT DEFAULT NULL;'); } catch (e) {}
+  try { db.exec('ALTER TABLE soal ADD COLUMN audio_url TEXT DEFAULT NULL;'); } catch (e) {}
+  try { db.exec('ALTER TABLE soal ADD COLUMN audio_script TEXT DEFAULT NULL;'); } catch (e) {}
+  try { db.exec('ALTER TABLE soal ADD COLUMN is_listening INTEGER DEFAULT 0;'); } catch (e) {}
+  try { db.exec('ALTER TABLE soal ADD COLUMN bahasa TEXT DEFAULT NULL;'); } catch (e) {}
+  try { db.exec('ALTER TABLE soal ADD COLUMN kategori TEXT DEFAULT NULL;'); } catch (e) {}
+  try { db.exec('ALTER TABLE bank_soal ADD COLUMN audio_url TEXT DEFAULT NULL;'); } catch (e) {}
+  try { db.exec('ALTER TABLE bank_soal ADD COLUMN audio_script TEXT DEFAULT NULL;'); } catch (e) {}
+  try { db.exec('ALTER TABLE bank_soal ADD COLUMN is_listening INTEGER DEFAULT 0;'); } catch (e) {}
+  try { db.exec('ALTER TABLE bank_soal ADD COLUMN bahasa TEXT DEFAULT NULL;'); } catch (e) {}
 
   // Seed initial guru if table is empty
   const teacherEmail = process.env.TEACHER_EMAIL || 'mridwan700611@gmail.com';

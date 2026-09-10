@@ -163,7 +163,7 @@ const studentService = {
       // Siswa sudah memulai sebelumnya: muat soal yang sama persis (persisten / anti-refresh)
       const placeholders = assignedQuestionIds.map(() => '?').join(',');
       const rows = db.prepare(`
-        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan
+        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa
         FROM soal
         WHERE id IN (${placeholders})
       `).all(...assignedQuestionIds);
@@ -173,7 +173,7 @@ const studentService = {
     } else {
       // Pengerjaan baru: ambil semua soal dari bank soal
       const allQuestions = db.prepare(`
-        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan
+        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa
         FROM soal
         WHERE ulangan_id = ?
         ORDER BY urutan ASC, nomor ASC

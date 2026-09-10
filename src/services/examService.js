@@ -317,7 +317,7 @@ const examService = {
 
   // FR-04: Buat Soal
   createSoal(ulanganId, data) {
-    const { pertanyaan, jenis, bobot, kunci_jawaban, rubrik, tingkat_kelas, tingkat_kesulitan, gambar_url } = data;
+    const { pertanyaan, jenis, bobot, kunci_jawaban, rubrik, tingkat_kelas, tingkat_kesulitan, gambar_url, pembahasan, audio_url, audio_script, is_listening, bahasa, kategori } = data;
 
     if (!pertanyaan || !jenis || bobot === undefined) {
       throw new Error('Pertanyaan, jenis soal, dan bobot wajib diisi');
@@ -338,8 +338,8 @@ const examService = {
     const nextUrutan = (maxOrder?.max_u || 0) + 1;
 
     const stmt = db.prepare(`
-      INSERT INTO soal (ulangan_id, nomor, jenis, pertanyaan, gambar_url, kunci_jawaban, rubrik, bobot, tingkat_kelas, tingkat_kesulitan, urutan)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO soal (ulangan_id, nomor, jenis, pertanyaan, gambar_url, kunci_jawaban, rubrik, bobot, tingkat_kelas, tingkat_kesulitan, urutan, pembahasan, audio_url, audio_script, is_listening, bahasa, kategori)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const info = stmt.run(
@@ -353,7 +353,13 @@ const examService = {
       numBobot,
       tingkat_kelas || '',
       tingkat_kesulitan || 'sedang',
-      data.urutan || nextUrutan
+      data.urutan || nextUrutan,
+      pembahasan || null,
+      audio_url || null,
+      audio_script || null,
+      is_listening ? 1 : 0,
+      bahasa || null,
+      kategori || null
     );
 
     return db.prepare('SELECT * FROM soal WHERE id = ?').get(info.lastInsertRowid);
@@ -395,10 +401,16 @@ const examService = {
     }
     if (data.kunci_jawaban !== undefined) { updates.push('kunci_jawaban = ?'); params.push(data.kunci_jawaban); }
     if (data.rubrik !== undefined) { updates.push('rubrik = ?'); params.push(data.rubrik); }
+    if (data.pembahasan !== undefined) { updates.push('pembahasan = ?'); params.push(data.pembahasan); }
     if (data.tingkat_kelas !== undefined) { updates.push('tingkat_kelas = ?'); params.push(data.tingkat_kelas); }
     if (data.tingkat_kesulitan !== undefined) { updates.push('tingkat_kesulitan = ?'); params.push(data.tingkat_kesulitan); }
     if (data.urutan !== undefined) { updates.push('urutan = ?'); params.push(data.urutan); }
     if (data.nomor !== undefined) { updates.push('nomor = ?'); params.push(data.nomor); }
+    if (data.audio_url !== undefined) { updates.push('audio_url = ?'); params.push(data.audio_url || null); }
+    if (data.audio_script !== undefined) { updates.push('audio_script = ?'); params.push(data.audio_script || null); }
+    if (data.is_listening !== undefined) { updates.push('is_listening = ?'); params.push(data.is_listening ? 1 : 0); }
+    if (data.bahasa !== undefined) { updates.push('bahasa = ?'); params.push(data.bahasa || null); }
+    if (data.kategori !== undefined) { updates.push('kategori = ?'); params.push(data.kategori || null); }
 
     if (updates.length === 0) return this.getSoalById(soalId);
 

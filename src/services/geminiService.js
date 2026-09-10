@@ -1,4 +1,5 @@
 require('dotenv').config();
+const db = require('../config/database');
 
 // Fallback daftar model ringan jika API offline atau saat inisialisasi awal
 const FALLBACK_FLASH_MODELS = [
@@ -203,13 +204,15 @@ const geminiService = {
     const {
       pertanyaan, jenis, bobot, kunci_jawaban, rubrik,
       tingkat_kelas, tingkat_kesulitan, jawaban_siswa,
-      izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus
+      izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus,
+      is_listening, audio_script, bahasa, pembahasan
     } = item;
 
     const bolehSingkat = Boolean(izinkan_singkatan);
     const bolehInformal = Boolean(izinkan_informal);
     const adaToleransiTypo = (toleransi_typo !== undefined && toleransi_typo !== null) ? Boolean(toleransi_typo) : true;
     const instruksiKhusus = instruksi_penilaian_khusus ? String(instruksi_penilaian_khusus).trim() : '';
+    const isListening = Boolean(is_listening);
 
     return `
 Anda adalah guru penilai ujian sekolah yang profesional, adil, objektif, teliti, dan mendidik. Tugas Anda adalah menilai jawaban siswa layaknya seorang guru yang bijak, berdasarkan pemahaman konsep, esensi makna, dan konteks pertanyaan, BUKAN sekadar pencocokan kata demi kata (exact matching).
@@ -220,6 +223,10 @@ DATA SOAL:
 - Bobot Maksimum: ${bobot}
 - Tingkat Kelas: ${tingkat_kelas || 'Umum'}
 - Tingkat Kesulitan: ${tingkat_kesulitan || 'Sedang'}
+${isListening ? `- Tipe Soal Menyimak / Listening: YA (Soal Pemahaman Audio / Percakapan)` : ''}
+${bahasa ? `- Bahasa Pengantar / Pelajaran: ${bahasa}` : ''}
+${audio_script ? `- Naskah Audio / Percakapan yang Didengarkan Siswa:\n"""\n${audio_script}\n"""` : ''}
+${pembahasan ? `- Pembahasan Materi Acuan Guru: "${pembahasan}"` : ''}
 - Kunci Jawaban Guru (sebagai acuan utama, namun bukan batas kaku): "${kunci_jawaban || 'Tidak ada kunci khusus, nilai berdasarkan ketepatan konsep pertanyaan'}"
 ${rubrik ? `- Panduan Rubrik: "${rubrik}"` : ''}
 ${instruksiKhusus ? `
@@ -299,6 +306,11 @@ ${adaToleransiTypo ? `   - TOLERANSI SALAH KETIK (TYPO) TIDAK SENGAJA & EJAAN FO
       * Pahami teks dalam Bahasa Inggris, baik berupa isian kosakata (vocabulary), tata bahasa (grammar/tenses), pemahaman bacaan (reading comprehension), maupun uraian esai analitis.
       * Toleransi kesalahan kecil pada artikel (a/an/the) atau kapitalisasi selama makna inti dan konsep ilmiah/soal terjawab dengan tepat.
     - Berikan skor dan penjelasan "alasan_ai" yang ramah, bijak, adil, dan mendidik layaknya guru pengampu bahasa tersebut.
+
+12. PEDOMAN KHUSUS SOAL MENYIMAK / LISTENING (JIKA AKTIF):
+    - Siswa mendengarkan naskah audio/percakapan yang tertera pada data soal di atas.
+    - Nilai kemampuan pemahaman menyimak (listening comprehension) siswa berdasarkan informasi eksplisit dan implisit dalam percakapan/monolog tersebut.
+    - Untuk soal dikte atau ejaan (spelling/dictation), toleransi kesalahan ejaan minor jika kata yang dimaksud secara fonetik jelas dan tepat.
 
 OUTPUT WAJIB:
 Kembalikan HANYA format JSON valid tanpa format markdown lain:
@@ -524,7 +536,9 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
   // FR-14 - FR-19: Evaluasi satu jawaban dengan sistem multi-key backup & sequential failover
   async gradeAnswer(item, apiKey = null) {
     const maxScore = Number(item.bobot || item.skor_maksimum || 10);
-    const availableKeys = apiKey ? [{ id: 0, label: 'Manual Key', key: apiKey.trim() }] : this.getAllActiveApiKeys();
+    const availableKeys = (apiKey !== null && apiKey !== undefined)
+      ? (apiKey.trim() ? [{ id: 0, label: 'Manual Key', key: apiKey.trim() }] : [])
+      : this.getAllActiveApiKeys();
 
     // Jika tidak ada API key yang valid, gunakan fallback evaluator
     if (availableKeys.length === 0) {
@@ -636,6 +650,10 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
       target_total_bobot = 100
     } = options;
 
+    const isListening = Boolean(options.is_listening);
+    const bahasaPelajaran = options.bahasa ? String(options.bahasa).trim() : (isListening ? 'Bahasa Inggris' : 'Bahasa Indonesia');
+    const deskripsiAudio = options.deskripsi_audio ? String(options.deskripsi_audio).trim() : '';
+
     const hasSpecificIsian = options.jumlah_isian !== undefined && options.jumlah_isian !== null && options.jumlah_isian !== '';
     const hasSpecificEssay = options.jumlah_essay !== undefined && options.jumlah_essay !== null && options.jumlah_essay !== '';
 
@@ -675,6 +693,20 @@ INSTRUKSI KHUSUS SUMBER: Buatlah paket soal yang relevan, berbobot ilmiah, dan s
       tipeDeskripsi = 'Semua bertipe essay uraian';
     }
 
+    let listeningInstructions = '';
+    if (isListening) {
+      listeningInstructions = `
+*** FITUR KHUSUS SOAL MENYIMAK (LISTENING / AUDIO COMPREHENSION) ***
+1. Soal ini dirancang khusus untuk menguji kemampuan menyimak (Listening).
+2. Bahasa yang digunakan: ${bahasaPelajaran}.
+3. NASKAH AUDIO ("audio_script"):
+   ${deskripsiAudio ? `Guru mendeskripsikan skenario percakapan/audio: "${deskripsiAudio}".` : 'Buatkan naskah dialog percakapan dua orang (atau monolog/berita pendek) yang wajar, menarik, dan sesuai jenjang kurikulum.'}
+   Setiap butir soal WAJIB menyertakan naskah lengkap pada field "audio_script" (misalnya: "Person A: ... Person B: ..."). Naskah ini yang akan dibacakan atau disuarakan kepada siswa via Text-to-Speech (TTS).
+4. PERTANYAAN: Tanyakan pemahaman makna, fakta, atau kesimpulan dari apa yang dipercakapkan dalam naskah audio.
+5. PEMBAHASAN: Berikan transkrip bukti kalimat pada naskah audio dan penjelasan rinci mengapa kunci jawaban tersebut tepat.
+`;
+    }
+
     return `
 Anda adalah konsultan kurikulum dan pembuat soal ujian profesional yang bertugas membantu guru membuat paket soal ulangan beserta kunci jawaban acuan, rubrik/pembahasan konsep, dan pembobotan.
 
@@ -684,29 +716,41 @@ PARAMETER PEMBUATAN SOAL:
 3. Tipe Soal: ${tipeDeskripsi}
 4. Tingkat Kesulitan: ${tingkat_kesulitan}
 5. Target Total Akumulasi Bobot: ${target_total_bobot} (Distribusikan bobot ke setiap soal secara adil dan bulat, misalnya soal essay berbobot lebih tinggi, sehingga total seluruh soal tepat = ${target_total_bobot}).
-
+${listeningInstructions}
 ${sumberDeskripsi}
 
 KOMPONEN WAJIB TIAP BUTIR SOAL:
+- "kategori": Kategori pokok atau nama bab/mata pelajaran dari butir soal ini (WAJIB diisi ringkas, spesifik & presisi sesuai materi/topik, misal: "Bahasa Inggris - Tenses", "Biologi - Fotosintesis", "Matematika - Aljabar", "Fisika - Termodinamika", "Listening Comprehension", dll. Jangan gunakan kata umum "Umum").
+- "sub_topik": Sub-topik materi spesifik yang dibahas dalam butir soal ini (misal: "Present Perfect", "Reaksi Terang", "Persamaan Linier").
 - "pertanyaan": Kalimat tanya yang jelas, terarah, akademis, dan tidak ambigu. Jika berkaitan dengan rumus matematika, gunakan notasi LaTeX (misal: $x^2 - 4x + 4 = 0$).
 - "jenis": Tuliskan "isian" atau "essay"${isCustomBreakdown ? ` (Wajib tepat menghasilkan ${jumlah_isian} butir "isian" dan ${jumlah_essay} butir "essay")` : ''}.
   * "isian" untuk soal yang menanyakan istilah spesifik, angka/nilai akhir, konsep ringkas 1-3 kata.
   * "essay" untuk soal yang meminta penjelasan konsep, tahapan penyelesaian, perbandingan, atau uraian mendalam.
 - "bobot": Angka bobot soal (bilangan bulat positif > 0).
-- "gambar_url": (Opsional) Jika soal memerlukan diagram/ilustrasi (misalnya geometri matematika, grafik, siklus air, organ tubuh), Anda dapat menyertakan link gambar HTTPS edukasi publik atau SVG data-uri yang valid. Jika tidak perlu gambar, isi null.
+- "gambar_url": (Opsional) Jika soal memerlukan diagram/ilustrasi, sertakan link atau SVG data-uri yang valid. Jika tidak perlu gambar, isi null.
 - "kunci_jawaban": Kunci acuan jawaban guru yang ideal, jelas, dan akurat.
-- "rubrik": Pembahasan konsep dan panduan rubrik penilaian untuk membantu AI penilai. PENTING: Gunakan panduan kualitatif seperti "Skor Penuh (jawaban lengkap dan tepat)" dan "Skor Parsial (jawaban sebagian)", HINDARI menulis angka mutlak seperti "Skor 10" jika bobot soalnya bukan 10 agar tidak membingungkan guru.
+- "rubrik": Panduan rubrik kualitatif penilaian (Skor Penuh vs Skor Parsial).
+- "pembahasan": Penjelasan/pembahasan mendalam konsep materi dan ulasan mengapa jawaban tersebut benar untuk bahan evaluasi belajar siswa.
+- "is_listening": ${isListening ? 1 : 0}
+- "bahasa": "${bahasaPelajaran}"
+- "audio_script": ${isListening ? 'Teks naskah percakapan / monolog yang dibacakan / disuarakan' : 'null'}
 
 FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
 {
   "soal": [
     {
+      "kategori": "...",
+      "sub_topik": "...",
       "pertanyaan": "...",
       "jenis": "isian / essay",
       "bobot": 20,
       "gambar_url": null,
       "kunci_jawaban": "...",
-      "rubrik": "..."
+      "rubrik": "...",
+      "pembahasan": "...",
+      "is_listening": ${isListening ? 1 : 0},
+      "bahasa": "${bahasaPelajaran}",
+      "audio_script": ${isListening ? '"..."' : 'null'}
     }
   ]
 }
@@ -714,16 +758,34 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
   },
 
   // Normalisasi bobot agar jumlahnya tepat sama dengan targetTotalBobot
-  normalizeGeneratedQuestions(questions, targetTotal = 100) {
+  normalizeGeneratedQuestions(questions, targetTotal = 100, options = {}) {
     if (!questions || questions.length === 0) return [];
 
+    const defaultListening = options.is_listening ? 1 : 0;
+    const defaultBahasa = options.bahasa || (defaultListening ? 'Bahasa Inggris' : null);
+    const rawTopic = options.input_sumber && typeof options.input_sumber === 'string'
+      ? options.input_sumber.split('\n')[0].replace(/[^a-zA-Z0-9\s-]/g, '').trim()
+      : '';
+    const defaultKategori = rawTopic
+      ? (rawTopic.length > 35 ? rawTopic.substring(0, 32) + '...' : rawTopic)
+      : (defaultListening ? 'Listening Comprehension' : 'Materi Pembelajaran');
+
     let sanitized = questions.map((q, idx) => ({
+      kategori: (q.kategori && String(q.kategori).trim() && String(q.kategori).trim().toLowerCase() !== 'umum') 
+        ? String(q.kategori).trim() 
+        : defaultKategori,
+      sub_topik: (q.sub_topik && String(q.sub_topik).trim()) ? String(q.sub_topik).trim() : null,
       pertanyaan: q.pertanyaan || `Soal nomor ${idx + 1}`,
       jenis: (q.jenis || '').toLowerCase().includes('isian') ? 'isian' : 'essay',
       bobot: Math.max(1, Math.round(Number(q.bobot) || 10)),
       gambar_url: (q.gambar_url && typeof q.gambar_url === 'string' && q.gambar_url.trim() !== '') ? q.gambar_url.trim() : null,
       kunci_jawaban: q.kunci_jawaban || '',
-      rubrik: q.rubrik || ''
+      rubrik: q.rubrik || '',
+      pembahasan: q.pembahasan || (q.rubrik ? `Pembahasan: ${q.rubrik}` : null),
+      is_listening: (q.is_listening !== undefined) ? (q.is_listening ? 1 : 0) : defaultListening,
+      bahasa: q.bahasa || defaultBahasa,
+      audio_script: q.audio_script || (defaultListening ? (options.deskripsi_audio || null) : null),
+      audio_url: q.audio_url || null
     }));
 
     const currentTotal = sanitized.reduce((sum, q) => sum + q.bobot, 0);
@@ -747,6 +809,8 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
   fallbackOfflineQuestionGenerator(options) {
     const targetBobot = Number(options.target_total_bobot) || 100;
     const topik = options.input_sumber || 'Materi Pembelajaran';
+    const isListening = Boolean(options.is_listening);
+    const bahasa = options.bahasa || (isListening ? 'Bahasa Inggris' : 'Bahasa Indonesia');
 
     const hasSpecificIsian = options.jumlah_isian !== undefined && options.jumlah_isian !== null && options.jumlah_isian !== '';
     const hasSpecificEssay = options.jumlah_essay !== undefined && options.jumlah_essay !== null && options.jumlah_essay !== '';
@@ -759,23 +823,39 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
 
       for (let i = 1; i <= nIsian; i++) {
         sampleSoal.push({
-          pertanyaan: `Sebutkan istilah atau komponen penting terkait ${topik} (Isian #${i})!`,
+          kategori: isListening ? 'Listening Comprehension' : topik,
+          sub_topik: `Bagian ${i}`,
+          pertanyaan: isListening
+            ? `Berdasarkan rekaman percakapan di atas, sebutkan informasi penting terkait ${topik} (Isian #${i})!`
+            : `Sebutkan istilah atau komponen penting terkait ${topik} (Isian #${i})!`,
           jenis: 'isian',
           bobot: 10,
           gambar_url: null,
           kunci_jawaban: `Kunci acuan istilah untuk ${topik} bagian ${i}`,
-          rubrik: 'Menyebutkan istilah yang tepat sesuai konsep acuan'
+          rubrik: 'Menyebutkan istilah yang tepat sesuai konsep acuan',
+          pembahasan: `Pembahasan rinci untuk konsep materi ${topik} bagian ${i}. Istilah ini mengacu pada standar kurikulum.`,
+          is_listening: isListening ? 1 : 0,
+          bahasa: bahasa,
+          audio_script: isListening ? (options.deskripsi_audio || `Speaker A: Hello, can you explain ${topik}? Speaker B: Yes, it is an important topic.`) : null
         });
       }
 
       for (let j = 1; j <= nEssay; j++) {
         sampleSoal.push({
-          pertanyaan: `Jelaskan secara mendalam konsep dan mekanisme utama dari ${topik} (Essay #${j})!`,
+          kategori: isListening ? 'Listening Comprehension' : topik,
+          sub_topik: `Uraian ${j}`,
+          pertanyaan: isListening
+            ? `Berdasarkan rekaman percakapan, jelaskan secara mendalam konsep dan kesimpulan dari ${topik} (Essay #${j})!`
+            : `Jelaskan secara mendalam konsep dan mekanisme utama dari ${topik} (Essay #${j})!`,
           jenis: 'essay',
           bobot: 20,
           gambar_url: null,
           kunci_jawaban: `Kunci uraian konsep mendalam untuk ${topik} bagian ${j}`,
-          rubrik: 'Menjelaskan konsep lengkap dan runtut (skor penuh), menjelaskan sebagian (skor 50%), salah (skor 0)'
+          rubrik: 'Menjelaskan konsep lengkap dan runtut (skor penuh), menjelaskan sebagian (skor 50%), salah (skor 0)',
+          pembahasan: `Pembahasan lengkap konsep ${topik} bagian ${j}. Menjelaskan esensi dan keterkaitan komponen secara sistematis.`,
+          is_listening: isListening ? 1 : 0,
+          bahasa: bahasa,
+          audio_script: isListening ? (options.deskripsi_audio || `Speaker A: Welcome to the lecture about ${topik}. Speaker B: Let us analyze the primary functions.`) : null
         });
       }
     } else {
@@ -783,16 +863,22 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
       for (let i = 1; i <= n; i++) {
         const isEssay = options.tipe_soal === 'essay' || (options.tipe_soal === 'campuran' && i % 2 === 0);
         sampleSoal.push({
+          kategori: isListening ? 'Listening Comprehension' : topik,
+          sub_topik: `Topik ${i}`,
           pertanyaan: isEssay
-            ? `Jelaskan secara mendalam konsep dan fungsi utama dari ${topik} (Bagian ${i})!`
-            : `Sebutkan istilah atau komponen penting terkait ${topik} (Nomor ${i})!`,
+            ? (isListening ? `Berdasarkan audio percakapan, jelaskan konsep utama ${topik} (Nomor ${i})!` : `Jelaskan secara mendalam konsep dan fungsi utama dari ${topik} (Bagian ${i})!`)
+            : (isListening ? `Berdasarkan audio, sebutkan istilah penting terkait ${topik} (Nomor ${i})!` : `Sebutkan istilah atau komponen penting terkait ${topik} (Nomor ${i})!`),
           jenis: isEssay ? 'essay' : 'isian',
           bobot: isEssay ? 20 : 10,
           gambar_url: null,
           kunci_jawaban: `Kunci acuan konsep untuk ${topik} bagian ${i}`,
           rubrik: isEssay
             ? 'Menjelaskan konsep lengkap dan runtut (skor penuh), menjelaskan sebagian (skor 50%), salah (skor 0)'
-            : 'Menyebutkan istilah yang tepat sesuai konsep acuan'
+            : 'Menyebutkan istilah yang tepat sesuai konsep acuan',
+          pembahasan: `Pembahasan komprehensif materi ${topik} nomor ${i} berdasarkan rujukan ilmiah terpercaya.`,
+          is_listening: isListening ? 1 : 0,
+          bahasa: bahasa,
+          audio_script: isListening ? (options.deskripsi_audio || `Speaker: In this dialogue about ${topik}, we discuss key principles.`) : null
         });
       }
     }
@@ -800,14 +886,16 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
     return {
       success: true,
       model_ai: 'offline-fallback',
-      soal: this.normalizeGeneratedQuestions(sampleSoal, targetBobot)
+      soal: this.normalizeGeneratedQuestions(sampleSoal, targetBobot, options)
     };
   },
 
   // Membuat paket soal menggunakan AI dengan sistem multi-key backup & sequential failover
   async generateQuestions(options, apiKey = null) {
     const targetBobot = Number(options.target_total_bobot) || 100;
-    const availableKeys = apiKey ? [{ id: 0, label: 'Manual Key', key: apiKey.trim() }] : this.getAllActiveApiKeys();
+    const availableKeys = (apiKey !== null && apiKey !== undefined)
+      ? (apiKey.trim() ? [{ id: 0, label: 'Manual Key', key: apiKey.trim() }] : [])
+      : this.getAllActiveApiKeys();
 
     if (availableKeys.length === 0) {
       return this.fallbackOfflineQuestionGenerator(options);
@@ -870,7 +958,7 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
             throw new Error('Output AI tidak memuat butir soal yang valid');
           }
 
-          const normalized = this.normalizeGeneratedQuestions(rawList, targetBobot);
+          const normalized = this.normalizeGeneratedQuestions(rawList, targetBobot, options);
           modelCooldownMap.delete(model);
 
           return {
