@@ -257,6 +257,30 @@
               </div>
             </div>
 
+            <!-- Pengaturan Toleransi Penilaian AI -->
+            <div class="p-2.5 bg-emerald-50/70 rounded-lg border border-emerald-200 space-y-2">
+              <span class="block font-semibold text-emerald-900">🤖 Toleransi Penilaian AI</span>
+              <div class="space-y-1.5">
+                <label class="flex items-center space-x-2 cursor-pointer">
+                  <input type="checkbox" id="new-exam-izinkan-singkatan" class="rounded text-emerald-600 focus:ring-emerald-500">
+                  <span class="text-slate-700 text-[11px]">Izinkan kata singkatan umum (yg, dgn, krn, dll - tanpa potong nilai)</span>
+                </label>
+                <label class="flex items-center space-x-2 cursor-pointer">
+                  <input type="checkbox" id="new-exam-izinkan-informal" class="rounded text-emerald-600 focus:ring-emerald-500">
+                  <span class="text-slate-700 text-[11px]">Izinkan bahasa santai / informal / ragam gaul</span>
+                </label>
+                <label class="flex items-center space-x-2 cursor-pointer">
+                  <input type="checkbox" id="new-exam-toleransi-typo" checked class="rounded text-emerald-600 focus:ring-emerald-500">
+                  <span class="text-slate-700 text-[11px]">Toleransi salah ketik ringan (typo / fonetik)</span>
+                </label>
+              </div>
+              <div>
+                <label class="block text-slate-700 text-[11px] mb-1 font-medium">Instruksi / Parameter Penilaian Khusus Guru (Opsional):</label>
+                <textarea id="new-exam-instruksi-khusus" rows="2" placeholder="Contoh: Wajib sebutkan minimal 2 contoh, jawaban singkat padat tetap nilai penuh..." class="w-full px-2 py-1.5 text-xs rounded border border-slate-300 bg-white"></textarea>
+                <span class="block text-[10px] text-slate-500 mt-0.5">Kriteria ini akan diprioritaskan AI Gemini saat mengevaluasi setiap jawaban siswa.</span>
+              </div>
+            </div>
+
             <div class="flex justify-end space-x-2 pt-1">
               <button type="button" id="btn-cancel-create-exam" class="px-2.5 py-1 text-slate-600">Batal</button>
               <button type="submit" class="px-3 py-1 bg-blue-600 text-white font-semibold rounded-lg">Simpan</button>
@@ -290,6 +314,7 @@
                 <span id="detail-exam-random-info" class="hidden text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md font-medium border border-purple-200"></span>
                 <span id="detail-exam-schedule" class="hidden text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md font-medium border border-blue-200"></span>
               </div>
+              <div id="detail-exam-ai-rules" class="mt-2 flex items-center space-x-1.5 text-[11px] flex-wrap gap-y-1"></div>
             </div>
 
             <div class="flex items-center space-x-2">
@@ -506,6 +531,20 @@
               </div>
             </div>
 
+            <!-- Status Rilis Nilai per Kelas & Ringkasan -->
+            <div id="kelas-release-summary-bar" class="p-2.5 bg-slate-100/90 rounded-xl border border-slate-200 text-xs flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                <span class="font-bold text-slate-800 flex items-center space-x-1 text-[11px]">
+                  <span>📢</span>
+                  <span>Status Rilis Nilai:</span>
+                </span>
+                <div id="kelas-release-badges-container" class="flex flex-wrap items-center gap-1.5">
+                  <span class="text-slate-400 text-[11px]">Belum ada peserta</span>
+                </div>
+              </div>
+              <div id="overall-release-stat" class="text-[11px] font-bold text-slate-700"></div>
+            </div>
+
             <!-- Tabel Peserta -->
             <div class="overflow-x-auto border border-slate-200 rounded-xl">
               <table class="w-full text-left text-xs">
@@ -517,6 +556,7 @@
                     <th class="p-3">Status Dinilai</th>
                     <th class="p-3">Nilai AI</th>
                     <th class="p-3">Nilai Final</th>
+                    <th class="p-3">Status Rilis</th>
                     <th class="p-3 text-right">Aksi</th>
                   </tr>
                 </thead>
@@ -668,6 +708,32 @@
           <label class="block font-semibold text-slate-700 mb-1">Target Kelas yang Mengikuti Ulangan</label>
           <div id="edit-exam-kelas-checkboxes" class="flex flex-wrap gap-2 max-h-28 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
             <!-- Checkboxes kelas -->
+          </div>
+        </div>
+
+        <!-- Toleransi Penilaian AI Guru -->
+        <div class="p-3.5 bg-emerald-50/70 rounded-xl border border-emerald-200 space-y-2.5">
+          <label class="block font-bold text-emerald-900 text-xs">🤖 Toleransi Penilaian AI</label>
+          
+          <div class="space-y-1.5">
+            <label class="flex items-center space-x-2 text-slate-700 cursor-pointer">
+              <input type="checkbox" id="edit-exam-izinkan-singkatan" class="rounded text-emerald-600 focus:ring-emerald-500">
+              <span class="font-medium text-[11px]">Izinkan kata singkatan umum (yg, dgn, krn, dll - tanpa potong nilai)</span>
+            </label>
+            <label class="flex items-center space-x-2 text-slate-700 cursor-pointer">
+              <input type="checkbox" id="edit-exam-izinkan-informal" class="rounded text-emerald-600 focus:ring-emerald-500">
+              <span class="font-medium text-[11px]">Izinkan bahasa santai / informal / ragam gaul</span>
+            </label>
+            <label class="flex items-center space-x-2 text-slate-700 cursor-pointer">
+              <input type="checkbox" id="edit-exam-toleransi-typo" class="rounded text-emerald-600 focus:ring-emerald-500">
+              <span class="font-medium text-[11px]">Toleransi salah ketik ringan (typo / fonetik)</span>
+            </label>
+          </div>
+
+          <div>
+            <label class="block font-medium text-slate-700 text-[11px] mb-1">Instruksi / Parameter Penilaian Khusus Guru (Opsional):</label>
+            <textarea id="edit-exam-instruksi-khusus" rows="2" placeholder="Contoh: Wajib sebutkan minimal 2 contoh, jawaban singkat padat tetap nilai penuh..." class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white"></textarea>
+            <span class="block text-[10px] text-slate-500 mt-0.5">Kriteria khusus ini akan diprioritaskan AI saat mengevaluasi seluruh jawaban ulangan ini.</span>
           </div>
         </div>
 
@@ -1217,6 +1283,10 @@
       const zonaWaktuVal = document.getElementById('new-exam-zona-waktu')?.value || 'WIB';
       const instruksiRemedial = document.getElementById('new-exam-instruksi-remedial').value.trim();
       const linkRemedial = document.getElementById('new-exam-link-remedial').value.trim();
+      const izinkanSingkatan = document.getElementById('new-exam-izinkan-singkatan')?.checked ? 1 : 0;
+      const izinkanInformal = document.getElementById('new-exam-izinkan-informal')?.checked ? 1 : 0;
+      const toleransiTypo = document.getElementById('new-exam-toleransi-typo')?.checked ? 1 : 0;
+      const instruksiKhusus = document.getElementById('new-exam-instruksi-khusus')?.value.trim() || null;
 
       const payload = {
         judul: document.getElementById('new-exam-title').value.trim(),
@@ -1231,7 +1301,11 @@
         durasi_menit: durasiVal ? parseInt(durasiVal, 10) : null,
         kkm: kkmVal ? parseInt(kkmVal, 10) : 75,
         instruksi_remedial: instruksiRemedial || null,
-        link_remedial: linkRemedial || null
+        link_remedial: linkRemedial || null,
+        izinkan_singkatan: izinkanSingkatan,
+        izinkan_informal: izinkanInformal,
+        toleransi_typo: toleransiTypo,
+        instruksi_penilaian_khusus: instruksiKhusus
       };
 
       const res = await fetch('/api/guru/ulangan', {
@@ -1244,6 +1318,7 @@
         formCreateExam.reset();
         document.getElementById('new-exam-kkm').value = '75';
         if (document.getElementById('new-exam-zona-waktu')) document.getElementById('new-exam-zona-waktu').value = 'WIB';
+        if (document.getElementById('new-exam-toleransi-typo')) document.getElementById('new-exam-toleransi-typo').checked = true;
         formCreateExam.classList.add('hidden');
         loadUlanganList();
         selectUlangan(data.data.id);
@@ -1356,6 +1431,35 @@
         btnStatus.textContent = 'Buka Ulangan';
         btnStatus.className = 'text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition';
         btnStatus.onclick = () => updateStatusUlangan('dibuka');
+      }
+
+      // Tampilkan Badge Toleransi AI Guru
+      const aiRulesEl = document.getElementById('detail-exam-ai-rules');
+      if (aiRulesEl) {
+        const badges = [];
+        if (u.izinkan_singkatan) {
+          badges.push('<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-medium border border-emerald-300">🔤 Singkatan: Boleh</span>');
+        } else {
+          badges.push('<span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium border border-slate-200">🔤 Singkatan: Potong 5-15%</span>');
+        }
+
+        if (u.izinkan_informal) {
+          badges.push('<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-medium border border-emerald-300">💬 Santai: Boleh</span>');
+        } else {
+          badges.push('<span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium border border-slate-200">💬 Bahasa: Formal</span>');
+        }
+
+        if (u.toleransi_typo !== 0) {
+          badges.push('<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-medium border border-emerald-300">✏️ Typo: Ditoleransi</span>');
+        } else {
+          badges.push('<span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-medium border border-amber-300">✏️ Typo: Ketat</span>');
+        }
+
+        if (u.instruksi_penilaian_khusus && u.instruksi_penilaian_khusus.trim()) {
+          badges.push(`<span class="bg-purple-100 text-purple-900 px-2 py-0.5 rounded font-bold border border-purple-300 cursor-help" title="${escapeHtml(u.instruksi_penilaian_khusus)}">🎯 Ada Parameter Khusus Guru</span>`);
+        }
+
+        aiRulesEl.innerHTML = `<span class="text-slate-500 font-semibold text-[11px]">Toleransi AI:</span> ${badges.join(' ')}`;
       }
 
       renderSoalList(u.soal || []);
@@ -1485,6 +1589,18 @@
         document.getElementById('edit-exam-kkm').value = u.kkm || 75;
         document.getElementById('edit-exam-limit').value = u.jumlah_soal_tampil || '';
         document.getElementById('edit-exam-acak').checked = Boolean(u.acak_soal);
+        if (document.getElementById('edit-exam-izinkan-singkatan')) {
+          document.getElementById('edit-exam-izinkan-singkatan').checked = Boolean(u.izinkan_singkatan);
+        }
+        if (document.getElementById('edit-exam-izinkan-informal')) {
+          document.getElementById('edit-exam-izinkan-informal').checked = Boolean(u.izinkan_informal);
+        }
+        if (document.getElementById('edit-exam-toleransi-typo')) {
+          document.getElementById('edit-exam-toleransi-typo').checked = (u.toleransi_typo !== 0);
+        }
+        if (document.getElementById('edit-exam-instruksi-khusus')) {
+          document.getElementById('edit-exam-instruksi-khusus').value = u.instruksi_penilaian_khusus || '';
+        }
 
         // Render target kelas checkboxes
         const activeKelasIds = (u.kelas || []).map(k => k.id);
@@ -1530,6 +1646,10 @@
       const limitVal = document.getElementById('edit-exam-limit').value.trim();
       const acakChecked = document.getElementById('edit-exam-acak').checked;
       const zonaWaktu = document.getElementById('edit-exam-zona-waktu')?.value || 'WIB';
+      const izinkanSingkatan = document.getElementById('edit-exam-izinkan-singkatan')?.checked ? 1 : 0;
+      const izinkanInformal = document.getElementById('edit-exam-izinkan-informal')?.checked ? 1 : 0;
+      const toleransiTypo = document.getElementById('edit-exam-toleransi-typo')?.checked ? 1 : 0;
+      const instruksiKhusus = document.getElementById('edit-exam-instruksi-khusus')?.value.trim() || null;
 
       const selectedKelas = Array.from(document.querySelectorAll('input[name="edit_kelas_choice"]:checked'))
         .map(cb => parseInt(cb.value, 10));
@@ -1546,7 +1666,11 @@
         kkm: kkmVal ? parseInt(kkmVal, 10) : 75,
         jumlah_soal_tampil: limitVal ? parseInt(limitVal, 10) : null,
         acak_soal: acakChecked ? 1 : 0,
-        kelas_ids: selectedKelas
+        kelas_ids: selectedKelas,
+        izinkan_singkatan: izinkanSingkatan,
+        izinkan_informal: izinkanInformal,
+        toleransi_typo: toleransiTypo,
+        instruksi_penilaian_khusus: instruksiKhusus
       };
 
       const btnSave = document.getElementById('btn-save-edit-exam');
@@ -2265,7 +2389,7 @@
       });
 
       if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">Tidak ada data siswa yang cocok dengan kriteria filter.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-slate-400">Tidak ada data siswa yang cocok dengan kriteria filter.</td></tr>';
         return;
       }
 
@@ -2293,6 +2417,18 @@
           </td>
           <td class="p-3 font-semibold text-purple-700">${st.nilai_ai !== null ? st.nilai_ai : '-'}</td>
           <td class="p-3 font-bold text-blue-600">${st.nilai_final !== null ? st.nilai_final : '-'}</td>
+          <td class="p-3">
+            ${st.released_at 
+              ? `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-xs" title="Nilai sudah dapat dilihat siswa (Dirilis: ${new Date(st.released_at).toLocaleString('id-ID')})">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse"></span>
+                  🟢 Sudah Dirilis
+                 </span>`
+              : `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200" title="Nilai belum dirilis ke siswa">
+                  <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-1"></span>
+                  🔒 Belum Dirilis
+                 </span>`
+            }
+          </td>
           <td class="p-3 text-right">
             <div class="flex items-center justify-end space-x-1.5">
               <button onclick="openReviewModal(${st.pengerjaan_id})" class="text-xs bg-slate-100 hover:bg-blue-50 text-blue-600 font-semibold px-2.5 py-1 rounded transition" title="Review butir jawaban siswa">
@@ -2316,15 +2452,77 @@
         currentStudentsList = data.data || [];
         document.getElementById('count-peserta').textContent = currentStudentsList.length;
 
-        // Update pilihan kelas pada filter dropdown
+        // Hitung Ringkasan Rilis Nilai Keseluruhan
+        const totalSubmitted = currentStudentsList.filter(s => s.status === 'submitted').length;
+        const totalReleased = currentStudentsList.filter(s => s.status === 'submitted' && s.released_at).length;
+        const overallStatEl = document.getElementById('overall-release-stat');
+        const btnToggleRelease = document.getElementById('btn-toggle-release');
+
+        if (overallStatEl) {
+          if (totalSubmitted > 0) {
+            const percent = Math.round((totalReleased / totalSubmitted) * 100);
+            overallStatEl.innerHTML = `Rilis: <strong class="${totalReleased === totalSubmitted ? 'text-emerald-700' : 'text-amber-700'}">${totalReleased} / ${totalSubmitted} Siswa (${percent}%)</strong>`;
+          } else {
+            overallStatEl.textContent = 'Belum ada pengerjaan';
+          }
+        }
+
+        // Sesuaikan Tampilan Tombol Rilis
+        if (btnToggleRelease) {
+          if (totalSubmitted > 0 && totalReleased === totalSubmitted) {
+            btnToggleRelease.innerHTML = '<span>🔒 Tarik Rilis Nilai</span>';
+            btnToggleRelease.className = 'px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded-lg transition flex items-center space-x-1 shadow-sm';
+            btnToggleRelease.title = 'Semua nilai siswa sudah dirilis. Klik untuk menarik kembali rilis.';
+          } else {
+            btnToggleRelease.innerHTML = '<span>📢 Rilis Nilai</span>';
+            btnToggleRelease.className = 'px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg transition flex items-center space-x-1 shadow-sm';
+            btnToggleRelease.title = 'Rilis nilai agar dapat dilihat oleh siswa.';
+          }
+        }
+
+        // Update Indikator Status Rilis per Kelas (Badges Bar & Dropdown Filter)
+        const classes = Array.from(new Set(currentStudentsList.map(s => s.kelas_siswa).filter(Boolean))).sort();
+        const badgesContainer = document.getElementById('kelas-release-badges-container');
+
+        if (badgesContainer) {
+          badgesContainer.innerHTML = '';
+          if (classes.length === 0) {
+            badgesContainer.innerHTML = '<span class="text-slate-400 text-[11px]">Belum ada peserta</span>';
+          } else {
+            classes.forEach(c => {
+              const studentsInClass = currentStudentsList.filter(s => (s.kelas_siswa || '').trim().toLowerCase() === c.toLowerCase() && s.status === 'submitted');
+              const releasedInClass = studentsInClass.filter(s => Boolean(s.released_at)).length;
+              const isAllReleased = studentsInClass.length > 0 && releasedInClass === studentsInClass.length;
+              const isPartial = releasedInClass > 0 && releasedInClass < studentsInClass.length;
+
+              const badge = document.createElement('span');
+              if (isAllReleased) {
+                badge.className = 'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300';
+                badge.innerHTML = `<span>🟢 ${escapeHtml(c)}: Dirilis (${releasedInClass}/${studentsInClass.length})</span>`;
+              } else if (isPartial) {
+                badge.className = 'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300';
+                badge.innerHTML = `<span>🟡 ${escapeHtml(c)}: Sebagian (${releasedInClass}/${studentsInClass.length})</span>`;
+              } else {
+                badge.className = 'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-200 text-slate-700 border border-slate-300';
+                badge.innerHTML = `<span>🔒 ${escapeHtml(c)}: Belum (${studentsInClass.length} Siswa)</span>`;
+              }
+              badgesContainer.appendChild(badge);
+            });
+          }
+        }
+
+        // Update pilihan kelas pada filter dropdown dengan label status rilis
         if (filterKelasEl) {
           const currentVal = filterKelasEl.value;
-          const classes = Array.from(new Set(currentStudentsList.map(s => s.kelas_siswa).filter(Boolean))).sort();
           filterKelasEl.innerHTML = '<option value="">Semua Kelas</option>';
           classes.forEach(c => {
             const opt = document.createElement('option');
             opt.value = c.toLowerCase();
-            opt.textContent = c;
+            const studentsInClass = currentStudentsList.filter(s => (s.kelas_siswa || '').trim().toLowerCase() === c.toLowerCase() && s.status === 'submitted');
+            const releasedInClass = studentsInClass.filter(s => Boolean(s.released_at)).length;
+            const isAll = studentsInClass.length > 0 && releasedInClass === studentsInClass.length;
+            const statusIcon = isAll ? '🟢 Sudah Dirilis' : (releasedInClass > 0 ? '🟡 Sebagian' : '🔒 Belum Dirilis');
+            opt.textContent = `${c} (${statusIcon} - ${studentsInClass.length} Siswa)`;
             if (c.toLowerCase() === currentVal.toLowerCase()) opt.selected = true;
             filterKelasEl.appendChild(opt);
           });
@@ -2469,13 +2667,54 @@
     };
 
     document.getElementById('btn-toggle-release').onclick = async () => {
-      const isRelease = confirm('Rilis seluruh hasil nilai ulangan ini agar dapat dilihat oleh masing-masing siswa?');
+      if (!activeUlanganId) return;
+
+      const totalSubmitted = currentStudentsList.filter(s => s.status === 'submitted').length;
+      const totalReleased = currentStudentsList.filter(s => s.status === 'submitted' && s.released_at).length;
+      const isCurrentlyAllReleased = totalSubmitted > 0 && totalReleased === totalSubmitted;
+
+      const currentClassVal = filterKelasEl?.value?.trim();
+      let targetKelas = null;
+
+      if (currentClassVal) {
+        const matched = currentStudentsList.find(s => (s.kelas_siswa || '').trim().toLowerCase() === currentClassVal.toLowerCase());
+        const className = matched ? matched.kelas_siswa : currentClassVal;
+        const classStudents = currentStudentsList.filter(s => (s.kelas_siswa || '').trim().toLowerCase() === currentClassVal.toLowerCase() && s.status === 'submitted');
+        const classReleased = classStudents.filter(s => Boolean(s.released_at)).length;
+        const isClassReleased = classStudents.length > 0 && classReleased === classStudents.length;
+
+        const actionText = isClassReleased ? 'MENARIK / MEMBATALKAN rilis' : 'MERILIS';
+        const ok = confirm(`Anda sedang memilih filter Kelas "${className}".\n\nApakah Anda ingin ${actionText} nilai KHUSUS untuk Kelas "${className}" (${classStudents.length} siswa)?\n\n(Pilih "Batal" jika tidak ingin mengubah rilis kelas ini).`);
+        if (!ok) return;
+
+        targetKelas = className;
+        const shouldRelease = !isClassReleased;
+
+        const res = await fetch(`/api/guru/ulangan/${activeUlanganId}/release`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isReleased: shouldRelease, kelas: targetKelas })
+        });
+        const data = await res.json();
+        alert(shouldRelease ? `Nilai untuk kelas ${className} berhasil dirilis ke siswa!` : `Rilis nilai kelas ${className} berhasil ditarik kembali.`);
+        loadPesertaList(activeUlanganId);
+        return;
+      }
+
+      // Rilis / Tarik untuk Semua Kelas
+      const shouldRelease = !isCurrentlyAllReleased;
+      const msg = shouldRelease 
+        ? 'Rilis SELURUH hasil nilai ulangan ini agar dapat dilihat oleh siswa di semua kelas?' 
+        : 'Tarik kembali rilis nilai untuk SEMUA siswa? (Siswa tidak akan dapat melihat nilainya lagi sampai dirilis ulang).';
+      
+      if (!confirm(msg)) return;
+
       await fetch(`/api/guru/ulangan/${activeUlanganId}/release`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isReleased: isRelease })
+        body: JSON.stringify({ isReleased: shouldRelease })
       });
-      alert(isRelease ? 'Nilai resmi dirilis ke siswa!' : 'Rilis nilai ditarik kembali.');
+      alert(shouldRelease ? 'Seluruh nilai resmi dirilis ke siswa!' : 'Rilis nilai untuk seluruh siswa ditarik kembali.');
       loadPesertaList(activeUlanganId);
     };
 

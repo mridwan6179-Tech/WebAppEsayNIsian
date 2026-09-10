@@ -198,12 +198,18 @@ const geminiService = {
     return candidates[0] || FALLBACK_FLASH_MODELS[0];
   },
 
-  // FR-14, FR-15, FR-16, FR-17: Susun prompt semantik terstruktur dengan parameter elaborasi, kebal prompt injection, dan toleransi singkatan/typo
+  // FR-14, FR-15, FR-16, FR-17: Susun prompt semantik terstruktur dengan parameter elaborasi, kebal prompt injection, dan toleransi singkatan/typo/kustom
   buildPrompt(item) {
     const {
       pertanyaan, jenis, bobot, kunci_jawaban, rubrik,
-      tingkat_kelas, tingkat_kesulitan, jawaban_siswa
+      tingkat_kelas, tingkat_kesulitan, jawaban_siswa,
+      izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus
     } = item;
+
+    const bolehSingkat = Boolean(izinkan_singkatan);
+    const bolehInformal = Boolean(izinkan_informal);
+    const adaToleransiTypo = (toleransi_typo !== undefined && toleransi_typo !== null) ? Boolean(toleransi_typo) : true;
+    const instruksiKhusus = instruksi_penilaian_khusus ? String(instruksi_penilaian_khusus).trim() : '';
 
     return `
 Anda adalah guru penilai ujian sekolah yang profesional, adil, objektif, teliti, dan mendidik. Tugas Anda adalah menilai jawaban siswa layaknya seorang guru yang bijak, berdasarkan pemahaman konsep, esensi makna, dan konteks pertanyaan, BUKAN sekadar pencocokan kata demi kata (exact matching).
@@ -216,7 +222,14 @@ DATA SOAL:
 - Tingkat Kesulitan: ${tingkat_kesulitan || 'Sedang'}
 - Kunci Jawaban Guru (sebagai acuan utama, namun bukan batas kaku): "${kunci_jawaban || 'Tidak ada kunci khusus, nilai berdasarkan ketepatan konsep pertanyaan'}"
 ${rubrik ? `- Panduan Rubrik: "${rubrik}"` : ''}
-
+${instruksiKhusus ? `
+*** INSTRUKSI & PARAMETER KHUSUS DARI GURU PENGAMPU (PRIORITAS TINGGI) ***
+Guru yang mengampu ulangan ini menetapkan kriteria penilaian khusus berikut yang WAJIB Anda patuhi dan prioritaskan:
+"""
+${instruksiKhusus}
+"""
+(Patuhi instruksi khusus dari guru di atas secara seksama dalam memberikan skor dan menyusun alasan_ai).
+` : ''}
 JAWABAN SISWA:
 """
 ${jawaban_siswa || '(kosong)'}
@@ -224,14 +237,21 @@ ${jawaban_siswa || '(kosong)'}
 
 PANDUAN PENILAIAN WAJIB:
 1. PENILAIAN MAKNA: Perbedaan redaksi, susunan kata, atau gaya bahasa tidak otomatis dianggap salah jika secara konsep benar.
-2. EVALUASI TATA BAHASA, TOLERANSI TYPO & SINONIM (PENGURANGAN NILAI SEDIKIT JIKA MENYINGKAT DENGAN SENGAJA):
-   - Siswa kadangkala sengaja menyingkat kata secara tidak baku / gaya SMS / bahasa gaul (contoh: 'yg' = yang, 'dgn' = dengan, 'krn' = karena, 'tdk'/'gk' = tidak, 'bgt' = sangat, 'utk' = untuk, 'scr' = secara, 'sdh' = sudah, 'blm' = belum, 'dr' = dari, 'dlm' = dalam, 'gmn' = gimana, 'knp' = kenapa, 'bkn' = bukan, 'spy' = supaya, 'ttp' = tetap, dll).
-   - ATURAN PENGURANGAN NILAI ATAS SINGKATAN SENGAJA:
-     * Jika siswa MENYINGKAT KATA SECARA SENGAJA, konsep dasarnya tetap dipahami, NAMUN BERIKAN PENGURANGAN NILAI SEDIKIT (minor deduction, kurangi sekitar 5% - 15% dari bobot soal atau 0.5 - 1 poin dari skor yang semestinya diperoleh atas ketidakbakuan tata bahasa).
-     * Pada "alasan_ai", WAJIB cantumkan secara transparan: "Terdapat sedikit pengurangan nilai karena menggunakan singkatan kata informal secara sengaja."
-   - TOLERANSI SALAH KETIK (TYPO) TIDAK SENGAJA & SINONIM:
-     * Salah ketik tidak sengaja atau ejaan fonetik wajar (contoh: 'fotosistesis' atau 'fotosintesa' untuk fotosintesis, 'kloropil' untuk klorofil, 'karbondioksit' untuk karbondioksida) TETAP DITOLERANSI TANPA PENGURANGAN NILAI selama konsep ilmiahnya benar.
-     * BATASAN (TYPO BRUTAL): Hanya kurangi nilai atau salahkan jika typo sangat brutal/parah hingga maknanya rusak total atau menjadi kata acak tanpa arti yang tidak dapat dimengerti.
+2. EVALUASI TATA BAHASA, TOLERANSI TYPO & SINONIM, SINGKATAN SERTA BAHASA INFORMAL:
+${bolehSingkat ? `   - KEBIJAKAN SINGKATAN KATA (DIIZINKAN OLEH GURU):
+     * Guru pengampu MENGIZINKAN siswa menggunakan singkatan kata umum (contoh: 'yg', 'dgn', 'krn', 'tdk'/'gk'/'gak', 'utk', 'scr', 'sdh', 'blm', 'dr', 'dlm', 'bgt', 'gmn', dll).
+     * ATURAN: JANGAN KURANGI NILAI SAMA SEKALI atas singkatan umum tersebut jika substansi materi dan konsep ilmiahnya benar.` : `   - KEBIJAKAN SINGKATAN KATA (PENGURANGAN NILAI MINOR):
+     * Siswa kadangkala sengaja menyingkat kata secara tidak baku / gaya SMS / bahasa gaul (contoh: 'yg' = yang, 'dgn' = dengan, 'krn' = karena, 'tdk'/'gk' = tidak, 'bgt' = sangat, 'utk' = untuk, 'scr' = secara, 'sdh' = sudah, 'blm' = belum, 'dr' = dari, 'dlm' = dalam, dll).
+     * ATURAN: Jika siswa MENYINGKAT KATA SECARA SENGAJA, konsep dasarnya tetap dipahami, NAMUN BERIKAN PENGURANGAN NILAI SEDIKIT (minor deduction, kurangi sekitar 5% - 15% dari bobot soal atau 0.5 - 1 poin dari skor yang semestinya diperoleh atas ketidakbakuan tata bahasa).
+     * Pada "alasan_ai", WAJIB cantumkan secara transparan: "Terdapat sedikit pengurangan nilai karena menggunakan singkatan kata informal secara sengaja."`}
+${bolehInformal ? `   - KEBIJAKAN BAHASA INFORMAL / SANTAI (DIIZINKAN OLEH GURU):
+     * Guru pengampu MENGIZINKAN penggunaan bahasa santai, informal, atau ragam percakapan sehari-hari.
+     * Berikan nilai penuh jika konsep ilmiah dan esensi jawabannya tepat dan menjawab pertanyaan.` : `   - KEBIJAKAN BAHASA FORMAL:
+     * Harapkan gaya bahasa yang wajar dan sopan untuk konteks ujian sekolah formal. Jika siswa menggunakan bahasa gaul berlebihan atau tidak santun, berikan pengurangan nilai minor (sekitar 5%-10%) dan sebutkan di alasan_ai.`}
+${adaToleransiTypo ? `   - TOLERANSI SALAH KETIK (TYPO) TIDAK SENGAJA & EJAAN FONETIK:
+     * Salah ketik tidak sengaja atau ejaan fonetik wajar (contoh: 'fotosistesis' atau 'fotosintesa' untuk fotosintesis, 'kloropil' untuk klorofil, 'karbondioksit' untuk karbondioksida) TETAP DITOLERANSI TANPA PENGURANGAN NILAI selama konsep ilmiahnya jelas terbaca.
+     * BATASAN (TYPO BRUTAL): Hanya kurangi nilai atau salahkan jika typo sangat brutal/parah hingga maknanya rusak total atau menjadi kata acak tanpa arti yang tidak dapat dimengerti.` : `   - KETELITIAN EJAAN & ISTILAH (STANDAR KETAT):
+     * Guru menerapkan ketelitian ketat pada ejaan istilah. Jika terdapat typo pada kata kunci materi atau istilah ilmiah penting, berikan pengurangan nilai kecil atas ketidaktelitian penulisan istilah.`}
 3. KUNCI SEBAGAI ACUAN: Kunci jawaban guru adalah acuan utama. Namun, jika siswa memberikan jawaban yang berbeda dari kunci tetapi secara konsep/ilmiah benar dan menjawab pertanyaan, berikan skor penuh atau layak.
 4. KONTRA-KONSEP: Jawaban yang salah atau bertentangan dengan konsep TIDAK boleh diberi nilai hanya karena mengandung kata yang mirip dengan kunci jawaban.
 5. PENILAIAN PARSIAL: Jika jawaban hanya menjawab sebagian dari pertanyaan kompleks atau memenuhi separuh kriteria rubrik, berikan nilai parsial secara proporsional antara 0 hingga ${bobot}.
@@ -387,9 +407,10 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
     }
 
     // 2. Deteksi singkatan kata informal sengaja
+    const bolehSingkat = Boolean(item.izinkan_singkatan);
     const abbreviationRegex = /\b(yg|dgn|krn|tdk|gk|gak|bgt|utk|scr|sdh|blm|dr|dlm|gmn|knp|bkn|spy|ttp|mls|kmrn)\b/i;
     const hasAbbreviation = abbreviationRegex.test(cleanedJawaban);
-    const abbreviationPenalty = hasAbbreviation ? Math.max(0.5, Math.round(effectiveBobot * 0.1 * 10) / 10) : 0;
+    const abbreviationPenalty = (!bolehSingkat && hasAbbreviation) ? Math.max(0.5, Math.round(effectiveBobot * 0.1 * 10) / 10) : 0;
 
     // Normalisasi singkatan umum Indonesia untuk pemahaman konsep
     const slangMap = {
@@ -435,11 +456,11 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
 
     // Jika sama persis atau mengandung kunci
     if (normalized === kunci || (kunci && normalized.includes(kunci))) {
-      const finalScore = hasAbbreviation ? Math.max(0, Math.round((effectiveBobot - abbreviationPenalty) * 10) / 10) : effectiveBobot;
+      const finalScore = (!bolehSingkat && hasAbbreviation) ? Math.max(0, Math.round((effectiveBobot - abbreviationPenalty) * 10) / 10) : effectiveBobot;
       let reason = hasInjection
         ? 'Jawaban sesuai konsep kunci acuan (upaya manipulasi pengelabu AI diabaikan).'
         : 'Jawaban sesuai dengan konsep dan kunci acuan.';
-      if (hasAbbreviation) {
+      if (!bolehSingkat && hasAbbreviation) {
         reason += ' (Terdapat sedikit pengurangan nilai karena menggunakan singkatan kata informal secara sengaja).';
       }
       return makeResult(
@@ -475,13 +496,13 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
     if (kataKunci.length > 0 && matches.length >= Math.ceil(kataKunci.length * 0.35)) {
       const ratio = matches.length / kataKunci.length;
       let partialScore = Math.round((effectiveBobot * ratio) * 10) / 10;
-      if (hasAbbreviation) {
+      if (!bolehSingkat && hasAbbreviation) {
         partialScore = Math.max(0.5, Math.round((partialScore - abbreviationPenalty) * 10) / 10);
       }
       let reason = hasInjection
         ? 'Jawaban mencakup sebagian konsep yang diharapkan (upaya manipulasi diabaikan).'
         : 'Jawaban mencakup sebagian konsep yang diharapkan.';
-      if (hasAbbreviation) {
+      if (!bolehSingkat && hasAbbreviation) {
         reason += ' (Terdapat sedikit pengurangan nilai karena menggunakan singkatan kata informal secara sengaja).';
       }
       return makeResult(

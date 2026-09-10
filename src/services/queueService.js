@@ -106,11 +106,13 @@ const queueService = {
           const queueItem = db.prepare(`
             SELECT a.id as antrean_id, a.jawaban_id, a.attempt_count,
                    j.jawaban_siswa, j.skor_maksimum,
-                   s.pertanyaan, s.jenis, s.bobot, s.kunci_jawaban, s.rubrik, s.tingkat_kelas, s.tingkat_kesulitan
+                   s.pertanyaan, s.jenis, s.bobot, s.kunci_jawaban, s.rubrik, s.tingkat_kelas, s.tingkat_kesulitan,
+                   u.izinkan_singkatan, u.izinkan_informal, u.toleransi_typo, u.instruksi_penilaian_khusus
             FROM antrean_review a
             JOIN jawaban j ON a.jawaban_id = j.id
             JOIN soal s ON j.soal_id = s.id
             JOIN pengerjaan p ON j.pengerjaan_id = p.id
+            JOIN ulangan u ON p.ulangan_id = u.id
             WHERE p.ulangan_id = ? 
               AND j.status_penilaian != 'selesai'
               AND (a.status = 'menunggu' OR (a.status = 'gagal' AND a.attempt_count < 3))

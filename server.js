@@ -441,8 +441,8 @@ app.post('/api/guru/pengerjaan/:id/accept-ai', requireGuru, (req, res) => {
 
 app.post('/api/guru/ulangan/:id/release', requireGuru, (req, res) => {
   try {
-    const { isReleased } = req.body;
-    const result = reviewService.toggleReleasePengerjaan(req.params.id, req.guru.guruId, Boolean(isReleased));
+    const { isReleased, kelas } = req.body;
+    const result = reviewService.toggleReleasePengerjaan(req.params.id, req.guru.guruId, Boolean(isReleased), kelas || null);
     res.json(result);
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });

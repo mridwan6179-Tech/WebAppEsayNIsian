@@ -100,12 +100,21 @@ const examService = {
     const cleanKkm = (data.kkm !== undefined && data.kkm !== null && data.kkm !== '') ? Math.max(0, Math.min(100, Number(data.kkm))) : 75;
     const cleanInstruksiRemedial = data.instruksi_remedial ? String(data.instruksi_remedial).trim() : null;
     const cleanLinkRemedial = data.link_remedial ? String(data.link_remedial).trim() : null;
+    const izinkanSingkatan = data.izinkan_singkatan ? 1 : 0;
+    const izinkanInformal = data.izinkan_informal ? 1 : 0;
+    const toleransiTypo = (data.toleransi_typo !== undefined && data.toleransi_typo !== null) ? (data.toleransi_typo ? 1 : 0) : 1;
+    const cleanInstruksiKhusus = data.instruksi_penilaian_khusus ? String(data.instruksi_penilaian_khusus).trim() : null;
 
     const stmt = db.prepare(`
-      INSERT INTO ulangan (guru_id, judul, mata_pelajaran, tingkat_kelas, deskripsi, kode_ujian, status, jumlah_soal_tampil, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, instruksi_remedial, link_remedial, zona_waktu)
-      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO ulangan (guru_id, judul, mata_pelajaran, tingkat_kelas, deskripsi, kode_ujian, status, jumlah_soal_tampil, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, instruksi_remedial, link_remedial, zona_waktu, izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus)
+      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const info = stmt.run(guruId, judul, mata_pelajaran, tingkat_kelas, deskripsi || '', kode_ujian, limitSoal, isAcak, cleanTanggalMulai, cleanTanggalSelesai, cleanDurasi, cleanKkm, cleanInstruksiRemedial, cleanLinkRemedial, cleanZonaWaktu);
+    const info = stmt.run(
+      guruId, judul, mata_pelajaran, tingkat_kelas, deskripsi || '', kode_ujian,
+      limitSoal, isAcak, cleanTanggalMulai, cleanTanggalSelesai, cleanDurasi,
+      cleanKkm, cleanInstruksiRemedial, cleanLinkRemedial, cleanZonaWaktu,
+      izinkanSingkatan, izinkanInformal, toleransiTypo, cleanInstruksiKhusus
+    );
     const ulanganId = info.lastInsertRowid;
 
     if (Array.isArray(kelas_ids) && kelas_ids.length > 0) {
@@ -216,6 +225,22 @@ const examService = {
     if (data.link_remedial !== undefined) {
       updates.push('link_remedial = ?');
       params.push(data.link_remedial ? String(data.link_remedial).trim() : null);
+    }
+    if (data.izinkan_singkatan !== undefined) {
+      updates.push('izinkan_singkatan = ?');
+      params.push(data.izinkan_singkatan ? 1 : 0);
+    }
+    if (data.izinkan_informal !== undefined) {
+      updates.push('izinkan_informal = ?');
+      params.push(data.izinkan_informal ? 1 : 0);
+    }
+    if (data.toleransi_typo !== undefined) {
+      updates.push('toleransi_typo = ?');
+      params.push(data.toleransi_typo ? 1 : 0);
+    }
+    if (data.instruksi_penilaian_khusus !== undefined) {
+      updates.push('instruksi_penilaian_khusus = ?');
+      params.push(data.instruksi_penilaian_khusus ? String(data.instruksi_penilaian_khusus).trim() : null);
     }
     if (status !== undefined) {
       if (!['draft', 'dibuka', 'ditutup', 'selesai'].includes(status)) {

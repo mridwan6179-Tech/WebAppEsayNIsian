@@ -188,26 +188,46 @@ const reviewService = {
     };
   },
 
-  // FR-22: Rilis hasil ujian ke siswa
-  toggleReleasePengerjaan(ulanganId, guruId, isReleased) {
+  // FR-22: Rilis hasil ujian ke siswa (bisa untuk semua kelas atau filter kelas tertentu)
+  toggleReleasePengerjaan(ulanganId, guruId, isReleased, kelasFilter = null) {
     const ulangan = db.prepare('SELECT id FROM ulangan WHERE id = ? AND guru_id = ?').get(ulanganId, guruId);
     if (!ulangan) throw new Error('Ulangan tidak ditemukan atau bukan milik guru ini');
 
+    const cleanKelas = (kelasFilter && String(kelasFilter).trim() !== '') ? String(kelasFilter).trim() : null;
+
     if (isReleased) {
-      db.prepare(`
-        UPDATE pengerjaan 
-        SET released_at = CURRENT_TIMESTAMP 
-        WHERE ulangan_id = ? AND status = 'submitted'
-      `).run(ulanganId);
+      if (cleanKelas) {
+        db.prepare(`
+          UPDATE pengerjaan 
+          SET released_at = CURRENT_TIMESTAMP 
+          WHERE ulangan_id = ? AND status = 'submitted'
+            AND peserta_id IN (SELECT id FROM peserta WHERE LOWER(kelas) = LOWER(?))
+        `).run(ulanganId, cleanKelas);
+      } else {
+        db.prepare(`
+          UPDATE pengerjaan 
+          SET released_at = CURRENT_TIMESTAMP 
+          WHERE ulangan_id = ? AND status = 'submitted'
+        `).run(ulanganId);
+      }
     } else {
-      db.prepare(`
-        UPDATE pengerjaan 
-        SET released_at = NULL 
-        WHERE ulangan_id = ?
-      `).run(ulanganId);
+      if (cleanKelas) {
+        db.prepare(`
+          UPDATE pengerjaan 
+          SET released_at = NULL 
+          WHERE ulangan_id = ?
+            AND peserta_id IN (SELECT id FROM peserta WHERE LOWER(kelas) = LOWER(?))
+        `).run(ulanganId, cleanKelas);
+      } else {
+        db.prepare(`
+          UPDATE pengerjaan 
+          SET released_at = NULL 
+          WHERE ulangan_id = ?
+        `).run(ulanganId);
+      }
     }
 
-    return { success: true, isReleased };
+    return { success: true, isReleased, kelas: cleanKelas || 'semua' };
   },
 
   // Laporan Rekapitulasi Nilai per Kelas & per Ulangan untuk Dicetak

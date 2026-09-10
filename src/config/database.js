@@ -47,6 +47,10 @@ function initDatabase() {
       instruksi_remedial TEXT DEFAULT NULL,
       link_remedial TEXT DEFAULT NULL,
       zona_waktu TEXT DEFAULT 'WIB',
+      izinkan_singkatan INTEGER DEFAULT 0,
+      izinkan_informal INTEGER DEFAULT 0,
+      toleransi_typo INTEGER DEFAULT 1,
+      instruksi_penilaian_khusus TEXT DEFAULT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (guru_id) REFERENCES guru(id) ON DELETE RESTRICT
@@ -208,6 +212,10 @@ function initDatabase() {
   try { db.exec('ALTER TABLE ulangan ADD COLUMN instruksi_remedial TEXT DEFAULT NULL;'); } catch (e) {}
   try { db.exec('ALTER TABLE ulangan ADD COLUMN link_remedial TEXT DEFAULT NULL;'); } catch (e) {}
   try { db.exec("ALTER TABLE ulangan ADD COLUMN zona_waktu TEXT DEFAULT 'WIB';"); } catch (e) {}
+  try { db.exec('ALTER TABLE ulangan ADD COLUMN izinkan_singkatan INTEGER DEFAULT 0;'); } catch (e) {}
+  try { db.exec('ALTER TABLE ulangan ADD COLUMN izinkan_informal INTEGER DEFAULT 0;'); } catch (e) {}
+  try { db.exec('ALTER TABLE ulangan ADD COLUMN toleransi_typo INTEGER DEFAULT 1;'); } catch (e) {}
+  try { db.exec('ALTER TABLE ulangan ADD COLUMN instruksi_penilaian_khusus TEXT DEFAULT NULL;'); } catch (e) {}
 
   // Seed initial guru if table is empty
   const teacherEmail = process.env.TEACHER_EMAIL || 'guru@sekolah.id';
