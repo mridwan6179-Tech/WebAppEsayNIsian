@@ -285,6 +285,97 @@ function initDatabase() {
   }
 }
 
+async function backupDatabaseToFile(targetPath) {
+  try {
+    db.pragma('wal_checkpoint(TRUNCATE)');
+  } catch (err) {
+    console.warn('WAL checkpoint warning:', err.message);
+  }
+  await db.backup(targetPath);
+  return targetPath;
+}
+
+function restoreDatabaseFromBuffer(buffer) {
+  if (!buffer || buffer.length < 100) {
+    throw new Error('File terlalu kecil atau kosong untuk database SQLite.');
+  }
+
+  const magic = buffer.slice(0, 16).toString('utf8');
+  if (magic !== 'SQLite format 3\0') {
+    throw new Error('Format file tidak valid. Harap unggah file SQLite database (.sqlite atau .db).');
+  }
+
+  const tempRestorePath = path.join(dataDir, `temp_restore_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.sqlite`);
+  fs.writeFileSync(tempRestorePath, buffer);
+
+  let testTempDb;
+  try {
+    testTempDb = new Database(tempRestorePath, { readonly: true });
+    const tables = testTempDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all();
+    if (tables.length === 0) {
+      throw new Error('File database tidak memiliki tabel data yang valid.');
+    }
+    testTempDb.close();
+    testTempDb = null;
+  } catch (err) {
+    if (testTempDb) try { testTempDb.close(); } catch (e) {}
+    if (fs.existsSync(tempRestorePath)) {
+      try { fs.unlinkSync(tempRestorePath); } catch (e) {}
+    }
+    throw new Error('Gagal memverifikasi file cadangan: ' + err.message);
+  }
+
+  try {
+    db.pragma('foreign_keys = OFF');
+    const attachPath = tempRestorePath.replace(/\\/g, '/');
+    db.exec(`ATTACH DATABASE '${attachPath.replace(/'/g, "''")}' AS src;`);
+
+    const srcTables = db.prepare("SELECT name, sql FROM src.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all();
+
+    const restoreTx = db.transaction(() => {
+      // Hapus tabel lama di database utama
+      const currentTables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all();
+      for (const ct of currentTables) {
+        db.exec(`DROP TABLE IF EXISTS "${ct.name}";`);
+      }
+      // Buat ulang skema dan salin data dari file cadangan
+      for (const t of srcTables) {
+        db.exec(t.sql);
+        db.exec(`INSERT INTO "${t.name}" SELECT * FROM src."${t.name}";`);
+      }
+    });
+
+    restoreTx();
+    db.exec('DETACH DATABASE src;');
+    db.pragma('foreign_keys = ON');
+    try {
+      db.pragma('wal_checkpoint(TRUNCATE)');
+    } catch (e) {}
+
+    // Hitung ringkasan data yang berhasil dipulihkan
+    const summary = {};
+    for (const t of ['guru', 'ulangan', 'soal', 'sesi_ujian', 'jawaban', 'gemini_api_keys', 'kelas']) {
+      try {
+        const row = db.prepare(`SELECT COUNT(*) as c FROM "${t}"`).get();
+        summary[t] = row ? row.c : 0;
+      } catch (e) {
+        summary[t] = 0;
+      }
+    }
+
+    return { success: true, summary };
+  } finally {
+    if (fs.existsSync(tempRestorePath)) {
+      try { fs.unlinkSync(tempRestorePath); } catch (e) {}
+    }
+  }
+}
+
+db.backupDatabaseToFile = backupDatabaseToFile;
+db.restoreDatabaseFromBuffer = restoreDatabaseFromBuffer;
+db.getDataDir = () => dataDir;
+db.getDbPath = () => dbPath;
+
 initDatabase();
 
 module.exports = db;

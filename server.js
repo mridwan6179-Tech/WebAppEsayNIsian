@@ -1,6 +1,7 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const db = require('./src/config/database');
@@ -630,6 +631,51 @@ app.post('/api/admin/ai-keys/:id/test', requireAdmin, async (req, res) => {
     res.status(400).json({ success: false, message: err.message });
   }
 });
+
+// ==========================================
+// ROUTE: Backup & Restore Database (Admin)
+// ==========================================
+app.get('/api/admin/database/backup', requireAdmin, async (req, res) => {
+  try {
+    const dataDir = db.getDataDir();
+    const pad = (n) => String(n).padStart(2, '0');
+    const d = new Date();
+    const timestamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    const filename = `ulangan_ai_backup_${timestamp}.sqlite`;
+    const tempBackupPath = path.join(dataDir, `export_${timestamp}_${Math.random().toString(36).substring(2, 7)}.sqlite`);
+
+    await db.backupDatabaseToFile(tempBackupPath);
+
+    res.download(tempBackupPath, filename, (err) => {
+      if (fs.existsSync(tempBackupPath)) {
+        try { fs.unlinkSync(tempBackupPath); } catch (e) {}
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Gagal membuat file cadangan: ' + err.message });
+  }
+});
+
+app.post('/api/admin/database/restore', requireAdmin, (req, res) => {
+  try {
+    const { file_base64 } = req.body;
+    if (!file_base64) {
+      return res.status(400).json({ success: false, message: 'File cadangan tidak ditemukan pada request.' });
+    }
+
+    const buf = Buffer.from(file_base64, 'base64');
+    const result = db.restoreDatabaseFromBuffer(buf);
+
+    res.json({
+      success: true,
+      message: 'Database berhasil dipulihkan secara penuh.',
+      summary: result.summary
+    });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 
 // Export app untuk testing atau jalankan server jika dipanggil langsung
 if (require.main === module) {

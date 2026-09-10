@@ -105,6 +105,9 @@
         <button id="tab-btn-ai" class="px-4 py-2 font-medium text-slate-400 hover:text-slate-200 rounded-t-lg transition">
           ⚡ Multi-Key Gemini AI (Backup & Failover)
         </button>
+        <button id="tab-btn-backup" class="px-4 py-2 font-medium text-slate-400 hover:text-slate-200 rounded-t-lg transition">
+          💾 Amankan & Pulihkan Database
+        </button>
       </div>
 
       <!-- TAB 1: MANAJEMEN GURU -->
@@ -204,6 +207,78 @@
               <li><strong>Anti-Pengelabuan AI:</strong> Kebal terhadap prompt injection atau manipulasi instruksi di akhir jawaban siswa.</li>
             </ul>
           </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: BACKUP & RESTORE DATABASE -->
+      <section id="tab-content-backup" class="hidden space-y-6">
+        <div>
+          <h2 class="text-lg font-bold text-white">Amankan & Pulihkan Database Sistem</h2>
+          <p class="text-xs text-slate-400">Cadangkan seluruh data ulangan dan nilai siswa ke komputer lokal, atau pulihkan data saat server cloud di-deploy ulang.</p>
+        </div>
+
+        <div id="backup-restore-alert" class="hidden p-4 rounded-xl text-xs border"></div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <!-- Card 1: Backup Database -->
+          <div class="bg-slate-800 border border-slate-700 p-6 rounded-2xl space-y-4 flex flex-col justify-between">
+            <div class="space-y-3">
+              <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-xl">
+                📥
+              </div>
+              <h3 class="font-bold text-base text-white">Amankan / Cadangkan Database (Backup)</h3>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Unduh salinan lengkap database SQLite (<code class="bg-slate-900 px-1.5 py-0.5 rounded text-slate-300">.sqlite</code>) yang memuat:
+              </p>
+              <ul class="text-xs text-slate-400 space-y-1.5 list-disc list-inside">
+                <li>Seluruh akun guru & password</li>
+                <li>Daftar kelas & data siswa</li>
+                <li>Daftar ulangan, bank soal, & kunci jawaban</li>
+                <li>Seluruh lembar jawaban siswa & riwayat nilai AI</li>
+                <li>Daftar API Key Gemini yang tersimpan</li>
+              </ul>
+              <div class="p-3 bg-slate-900/60 rounded-xl border border-slate-700/60 text-[11px] text-slate-400">
+                💡 <strong>Tips Praktis:</strong> Unduh cadangan database ini sebelum Anda melakukan <em>Re-deploy</em> atau update cloud container agar data nilai tidak hilang.
+              </div>
+            </div>
+
+            <button id="btn-do-backup" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-xs flex items-center justify-center space-x-2 shadow-lg shadow-emerald-600/20 transition cursor-pointer">
+              <span>📥 Unduh File Cadangan (.sqlite)</span>
+            </button>
+          </div>
+
+          <!-- Card 2: Restore Database -->
+          <div class="bg-slate-800 border border-slate-700 p-6 rounded-2xl space-y-4 flex flex-col justify-between">
+            <div class="space-y-3">
+              <div class="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-xl">
+                📤
+              </div>
+              <h3 class="font-bold text-base text-white">Pulihkan Database (Restore)</h3>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Pulihkan seluruh data dari file cadangan sebelumnya jika Anda baru saja memasang server baru atau melakukan build ulang cloud container.
+              </p>
+              
+              <div class="p-3.5 bg-amber-500/10 rounded-xl border border-amber-500/20 text-xs text-amber-300 space-y-1">
+                <p class="font-semibold flex items-center space-x-1.5">
+                  <span>⚠️ Perhatian Keamanan</span>
+                </p>
+                <p class="text-[11px] text-amber-400/90 leading-relaxed">
+                  Proses pemulihan akan menimpa data yang sedang berjalan dengan isi dari file cadangan. Pastikan file yang dipilih adalah file backup yang benar.
+                </p>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Pilih File Cadangan (.sqlite / .db)</label>
+                <input type="file" id="restore-file-input" accept=".sqlite,.db" class="w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-slate-200 hover:file:bg-slate-600 cursor-pointer bg-slate-900/60 p-2 rounded-xl border border-slate-700">
+              </div>
+            </div>
+
+            <button id="btn-do-restore" disabled class="w-full py-3 bg-slate-700 text-slate-400 font-semibold rounded-xl text-xs flex items-center justify-center space-x-2 transition cursor-not-allowed">
+              <span>📤 Pulihkan Database Sekarang</span>
+            </button>
+          </div>
+
         </div>
       </section>
 
@@ -434,23 +509,41 @@
     // Tab Switching
     const tabBtnGuru = document.getElementById('tab-btn-guru');
     const tabBtnAi = document.getElementById('tab-btn-ai');
+    const tabBtnBackup = document.getElementById('tab-btn-backup');
     const tabContentGuru = document.getElementById('tab-content-guru');
     const tabContentAi = document.getElementById('tab-content-ai');
+    const tabContentBackup = document.getElementById('tab-content-backup');
+
+    const setActiveTab = (activeBtn, activeContent) => {
+      [tabBtnGuru, tabBtnAi, tabBtnBackup].forEach(b => {
+        if (b === activeBtn) {
+          b.className = 'px-4 py-2 font-bold text-blue-400 border-b-2 border-blue-500 rounded-t-lg bg-slate-800/40 transition';
+        } else {
+          b.className = 'px-4 py-2 font-medium text-slate-400 hover:text-slate-200 rounded-t-lg transition';
+        }
+      });
+      [tabContentGuru, tabContentAi, tabContentBackup].forEach(c => {
+        if (c === activeContent) {
+          c.classList.remove('hidden');
+        } else {
+          c.classList.add('hidden');
+        }
+      });
+    };
 
     tabBtnGuru.onclick = () => {
-      tabBtnGuru.className = 'px-4 py-2 font-bold text-blue-400 border-b-2 border-blue-500 rounded-t-lg bg-slate-800/40 transition';
-      tabBtnAi.className = 'px-4 py-2 font-medium text-slate-400 hover:text-slate-200 rounded-t-lg transition';
-      tabContentGuru.classList.remove('hidden');
-      tabContentAi.classList.add('hidden');
+      setActiveTab(tabBtnGuru, tabContentGuru);
       loadGuruList();
     };
 
     tabBtnAi.onclick = () => {
-      tabBtnAi.className = 'px-4 py-2 font-bold text-blue-400 border-b-2 border-blue-500 rounded-t-lg bg-slate-800/40 transition';
-      tabBtnGuru.className = 'px-4 py-2 font-medium text-slate-400 hover:text-slate-200 rounded-t-lg transition';
-      tabContentAi.classList.remove('hidden');
-      tabContentGuru.classList.add('hidden');
+      setActiveTab(tabBtnAi, tabContentAi);
       loadAiKeys();
+    };
+
+    tabBtnBackup.onclick = () => {
+      setActiveTab(tabBtnBackup, tabContentBackup);
+      document.getElementById('backup-restore-alert').classList.add('hidden');
     };
 
     // ==========================================
@@ -724,6 +817,114 @@
         alert(data.message || 'Gagal menghapus kunci');
       }
     };
+
+    // ==========================================
+    // BACKUP & RESTORE DATABASE
+    // ==========================================
+    const restoreFileInput = document.getElementById('restore-file-input');
+    const btnDoRestore = document.getElementById('btn-do-restore');
+
+    document.getElementById('btn-do-backup').onclick = async () => {
+      const btn = document.getElementById('btn-do-backup');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳ Mempersiapkan File Cadangan...</span>';
+
+      try {
+        const res = await adminFetch('/api/admin/database/backup');
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || 'Gagal mengunduh file cadangan');
+        }
+
+        const disposition = res.headers.get('content-disposition');
+        let filename = 'ulangan_ai_backup.sqlite';
+        if (disposition && disposition.includes('filename=')) {
+          filename = disposition.split('filename=')[1].replace(/["']/g, '').trim();
+        }
+
+        const blob = await res.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+
+        showBackupAlert('✅ Berhasil! File cadangan database (' + filename + ') telah diunduh ke komputer Anda.', 'success');
+      } catch (err) {
+        showBackupAlert('❌ Gagal mengunduh cadangan: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    };
+
+    restoreFileInput.addEventListener('change', () => {
+      if (restoreFileInput.files && restoreFileInput.files.length > 0) {
+        btnDoRestore.disabled = false;
+        btnDoRestore.className = 'w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs flex items-center justify-center space-x-2 shadow-lg shadow-blue-600/20 transition cursor-pointer';
+      } else {
+        btnDoRestore.disabled = true;
+        btnDoRestore.className = 'w-full py-3 bg-slate-700 text-slate-400 font-semibold rounded-xl text-xs flex items-center justify-center space-x-2 transition cursor-not-allowed';
+      }
+    });
+
+    btnDoRestore.onclick = async () => {
+      const file = restoreFileInput.files[0];
+      if (!file) return;
+
+      if (!confirm(`⚠️ PERINGATAN PEMULIHAN:\nApakah Anda yakin ingin memulihkan database dari file "${file.name}"?\n\nSemua data yang ada saat ini di server akan digantikan dengan isi file cadangan ini.`)) {
+        return;
+      }
+
+      btnDoRestore.disabled = true;
+      const origText = btnDoRestore.innerHTML;
+      btnDoRestore.innerHTML = '<span>⏳ Memulihkan Database...</span>';
+
+      try {
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result.split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const res = await adminFetch('/api/admin/database/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file_base64: base64, filename: file.name })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || 'Gagal memulihkan database');
+        }
+
+        const s = data.summary || {};
+        showBackupAlert(`✅ Pemulihan Berhasil!\nSeluruh data sistem berhasil dikembalikan.\n\n📊 Rincian Data Pulih:\n• ${s.guru || 0} Akun Guru\n• ${s.ulangan || 0} Paket Ulangan\n• ${s.soal || 0} Butir Soal\n• ${s.sesi_ujian || 0} Sesi Pengerjaan Siswa\n• ${s.jawaban || 0} Lembar Jawaban Siswa\n• ${s.gemini_api_keys || 0} Kunci API Gemini`, 'success');
+
+        restoreFileInput.value = '';
+        btnDoRestore.disabled = true;
+        btnDoRestore.className = 'w-full py-3 bg-slate-700 text-slate-400 font-semibold rounded-xl text-xs flex items-center justify-center space-x-2 transition cursor-not-allowed';
+      } catch (err) {
+        showBackupAlert('❌ Gagal memulihkan database: ' + err.message, 'error');
+      } finally {
+        btnDoRestore.innerHTML = origText;
+      }
+    };
+
+    function showBackupAlert(msg, type) {
+      const box = document.getElementById('backup-restore-alert');
+      box.classList.remove('hidden');
+      if (type === 'success') {
+        box.className = 'p-4 rounded-xl text-xs border bg-emerald-500/10 border-emerald-500/30 text-emerald-400 whitespace-pre-line';
+      } else {
+        box.className = 'p-4 rounded-xl text-xs border bg-red-500/10 border-red-500/30 text-red-400 whitespace-pre-line';
+      }
+      box.textContent = msg;
+    }
 
     // Jalankan saat halaman dibuka
     checkAuth();
