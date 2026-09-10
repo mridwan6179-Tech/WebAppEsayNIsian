@@ -954,6 +954,16 @@
   </div>
 
   <script>
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
     let activeUlanganId = null;
     let activePengerjaanId = null;
     let aiPollingTimer = null;
@@ -2274,7 +2284,7 @@
               <button onclick="openReviewModal(${st.pengerjaan_id})" class="text-xs bg-slate-100 hover:bg-blue-50 text-blue-600 font-semibold px-2.5 py-1 rounded transition" title="Review butir jawaban siswa">
                 Review &orarr;
               </button>
-              <button onclick="hapusPengerjaanSiswa(${st.pengerjaan_id}, '${escapeHtml(st.nama_siswa)}', '${escapeHtml(st.kelas_siswa)}')" class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-semibold px-2 py-1 rounded transition" title="Hapus pengerjaan siswa ini">
+              <button data-id="${st.pengerjaan_id}" data-nama="${escapeHtml(st.nama_siswa)}" data-kelas="${escapeHtml(st.kelas_siswa)}" onclick="btnHapusPengerjaanHandler(this)" class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-semibold px-2 py-1 rounded transition" title="Hapus pengerjaan siswa ini">
                 🗑️ Hapus
               </button>
             </div>
@@ -2311,6 +2321,13 @@
         console.error(err);
       }
     }
+
+    window.btnHapusPengerjaanHandler = (btn) => {
+      const pId = btn.getAttribute('data-id');
+      const nama = btn.getAttribute('data-nama');
+      const kelas = btn.getAttribute('data-kelas');
+      window.hapusPengerjaanSiswa(pId, nama, kelas);
+    };
 
     // Fungsi Hapus Data Siswa yang Sudah Mengirim
     window.hapusPengerjaanSiswa = async (pengerjaanId, nama, kelas) => {
