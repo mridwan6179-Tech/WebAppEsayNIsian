@@ -199,9 +199,23 @@
                 <span class="text-slate-700">Acak urutan soal per siswa</span>
               </label>
               <div>
-                <label class="block text-slate-500 text-[11px] mb-1">Batasi jumlah soal yang dikerjakan siswa (Bank Soal):</label>
-                <input type="number" id="new-exam-limit" min="1" placeholder="Kosongkan jika semua soal (cth: 10)" class="w-full px-2 py-1 rounded border border-slate-300">
-                <span class="block text-[10px] text-slate-400 mt-0.5">Misal buat 20 soal di bank, tapi siswa hanya mengerjakan 10 soal acak yang berbeda.</span>
+                <label class="block text-slate-500 text-[11px] mb-1">Batasi total soal yang dikerjakan siswa (Bank Soal):</label>
+                <input type="number" id="new-exam-limit" min="1" placeholder="Kosongkan jika semua soal (cth: 5)" class="w-full px-2 py-1 rounded border border-slate-300">
+                <span class="block text-[10px] text-slate-400 mt-0.5">Misal buat 20 butir soal di bank, siswa mengerjakan 5 soal acak.</span>
+              </div>
+              <div class="pt-1.5 border-t border-slate-100">
+                <span class="block text-[11px] font-semibold text-purple-900 mb-1">🎯 Kuota Wajib per Tipe Soal (Opsional):</span>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-[10px] text-slate-500 mb-0.5">Wajib Soal Isian:</label>
+                    <input type="number" id="new-exam-limit-isian" min="0" placeholder="Cth: 4" class="w-full px-2 py-1 text-xs rounded border border-slate-300">
+                  </div>
+                  <div>
+                    <label class="block text-[10px] text-slate-500 mb-0.5">Wajib Soal Essay:</label>
+                    <input type="number" id="new-exam-limit-essay" min="0" placeholder="Cth: 1" class="w-full px-2 py-1 text-xs rounded border border-slate-300">
+                  </div>
+                </div>
+                <span class="block text-[10px] text-slate-400 mt-1">Contoh: Wajib 4 Isian + 1 Essay. Siswa akan otomatis mendapatkan kombinasi acak sesuai ketentuan ini.</span>
               </div>
             </div>
             <div class="p-2.5 bg-white rounded-lg border border-slate-200 space-y-2">
@@ -695,16 +709,31 @@
               <input type="number" id="edit-exam-kkm" min="0" max="100" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-bold bg-white text-indigo-700">
             </div>
             <div>
-              <label class="block font-medium text-slate-600 text-[11px] mb-1">Jumlah Soal Siswa</label>
+              <label class="block font-medium text-slate-600 text-[11px] mb-1">Jumlah Total Soal Siswa</label>
               <input type="number" id="edit-exam-limit" min="1" placeholder="Semua bank soal (cth: 5)" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white">
             </div>
+          </div>
+
+          <div class="p-2.5 bg-white rounded-lg border border-purple-100 space-y-1.5">
+            <span class="block text-[11px] font-semibold text-purple-900">🎯 Kuota Wajib per Tipe Soal (Opsional):</span>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[10px] text-slate-500 mb-0.5">Wajib Soal Isian:</label>
+                <input type="number" id="edit-exam-limit-isian" min="0" placeholder="Cth: 4" class="w-full px-2 py-1 text-xs rounded border border-slate-300 bg-white">
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-500 mb-0.5">Wajib Soal Essay:</label>
+                <input type="number" id="edit-exam-limit-essay" min="0" placeholder="Cth: 1" class="w-full px-2 py-1 text-xs rounded border border-slate-300 bg-white">
+              </div>
+            </div>
+            <span class="block text-[10px] text-slate-400">Contoh: Wajib 4 Isian + 1 Essay. Siswa akan otomatis mendapatkan kombinasi acak sesuai ketentuan ini.</span>
           </div>
 
           <label class="flex items-center space-x-2 text-slate-700 cursor-pointer pt-1">
             <input type="checkbox" id="edit-exam-acak" value="1" class="rounded text-purple-600 focus:ring-purple-500">
             <span class="font-medium text-[11px]">Acak urutan paket soal untuk setiap siswa</span>
           </label>
-          <p class="text-[10px] text-slate-500">Jika Anda punya 10 butir soal di bank dan mengatur 5 soal, setiap siswa otomatis mendapat 5 soal acak dengan nilai maksimum 100.</p>
+          <p class="text-[10px] text-slate-500">Jika Anda punya 20 butir soal di bank dan mengatur 5 soal (4 Isian + 1 Essay), setiap siswa otomatis mendapat 5 butir soal acak sesuai kuota dengan nilai maksimum 100.</p>
         </div>
 
         <div>
@@ -1333,6 +1362,8 @@
 
       const selectedClassIds = Array.from(document.querySelectorAll('input[name="kelas_choice"]:checked')).map(cb => Number(cb.value));
       const limitVal = document.getElementById('new-exam-limit').value.trim();
+      const limitIsianVal = document.getElementById('new-exam-limit-isian')?.value.trim();
+      const limitEssayVal = document.getElementById('new-exam-limit-essay')?.value.trim();
       const acakChecked = document.getElementById('new-exam-acak').checked;
       const startVal = document.getElementById('new-exam-start').value.trim();
       const endVal = document.getElementById('new-exam-end').value.trim();
@@ -1352,6 +1383,8 @@
         kelas_ids: selectedClassIds,
         deskripsi: document.getElementById('new-exam-desc').value.trim(),
         jumlah_soal_tampil: limitVal ? parseInt(limitVal, 10) : null,
+        jumlah_soal_isian: (limitIsianVal !== undefined && limitIsianVal !== '') ? parseInt(limitIsianVal, 10) : null,
+        jumlah_soal_essay: (limitEssayVal !== undefined && limitEssayVal !== '') ? parseInt(limitEssayVal, 10) : null,
         acak_soal: acakChecked ? 1 : 0,
         zona_waktu: zonaWaktuVal,
         tanggal_mulai: startVal || null,
@@ -1433,11 +1466,20 @@
       document.getElementById('form-inline-remedial').classList.add('hidden');
 
       const randomInfoEl = document.getElementById('detail-exam-random-info');
-      if (u.acak_soal || u.jumlah_soal_tampil) {
+      const hasQuota = (u.jumlah_soal_isian > 0 || u.jumlah_soal_essay > 0);
+      if (u.acak_soal || u.jumlah_soal_tampil || hasQuota) {
         randomInfoEl.classList.remove('hidden');
         let text = '🎲 ';
-        if (u.jumlah_soal_tampil) {
-          text += `Siswa mengerjakan ${u.jumlah_soal_tampil} soal acak (dari ${u.soal?.length || 0} bank soal)`;
+        const komposisi = [];
+        if (u.jumlah_soal_isian) komposisi.push(`${u.jumlah_soal_isian} Isian`);
+        if (u.jumlah_soal_essay) komposisi.push(`${u.jumlah_soal_essay} Essay`);
+        const komposisiText = komposisi.length > 0 ? ` (${komposisi.join(' + ')})` : '';
+
+        const totalTampil = u.jumlah_soal_tampil || (komposisi.length > 0 ? (u.jumlah_soal_isian || 0) + (u.jumlah_soal_essay || 0) : null);
+        if (totalTampil) {
+          text += `Siswa mengerjakan ${totalTampil} soal acak${komposisiText} (dari ${u.soal?.length || 0} bank soal)`;
+        } else if (komposisi.length > 0) {
+          text += `Siswa mengerjakan ${komposisi.join(' + ')} acak (dari ${u.soal?.length || 0} bank soal)`;
         } else {
           text += `Urutan soal diacak per siswa`;
         }
@@ -1646,6 +1688,12 @@
         document.getElementById('edit-exam-durasi').value = u.durasi_menit || '';
         document.getElementById('edit-exam-kkm').value = u.kkm || 75;
         document.getElementById('edit-exam-limit').value = u.jumlah_soal_tampil || '';
+        if (document.getElementById('edit-exam-limit-isian')) {
+          document.getElementById('edit-exam-limit-isian').value = (u.jumlah_soal_isian !== null && u.jumlah_soal_isian !== undefined) ? u.jumlah_soal_isian : '';
+        }
+        if (document.getElementById('edit-exam-limit-essay')) {
+          document.getElementById('edit-exam-limit-essay').value = (u.jumlah_soal_essay !== null && u.jumlah_soal_essay !== undefined) ? u.jumlah_soal_essay : '';
+        }
         document.getElementById('edit-exam-acak').checked = Boolean(u.acak_soal);
         if (document.getElementById('edit-exam-izinkan-singkatan')) {
           document.getElementById('edit-exam-izinkan-singkatan').checked = Boolean(u.izinkan_singkatan);
@@ -1702,6 +1750,8 @@
       const durasiVal = document.getElementById('edit-exam-durasi').value.trim();
       const kkmVal = document.getElementById('edit-exam-kkm').value.trim();
       const limitVal = document.getElementById('edit-exam-limit').value.trim();
+      const limitIsianVal = document.getElementById('edit-exam-limit-isian')?.value.trim();
+      const limitEssayVal = document.getElementById('edit-exam-limit-essay')?.value.trim();
       const acakChecked = document.getElementById('edit-exam-acak').checked;
       const zonaWaktu = document.getElementById('edit-exam-zona-waktu')?.value || 'WIB';
       const izinkanSingkatan = document.getElementById('edit-exam-izinkan-singkatan')?.checked ? 1 : 0;
@@ -1723,6 +1773,8 @@
         durasi_menit: durasiVal ? parseInt(durasiVal, 10) : null,
         kkm: kkmVal ? parseInt(kkmVal, 10) : 75,
         jumlah_soal_tampil: limitVal ? parseInt(limitVal, 10) : null,
+        jumlah_soal_isian: (limitIsianVal !== undefined && limitIsianVal !== '') ? parseInt(limitIsianVal, 10) : null,
+        jumlah_soal_essay: (limitEssayVal !== undefined && limitEssayVal !== '') ? parseInt(limitEssayVal, 10) : null,
         acak_soal: acakChecked ? 1 : 0,
         kelas_ids: selectedKelas,
         izinkan_singkatan: izinkanSingkatan,

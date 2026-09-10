@@ -9,7 +9,7 @@ const studentService = {
     }
 
     const cleanCode = kodeUjian.trim().toUpperCase();
-    const ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
+    const ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
 
     if (!ulangan) {
       return { valid: false, message: 'Kode ulangan tidak ditemukan' };
@@ -93,6 +93,8 @@ const studentService = {
         soal_dikerjakan: soalDikerjakan,
         total_bobot: stats.total_bobot,
         jumlah_soal_tampil: ulangan.jumlah_soal_tampil,
+        jumlah_soal_isian: ulangan.jumlah_soal_isian,
+        jumlah_soal_essay: ulangan.jumlah_soal_essay,
         acak_soal: ulangan.acak_soal,
         tanggal_mulai: ulangan.tanggal_mulai,
         tanggal_selesai: ulangan.tanggal_selesai,
@@ -154,7 +156,7 @@ const studentService = {
       }
     }
 
-    const ulanganInfo = db.prepare('SELECT jumlah_soal_tampil, acak_soal FROM ulangan WHERE id = ?').get(ulanganId);
+    const ulanganInfo = db.prepare('SELECT jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, acak_soal FROM ulangan WHERE id = ?').get(ulanganId);
     let soalList = [];
 
     if (Array.isArray(assignedQuestionIds) && assignedQuestionIds.length > 0) {
@@ -178,9 +180,55 @@ const studentService = {
       `).all(ulanganId);
 
       const limitSoal = ulanganInfo?.jumlah_soal_tampil;
-      const needRandom = (ulanganInfo?.acak_soal === 1) || (limitSoal && limitSoal < allQuestions.length);
+      const targetIsian = ulanganInfo?.jumlah_soal_isian;
+      const targetEssay = ulanganInfo?.jumlah_soal_essay;
+      const hasSpecificQuota = (targetIsian !== null && targetIsian !== undefined && targetIsian > 0) ||
+                               (targetEssay !== null && targetEssay !== undefined && targetEssay > 0);
+      const isAcak = (ulanganInfo?.acak_soal === 1);
+      const needRandom = isAcak || (limitSoal && limitSoal < allQuestions.length) || hasSpecificQuota;
 
-      if (needRandom) {
+      if (hasSpecificQuota) {
+        // Kuota wajib per jenis soal: pisahkan bank isian dan essay
+        const isianPool = allQuestions.filter(q => q.jenis === 'isian');
+        const essayPool = allQuestions.filter(q => q.jenis === 'essay');
+
+        const shuffleArr = (arr) => {
+          const res = [...arr];
+          for (let i = res.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [res[i], res[j]] = [res[j], res[i]];
+          }
+          return res;
+        };
+
+        const readyIsian = (isAcak || (targetIsian && targetIsian < isianPool.length)) ? shuffleArr(isianPool) : [...isianPool];
+        const readyEssay = (isAcak || (targetEssay && targetEssay < essayPool.length)) ? shuffleArr(essayPool) : [...essayPool];
+
+        let selectedIsian = [];
+        if (targetIsian !== null && targetIsian !== undefined && targetIsian > 0) {
+          selectedIsian = readyIsian.slice(0, Math.min(targetIsian, readyIsian.length));
+        }
+
+        let selectedEssay = [];
+        if (targetEssay !== null && targetEssay !== undefined && targetEssay > 0) {
+          selectedEssay = readyEssay.slice(0, Math.min(targetEssay, readyEssay.length));
+        }
+
+        let combined = [...selectedIsian, ...selectedEssay];
+
+        // Jika ada limitSoal total yang lebih besar dari targetIsian + targetEssay, lengkapi sisa kuota
+        if (limitSoal && limitSoal > combined.length) {
+          const chosenIds = new Set(combined.map(s => s.id));
+          const unchosen = allQuestions.filter(q => !chosenIds.has(q.id));
+          const remainingPool = isAcak ? shuffleArr(unchosen) : unchosen;
+          const needed = limitSoal - combined.length;
+          combined.push(...remainingPool.slice(0, needed));
+        } else if (limitSoal && limitSoal < combined.length) {
+          combined = combined.slice(0, limitSoal);
+        }
+
+        soalList = combined;
+      } else if (needRandom) {
         // Fisher-Yates shuffle untuk mengacak paket soal
         const shuffled = [...allQuestions];
         for (let i = shuffled.length - 1; i > 0; i--) {

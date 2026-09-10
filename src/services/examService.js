@@ -64,7 +64,7 @@ const examService = {
 
   // FR-02 & FR-03: Buat Ulangan Baru
   createUlangan(guruId, data) {
-    const { judul, mata_pelajaran, deskripsi, kelas_ids, jumlah_soal_tampil, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit } = data;
+    const { judul, mata_pelajaran, deskripsi, kelas_ids, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit } = data;
     let tingkat_kelas = data.tingkat_kelas;
 
     if (!judul || !mata_pelajaran) {
@@ -92,8 +92,13 @@ const examService = {
     const cleanZonaWaktu = (data.zona_waktu && ['WIB', 'WITA', 'WIT'].includes(String(data.zona_waktu).toUpperCase()))
       ? String(data.zona_waktu).toUpperCase()
       : 'WIB';
-    const limitSoal = (jumlah_soal_tampil !== undefined && jumlah_soal_tampil !== null && jumlah_soal_tampil !== '') ? Math.max(1, Number(jumlah_soal_tampil)) : null;
-    const isAcak = (acak_soal !== undefined && acak_soal !== null) ? (acak_soal ? 1 : 0) : (limitSoal ? 1 : 0);
+    const cleanIsian = (jumlah_soal_isian !== undefined && jumlah_soal_isian !== null && jumlah_soal_isian !== '') ? Math.max(0, Number(jumlah_soal_isian)) : null;
+    const cleanEssay = (jumlah_soal_essay !== undefined && jumlah_soal_essay !== null && jumlah_soal_essay !== '') ? Math.max(0, Number(jumlah_soal_essay)) : null;
+    let limitSoal = (jumlah_soal_tampil !== undefined && jumlah_soal_tampil !== null && jumlah_soal_tampil !== '') ? Math.max(1, Number(jumlah_soal_tampil)) : null;
+    if (!limitSoal && ((cleanIsian && cleanIsian > 0) || (cleanEssay && cleanEssay > 0))) {
+      limitSoal = (cleanIsian || 0) + (cleanEssay || 0);
+    }
+    const isAcak = (acak_soal !== undefined && acak_soal !== null) ? (acak_soal ? 1 : 0) : ((limitSoal || cleanIsian || cleanEssay) ? 1 : 0);
     const cleanTanggalMulai = tanggal_mulai ? this.parseIndonesianDateTime(tanggal_mulai, cleanZonaWaktu) : null;
     const cleanTanggalSelesai = tanggal_selesai ? this.parseIndonesianDateTime(tanggal_selesai, cleanZonaWaktu) : null;
     const cleanDurasi = (durasi_menit !== undefined && durasi_menit !== null && durasi_menit !== '') ? Math.max(1, Number(durasi_menit)) : null;
@@ -106,12 +111,12 @@ const examService = {
     const cleanInstruksiKhusus = data.instruksi_penilaian_khusus ? String(data.instruksi_penilaian_khusus).trim() : null;
 
     const stmt = db.prepare(`
-      INSERT INTO ulangan (guru_id, judul, mata_pelajaran, tingkat_kelas, deskripsi, kode_ujian, status, jumlah_soal_tampil, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, instruksi_remedial, link_remedial, zona_waktu, izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus)
-      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO ulangan (guru_id, judul, mata_pelajaran, tingkat_kelas, deskripsi, kode_ujian, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, instruksi_remedial, link_remedial, zona_waktu, izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus)
+      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
       guruId, judul, mata_pelajaran, tingkat_kelas, deskripsi || '', kode_ujian,
-      limitSoal, isAcak, cleanTanggalMulai, cleanTanggalSelesai, cleanDurasi,
+      limitSoal, cleanIsian, cleanEssay, isAcak, cleanTanggalMulai, cleanTanggalSelesai, cleanDurasi,
       cleanKkm, cleanInstruksiRemedial, cleanLinkRemedial, cleanZonaWaktu,
       izinkanSingkatan, izinkanInformal, toleransiTypo, cleanInstruksiKhusus
     );
@@ -173,7 +178,7 @@ const examService = {
       throw new Error('Ulangan tidak ditemukan atau bukan milik guru ini');
     }
 
-    const { judul, mata_pelajaran, tingkat_kelas, deskripsi, status, kelas_ids, jumlah_soal_tampil, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm } = data;
+    const { judul, mata_pelajaran, tingkat_kelas, deskripsi, status, kelas_ids, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm } = data;
     const updates = [];
     const params = [];
 
@@ -185,6 +190,16 @@ const examService = {
       const limit = (jumlah_soal_tampil !== null && jumlah_soal_tampil !== '') ? Math.max(1, Number(jumlah_soal_tampil)) : null;
       updates.push('jumlah_soal_tampil = ?');
       params.push(limit);
+    }
+    if (data.jumlah_soal_isian !== undefined) {
+      const limitIsian = (data.jumlah_soal_isian !== null && data.jumlah_soal_isian !== '') ? Math.max(0, Number(data.jumlah_soal_isian)) : null;
+      updates.push('jumlah_soal_isian = ?');
+      params.push(limitIsian);
+    }
+    if (data.jumlah_soal_essay !== undefined) {
+      const limitEssay = (data.jumlah_soal_essay !== null && data.jumlah_soal_essay !== '') ? Math.max(0, Number(data.jumlah_soal_essay)) : null;
+      updates.push('jumlah_soal_essay = ?');
+      params.push(limitEssay);
     }
     if (acak_soal !== undefined) {
       updates.push('acak_soal = ?');

@@ -921,6 +921,17 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
       lines.push(`*Durasi:* ${ulangan.durasi_menit} Menit`);
     }
 
+    if (ulangan.jumlah_soal_tampil || ulangan.jumlah_soal_isian || ulangan.jumlah_soal_essay) {
+      const parts = [];
+      if (ulangan.jumlah_soal_isian) parts.push(`${ulangan.jumlah_soal_isian} Isian`);
+      if (ulangan.jumlah_soal_essay) parts.push(`${ulangan.jumlah_soal_essay} Essay`);
+      const detail = parts.length > 0 ? ` (${parts.join(' + ')})` : '';
+      const total = ulangan.jumlah_soal_tampil || (parts.length > 0 ? (ulangan.jumlah_soal_isian || 0) + (ulangan.jumlah_soal_essay || 0) : null);
+      if (total) {
+        lines.push(`*Jumlah Soal:* ${total} Soal Acak${detail}`);
+      }
+    }
+
     const zw = ulangan.zona_waktu || 'WIB';
     if (ulangan.tanggal_mulai || ulangan.tanggal_selesai) {
       const tzMap = { WIB: 'Asia/Jakarta', WITA: 'Asia/Makassar', WIT: 'Asia/Jayapura' };

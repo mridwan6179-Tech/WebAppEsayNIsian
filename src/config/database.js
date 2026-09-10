@@ -97,6 +97,8 @@ function initDatabase() {
       kode_ujian TEXT UNIQUE NOT NULL,
       status TEXT CHECK(status IN ('draft', 'dibuka', 'ditutup', 'selesai')) DEFAULT 'draft',
       jumlah_soal_tampil INTEGER DEFAULT NULL,
+      jumlah_soal_isian INTEGER DEFAULT NULL,
+      jumlah_soal_essay INTEGER DEFAULT NULL,
       acak_soal INTEGER DEFAULT 0,
       tanggal_mulai DATETIME,
       tanggal_selesai DATETIME,
@@ -274,6 +276,8 @@ function initDatabase() {
   try { db.exec('ALTER TABLE ulangan ADD COLUMN izinkan_informal INTEGER DEFAULT 0;'); } catch (e) {}
   try { db.exec('ALTER TABLE ulangan ADD COLUMN toleransi_typo INTEGER DEFAULT 1;'); } catch (e) {}
   try { db.exec('ALTER TABLE ulangan ADD COLUMN instruksi_penilaian_khusus TEXT DEFAULT NULL;'); } catch (e) {}
+  try { db.exec('ALTER TABLE ulangan ADD COLUMN jumlah_soal_isian INTEGER DEFAULT NULL;'); } catch (e) {}
+  try { db.exec('ALTER TABLE ulangan ADD COLUMN jumlah_soal_essay INTEGER DEFAULT NULL;'); } catch (e) {}
 
   // Seed initial guru if table is empty
   const teacherEmail = process.env.TEACHER_EMAIL || 'mridwan700611@gmail.com';
