@@ -236,25 +236,42 @@ function initDatabase() {
   }
 
   // Seed initial app_settings for gemini_api_key if available in environment
-  let initialKey = '';
-  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'YOUR_GEMINI_API_KEY') {
-    initialKey = process.env.GEMINI_API_KEY;
+  const rawEnvKeys = (process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '')
+    .split(/[\n,;]+/)
+    .map(k => k.trim())
+    .filter(k => k && k !== 'YOUR_GEMINI_API_KEY');
+
+  let initialKey = rawEnvKeys[0] || '';
+  if (!initialKey) {
     const existingKey = db.prepare("SELECT value FROM app_settings WHERE key = 'gemini_api_key'").get();
-    if (!existingKey) {
-      db.prepare("INSERT INTO app_settings (key, value) VALUES ('gemini_api_key', ?)").run(process.env.GEMINI_API_KEY);
+    if (existingKey?.value && existingKey.value !== 'YOUR_GEMINI_API_KEY') {
+      initialKey = existingKey.value;
     }
   } else {
     const existingKey = db.prepare("SELECT value FROM app_settings WHERE key = 'gemini_api_key'").get();
-    if (existingKey) initialKey = existingKey.value;
+    if (!existingKey) {
+      db.prepare("INSERT INTO app_settings (key, value) VALUES ('gemini_api_key', ?)").run(initialKey);
+    }
   }
 
-  // Seed initial gemini_api_keys if table empty
+  // Seed initial gemini_api_keys if table empty (mendukung multiple keys dipisah koma)
   const keyCount = db.prepare('SELECT COUNT(*) as c FROM gemini_api_keys').get().c;
-  if (keyCount === 0 && initialKey && initialKey !== 'YOUR_GEMINI_API_KEY') {
-    db.prepare(`
+  if (keyCount === 0 && (rawEnvKeys.length > 0 || initialKey)) {
+    const insertKeyStmt = db.prepare(`
       INSERT INTO gemini_api_keys (label, api_key, is_active, priority, status)
-      VALUES ('Kunci Utama (Default)', ?, 1, 1, 'ready')
-    `).run(initialKey);
+      VALUES (?, ?, 1, ?, 'ready')
+    `);
+    if (rawEnvKeys.length > 0) {
+      rawEnvKeys.forEach((k, idx) => {
+        insertKeyStmt.run(
+          idx === 0 ? 'Kunci Utama (Default)' : `Kunci Cadangan ${idx}`,
+          k,
+          idx + 1
+        );
+      });
+    } else if (initialKey) {
+      insertKeyStmt.run('Kunci Utama (Default)', initialKey, 1);
+    }
   }
 
   // Seed initial sample kelas if empty

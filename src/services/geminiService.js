@@ -103,13 +103,22 @@ const geminiService = {
       try {
         const row = db.prepare("SELECT value FROM app_settings WHERE key = 'gemini_api_key'").get();
         if (row && row.value && row.value.trim() && row.value !== 'YOUR_GEMINI_API_KEY') {
-          keys.push({ id: 0, label: 'Kunci Utama (Default)', key: row.value.trim() });
+          const splitValues = row.value.split(/[\n,;]+/).map(k => k.trim()).filter(k => k && k !== 'YOUR_GEMINI_API_KEY');
+          splitValues.forEach((k, idx) => {
+            keys.push({ id: -(idx + 10), label: idx === 0 ? 'Kunci Utama (Default)' : `Kunci Cadangan ${idx}`, key: k });
+          });
         }
       } catch (e) {}
     }
 
-    if (keys.length === 0 && process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'YOUR_GEMINI_API_KEY') {
-      keys.push({ id: -1, label: 'Env Key', key: process.env.GEMINI_API_KEY.trim() });
+    if (keys.length === 0) {
+      const envKeys = (process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '')
+        .split(/[\n,;]+/)
+        .map(k => k.trim())
+        .filter(k => k && k !== 'YOUR_GEMINI_API_KEY');
+      envKeys.forEach((k, idx) => {
+        keys.push({ id: -(idx + 1), label: idx === 0 ? 'Env Utama' : `Env Cadangan ${idx}`, key: k });
+      });
     }
 
     return keys;
