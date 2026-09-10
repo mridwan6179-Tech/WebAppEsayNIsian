@@ -98,6 +98,9 @@ const examService = {
     if (!limitSoal && ((cleanIsian && cleanIsian > 0) || (cleanEssay && cleanEssay > 0))) {
       limitSoal = (cleanIsian || 0) + (cleanEssay || 0);
     }
+    if (limitSoal && ((cleanIsian || 0) + (cleanEssay || 0) > limitSoal)) {
+      throw new Error(`Total kuota wajib (${(cleanIsian || 0) + (cleanEssay || 0)} soal) tidak boleh melebihi batas jumlah soal siswa (${limitSoal} soal)`);
+    }
     const isAcak = (acak_soal !== undefined && acak_soal !== null) ? (acak_soal ? 1 : 0) : ((limitSoal || cleanIsian || cleanEssay) ? 1 : 0);
     const cleanTanggalMulai = tanggal_mulai ? this.parseIndonesianDateTime(tanggal_mulai, cleanZonaWaktu) : null;
     const cleanTanggalSelesai = tanggal_selesai ? this.parseIndonesianDateTime(tanggal_selesai, cleanZonaWaktu) : null;
@@ -205,13 +208,28 @@ const examService = {
       updates.push('acak_soal = ?');
       params.push(acak_soal ? 1 : 0);
     }
+    // Validasi kuota tipe soal tidak boleh melebihi batas jumlah soal siswa
+    const existingRow = db.prepare('SELECT jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, zona_waktu FROM ulangan WHERE id = ?').get(id);
+    const finalLimit = jumlah_soal_tampil !== undefined 
+      ? ((jumlah_soal_tampil !== null && jumlah_soal_tampil !== '') ? Math.max(1, Number(jumlah_soal_tampil)) : null)
+      : existingRow?.jumlah_soal_tampil;
+    const finalIsian = data.jumlah_soal_isian !== undefined
+      ? ((data.jumlah_soal_isian !== null && data.jumlah_soal_isian !== '') ? Math.max(0, Number(data.jumlah_soal_isian)) : 0)
+      : (existingRow?.jumlah_soal_isian || 0);
+    const finalEssay = data.jumlah_soal_essay !== undefined
+      ? ((data.jumlah_soal_essay !== null && data.jumlah_soal_essay !== '') ? Math.max(0, Number(data.jumlah_soal_essay)) : 0)
+      : (existingRow?.jumlah_soal_essay || 0);
+
+    if (finalLimit && (finalIsian + finalEssay > finalLimit)) {
+      throw new Error(`Total kuota wajib (${finalIsian + finalEssay} soal) tidak boleh melebihi batas jumlah soal siswa (${finalLimit} soal)`);
+    }
+
     let currentZw = data.zona_waktu;
     if (currentZw !== undefined) {
       currentZw = (currentZw && ['WIB', 'WITA', 'WIT'].includes(String(currentZw).toUpperCase())) ? String(currentZw).toUpperCase() : 'WIB';
       updates.push('zona_waktu = ?');
       params.push(currentZw);
     } else {
-      const existingRow = db.prepare('SELECT zona_waktu FROM ulangan WHERE id = ?').get(id);
       currentZw = existingRow?.zona_waktu || 'WIB';
     }
 

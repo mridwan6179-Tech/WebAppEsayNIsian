@@ -194,4 +194,27 @@ test('T-24: Fitur Distribusi & Kuota Wajib per Tipe Soal saat Pengacakan (misal:
     const sessionMini = studentService.startExam(ulanganKecil.kode_ujian, 'Doni', '7A');
     assert.strictEqual(sessionMini.soal.length, 3, 'Harus mengambil semua soal yang tersedia tanpa crash');
   });
+
+  await t.test('9. Penolakan validasi jika kuota tipe soal melebihi batas jumlah soal siswa', () => {
+    // Mencoba update ulangan dengan limit 5 tapi kuota 4 isian + 2 essay = 6
+    assert.throws(() => {
+      examService.updateUlangan(ulangan.id, guru.id, {
+        jumlah_soal_tampil: 5,
+        jumlah_soal_isian: 4,
+        jumlah_soal_essay: 2
+      });
+    }, /tidak boleh melebihi batas jumlah soal siswa/);
+
+    // Mencoba buat ulangan baru dengan limit 5 tapi kuota 5 isian + 1 essay = 6
+    assert.throws(() => {
+      examService.createUlangan(guru.id, {
+        judul: 'Ulangan Invalid Quota',
+        mata_pelajaran: 'IPA',
+        tingkat_kelas: 'Kelas 7',
+        jumlah_soal_tampil: 5,
+        jumlah_soal_isian: 5,
+        jumlah_soal_essay: 1
+      });
+    }, /tidak boleh melebihi batas jumlah soal siswa/);
+  });
 });

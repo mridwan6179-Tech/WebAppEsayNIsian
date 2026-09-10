@@ -216,6 +216,7 @@
                   </div>
                 </div>
                 <span class="block text-[10px] text-slate-400 mt-1">Contoh: Wajib 4 Isian + 1 Essay. Siswa akan otomatis mendapatkan kombinasi acak sesuai ketentuan ini.</span>
+                <div id="new-quota-calc-badge" class="mt-1.5 text-[11px] font-medium"></div>
               </div>
             </div>
             <div class="p-2.5 bg-white rounded-lg border border-slate-200 space-y-2">
@@ -727,6 +728,7 @@
               </div>
             </div>
             <span class="block text-[10px] text-slate-400">Contoh: Wajib 4 Isian + 1 Essay. Siswa akan otomatis mendapatkan kombinasi acak sesuai ketentuan ini.</span>
+            <div id="edit-quota-calc-badge" class="mt-1.5 text-[11px] font-medium"></div>
           </div>
 
           <label class="flex items-center space-x-2 text-slate-700 cursor-pointer pt-1">
@@ -1349,6 +1351,69 @@
       }
     }
 
+    // Helper sinkronisasi kuota tipe soal dengan batas jumlah total soal
+    function setupQuotaSync(limitId, isianId, essayId, badgeId) {
+      const elLimit = document.getElementById(limitId);
+      const elIsian = document.getElementById(isianId);
+      const elEssay = document.getElementById(essayId);
+      const elBadge = document.getElementById(badgeId);
+      if (!elLimit || !elIsian || !elEssay || !elBadge) return () => {};
+
+      function update() {
+        let limit = elLimit.value.trim() !== '' ? parseInt(elLimit.value, 10) : null;
+        let isian = elIsian.value.trim() !== '' ? parseInt(elIsian.value, 10) : null;
+        let essay = elEssay.value.trim() !== '' ? parseInt(elEssay.value, 10) : null;
+
+        // Terapkan batas max dinamis mengikuti batas jumlah soal siswa
+        if (limit !== null && limit > 0) {
+          elIsian.max = limit;
+          elEssay.max = limit;
+
+          if (isian !== null && isian > limit) {
+            elIsian.value = limit;
+            isian = limit;
+          }
+          if (essay !== null && essay > limit) {
+            elEssay.value = limit;
+            essay = limit;
+          }
+        } else {
+          elIsian.removeAttribute('max');
+          elEssay.removeAttribute('max');
+        }
+
+        const countIsian = isian || 0;
+        const countEssay = essay || 0;
+        const total = (isian !== null ? countIsian : 0) + (essay !== null ? countEssay : 0);
+
+        if (isian === null && essay === null) {
+          elBadge.innerHTML = '';
+          return;
+        }
+
+        if (limit !== null && limit > 0) {
+          if (total === limit) {
+            elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200"><span>✅</span> <span><strong>Pas:</strong> ${countIsian} Isian + ${countEssay} Essay = ${total} / ${limit} Soal</span></span>`;
+          } else if (total < limit) {
+            const sisa = limit - total;
+            elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200"><span>ℹ️</span> <span>${countIsian} Isian + ${countEssay} Essay = ${total} / ${limit} Soal (${sisa} sisa acak bebas)</span></span>`;
+          } else {
+            const lebih = total - limit;
+            elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-red-700 bg-red-50 px-2.5 py-1 rounded-md border border-red-200"><span>⚠️</span> <span><strong>Melebihi Batas!</strong> Total ${total} soal (Batas maks: ${limit}, lebih ${lebih})</span></span>`;
+          }
+        } else {
+          elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-200"><span>🎯</span> <span>Total kuota: ${total} soal (${countIsian} Isian + ${countEssay} Essay)</span></span>`;
+        }
+      }
+
+      elLimit.addEventListener('input', update);
+      elIsian.addEventListener('input', update);
+      elEssay.addEventListener('input', update);
+      return update;
+    }
+
+    const updateNewQuotaSync = setupQuotaSync('new-exam-limit', 'new-exam-limit-isian', 'new-exam-limit-essay', 'new-quota-calc-badge');
+
     // Toggle Form Buat Ulangan
     const formCreateExam = document.getElementById('form-create-exam');
     document.getElementById('btn-toggle-create-exam').onclick = () => {
@@ -1364,6 +1429,12 @@
       const limitVal = document.getElementById('new-exam-limit').value.trim();
       const limitIsianVal = document.getElementById('new-exam-limit-isian')?.value.trim();
       const limitEssayVal = document.getElementById('new-exam-limit-essay')?.value.trim();
+
+      if (limitVal && ((limitIsianVal ? parseInt(limitIsianVal, 10) : 0) + (limitEssayVal ? parseInt(limitEssayVal, 10) : 0)) > parseInt(limitVal, 10)) {
+        const totalQ = (limitIsianVal ? parseInt(limitIsianVal, 10) : 0) + (limitEssayVal ? parseInt(limitEssayVal, 10) : 0);
+        alert(`Total kuota isian (${limitIsianVal || 0}) + essay (${limitEssayVal || 0}) = ${totalQ} butir, melebihi batas jumlah soal siswa (${limitVal} butir)! Silakan sesuaikan.`);
+        return;
+      }
       const acakChecked = document.getElementById('new-exam-acak').checked;
       const startVal = document.getElementById('new-exam-start').value.trim();
       const endVal = document.getElementById('new-exam-end').value.trim();
@@ -1665,6 +1736,8 @@
       }
     };
 
+    const updateEditQuotaSync = setupQuotaSync('edit-exam-limit', 'edit-exam-limit-isian', 'edit-exam-limit-essay', 'edit-quota-calc-badge');
+
     btnOpenEditExam.onclick = async () => {
       if (!activeUlanganId) return;
       alertEditExam.classList.add('hidden');
@@ -1728,6 +1801,7 @@
           });
         }
 
+        updateEditQuotaSync();
         modalEditExam.classList.remove('hidden');
       } catch (err) {
         alert('Error: ' + err.message);
@@ -1740,6 +1814,16 @@
     formEditExam.onsubmit = async (e) => {
       e.preventDefault();
       if (!activeUlanganId) return;
+
+      const limitVal = document.getElementById('edit-exam-limit').value.trim();
+      const limitIsianVal = document.getElementById('edit-exam-limit-isian')?.value.trim();
+      const limitEssayVal = document.getElementById('edit-exam-limit-essay')?.value.trim();
+
+      if (limitVal && ((limitIsianVal ? parseInt(limitIsianVal, 10) : 0) + (limitEssayVal ? parseInt(limitEssayVal, 10) : 0)) > parseInt(limitVal, 10)) {
+        const totalQ = (limitIsianVal ? parseInt(limitIsianVal, 10) : 0) + (limitEssayVal ? parseInt(limitEssayVal, 10) : 0);
+        alert(`Total kuota isian (${limitIsianVal || 0}) + essay (${limitEssayVal || 0}) = ${totalQ} butir, melebihi batas jumlah soal siswa (${limitVal} butir)! Silakan sesuaikan.`);
+        return;
+      }
 
       const judul = document.getElementById('edit-exam-title').value.trim();
       const mata_pelajaran = document.getElementById('edit-exam-subject').value.trim();
