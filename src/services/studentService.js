@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const examService = require('./examService');
 
 const studentService = {
   // FR-06: Validasi Kode Ulangan
@@ -8,7 +9,7 @@ const studentService = {
     }
 
     const cleanCode = kodeUjian.trim().toUpperCase();
-    const ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
+    const ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
 
     if (!ulangan) {
       return { valid: false, message: 'Kode ulangan tidak ditemukan' };
@@ -23,14 +24,20 @@ const studentService = {
     }
 
     const now = new Date();
+    const zw = ulangan.zona_waktu || 'WIB';
+
     if (ulangan.tanggal_mulai) {
       const startTime = new Date(ulangan.tanggal_mulai);
       if (now < startTime) {
+        const scheduleStr = examService.formatIndonesianDateTime(ulangan.tanggal_mulai, zw);
+        const serverNowStr = examService.formatIndonesianDateTime(now.toISOString(), zw);
         return {
           valid: false,
           status: 'belum_buka',
           tanggal_mulai: ulangan.tanggal_mulai,
-          message: `Ulangan belum dibuka. Jadwal buka: ${startTime.toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' })}`
+          zona_waktu: zw,
+          server_time: now.toISOString(),
+          message: `Ulangan belum dibuka. Jadwal buka: ${scheduleStr} (Waktu server saat ini: ${serverNowStr})`
         };
       }
     }
@@ -38,11 +45,14 @@ const studentService = {
     if (ulangan.tanggal_selesai) {
       const endTime = new Date(ulangan.tanggal_selesai);
       if (now > endTime) {
+        const scheduleStr = examService.formatIndonesianDateTime(ulangan.tanggal_selesai, zw);
         return {
           valid: false,
           status: 'sudah_tutup',
           tanggal_selesai: ulangan.tanggal_selesai,
-          message: `Ulangan telah ditutup pada: ${endTime.toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' })}`
+          zona_waktu: zw,
+          server_time: now.toISOString(),
+          message: `Ulangan telah ditutup pada: ${scheduleStr}`
         };
       }
     }
@@ -88,6 +98,7 @@ const studentService = {
         tanggal_selesai: ulangan.tanggal_selesai,
         durasi_menit: ulangan.durasi_menit,
         kkm: ulangan.kkm || 75,
+        zona_waktu: ulangan.zona_waktu || 'WIB',
         available_classes: kelasList
       }
     };

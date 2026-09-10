@@ -206,6 +206,14 @@
             </div>
             <div class="p-2.5 bg-white rounded-lg border border-slate-200 space-y-2">
               <span class="block font-semibold text-slate-700">⏰ Jadwal & Batas Durasi</span>
+              <div>
+                <label class="block text-slate-500 text-[11px] mb-1">Zona Waktu Ujian:</label>
+                <select id="new-exam-zona-waktu" class="w-full px-2 py-1 text-xs rounded border border-slate-300 bg-white font-medium text-slate-700">
+                  <option value="WIB" selected>WIB (Waktu Indonesia Barat - UTC+7)</option>
+                  <option value="WITA">WITA (Waktu Indonesia Tengah - UTC+8)</option>
+                  <option value="WIT">WIT (Waktu Indonesia Timur - UTC+9)</option>
+                </select>
+              </div>
               <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
                   <label class="block text-slate-500 text-[11px] mb-1">Waktu Buka Soal:</label>
@@ -451,6 +459,46 @@
               </div>
             </div>
 
+            <!-- Toolbar Filter, Pengurutan & Deteksi Duplikat -->
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-2.5">
+              <div class="flex flex-wrap items-center gap-2">
+                <!-- Filter Kelas -->
+                <div class="flex items-center space-x-1.5">
+                  <label for="filter-peserta-kelas" class="text-[11px] font-semibold text-slate-600">Kelas:</label>
+                  <select id="filter-peserta-kelas" class="px-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white font-medium text-slate-700 focus:ring-1 focus:ring-blue-500">
+                    <option value="">Semua Kelas</option>
+                  </select>
+                </div>
+
+                <!-- Urutkan (Sorting) -->
+                <div class="flex items-center space-x-1.5">
+                  <label for="sort-peserta" class="text-[11px] font-semibold text-slate-600">Urutkan:</label>
+                  <select id="sort-peserta" class="px-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white font-medium text-slate-700 focus:ring-1 focus:ring-blue-500">
+                    <option value="nama_asc" selected>Nama Siswa (A-Z Teratas)</option>
+                    <option value="nama_desc">Nama Siswa (Z-A)</option>
+                    <option value="nilai_desc">Nilai Final (Tertinggi)</option>
+                    <option value="nilai_asc">Nilai Final (Terendah)</option>
+                    <option value="waktu_desc">Waktu Submit (Terbaru)</option>
+                    <option value="waktu_asc">Waktu Submit (Terlama)</option>
+                  </select>
+                </div>
+
+                <!-- Cari Nama -->
+                <div class="relative">
+                  <input type="text" id="search-peserta-nama" placeholder="Cari nama siswa..." class="pl-7 pr-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white w-36 sm:w-44 focus:ring-1 focus:ring-blue-500">
+                  <span class="absolute left-2 top-1.5 text-slate-400 text-xs">🔍</span>
+                </div>
+              </div>
+
+              <!-- Deteksi Siswa Kirim Ganda / Duplikat Badge -->
+              <div id="duplicate-warning-box" class="hidden flex items-center space-x-1.5">
+                <button type="button" id="btn-toggle-duplicate-filter" class="px-2.5 py-1 text-xs rounded-lg bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-900 font-bold flex items-center space-x-1 transition shadow-sm" title="Klik untuk menampilkan siswa yang terdeteksi mengirim 2 kali atau lebih">
+                  <span>⚠️</span>
+                  <span id="duplicate-count-badge">0 Kirim Ganda</span>
+                </button>
+              </div>
+            </div>
+
             <!-- Tabel Peserta -->
             <div class="overflow-x-auto border border-slate-200 rounded-xl">
               <table class="w-full text-left text-xs">
@@ -550,6 +598,15 @@
         <div class="p-3.5 bg-blue-50/60 rounded-xl border border-blue-200 space-y-2.5">
           <label class="block font-bold text-blue-900 text-xs">⏱️ Jadwal & Batas Waktu Ulangan</label>
           
+          <div>
+            <label class="block font-medium text-slate-600 text-[11px] mb-1">Zona Waktu Ujian</label>
+            <select id="edit-exam-zona-waktu" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white font-medium text-slate-700">
+              <option value="WIB">WIB (Waktu Indonesia Barat - UTC+7)</option>
+              <option value="WITA">WITA (Waktu Indonesia Tengah - UTC+8)</option>
+              <option value="WIT">WIT (Waktu Indonesia Timur - UTC+9)</option>
+            </select>
+          </div>
+
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label class="block font-medium text-slate-600 text-[11px] mb-1">Waktu Buka Ujian</label>
@@ -1133,6 +1190,7 @@
       const endVal = document.getElementById('new-exam-end').value.trim();
       const durasiVal = document.getElementById('new-exam-durasi').value.trim();
       const kkmVal = document.getElementById('new-exam-kkm').value.trim();
+      const zonaWaktuVal = document.getElementById('new-exam-zona-waktu')?.value || 'WIB';
       const instruksiRemedial = document.getElementById('new-exam-instruksi-remedial').value.trim();
       const linkRemedial = document.getElementById('new-exam-link-remedial').value.trim();
 
@@ -1143,6 +1201,7 @@
         deskripsi: document.getElementById('new-exam-desc').value.trim(),
         jumlah_soal_tampil: limitVal ? parseInt(limitVal, 10) : null,
         acak_soal: acakChecked ? 1 : 0,
+        zona_waktu: zonaWaktuVal,
         tanggal_mulai: startVal || null,
         tanggal_selesai: endVal || null,
         durasi_menit: durasiVal ? parseInt(durasiVal, 10) : null,
@@ -1160,6 +1219,7 @@
       if (res.ok && data.success) {
         formCreateExam.reset();
         document.getElementById('new-exam-kkm').value = '75';
+        if (document.getElementById('new-exam-zona-waktu')) document.getElementById('new-exam-zona-waktu').value = 'WIB';
         formCreateExam.classList.add('hidden');
         loadUlanganList();
         selectUlangan(data.data.id);
@@ -1231,16 +1291,28 @@
 
       const scheduleEl = document.getElementById('detail-exam-schedule');
       const parts = [];
+      const zw = u.zona_waktu || 'WIB';
+      const tzMap = { WIB: 'Asia/Jakarta', WITA: 'Asia/Makassar', WIT: 'Asia/Jayapura' };
+      const currentTz = tzMap[zw] || 'Asia/Jakarta';
+
       if (u.durasi_menit) {
         parts.push(`⏱️ Durasi: ${u.durasi_menit} Menit`);
       }
       if (u.tanggal_mulai) {
-        const startStr = new Date(u.tanggal_mulai).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' });
-        parts.push(`Buka: ${startStr}`);
+        const startStr = new Date(u.tanggal_mulai).toLocaleString('id-ID', {
+          timeZone: currentTz,
+          dateStyle: 'short',
+          timeStyle: 'short'
+        });
+        parts.push(`Buka: ${startStr} ${zw}`);
       }
       if (u.tanggal_selesai) {
-        const endStr = new Date(u.tanggal_selesai).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' });
-        parts.push(`Tutup: ${endStr}`);
+        const endStr = new Date(u.tanggal_selesai).toLocaleString('id-ID', {
+          timeZone: currentTz,
+          dateStyle: 'short',
+          timeStyle: 'short'
+        });
+        parts.push(`Tutup: ${endStr} ${zw}`);
       }
 
       if (parts.length > 0) {
@@ -1338,12 +1410,31 @@
     const formEditExam = document.getElementById('form-edit-exam');
     const alertEditExam = document.getElementById('edit-exam-alert');
 
-    const toLocalIso = (isoStr) => {
+    const toLocalIso = (isoStr, zonaWaktu = 'WIB') => {
       if (!isoStr) return '';
       const d = new Date(isoStr);
       if (isNaN(d.getTime())) return '';
-      const pad = (n) => String(n).padStart(2, '0');
-      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      const tzMap = {
+        WIB: 'Asia/Jakarta',
+        WITA: 'Asia/Makassar',
+        WIT: 'Asia/Jayapura'
+      };
+      const tz = tzMap[zonaWaktu] || 'Asia/Jakarta';
+      try {
+        const formatter = new Intl.DateTimeFormat('sv-SE', {
+          timeZone: tz,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        });
+        return formatter.format(d).replace(' ', 'T');
+      } catch (e) {
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      }
     };
 
     btnOpenEditExam.onclick = async () => {
@@ -1356,12 +1447,16 @@
         if (!res.ok || !data.success) throw new Error(data.message || 'Gagal memuat ulangan');
 
         const u = data.data;
+        const zw = u.zona_waktu || 'WIB';
+        if (document.getElementById('edit-exam-zona-waktu')) {
+          document.getElementById('edit-exam-zona-waktu').value = zw;
+        }
         document.getElementById('edit-exam-title').value = u.judul || '';
         document.getElementById('edit-exam-subject').value = u.mata_pelajaran || '';
         document.getElementById('edit-exam-tingkat').value = u.tingkat_kelas || '';
         document.getElementById('edit-exam-desc').value = u.deskripsi || '';
-        document.getElementById('edit-exam-start').value = toLocalIso(u.tanggal_mulai);
-        document.getElementById('edit-exam-end').value = toLocalIso(u.tanggal_selesai);
+        document.getElementById('edit-exam-start').value = toLocalIso(u.tanggal_mulai, zw);
+        document.getElementById('edit-exam-end').value = toLocalIso(u.tanggal_selesai, zw);
         document.getElementById('edit-exam-durasi').value = u.durasi_menit || '';
         document.getElementById('edit-exam-kkm').value = u.kkm || 75;
         document.getElementById('edit-exam-limit').value = u.jumlah_soal_tampil || '';
@@ -1410,6 +1505,7 @@
       const kkmVal = document.getElementById('edit-exam-kkm').value.trim();
       const limitVal = document.getElementById('edit-exam-limit').value.trim();
       const acakChecked = document.getElementById('edit-exam-acak').checked;
+      const zonaWaktu = document.getElementById('edit-exam-zona-waktu')?.value || 'WIB';
 
       const selectedKelas = Array.from(document.querySelectorAll('input[name="edit_kelas_choice"]:checked'))
         .map(cb => parseInt(cb.value, 10));
@@ -1419,6 +1515,7 @@
         mata_pelajaran,
         tingkat_kelas,
         deskripsi,
+        zona_waktu: zonaWaktu,
         tanggal_mulai: startVal || null,
         tanggal_selesai: endVal || null,
         durasi_menit: durasiVal ? parseInt(durasiVal, 10) : null,
@@ -2041,54 +2138,203 @@
         btnApply.textContent = 'Masukkan ke Ulangan Ini';
       }
     };
+    let currentStudentsList = [];
+    let filterOnlyDuplicates = false;
+
+    // Toolbar filter & sorting listeners
+    const filterKelasEl = document.getElementById('filter-peserta-kelas');
+    const sortPesertaEl = document.getElementById('sort-peserta');
+    const searchNamaEl = document.getElementById('search-peserta-nama');
+    const btnToggleDupFilter = document.getElementById('btn-toggle-duplicate-filter');
+
+    if (filterKelasEl) filterKelasEl.onchange = () => renderStudentsTable();
+    if (sortPesertaEl) sortPesertaEl.onchange = () => renderStudentsTable();
+    if (searchNamaEl) searchNamaEl.oninput = () => renderStudentsTable();
+    if (btnToggleDupFilter) {
+      btnToggleDupFilter.onclick = () => {
+        filterOnlyDuplicates = !filterOnlyDuplicates;
+        renderStudentsTable();
+      };
+    }
+
+    function renderStudentsTable() {
+      const tbody = document.getElementById('students-table-body');
+      tbody.innerHTML = '';
+
+      if (!currentStudentsList || currentStudentsList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">Belum ada siswa yang mengumpulkan jawaban.</td></tr>';
+        document.getElementById('duplicate-warning-box')?.classList.add('hidden');
+        return;
+      }
+
+      // Hitung frekuensi nama per kelas untuk deteksi duplikat
+      const nameFreq = {};
+      currentStudentsList.forEach(st => {
+        const cleanName = (st.nama_siswa || '').trim().toLowerCase();
+        const cleanClass = (st.kelas_siswa || '').trim().toLowerCase();
+        const key = `${cleanName}___${cleanClass}`;
+        nameFreq[key] = (nameFreq[key] || 0) + 1;
+      });
+
+      // Hitung total data duplikat
+      let totalDuplicateEntries = 0;
+      Object.values(nameFreq).forEach(count => {
+        if (count > 1) totalDuplicateEntries += count;
+      });
+
+      const dupBox = document.getElementById('duplicate-warning-box');
+      const dupBadge = document.getElementById('duplicate-count-badge');
+      if (dupBox && dupBadge) {
+        if (totalDuplicateEntries > 0) {
+          dupBox.classList.remove('hidden');
+          dupBadge.textContent = filterOnlyDuplicates 
+            ? `Tampilkan Semua (${totalDuplicateEntries} Kirim Ganda Terfilter)`
+            : `⚠️ Terdeteksi ${totalDuplicateEntries} Kirim Ganda (Klik untuk Filter)`;
+          if (filterOnlyDuplicates) {
+            btnToggleDupFilter.className = 'px-2.5 py-1 text-xs rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold flex items-center space-x-1 transition shadow-sm';
+          } else {
+            btnToggleDupFilter.className = 'px-2.5 py-1 text-xs rounded-lg bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-900 font-bold flex items-center space-x-1 transition shadow-sm';
+          }
+        } else {
+          dupBox.classList.add('hidden');
+          filterOnlyDuplicates = false;
+        }
+      }
+
+      // Filter kelas, pencarian nama, dan toggle duplikat
+      const selectedKelas = (filterKelasEl?.value || '').trim().toLowerCase();
+      const searchQuery = (searchNamaEl?.value || '').trim().toLowerCase();
+
+      let filtered = currentStudentsList.filter(st => {
+        const cleanName = (st.nama_siswa || '').trim().toLowerCase();
+        const cleanClass = (st.kelas_siswa || '').trim().toLowerCase();
+        const key = `${cleanName}___${cleanClass}`;
+
+        if (selectedKelas && cleanClass !== selectedKelas) return false;
+        if (searchQuery && !cleanName.includes(searchQuery)) return false;
+        if (filterOnlyDuplicates && (nameFreq[key] || 0) <= 1) return false;
+        return true;
+      });
+
+      // Sorting
+      const sortType = sortPesertaEl?.value || 'nama_asc';
+      filtered.sort((a, b) => {
+        if (sortType === 'nama_asc') {
+          return (a.nama_siswa || '').localeCompare(b.nama_siswa || '', 'id', { sensitivity: 'base' });
+        }
+        if (sortType === 'nama_desc') {
+          return (b.nama_siswa || '').localeCompare(a.nama_siswa || '', 'id', { sensitivity: 'base' });
+        }
+        if (sortType === 'nilai_desc') {
+          return (b.nilai_final ?? -1) - (a.nilai_final ?? -1);
+        }
+        if (sortType === 'nilai_asc') {
+          return (a.nilai_final ?? 9999) - (b.nilai_final ?? 9999);
+        }
+        if (sortType === 'waktu_desc') {
+          return new Date(b.submitted_at || 0) - new Date(a.submitted_at || 0);
+        }
+        if (sortType === 'waktu_asc') {
+          return new Date(a.submitted_at || 0) - new Date(b.submitted_at || 0);
+        }
+        return 0;
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">Tidak ada data siswa yang cocok dengan kriteria filter.</td></tr>';
+        return;
+      }
+
+      filtered.forEach(st => {
+        const tr = document.createElement('tr');
+        const cleanName = (st.nama_siswa || '').trim().toLowerCase();
+        const cleanClass = (st.kelas_siswa || '').trim().toLowerCase();
+        const key = `${cleanName}___${cleanClass}`;
+        const dupCount = nameFreq[key] || 0;
+
+        tr.innerHTML = `
+          <td class="p-3 font-semibold text-slate-900">
+            <div class="flex items-center space-x-1.5 flex-wrap">
+              <span>${escapeHtml(st.nama_siswa)}</span>
+              ${dupCount > 1 ? `<span class="bg-rose-100 text-rose-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-rose-200" title="Nama siswa ini terdaftar ${dupCount} kali pengerjaan">⚠️ ${dupCount}x Kirim</span>` : ''}
+              ${st.paste_count > 0 ? `<span class="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded font-bold" title="Terdeteksi ${st.paste_count} kali copy-paste teks ke lembar jawaban">📋 ${st.paste_count}x Paste</span>` : ''}
+            </div>
+          </td>
+          <td class="p-3 text-slate-500">${escapeHtml(st.kelas_siswa)}</td>
+          <td class="p-3 text-slate-500">${st.submitted_at ? new Date(st.submitted_at).toLocaleTimeString('id-ID') : '-'}</td>
+          <td class="p-3">
+            <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${st.total_dinilai >= st.total_jawaban ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+              ${st.total_dinilai} / ${st.total_jawaban} Selesai
+            </span>
+          </td>
+          <td class="p-3 font-semibold text-purple-700">${st.nilai_ai !== null ? st.nilai_ai : '-'}</td>
+          <td class="p-3 font-bold text-blue-600">${st.nilai_final !== null ? st.nilai_final : '-'}</td>
+          <td class="p-3 text-right">
+            <div class="flex items-center justify-end space-x-1.5">
+              <button onclick="openReviewModal(${st.pengerjaan_id})" class="text-xs bg-slate-100 hover:bg-blue-50 text-blue-600 font-semibold px-2.5 py-1 rounded transition" title="Review butir jawaban siswa">
+                Review &orarr;
+              </button>
+              <button onclick="hapusPengerjaanSiswa(${st.pengerjaan_id}, '${escapeHtml(st.nama_siswa)}', '${escapeHtml(st.kelas_siswa)}')" class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-semibold px-2 py-1 rounded transition" title="Hapus pengerjaan siswa ini">
+                🗑️ Hapus
+              </button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
     async function loadPesertaList(ulanganId) {
       if (!ulanganId) return;
       try {
         const res = await fetch(`/api/guru/ulangan/${ulanganId}/peserta`);
         const data = await res.json();
-        const tbody = document.getElementById('students-table-body');
-        tbody.innerHTML = '';
+        currentStudentsList = data.data || [];
+        document.getElementById('count-peserta').textContent = currentStudentsList.length;
 
-        const students = data.data || [];
-        document.getElementById('count-peserta').textContent = students.length;
-
-        if (students.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">Belum ada siswa yang mengumpulkan jawaban.</td></tr>';
-          return;
+        // Update pilihan kelas pada filter dropdown
+        if (filterKelasEl) {
+          const currentVal = filterKelasEl.value;
+          const classes = Array.from(new Set(currentStudentsList.map(s => s.kelas_siswa).filter(Boolean))).sort();
+          filterKelasEl.innerHTML = '<option value="">Semua Kelas</option>';
+          classes.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.toLowerCase();
+            opt.textContent = c;
+            if (c.toLowerCase() === currentVal.toLowerCase()) opt.selected = true;
+            filterKelasEl.appendChild(opt);
+          });
         }
 
-        students.forEach(st => {
-          const tr = document.createElement('tr');
-          const isReleased = Boolean(st.released_at);
-
-          tr.innerHTML = `
-            <td class="p-3 font-semibold text-slate-900">
-              <div class="flex items-center space-x-1.5 flex-wrap">
-                <span>${st.nama_siswa}</span>
-                ${st.paste_count > 0 ? `<span class="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded font-bold" title="Terdeteksi ${st.paste_count} kali copy-paste teks ke lembar jawaban">📋 ${st.paste_count}x Paste</span>` : ''}
-              </div>
-            </td>
-            <td class="p-3 text-slate-500">${st.kelas_siswa}</td>
-            <td class="p-3 text-slate-500">${st.submitted_at ? new Date(st.submitted_at).toLocaleTimeString('id-ID') : '-'}</td>
-            <td class="p-3">
-              <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${st.total_dinilai >= st.total_jawaban ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
-                ${st.total_dinilai} / ${st.total_jawaban} Selesai
-              </span>
-            </td>
-            <td class="p-3 font-semibold text-purple-700">${st.nilai_ai !== null ? st.nilai_ai : '-'}</td>
-            <td class="p-3 font-bold text-blue-600">${st.nilai_final !== null ? st.nilai_final : '-'}</td>
-            <td class="p-3 text-right">
-              <button onclick="openReviewModal(${st.pengerjaan_id})" class="text-xs bg-slate-100 hover:bg-blue-50 text-blue-600 font-semibold px-2.5 py-1 rounded transition">
-                Review &orarr;
-              </button>
-            </td>
-          `;
-          tbody.appendChild(tr);
-        });
+        renderStudentsTable();
       } catch (err) {
         console.error(err);
       }
     }
+
+    // Fungsi Hapus Data Siswa yang Sudah Mengirim
+    window.hapusPengerjaanSiswa = async (pengerjaanId, nama, kelas) => {
+      const konfirmasi = confirm(`Apakah Anda yakin ingin menghapus data pengerjaan siswa:\n"${nama}" (${kelas})?\n\nSemua jawaban dan nilai siswa ini akan dihapus permanen. Siswa dapat mengerjakan ulang jika ulangan masih dibuka.`);
+      if (!konfirmasi) return;
+
+      try {
+        const res = await fetch(`/api/guru/pengerjaan/${pengerjaanId}`, {
+          method: 'DELETE'
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert(data.message || 'Pengerjaan siswa berhasil dihapus');
+          loadPesertaList(activeUlanganId);
+          if (activeUlanganId) {
+            selectUlangan(activeUlanganId);
+          }
+        } else {
+          alert(data.message || 'Gagal menghapus pengerjaan siswa');
+        }
+      } catch (err) {
+        alert('Gagal menghubungi server: ' + err.message);
+      }
+    };
 
     // Modal Review Detail
     window.openReviewModal = async (pengerjaanId) => {

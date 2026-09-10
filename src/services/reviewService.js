@@ -321,6 +321,57 @@ const reviewService = {
       },
       peserta: pesertaList
     };
+  },
+
+  // Hapus data pengerjaan siswa beserta seluruh jawaban dan review-nya
+  deletePengerjaan(pengerjaanId, guruId) {
+    const pengerjaan = db.prepare(`
+      SELECT p.id, p.ulangan_id, p.peserta_id, pes.nama as nama_siswa, pes.kelas as kelas_siswa, u.guru_id
+      FROM pengerjaan p
+      JOIN peserta pes ON p.peserta_id = pes.id
+      JOIN ulangan u ON p.ulangan_id = u.id
+      WHERE p.id = ?
+    `).get(pengerjaanId);
+
+    if (!pengerjaan) {
+      throw new Error('Data pengerjaan tidak ditemukan');
+    }
+    if (pengerjaan.guru_id !== guruId) {
+      throw new Error('Akses ditolak: ulangan ini bukan milik Anda');
+    }
+
+    const deleteTx = db.transaction(() => {
+      // 1. Hapus review_guru terkait jawaban pengerjaan ini
+      db.prepare(`
+        DELETE FROM review_guru 
+        WHERE jawaban_id IN (SELECT id FROM jawaban WHERE pengerjaan_id = ?)
+      `).run(pengerjaanId);
+
+      // 2. Hapus antrean_review terkait jawaban pengerjaan ini
+      db.prepare(`
+        DELETE FROM antrean_review 
+        WHERE jawaban_id IN (SELECT id FROM jawaban WHERE pengerjaan_id = ?)
+      `).run(pengerjaanId);
+
+      // 3. Hapus jawaban pengerjaan ini
+      db.prepare('DELETE FROM jawaban WHERE pengerjaan_id = ?').run(pengerjaanId);
+
+      // 4. Hapus pengerjaan
+      db.prepare('DELETE FROM pengerjaan WHERE id = ?').run(pengerjaanId);
+
+      // 5. Bersihkan entri peserta jika tidak ada pengerjaan lain
+      const remaining = db.prepare('SELECT COUNT(*) as count FROM pengerjaan WHERE peserta_id = ?').get(pengerjaan.peserta_id);
+      if (remaining.count === 0) {
+        db.prepare('DELETE FROM peserta WHERE id = ?').run(pengerjaan.peserta_id);
+      }
+    });
+
+    deleteTx();
+
+    return {
+      success: true,
+      message: `Data pengerjaan siswa ${pengerjaan.nama_siswa} (${pengerjaan.kelas_siswa}) berhasil dihapus.`
+    };
   }
 };
 

@@ -46,6 +46,7 @@ function initDatabase() {
       kkm INTEGER DEFAULT 75,
       instruksi_remedial TEXT DEFAULT NULL,
       link_remedial TEXT DEFAULT NULL,
+      zona_waktu TEXT DEFAULT 'WIB',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (guru_id) REFERENCES guru(id) ON DELETE RESTRICT
@@ -206,6 +207,7 @@ function initDatabase() {
   try { db.exec('ALTER TABLE guru ADD COLUMN no_wa TEXT DEFAULT NULL;'); } catch (e) {}
   try { db.exec('ALTER TABLE ulangan ADD COLUMN instruksi_remedial TEXT DEFAULT NULL;'); } catch (e) {}
   try { db.exec('ALTER TABLE ulangan ADD COLUMN link_remedial TEXT DEFAULT NULL;'); } catch (e) {}
+  try { db.exec("ALTER TABLE ulangan ADD COLUMN zona_waktu TEXT DEFAULT 'WIB';"); } catch (e) {}
 
   // Seed initial guru if table is empty
   const teacherEmail = process.env.TEACHER_EMAIL || 'guru@sekolah.id';

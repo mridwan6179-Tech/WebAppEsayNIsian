@@ -412,6 +412,15 @@ app.get('/api/guru/pengerjaan/:id', requireGuru, (req, res) => {
   }
 });
 
+app.delete('/api/guru/pengerjaan/:id', requireGuru, (req, res) => {
+  try {
+    const result = reviewService.deletePengerjaan(req.params.id, req.guru.guruId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 app.post('/api/guru/jawaban/:id/review', requireGuru, (req, res) => {
   try {
     const result = reviewService.updateJawabanReview(req.params.id, req.guru.guruId, req.body);

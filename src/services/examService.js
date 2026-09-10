@@ -13,6 +13,55 @@ const examService = {
     return code;
   },
 
+  // Helper konversi tanggal dan zona waktu Indonesia (WIB, WITA, WIT)
+  parseIndonesianDateTime(dateStr, zonaWaktu = 'WIB') {
+    if (!dateStr) return null;
+    const cleanStr = String(dateStr).trim();
+    if (!cleanStr) return null;
+
+    // Jika sudah memiliki offset waktu (Z atau +HH:mm / -HH:mm), parse langsung
+    if (cleanStr.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(cleanStr)) {
+      const d = new Date(cleanStr);
+      return isNaN(d.getTime()) ? null : d.toISOString();
+    }
+
+    const offsetMap = {
+      WIB: '+07:00',
+      WITA: '+08:00',
+      WIT: '+09:00'
+    };
+    const zw = (zonaWaktu && offsetMap[String(zonaWaktu).toUpperCase()]) ? String(zonaWaktu).toUpperCase() : 'WIB';
+    const offset = offsetMap[zw] || '+07:00';
+
+    let normalized = cleanStr;
+    if (normalized.length === 16) {
+      normalized += ':00';
+    }
+    normalized += offset;
+    const d = new Date(normalized);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  },
+
+  formatIndonesianDateTime(isoDateStr, zonaWaktu = 'WIB', isShort = false) {
+    if (!isoDateStr) return '-';
+    const tzMap = {
+      WIB: 'Asia/Jakarta',
+      WITA: 'Asia/Makassar',
+      WIT: 'Asia/Jayapura'
+    };
+    const zw = (zonaWaktu && tzMap[String(zonaWaktu).toUpperCase()]) ? String(zonaWaktu).toUpperCase() : 'WIB';
+    const timeZone = tzMap[zw] || 'Asia/Jakarta';
+    const d = new Date(isoDateStr);
+    if (isNaN(d.getTime())) return '-';
+
+    const formatted = d.toLocaleString('id-ID', {
+      timeZone,
+      dateStyle: isShort ? 'short' : 'full',
+      timeStyle: 'short'
+    });
+    return `${formatted} ${zw}`;
+  },
+
   // FR-02 & FR-03: Buat Ulangan Baru
   createUlangan(guruId, data) {
     const { judul, mata_pelajaran, deskripsi, kelas_ids, jumlah_soal_tampil, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit } = data;
@@ -40,20 +89,23 @@ const examService = {
       if (!existing) isUnique = true;
     }
 
+    const cleanZonaWaktu = (data.zona_waktu && ['WIB', 'WITA', 'WIT'].includes(String(data.zona_waktu).toUpperCase()))
+      ? String(data.zona_waktu).toUpperCase()
+      : 'WIB';
     const limitSoal = (jumlah_soal_tampil !== undefined && jumlah_soal_tampil !== null && jumlah_soal_tampil !== '') ? Math.max(1, Number(jumlah_soal_tampil)) : null;
     const isAcak = (acak_soal !== undefined && acak_soal !== null) ? (acak_soal ? 1 : 0) : (limitSoal ? 1 : 0);
-    const cleanTanggalMulai = tanggal_mulai ? new Date(tanggal_mulai).toISOString() : null;
-    const cleanTanggalSelesai = tanggal_selesai ? new Date(tanggal_selesai).toISOString() : null;
+    const cleanTanggalMulai = tanggal_mulai ? this.parseIndonesianDateTime(tanggal_mulai, cleanZonaWaktu) : null;
+    const cleanTanggalSelesai = tanggal_selesai ? this.parseIndonesianDateTime(tanggal_selesai, cleanZonaWaktu) : null;
     const cleanDurasi = (durasi_menit !== undefined && durasi_menit !== null && durasi_menit !== '') ? Math.max(1, Number(durasi_menit)) : null;
     const cleanKkm = (data.kkm !== undefined && data.kkm !== null && data.kkm !== '') ? Math.max(0, Math.min(100, Number(data.kkm))) : 75;
     const cleanInstruksiRemedial = data.instruksi_remedial ? String(data.instruksi_remedial).trim() : null;
     const cleanLinkRemedial = data.link_remedial ? String(data.link_remedial).trim() : null;
 
     const stmt = db.prepare(`
-      INSERT INTO ulangan (guru_id, judul, mata_pelajaran, tingkat_kelas, deskripsi, kode_ujian, status, jumlah_soal_tampil, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, instruksi_remedial, link_remedial)
-      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO ulangan (guru_id, judul, mata_pelajaran, tingkat_kelas, deskripsi, kode_ujian, status, jumlah_soal_tampil, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, instruksi_remedial, link_remedial, zona_waktu)
+      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const info = stmt.run(guruId, judul, mata_pelajaran, tingkat_kelas, deskripsi || '', kode_ujian, limitSoal, isAcak, cleanTanggalMulai, cleanTanggalSelesai, cleanDurasi, cleanKkm, cleanInstruksiRemedial, cleanLinkRemedial);
+    const info = stmt.run(guruId, judul, mata_pelajaran, tingkat_kelas, deskripsi || '', kode_ujian, limitSoal, isAcak, cleanTanggalMulai, cleanTanggalSelesai, cleanDurasi, cleanKkm, cleanInstruksiRemedial, cleanLinkRemedial, cleanZonaWaktu);
     const ulanganId = info.lastInsertRowid;
 
     if (Array.isArray(kelas_ids) && kelas_ids.length > 0) {
@@ -129,13 +181,23 @@ const examService = {
       updates.push('acak_soal = ?');
       params.push(acak_soal ? 1 : 0);
     }
+    let currentZw = data.zona_waktu;
+    if (currentZw !== undefined) {
+      currentZw = (currentZw && ['WIB', 'WITA', 'WIT'].includes(String(currentZw).toUpperCase())) ? String(currentZw).toUpperCase() : 'WIB';
+      updates.push('zona_waktu = ?');
+      params.push(currentZw);
+    } else {
+      const existingRow = db.prepare('SELECT zona_waktu FROM ulangan WHERE id = ?').get(id);
+      currentZw = existingRow?.zona_waktu || 'WIB';
+    }
+
     if (tanggal_mulai !== undefined) {
       updates.push('tanggal_mulai = ?');
-      params.push(tanggal_mulai ? new Date(tanggal_mulai).toISOString() : null);
+      params.push(tanggal_mulai ? this.parseIndonesianDateTime(tanggal_mulai, currentZw) : null);
     }
     if (tanggal_selesai !== undefined) {
       updates.push('tanggal_selesai = ?');
-      params.push(tanggal_selesai ? new Date(tanggal_selesai).toISOString() : null);
+      params.push(tanggal_selesai ? this.parseIndonesianDateTime(tanggal_selesai, currentZw) : null);
     }
     if (durasi_menit !== undefined) {
       const durasi = (durasi_menit !== null && durasi_menit !== '') ? Math.max(1, Number(durasi_menit)) : null;
