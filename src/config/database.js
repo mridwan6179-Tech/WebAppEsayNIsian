@@ -3,7 +3,8 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
-const dataDir = path.join(__dirname, '../../data');
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true' || !!process.env.NOW_REGION;
+const dataDir = isVercel ? '/tmp' : path.join(__dirname, '../../data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
