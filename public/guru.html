@@ -1034,6 +1034,8 @@
         </div>
       </div>
     </div>
+  </div>
+
   <!-- MODAL SEBARAN WHATSAPP ULANGAN -->
   <div id="modal-sebaran-wa" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 z-50">
     <div class="bg-white rounded-2xl max-w-xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200">
@@ -3034,6 +3036,11 @@
 
     if (btnCloseWa) btnCloseWa.onclick = closeWaModal;
     if (btnCancelWa) btnCancelWa.onclick = closeWaModal;
+    if (modalWa) {
+      modalWa.addEventListener('click', (e) => {
+        if (e.target === modalWa) closeWaModal();
+      });
+    }
 
     if (btnCopyWa) {
       btnCopyWa.onclick = async () => {
