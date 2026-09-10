@@ -258,9 +258,9 @@ function initDatabase() {
   try { db.exec('ALTER TABLE ulangan ADD COLUMN instruksi_penilaian_khusus TEXT DEFAULT NULL;'); } catch (e) {}
 
   // Seed initial guru if table is empty
-  const teacherEmail = process.env.TEACHER_EMAIL || 'guru@sekolah.id';
-  const teacherName = process.env.TEACHER_NAME || 'Guru Pengampu';
-  const teacherPassword = process.env.TEACHER_PASSWORD || 'guru123';
+  const teacherEmail = process.env.TEACHER_EMAIL || 'mridwan700611@gmail.com';
+  const teacherName = process.env.TEACHER_NAME || 'Muhammad Ridwan, S.Kom';
+  const teacherPassword = process.env.TEACHER_PASSWORD || 'Guru123';
   const teacherWa = process.env.TEACHER_WA || '081234567890';
 
   let guru = db.prepare('SELECT id, password, no_wa FROM guru WHERE email = ?').get(teacherEmail);
@@ -308,8 +308,8 @@ function initDatabase() {
   const keyCount = db.prepare('SELECT COUNT(*) as c FROM gemini_api_keys').get().c;
   if (keyCount === 0 && (rawEnvKeys.length > 0 || initialKey)) {
     const insertKeyStmt = db.prepare(`
-      INSERT INTO gemini_api_keys (label, api_key, is_active, priority, status)
-      VALUES (?, ?, 1, ?, 'ready')
+      INSERT INTO gemini_api_keys (label, api_key, priority)
+      VALUES (?, ?, ?)
     `);
     if (rawEnvKeys.length > 0) {
       rawEnvKeys.forEach((k, idx) => {
@@ -327,7 +327,11 @@ function initDatabase() {
   // Seed initial sample kelas if empty
   const kelasCount = db.prepare('SELECT COUNT(*) as c FROM kelas WHERE guru_id = ?').get(guru.id);
   if (kelasCount.c === 0) {
-    const defaultClasses = ['10 MIPA 1', '10 MIPA 2', '11 MIPA 1', '12 MIPA 1'];
+    const defaultClasses = [
+      '7A', '7B', '7C', '7D',
+      '8A', '8B', '8C', '8D',
+      '9A', '9B', '9C', '9D'
+    ];
     const insertK = db.prepare('INSERT INTO kelas (guru_id, nama_kelas) VALUES (?, ?)');
     for (const kc of defaultClasses) {
       insertK.run(guru.id, kc);
