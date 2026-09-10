@@ -314,10 +314,17 @@
         </div>
       </div>
 
-      <div class="text-center mt-6">
+      <div class="text-center mt-6 flex flex-wrap items-center justify-center gap-2.5">
+        <button id="btn-copy-result-link" class="px-4 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-200 transition flex items-center space-x-1.5 shadow-sm cursor-pointer">
+          <span>📋 Salin Link Hasil Nilai</span>
+        </button>
         <button id="btn-refresh-result"
-          class="px-5 py-2 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition">
+          class="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer">
           Muat Ulang Status Nilai &orarr;
+        </button>
+        <button id="btn-exit-exam"
+          class="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-red-600 rounded-xl transition cursor-pointer">
+          Keluar / Halaman Utama
         </button>
       </div>
     </section>
@@ -329,6 +336,13 @@
   </footer>
 
   <script>
+    // Dukungan direct query params: ?hasil=ID atau ?id=ID atau ?kode=KODE
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramHasil = urlParams.get('hasil') || urlParams.get('id') || urlParams.get('pengerjaan');
+    if (paramHasil) {
+      localStorage.setItem('ulangan_pengerjaan_id', paramHasil);
+    }
+
     let currentPengerjaanId = localStorage.getItem('ulangan_pengerjaan_id');
 
     const stepAuth = document.getElementById('step-auth');
@@ -459,7 +473,7 @@
     let activeTicketId = null;
 
     function showWaitingRoom(queueData) {
-      document.getElementById('step-login').classList.add('hidden');
+      if (stepAuth) stepAuth.classList.add('hidden');
       document.getElementById('step-exam').classList.add('hidden');
       document.getElementById('step-result').classList.add('hidden');
       const wr = document.getElementById('step-waiting-room');
@@ -498,7 +512,7 @@
         if (!res.ok || !data.success) {
           if (queuePollInterval) clearInterval(queuePollInterval);
           document.getElementById('step-waiting-room')?.classList.add('hidden');
-          document.getElementById('step-login')?.classList.remove('hidden');
+          if (stepAuth) stepAuth.classList.remove('hidden');
           showAlert(data.message || 'Sesi antrean berakhir. Silakan coba masuk kembali.');
           return;
         }
@@ -1103,6 +1117,31 @@
     document.getElementById('btn-refresh-result').addEventListener('click', () => {
       if (currentPengerjaanId) checkResultStatus(currentPengerjaanId);
     });
+
+    const btnCopyLink = document.getElementById('btn-copy-result-link');
+    if (btnCopyLink) {
+      btnCopyLink.addEventListener('click', () => {
+        if (!currentPengerjaanId) return;
+        const shareUrl = `${window.location.origin}/?hasil=${currentPengerjaanId}`;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(shareUrl).then(() => {
+            alert(`✅ Tautan hasil ujian Anda berhasil disalin:\n${shareUrl}`);
+          }).catch(() => {
+            prompt('Salin link hasil ujian ini:', shareUrl);
+          });
+        } else {
+          prompt('Salin link hasil ujian ini:', shareUrl);
+        }
+      });
+    }
+
+    const btnExit = document.getElementById('btn-exit-exam');
+    if (btnExit) {
+      btnExit.addEventListener('click', () => {
+        localStorage.removeItem('ulangan_pengerjaan_id');
+        window.location.href = '/';
+      });
+    }
   </script>
 </body>
 </html>
