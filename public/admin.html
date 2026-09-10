@@ -27,16 +27,22 @@
 
       <div id="login-alert" class="hidden p-3 rounded-xl text-xs bg-red-500/10 border border-red-500/30 text-red-400"></div>
 
-      <form id="form-login" class="space-y-4">
+      <form id="form-login" class="space-y-4" autocomplete="off">
+        <!-- Trap browser autofill -->
+        <div style="position: absolute; opacity: 0; pointer-events: none; height: 0; width: 0; overflow: hidden;" aria-hidden="true">
+          <input type="text" tabindex="-1" autocomplete="off">
+          <input type="password" tabindex="-1" autocomplete="off">
+        </div>
+
         <div>
           <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Username Admin</label>
-          <input type="text" id="login-username" required placeholder="Masukkan username admin"
+          <input type="text" id="login-username" required placeholder="Masukkan username admin" autocomplete="off" readonly onfocus="this.removeAttribute('readonly');"
             class="w-full px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-900/80 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-sm outline-none transition">
         </div>
 
         <div>
           <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Password</label>
-          <input type="password" id="login-password" required placeholder="••••••••"
+          <input type="password" id="login-password" required placeholder="••••••••" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly');"
             class="w-full px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-900/80 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-sm outline-none transition">
         </div>
 
@@ -328,12 +334,28 @@
     // Check Admin Session on Load & Auto-fill Remembered Username
     async function checkAuth() {
       const savedUser = localStorage.getItem('admin_remembered_username');
+      const uInput = document.getElementById('login-username');
+      const pInput = document.getElementById('login-password');
+      const rCheck = document.getElementById('login-remember');
+
       if (savedUser) {
-        const uInput = document.getElementById('login-username');
         if (uInput) uInput.value = savedUser;
-        const rCheck = document.getElementById('login-remember');
         if (rCheck) rCheck.checked = true;
+      } else {
+        if (uInput) uInput.value = '';
+        if (rCheck) rCheck.checked = false;
       }
+      if (pInput) pInput.value = '';
+
+      // Proteksi ekstra terhadap autofill paksa dari browser (Chrome)
+      [50, 200, 600].forEach(delay => {
+        setTimeout(() => {
+          if (!localStorage.getItem('admin_remembered_username') && uInput) {
+            uInput.value = '';
+          }
+          if (pInput) pInput.value = '';
+        }, delay);
+      });
 
       try {
         const res = await adminFetch('/api/admin/me');
