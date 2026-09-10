@@ -66,14 +66,15 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(401).json(result);
   }
 
+  const isSecure = Boolean(req.secure || req.headers['x-forwarded-proto'] === 'https');
   const maxAge = isRemember ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
 
   // Simpan token di HTTP-Only Cookie
   res.cookie('auth_token', result.token, {
     httpOnly: true,
     maxAge,
-    sameSite: 'none',
-    secure: true // Diperlukan saat di-embed di iframe HTTPS Google Sites
+    sameSite: isSecure ? 'none' : 'lax',
+    secure: isSecure
   });
 
   res.json(result);

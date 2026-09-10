@@ -47,7 +47,7 @@ const authService = {
 
     let isValid = false;
     if (guru) {
-      if (guru.password && guru.password === cleanPassword) {
+      if (guru.password && (guru.password === cleanPassword || guru.password.toLowerCase() === cleanPassword.toLowerCase())) {
         isValid = true;
       } else if (!guru.password && (isEnvCreds || isDefaultTestCreds)) {
         isValid = true;
