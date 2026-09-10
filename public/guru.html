@@ -69,7 +69,7 @@
 
     <div id="login-alert" class="hidden p-3 mb-4 rounded-xl text-xs border"></div>
 
-    <form id="form-login" class="space-y-4">
+    <form id="form-login" action="javascript:void(0);" class="space-y-4">
       <div>
         <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Email Guru</label>
         <input type="email" id="login-email" required placeholder="nama@sekolah.id" autocomplete="email" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm">
@@ -1850,9 +1850,6 @@
       const endVal = document.getElementById('edit-exam-end').value.trim();
       const durasiVal = document.getElementById('edit-exam-durasi').value.trim();
       const kkmVal = document.getElementById('edit-exam-kkm').value.trim();
-      const limitVal = document.getElementById('edit-exam-limit').value.trim();
-      const limitIsianVal = document.getElementById('edit-exam-limit-isian')?.value.trim();
-      const limitEssayVal = document.getElementById('edit-exam-limit-essay')?.value.trim();
       const acakChecked = document.getElementById('edit-exam-acak').checked;
       const zonaWaktu = document.getElementById('edit-exam-zona-waktu')?.value || 'WIB';
       const izinkanSingkatan = document.getElementById('edit-exam-izinkan-singkatan')?.checked ? 1 : 0;
