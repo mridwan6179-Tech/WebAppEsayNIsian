@@ -154,7 +154,7 @@ app.get('/api/siswa/antrean/:ticketId', (req, res) => {
   }
 });
 
-app.post('/api/siswa/submit', (req, res) => {
+app.post('/api/siswa/submit', async (req, res) => {
   try {
     const { pengerjaan_id, jawaban, paste_count, is_auto_submit } = req.body;
     if (!pengerjaan_id) {
@@ -163,7 +163,11 @@ app.post('/api/siswa/submit', (req, res) => {
 
     // Ambil ulangan_id untuk melepaskan slot antrean
     const pengerjaanBefore = db.prepare('SELECT ulangan_id FROM pengerjaan WHERE id = ?').get(pengerjaan_id);
-    const result = studentService.submitExam(pengerjaan_id, jawaban, paste_count, Boolean(is_auto_submit));
+
+    // Eksekusi submit melalui antrean penulisan aman (maks 20 submit serentak untuk proteksi database)
+    const result = await waitingRoomService.queueSubmit(async () => {
+      return studentService.submitExam(pengerjaan_id, jawaban, paste_count, Boolean(is_auto_submit));
+    });
 
     // Lepaskan 1 slot untuk antrean ruang tunggu
     if (pengerjaanBefore?.ulangan_id) {

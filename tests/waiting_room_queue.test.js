@@ -112,9 +112,28 @@ test('=== PENGUJIAN SISTEM ANTREAN RUANG TUNGGU UJIAN (MAX 20 SISWA BERSAMAAN) =
     assert.ok(started4.pengerjaanId);
   });
 
-  await t.test('5. Kapasitas default sistem terpasang pada 20 siswa bersamaan', () => {
-    const max = waitingRoomService.getMaxConcurrent();
-    assert.strictEqual(max, 20);
+  await t.test('5. Kapasitas burst serentak terpasang pada 20 siswa & kapasitas di dalam mencapai 200 siswa', () => {
+    const maxBurst = waitingRoomService.getMaxBurst();
+    const maxInside = waitingRoomService.getMaxInside();
+    assert.strictEqual(maxBurst, 20);
+    assert.strictEqual(maxInside, 200);
+  });
+
+  await t.test('6. Gerbang Submit (queueSubmit) memproses 25 pengerjaan serentak secara paralel tanpa error database', async () => {
+    // Jalankan 25 submit secara bersamaan (Promise.all)
+    const promises = [];
+    for (let i = 1; i <= 25; i++) {
+      promises.push(waitingRoomService.queueSubmit(async () => {
+        // Simulasi penulisan cepat ke database
+        return { index: i, success: true };
+      }));
+    }
+
+    const results = await Promise.all(promises);
+    assert.strictEqual(results.length, 25);
+    results.forEach((r, idx) => {
+      assert.strictEqual(r.success, true);
+    });
   });
 
   // Cleanup

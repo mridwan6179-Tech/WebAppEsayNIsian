@@ -1,16 +1,51 @@
-﻿const db = require('../config/database');
+const db = require('../config/database');
 const studentService = require('./studentService');
 
-const MAX_DEFAULT_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_STUDENTS || '20', 10);
+// Kapasitas siswa yang bisa mengerjakan di dalam ruang ujian secara bersamaan (Bisa banyak / 200 siswa)
+const MAX_INSIDE_EXAM = parseInt(process.env.MAX_INSIDE_EXAM || '200', 10);
 
-// Antrean memori untuk siswa yang sedang menunggu slot kosong
-// Map: ticketId -> { ticketId, ulanganId, kodeUjian, nama, kelas, status, createdAt, lastPolledAt }
+// Batas lonjakan serentak (Burst) pada Gerbang Masuk & Gerbang Submit (Maks 20 serentak)
+const MAX_BURST_ENTRY = parseInt(process.env.MAX_BURST_ENTRY || '20', 10);
+const MAX_BURST_SUBMIT = parseInt(process.env.MAX_BURST_SUBMIT || '20', 10);
+
+// Antrean ruang tunggu masuk (Entry Gate Queue)
 const waitingTickets = new Map();
+let activeEnteringCount = 0;
+
+// Antrean pengumpulan jawaban serentak (Submit Gate Mutex Queue)
+let activeSubmits = 0;
+const submitQueue = [];
+
+function processNextSubmit() {
+  if (activeSubmits >= MAX_BURST_SUBMIT || submitQueue.length === 0) {
+    return;
+  }
+  const task = submitQueue.shift();
+  activeSubmits++;
+
+  Promise.resolve()
+    .then(() => task.fn())
+    .then(result => {
+      task.resolve(result);
+    })
+    .catch(err => {
+      task.reject(err);
+    })
+    .finally(() => {
+      activeSubmits--;
+      processNextSubmit();
+    });
+}
 
 const waitingRoomService = {
-  // Ambil batas maksimal siswa bersamaan
-  getMaxConcurrent() {
-    return MAX_DEFAULT_CONCURRENT;
+  // Ambil kapasitas maksimal di dalam pengerjaan
+  getMaxInside() {
+    return MAX_INSIDE_EXAM;
+  },
+
+  // Ambil batas serentak burst (Masuk & Submit)
+  getMaxBurst() {
+    return MAX_BURST_ENTRY;
   },
 
   // Hitung jumlah siswa yang saat ini sedang aktif mengerjakan (status = 'mengerjakan')
@@ -24,9 +59,12 @@ const waitingRoomService = {
     return row ? row.c : 0;
   },
 
-  // Periksa apakah siswa boleh langsung masuk atau harus antre
+  // GERBANG 1: Masuk Ujian (Entry Gate)
+  // Memastikan siswa yang sedang mengerjakan di dalam bisa mencapai kapasitas penuh (200 siswa),
+  // namun jika ada lonjakan serentak > 20 siswa dalam detik yang sama, siswa diantrekan beberapa detik secara halus.
   checkEntry(kodeUjian, nama, kelas, customMax = null) {
-    const maxLimit = customMax || this.getMaxConcurrent();
+    const maxCapacity = customMax || this.getMaxInside();
+    const burstLimit = this.getMaxBurst();
     const cleanKode = (kodeUjian || '').trim().toUpperCase();
     const cleanNama = (nama || '').trim();
     const cleanKelas = (kelas || '').trim();
@@ -39,7 +77,7 @@ const waitingRoomService = {
 
     const ulanganId = val.ulangan.id;
 
-    // 2. Periksa apakah siswa sudah memiliki pengerjaan aktif atau submitted
+    // 2. Periksa apakah siswa sudah memiliki pengerjaan aktif atau submitted (Rejoin / Refresh)
     const existingPeserta = db.prepare(`
       SELECT id FROM peserta 
       WHERE ulangan_id = ? AND LOWER(nama) = LOWER(?) AND LOWER(kelas) = LOWER(?)
@@ -51,22 +89,48 @@ const waitingRoomService = {
         WHERE ulangan_id = ? AND peserta_id = ?
       `).get(ulanganId, existingPeserta.id);
 
-      // Jika sudah submitted atau sudah ada di dalam (refresh / rejoin), izinkan langsung tanpa antre
+      // Siswa yang sudah di dalam boleh langsung masuk tanpa antre
       if (existingPengerjaan) {
         return { allowed: true, inQueue: false, ulanganId };
       }
     }
 
-    // 3. Hitung siswa yang sedang aktif mengerjakan
+    // 3. Hitung siswa yang sedang aktif mengerjakan di dalam ruang ujian
     const activeCount = this.getActiveStudentCount(ulanganId);
 
-    // 4. Jika kapasitas masih tersedia (< maxLimit)
-    if (activeCount < maxLimit) {
-      return { allowed: true, inQueue: false, ulanganId, activeCount, maxLimit };
+    // Jika ruang ujian sudah penuh total (misal 200 siswa)
+    if (activeCount >= maxCapacity) {
+      return this.createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, 'Ruang ujian sedang penuh');
     }
 
-    // 5. Kapasitas penuh (>= maxLimit): Masukkan ke sistem antrean ruang tunggu
-    // Cek apakah siswa ini sudah punya tiket aktif di memori
+    // 4. Cek apakah terjadi lonjakan serentak masuk (Burst Entry Gate > 20)
+    // Jika antrean tiket sedang ada siswa yang mengantre, siswa baru harus antre di belakangnya
+    const waitingForThisExam = this.getWaitingListForExam(ulanganId);
+    if (waitingForThisExam.length > 0 || activeEnteringCount >= burstLimit) {
+      return this.createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, 'Sistem sedang mengatur antrean gerbang masuk');
+    }
+
+    // Lolos masuk ke lembar ujian
+    activeEnteringCount++;
+    setTimeout(() => {
+      if (activeEnteringCount > 0) activeEnteringCount--;
+    }, 1500);
+
+    return { allowed: true, inQueue: false, ulanganId, activeCount, maxLimit: maxCapacity };
+  },
+
+  getWaitingListForExam(ulanganId) {
+    const list = [];
+    for (const t of waitingTickets.values()) {
+      if (t.ulanganId === ulanganId && t.status !== 'used') {
+        list.push(t);
+      }
+    }
+    list.sort((a, b) => a.createdAt - b.createdAt);
+    return list;
+  },
+
+  createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, reason) {
     for (const [tId, t] of waitingTickets.entries()) {
       if (
         t.ulanganId === ulanganId &&
@@ -81,13 +145,12 @@ const waitingRoomService = {
           position: pos.position,
           totalWaiting: pos.totalWaiting,
           activeCount,
-          maxLimit,
-          message: `Ruang ujian sedang penuh (${activeCount}/${maxLimit} siswa). Anda berada di antrean nomor #${pos.position}.`
+          maxLimit: maxCapacity,
+          message: `${reason} (${activeCount}/${maxCapacity} siswa). Anda berada di antrean nomor #${pos.position}.`
         };
       }
     }
 
-    // Terbitkan tiket baru
     const ticketId = 'tkt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
     const newTicket = {
       ticketId,
@@ -95,7 +158,7 @@ const waitingRoomService = {
       kodeUjian: cleanKode,
       nama: cleanNama,
       kelas: cleanKelas,
-      status: 'waiting', // 'waiting' | 'ready' | 'used'
+      status: 'waiting',
       createdAt: Date.now(),
       lastPolledAt: Date.now()
     };
@@ -110,21 +173,13 @@ const waitingRoomService = {
       position: pos.position,
       totalWaiting: pos.totalWaiting,
       activeCount,
-      maxLimit,
-      message: `Ruang ujian sedang penuh (${activeCount}/${maxLimit} siswa). Anda berada di antrean nomor #${pos.position}.`
+      maxLimit: maxCapacity,
+      message: `${reason} (${activeCount}/${maxCapacity} siswa). Anda berada di antrean nomor #${pos.position}.`
     };
   },
 
-  // Dapatkan posisi antrean dari tiket
   getQueuePosition(ticketId, ulanganId) {
-    const list = [];
-    for (const [id, t] of waitingTickets.entries()) {
-      if (t.ulanganId === ulanganId && t.status !== 'used') {
-        list.push(t);
-      }
-    }
-    list.sort((a, b) => a.createdAt - b.createdAt);
-
+    const list = this.getWaitingListForExam(ulanganId);
     const index = list.findIndex(t => t.ticketId === ticketId);
     return {
       position: index >= 0 ? index + 1 : 1,
@@ -132,9 +187,8 @@ const waitingRoomService = {
     };
   },
 
-  // Periksa status tiket saat polling dari frontend
   getTicketStatus(ticketId, customMax = null) {
-    const maxLimit = customMax || this.getMaxConcurrent();
+    const maxLimit = customMax || this.getMaxInside();
     const ticket = waitingTickets.get(ticketId);
     if (!ticket) {
       return { valid: false, message: 'Tiket antrean tidak ditemukan atau sudah kadaluarsa' };
@@ -142,7 +196,6 @@ const waitingRoomService = {
 
     ticket.lastPolledAt = Date.now();
 
-    // Jika sudah status 'ready'
     if (ticket.status === 'ready') {
       return {
         valid: true,
@@ -151,18 +204,9 @@ const waitingRoomService = {
       };
     }
 
-    // Cek apakah slot sekarang sudah terbuka
     const activeCount = this.getActiveStudentCount(ticket.ulanganId);
-    if (activeCount < maxLimit) {
-      // Ambil tiket antrean terdepan
-      const list = [];
-      for (const t of waitingTickets.values()) {
-        if (t.ulanganId === ticket.ulanganId && t.status === 'waiting') {
-          list.push(t);
-        }
-      }
-      list.sort((a, b) => a.createdAt - b.createdAt);
-
+    if (activeCount < maxLimit && activeEnteringCount < this.getMaxBurst()) {
+      const list = this.getWaitingListForExam(ticket.ulanganId);
       if (list.length > 0 && list[0].ticketId === ticketId) {
         ticket.status = 'ready';
         return {
@@ -184,7 +228,6 @@ const waitingRoomService = {
     };
   },
 
-  // Tandai tiket selesai dipakai
   consumeTicket(ticketId) {
     const ticket = waitingTickets.get(ticketId);
     if (ticket) {
@@ -193,25 +236,33 @@ const waitingRoomService = {
     }
   },
 
-  // Lepaskan slot pengerjaan saat siswa selesai submit
   releaseSlot(ulanganId) {
     if (!ulanganId) return;
-
-    // Cari tiket antrean terdepan untuk ulangan ini dan promosikan jadi ready
-    const list = [];
-    for (const t of waitingTickets.values()) {
-      if (t.ulanganId === Number(ulanganId) && t.status === 'waiting') {
-        list.push(t);
-      }
-    }
-    list.sort((a, b) => a.createdAt - b.createdAt);
-
+    const list = this.getWaitingListForExam(Number(ulanganId));
     if (list.length > 0) {
       list[0].status = 'ready';
     }
   },
 
-  // Bersihkan tiket mati/kadaluarsa (tidak ada polling > 5 menit)
+  // GERBANG 2: Pengumpulan Jawaban Serentak (Submit Queue Gate)
+  // Menjaga agar saat puluhan siswa submit serentak, proses penulisan ke database
+  // diproses dalam antrean cepat (maks 20 proses paralel) sehingga SQLite tidak terkunci (database is locked)
+  // dan server tidak hang / down.
+  queueSubmit(submitFn) {
+    return new Promise((resolve, reject) => {
+      submitQueue.push({ fn: submitFn, resolve, reject });
+      processNextSubmit();
+    });
+  },
+
+  getSubmitQueueLength() {
+    return submitQueue.length;
+  },
+
+  getActiveSubmitsCount() {
+    return activeSubmits;
+  },
+
   cleanExpiredTickets() {
     const now = Date.now();
     for (const [id, t] of waitingTickets.entries()) {
@@ -221,9 +272,11 @@ const waitingRoomService = {
     }
   },
 
-  // Reset antrean (untuk keperluan testing)
   _reset() {
     waitingTickets.clear();
+    activeEnteringCount = 0;
+    activeSubmits = 0;
+    submitQueue.length = 0;
   }
 };
 
