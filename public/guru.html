@@ -216,12 +216,19 @@
               </div>
               <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
-                  <label class="block text-slate-500 text-[11px] mb-1">Waktu Buka Soal:</label>
+                  <div class="flex justify-between items-center mb-1">
+                    <label class="block text-slate-500 text-[11px]">Waktu Buka Soal (Opsional):</label>
+                    <button type="button" onclick="document.getElementById('new-exam-start').value=''" class="text-[10px] text-blue-600 hover:underline font-semibold">Kosongkan</button>
+                  </div>
                   <input type="datetime-local" id="new-exam-start" class="w-full px-2 py-1 text-xs rounded border border-slate-300">
                 </div>
                 <div>
-                  <label class="block text-slate-500 text-[11px] mb-1">Waktu Tutup Soal:</label>
+                  <div class="flex justify-between items-center mb-1">
+                    <label class="block text-slate-500 text-[11px]">Waktu Tutup Soal (Opsional):</label>
+                    <button type="button" onclick="document.getElementById('new-exam-end').value=''" class="text-[10px] text-blue-600 hover:underline font-semibold">Kosongkan</button>
+                  </div>
                   <input type="datetime-local" id="new-exam-end" class="w-full px-2 py-1 text-xs rounded border border-slate-300">
+                  <span class="block text-[10px] text-slate-400 mt-0.5">Kosongkan jika ingin ulangan dibuka terus tanpa batas jam tutup.</span>
                 </div>
               </div>
               <div>
@@ -609,12 +616,19 @@
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
-              <label class="block font-medium text-slate-600 text-[11px] mb-1">Waktu Buka Ujian</label>
+              <div class="flex justify-between items-center mb-1">
+                <label class="block font-medium text-slate-600 text-[11px]">Waktu Buka Ujian (Opsional)</label>
+                <button type="button" onclick="document.getElementById('edit-exam-start').value=''" class="text-[10px] text-blue-600 hover:underline font-semibold">Kosongkan</button>
+              </div>
               <input type="datetime-local" id="edit-exam-start" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white">
             </div>
             <div>
-              <label class="block font-medium text-slate-600 text-[11px] mb-1">Waktu Tutup Ujian</label>
+              <div class="flex justify-between items-center mb-1">
+                <label class="block font-medium text-slate-600 text-[11px]">Waktu Tutup Ujian (Opsional)</label>
+                <button type="button" onclick="document.getElementById('edit-exam-end').value=''" class="text-[10px] text-blue-600 hover:underline font-semibold">Kosongkan</button>
+              </div>
               <input type="datetime-local" id="edit-exam-end" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white">
+              <span class="block text-[10px] text-slate-400 mt-0.5">Kosongkan jika ingin ulangan dibuka terus tanpa batas jam tutup.</span>
             </div>
           </div>
 
