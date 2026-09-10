@@ -278,6 +278,9 @@
             </div>
 
             <div class="flex items-center space-x-2">
+              <button id="btn-edit-exam-modal" class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 bg-slate-50 hover:bg-slate-100 transition flex items-center space-x-1" title="Ubah Jadwal, Waktu, & Pengaturan Ulangan">
+                <span>⏱️ Edit Waktu & Aturan</span>
+              </button>
               <button id="btn-toggle-status" class="text-xs font-semibold px-3 py-1.5 rounded-lg border transition">
                 Ubah Status
               </button>
@@ -502,6 +505,110 @@
       <div id="modal-answers-list" class="p-4 overflow-y-auto space-y-4 text-xs flex-1">
         <!-- Item butir review di-inject via JS -->
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL EDIT ULANGAN & WAKTU -->
+  <div id="modal-edit-exam" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-8 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="font-bold text-slate-900 text-base flex items-center space-x-2">
+            <span>⏱️</span>
+            <span>Edit Waktu & Pengaturan Ulangan</span>
+          </h3>
+          <p class="text-xs text-slate-500">Perbarui jadwal, batas durasi waktu, KKM, dan acak bank soal</p>
+        </div>
+        <button type="button" id="btn-close-edit-exam-modal" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+      </div>
+
+      <div id="edit-exam-alert" class="hidden p-3 rounded-xl text-xs border"></div>
+
+      <form id="form-edit-exam" class="space-y-3.5 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Judul Ulangan</label>
+          <input type="text" id="edit-exam-title" required class="w-full px-3 py-2 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Mata Pelajaran</label>
+            <input type="text" id="edit-exam-subject" required class="w-full px-3 py-2 rounded-xl border border-slate-300">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Tingkat / Kelas</label>
+            <input type="text" id="edit-exam-tingkat" required class="w-full px-3 py-2 rounded-xl border border-slate-300">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Deskripsi / Petunjuk Soal</label>
+          <textarea id="edit-exam-desc" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-300"></textarea>
+        </div>
+
+        <!-- Waktu & Jadwal Ulangan -->
+        <div class="p-3.5 bg-blue-50/60 rounded-xl border border-blue-200 space-y-2.5">
+          <label class="block font-bold text-blue-900 text-xs">⏱️ Jadwal & Batas Waktu Ulangan</label>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label class="block font-medium text-slate-600 text-[11px] mb-1">Waktu Buka Ujian</label>
+              <input type="datetime-local" id="edit-exam-start" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white">
+            </div>
+            <div>
+              <label class="block font-medium text-slate-600 text-[11px] mb-1">Waktu Tutup Ujian</label>
+              <input type="datetime-local" id="edit-exam-end" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white">
+            </div>
+          </div>
+
+          <div>
+            <label class="block font-medium text-slate-600 text-[11px] mb-1">Durasi Pengerjaan per Siswa (Menit)</label>
+            <div class="flex items-center space-x-2">
+              <input type="number" id="edit-exam-durasi" min="1" placeholder="Cth: 60 (kosongkan jika tanpa batas waktu)" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white">
+              <span class="text-slate-500 font-medium">Menit</span>
+            </div>
+            <p class="text-[10px] text-slate-500 mt-0.5">Siswa otomatis mengumpulkan jika waktu hitung mundur habis.</p>
+          </div>
+        </div>
+
+        <!-- Bank Soal & KKM -->
+        <div class="p-3.5 bg-purple-50/60 rounded-xl border border-purple-200 space-y-2.5">
+          <label class="block font-bold text-purple-900 text-xs">🎲 Bank Soal & Nilai KKM</label>
+          
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-medium text-slate-600 text-[11px] mb-1">Nilai KKM</label>
+              <input type="number" id="edit-exam-kkm" min="0" max="100" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-bold bg-white text-indigo-700">
+            </div>
+            <div>
+              <label class="block font-medium text-slate-600 text-[11px] mb-1">Jumlah Soal Siswa</label>
+              <input type="number" id="edit-exam-limit" min="1" placeholder="Semua bank soal (cth: 5)" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white">
+            </div>
+          </div>
+
+          <label class="flex items-center space-x-2 text-slate-700 cursor-pointer pt-1">
+            <input type="checkbox" id="edit-exam-acak" value="1" class="rounded text-purple-600 focus:ring-purple-500">
+            <span class="font-medium text-[11px]">Acak urutan paket soal untuk setiap siswa</span>
+          </label>
+          <p class="text-[10px] text-slate-500">Jika Anda punya 10 butir soal di bank dan mengatur 5 soal, setiap siswa otomatis mendapat 5 soal acak dengan nilai maksimum 100.</p>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Target Kelas yang Mengikuti Ulangan</label>
+          <div id="edit-exam-kelas-checkboxes" class="flex flex-wrap gap-2 max-h-28 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
+            <!-- Checkboxes kelas -->
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+          <button type="button" id="btn-cancel-edit-exam" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-medium transition">
+            Batal
+          </button>
+          <button type="submit" id="btn-save-edit-exam" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-md shadow-blue-500/20 transition">
+            Simpan Perubahan
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -1219,6 +1326,134 @@
       document.getElementById('exam-detail-card').classList.add('hidden');
       document.getElementById('exam-empty-placeholder').classList.remove('hidden');
       loadUlanganList();
+    };
+
+    // ==========================================
+    // MODAL EDIT WAKTU & PENGATURAN ULANGAN
+    // ==========================================
+    const modalEditExam = document.getElementById('modal-edit-exam');
+    const btnOpenEditExam = document.getElementById('btn-edit-exam-modal');
+    const btnCloseEditExam = document.getElementById('btn-close-edit-exam-modal');
+    const btnCancelEditExam = document.getElementById('btn-cancel-edit-exam');
+    const formEditExam = document.getElementById('form-edit-exam');
+    const alertEditExam = document.getElementById('edit-exam-alert');
+
+    const toLocalIso = (isoStr) => {
+      if (!isoStr) return '';
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return '';
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    btnOpenEditExam.onclick = async () => {
+      if (!activeUlanganId) return;
+      alertEditExam.classList.add('hidden');
+
+      try {
+        const res = await fetch(`/api/guru/ulangan/${activeUlanganId}`);
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Gagal memuat ulangan');
+
+        const u = data.data;
+        document.getElementById('edit-exam-title').value = u.judul || '';
+        document.getElementById('edit-exam-subject').value = u.mata_pelajaran || '';
+        document.getElementById('edit-exam-tingkat').value = u.tingkat_kelas || '';
+        document.getElementById('edit-exam-desc').value = u.deskripsi || '';
+        document.getElementById('edit-exam-start').value = toLocalIso(u.tanggal_mulai);
+        document.getElementById('edit-exam-end').value = toLocalIso(u.tanggal_selesai);
+        document.getElementById('edit-exam-durasi').value = u.durasi_menit || '';
+        document.getElementById('edit-exam-kkm').value = u.kkm || 75;
+        document.getElementById('edit-exam-limit').value = u.jumlah_soal_tampil || '';
+        document.getElementById('edit-exam-acak').checked = Boolean(u.acak_soal);
+
+        // Render target kelas checkboxes
+        const activeKelasIds = (u.kelas || []).map(k => k.id);
+        const container = document.getElementById('edit-exam-kelas-checkboxes');
+        container.innerHTML = '';
+
+        if (!globalKelasList || globalKelasList.length === 0) {
+          container.innerHTML = '<p class="text-[11px] text-slate-400">Belum ada kelas terdaftar.</p>';
+        } else {
+          globalKelasList.forEach(k => {
+            const label = document.createElement('label');
+            label.className = 'inline-flex items-center space-x-1.5 px-2.5 py-1 bg-white rounded-lg border border-slate-200 text-slate-700 cursor-pointer text-xs hover:bg-slate-50';
+            const isChecked = activeKelasIds.includes(k.id);
+            label.innerHTML = `
+              <input type="checkbox" name="edit_kelas_choice" value="${k.id}" ${isChecked ? 'checked' : ''} class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+              <span>${escapeHtml(k.nama_kelas)}</span>
+            `;
+            container.appendChild(label);
+          });
+        }
+
+        modalEditExam.classList.remove('hidden');
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    };
+
+    btnCloseEditExam.onclick = () => modalEditExam.classList.add('hidden');
+    btnCancelEditExam.onclick = () => modalEditExam.classList.add('hidden');
+
+    formEditExam.onsubmit = async (e) => {
+      e.preventDefault();
+      if (!activeUlanganId) return;
+
+      const judul = document.getElementById('edit-exam-title').value.trim();
+      const mata_pelajaran = document.getElementById('edit-exam-subject').value.trim();
+      const tingkat_kelas = document.getElementById('edit-exam-tingkat').value.trim();
+      const deskripsi = document.getElementById('edit-exam-desc').value.trim();
+      const startVal = document.getElementById('edit-exam-start').value.trim();
+      const endVal = document.getElementById('edit-exam-end').value.trim();
+      const durasiVal = document.getElementById('edit-exam-durasi').value.trim();
+      const kkmVal = document.getElementById('edit-exam-kkm').value.trim();
+      const limitVal = document.getElementById('edit-exam-limit').value.trim();
+      const acakChecked = document.getElementById('edit-exam-acak').checked;
+
+      const selectedKelas = Array.from(document.querySelectorAll('input[name="edit_kelas_choice"]:checked'))
+        .map(cb => parseInt(cb.value, 10));
+
+      const payload = {
+        judul,
+        mata_pelajaran,
+        tingkat_kelas,
+        deskripsi,
+        tanggal_mulai: startVal || null,
+        tanggal_selesai: endVal || null,
+        durasi_menit: durasiVal ? parseInt(durasiVal, 10) : null,
+        kkm: kkmVal ? parseInt(kkmVal, 10) : 75,
+        jumlah_soal_tampil: limitVal ? parseInt(limitVal, 10) : null,
+        acak_soal: acakChecked ? 1 : 0,
+        kelas_ids: selectedKelas
+      };
+
+      const btnSave = document.getElementById('btn-save-edit-exam');
+      btnSave.disabled = true;
+      btnSave.textContent = 'Menyimpan...';
+
+      try {
+        const res = await fetch(`/api/guru/ulangan/${activeUlanganId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || 'Gagal menyimpan perubahan');
+        }
+
+        modalEditExam.classList.add('hidden');
+        selectUlangan(activeUlanganId);
+        loadUlanganList();
+      } catch (err) {
+        alertEditExam.textContent = err.message;
+        alertEditExam.className = 'p-3 rounded-xl text-xs border bg-red-50 text-red-700 border-red-200';
+        alertEditExam.classList.remove('hidden');
+      } finally {
+        btnSave.disabled = false;
+        btnSave.textContent = 'Simpan Perubahan';
+      }
     };
 
     // Tabs switching

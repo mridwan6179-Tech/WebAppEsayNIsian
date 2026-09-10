@@ -132,6 +132,65 @@ test('T-11: Fitur Bank Soal & Pengacakan Paket Soal Berbeda per Siswa', async (t
     assert.strictEqual(totalScore.nilai_final, 90);
   });
 
+  await t.test('6. Kasus Eksak: Bank 10 Soal, 5 Soal Dikerjakan Acak -> Benar Semua Full Nilai 100', () => {
+    // Buat ulangan baru khusus pengujian 10 bank soal & 5 tampil
+    const ulangan5 = examService.createUlangan(guru.id, {
+      judul: 'Ulangan 10 Bank Soal 5 Tampil',
+      mata_pelajaran: 'Matematika',
+      tingkat_kelas: 'Kelas 10',
+      jumlah_soal_tampil: 5,
+      acak_soal: 1
+    });
+
+    for (let i = 1; i <= 10; i++) {
+      examService.createSoal(ulangan5.id, {
+        nomor: i,
+        jenis: 'isian',
+        pertanyaan: `Soal Uji ${i}`,
+        kunci_jawaban: `Jawaban ${i}`,
+        bobot: 10,
+        urutan: i
+      });
+    }
+
+    examService.updateUlangan(ulangan5.id, guru.id, { status: 'dibuka' });
+
+    // Siswa C mulai ujian
+    const sessionC = studentService.startExam(ulangan5.kode_ujian, 'Siswa Teladan C', '10 MIPA 1');
+    assert.strictEqual(sessionC.soal.length, 5, 'Siswa C harus menerima tepat 5 butir soal');
+
+    // Kumpulkan 5 jawaban
+    const answersC = sessionC.soal.map(s => ({
+      soal_id: s.id,
+      jawaban_siswa: `Jawaban siswa ${s.id}`
+    }));
+    studentService.submitExam(sessionC.pengerjaanId, answersC);
+
+    // Berikan semua 5 soal nilai maksimal (skor_rekomendasi = bobot)
+    const jawabanC = db.prepare('SELECT id, skor_maksimum FROM jawaban WHERE pengerjaan_id = ?').all(sessionC.pengerjaanId);
+    assert.strictEqual(jawabanC.length, 5);
+
+    db.transaction(() => {
+      jawabanC.forEach(j => {
+        db.prepare(`
+          UPDATE jawaban 
+          SET skor_rekomendasi = ?, status_penilaian = 'selesai', status_jawaban = 'benar'
+          WHERE id = ?
+        `).run(j.skor_maksimum, j.id);
+      });
+    })();
+
+    // Hitung ulang normalisasi
+    const totalScoreC = reviewService.recalculatePengerjaanTotal(sessionC.pengerjaanId);
+
+    // 5 soal benar semua -> HARUS 100 FULL!
+    assert.strictEqual(totalScoreC.nilai_ai, 100, 'Nilai AI harus 100 penuh');
+    assert.strictEqual(totalScoreC.nilai_final, 100, 'Nilai Final harus 100 penuh');
+
+    // Cleanup
+    examService.deleteUlangan(ulangan5.id, guru.id);
+  });
+
   // Cleanup ulangan test
   examService.deleteUlangan(ulangan.id, guru.id);
 });
