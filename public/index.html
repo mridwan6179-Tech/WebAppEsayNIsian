@@ -79,6 +79,53 @@
       </form>
     </section>
 
+    <!-- STEP WAITING ROOM: Antrean Ruang Tunggu Ujian (Maksimal 20 Siswa Bersamaan) -->
+    <section id="step-waiting-room" class="hidden bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6 text-center">
+      <div class="w-16 h-16 bg-amber-50 border border-amber-200 text-amber-600 rounded-2xl flex items-center justify-center mx-auto text-2xl shadow-inner animate-pulse">
+        ⏳
+      </div>
+      <div class="space-y-2">
+        <span class="inline-block px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full uppercase tracking-wider">
+          Ruang Ujian Penuh
+        </span>
+        <h2 class="text-xl font-extrabold text-slate-800">Anda Sedang Mengantre</h2>
+        <p class="text-xs text-slate-500 max-w-sm mx-auto">
+          Kapasitas ruang ujian dibatasi maksimal 20 siswa bersamaan demi menjaga kelancaran server.
+        </p>
+      </div>
+
+      <!-- Kartu Nomor Urut Antrean -->
+      <div class="bg-gradient-to-b from-slate-50 to-slate-100 border border-slate-200 rounded-2xl p-6 max-w-xs mx-auto shadow-sm space-y-3">
+        <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Nomor Antrean Anda</p>
+        <div id="queue-position-display" class="text-5xl font-black text-blue-600 font-mono tracking-tight">
+          #1
+        </div>
+        <div class="flex items-center justify-center space-x-1.5 text-xs text-slate-600">
+          <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+          <span id="queue-status-text">Menunggu slot pengerjaan terbuka...</span>
+        </div>
+        <p id="queue-capacity-info" class="text-[11px] text-slate-400">
+          Saat ini 20/20 siswa sedang mengerjakan
+        </p>
+      </div>
+
+      <div class="bg-blue-50 border border-blue-200/80 rounded-xl p-4 max-w-md mx-auto text-left space-y-2 text-xs text-blue-950">
+        <p class="font-bold flex items-center space-x-1.5 text-blue-800">
+          <span>💡</span>
+          <span>Sistem Masuk Otomatis:</span>
+        </p>
+        <p class="text-slate-600 leading-relaxed">
+          Mohon <strong>jangan menutup atau me-refresh</strong> halaman ini. Begitu ada teman Anda yang selesai dan mengumpulkan ujian, layar Anda akan <strong>otomatis langsung terbuka ke lembar soal</strong>.
+        </p>
+      </div>
+
+      <div class="pt-2">
+        <button type="button" id="btn-cancel-queue" class="text-xs text-slate-400 hover:text-red-500 underline transition">
+          Batal Antre & Kembali ke Depan
+        </button>
+      </div>
+    </section>
+
     <!-- STEP 2: Lembar Pengerjaan Soal -->
     <section id="step-exam" class="hidden space-y-5">
       <!-- Sticky Floating Bar: Ulangan & Countdown Timer -->
@@ -387,6 +434,11 @@
           throw new Error(data.message || 'Gagal masuk ujian');
         }
 
+        if (data.inQueue) {
+          showWaitingRoom(data);
+          return;
+        }
+
         currentPengerjaanId = data.pengerjaanId;
         localStorage.setItem('ulangan_pengerjaan_id', currentPengerjaanId);
 
@@ -401,6 +453,84 @@
         btn.disabled = false;
         btn.innerHTML = '<span>Masuk & Kerjakan</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>';
       }
+    });
+
+    let queuePollInterval = null;
+    let activeTicketId = null;
+
+    function showWaitingRoom(queueData) {
+      document.getElementById('step-login').classList.add('hidden');
+      document.getElementById('step-exam').classList.add('hidden');
+      document.getElementById('step-result').classList.add('hidden');
+      const wr = document.getElementById('step-waiting-room');
+      if (wr) wr.classList.remove('hidden');
+
+      activeTicketId = queueData.ticketId;
+      updateWaitingRoomUI(queueData.position, queueData.totalWaiting, queueData.activeCount, queueData.maxLimit);
+
+      if (queuePollInterval) clearInterval(queuePollInterval);
+      queuePollInterval = setInterval(pollQueueStatus, 3000);
+    }
+
+    function updateWaitingRoomUI(position, totalWaiting, activeCount, maxLimit) {
+      const posDisplay = document.getElementById('queue-position-display');
+      const statusText = document.getElementById('queue-status-text');
+      const capInfo = document.getElementById('queue-capacity-info');
+
+      if (posDisplay) posDisplay.textContent = `#${position || 1}`;
+      if (statusText) {
+        if (position === 1) {
+          statusText.textContent = 'Anda di antrean terdepan! Bersiap masuk...';
+        } else {
+          statusText.textContent = `Menunggu slot (${totalWaiting || 1} siswa dalam antrean)...`;
+        }
+      }
+      if (capInfo) {
+        capInfo.textContent = `Saat ini ${activeCount || 20}/${maxLimit || 20} siswa sedang aktif mengerjakan`;
+      }
+    }
+
+    async function pollQueueStatus() {
+      if (!activeTicketId) return;
+      try {
+        const res = await fetch(`/api/siswa/antrean/${activeTicketId}`);
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          if (queuePollInterval) clearInterval(queuePollInterval);
+          document.getElementById('step-waiting-room')?.classList.add('hidden');
+          document.getElementById('step-login')?.classList.remove('hidden');
+          showAlert(data.message || 'Sesi antrean berakhir. Silakan coba masuk kembali.');
+          return;
+        }
+
+        if (data.status === 'ready') {
+          if (queuePollInterval) clearInterval(queuePollInterval);
+          queuePollInterval = null;
+          activeTicketId = null;
+
+          document.getElementById('step-waiting-room')?.classList.add('hidden');
+          currentPengerjaanId = data.pengerjaanId;
+          localStorage.setItem('ulangan_pengerjaan_id', currentPengerjaanId);
+
+          if (data.alreadySubmitted) {
+            showResultStep(data);
+          } else {
+            showExamStep(data);
+          }
+        } else if (data.status === 'waiting') {
+          updateWaitingRoomUI(data.position, data.totalWaiting, data.activeCount, data.maxLimit);
+        }
+      } catch (err) {
+        console.warn('Queue poll error:', err);
+      }
+    }
+
+    document.getElementById('btn-cancel-queue')?.addEventListener('click', () => {
+      if (queuePollInterval) clearInterval(queuePollInterval);
+      queuePollInterval = null;
+      activeTicketId = null;
+      document.getElementById('step-waiting-room')?.classList.add('hidden');
+      document.getElementById('step-login')?.classList.remove('hidden');
     });
 
     let pasteDetectionCount = 0;

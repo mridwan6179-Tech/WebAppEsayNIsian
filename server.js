@@ -13,6 +13,7 @@ const reviewService = require('./src/services/reviewService');
 const classService = require('./src/services/classService');
 const adminService = require('./src/services/adminService');
 const fileParserService = require('./src/services/fileParserService');
+const waitingRoomService = require('./src/services/waitingRoomService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -97,10 +98,59 @@ app.post('/api/siswa/cek-kode', (req, res) => {
 app.post('/api/siswa/mulai', (req, res) => {
   try {
     const { kode_ujian, nama, kelas } = req.body;
+
+    // Periksa batas kuota bersamaan (maks 20 siswa) & sistem antrean ruang tunggu
+    const check = waitingRoomService.checkEntry(kode_ujian, nama, kelas);
+    if (!check.allowed && check.inQueue) {
+      return res.json({
+        success: true,
+        inQueue: true,
+        ticketId: check.ticketId,
+        position: check.position,
+        totalWaiting: check.totalWaiting,
+        activeCount: check.activeCount,
+        maxLimit: check.maxLimit,
+        message: check.message
+      });
+    }
+
     const result = studentService.startExam(kode_ujian, nama, kelas);
-    res.json({ success: true, ...result });
+    res.json({ success: true, inQueue: false, ...result });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// Polling status antrean ruang tunggu siswa
+app.get('/api/siswa/antrean/:ticketId', (req, res) => {
+  try {
+    const status = waitingRoomService.getTicketStatus(req.params.ticketId);
+    if (!status.valid) {
+      return res.status(404).json({ success: false, message: status.message });
+    }
+
+    if (status.status === 'ready') {
+      const { ticket } = status;
+      // Giliran tiba: mulai ujian dan konsumsi tiket
+      const examData = studentService.startExam(ticket.kodeUjian, ticket.nama, ticket.kelas);
+      waitingRoomService.consumeTicket(req.params.ticketId);
+      return res.json({
+        success: true,
+        status: 'ready',
+        ...examData
+      });
+    }
+
+    res.json({
+      success: true,
+      status: 'waiting',
+      position: status.position,
+      totalWaiting: status.totalWaiting,
+      activeCount: status.activeCount,
+      maxLimit: status.maxLimit
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
@@ -110,7 +160,16 @@ app.post('/api/siswa/submit', (req, res) => {
     if (!pengerjaan_id) {
       return res.status(400).json({ success: false, message: 'pengerjaan_id wajib disertakan' });
     }
+
+    // Ambil ulangan_id untuk melepaskan slot antrean
+    const pengerjaanBefore = db.prepare('SELECT ulangan_id FROM pengerjaan WHERE id = ?').get(pengerjaan_id);
     const result = studentService.submitExam(pengerjaan_id, jawaban, paste_count, Boolean(is_auto_submit));
+
+    // Lepaskan 1 slot untuk antrean ruang tunggu
+    if (pengerjaanBefore?.ulangan_id) {
+      waitingRoomService.releaseSlot(pengerjaanBefore.ulangan_id);
+    }
+
     res.json(result);
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });

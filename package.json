@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node --test --test-concurrency=1 tests/auth.test.js tests/exam.test.js tests/student.test.js tests/queue.test.js tests/gemini.test.js tests/review.test.js tests/api.test.js tests/nfr.test.js tests/class.test.js tests/generator.test.js tests/random_soal.test.js tests/anti_cheat.test.js tests/admin.test.js tests/schedule_report.test.js tests/kkm_abbreviation_release.test.js tests/file_remedial_history.test.js tests/multikey_arabic_remedial.test.js tests/custom_generate_count.test.js",
+    "test": "node --test --test-concurrency=1 tests/auth.test.js tests/exam.test.js tests/student.test.js tests/queue.test.js tests/gemini.test.js tests/review.test.js tests/api.test.js tests/nfr.test.js tests/class.test.js tests/generator.test.js tests/random_soal.test.js tests/anti_cheat.test.js tests/admin.test.js tests/schedule_report.test.js tests/kkm_abbreviation_release.test.js tests/file_remedial_history.test.js tests/multikey_arabic_remedial.test.js tests/custom_generate_count.test.js tests/waiting_room_queue.test.js",
     "test:live": "node --test tests/gemini_live.test.js"
   },
   "keywords": [],
