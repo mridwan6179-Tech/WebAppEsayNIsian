@@ -33,6 +33,19 @@ if (tursoUrl && tursoToken) {
       console.warn('⚠️ Sinkronisasi awal Turso:', err.message);
     }
   }
+
+  // libSQL embedded replica tidak mendukung transaksi manual "BEGIN " via exec()
+  // Bungkus db.transaction agar kompatibel dengan better-sqlite3 tanpa memicu InvalidParserState("Init")
+  db.transaction = function(fn) {
+    const wrapped = function(...args) {
+      return fn(...args);
+    };
+    wrapped.default = wrapped;
+    wrapped.deferred = wrapped;
+    wrapped.immediate = wrapped;
+    wrapped.exclusive = wrapped;
+    return wrapped;
+  };
 } else {
   dbPath = path.join(dataDir, 'database.sqlite');
   db = new BetterSqlite3(dbPath);
