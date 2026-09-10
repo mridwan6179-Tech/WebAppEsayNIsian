@@ -14,10 +14,12 @@
   "license": "ISC",
   "dependencies": {
     "@google/genai": "^2.21.0",
+    "@libsql/client": "^0.18.0",
     "better-sqlite3": "^13.0.3",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "libsql": "^0.5.29",
     "mammoth": "^1.12.2",
     "pdf-parse": "^2.4.5",
     "xlsx": "^0.18.5"

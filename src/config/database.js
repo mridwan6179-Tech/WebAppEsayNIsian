@@ -1,4 +1,4 @@
-const Database = require('better-sqlite3');
+const BetterSqlite3 = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
@@ -9,13 +9,53 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-const dbPath = path.join(dataDir, 'database.sqlite');
-const db = new Database(dbPath);
+const isTest = process.env.NODE_ENV === 'test' || process.argv.some(arg => arg.includes('test'));
+const tursoUrl = isTest ? null : process.env.TURSO_DATABASE_URL;
+const tursoToken = isTest ? null : process.env.TURSO_AUTH_TOKEN;
+
+let db;
+let dbPath;
+
+if (tursoUrl && tursoToken) {
+  const LibsqlDatabase = require('libsql');
+  dbPath = path.join(dataDir, 'turso.sqlite');
+  console.log('📡 Menghubungkan ke Turso Cloud Database (libSQL Embedded Replica)...');
+  db = new LibsqlDatabase(dbPath, {
+    syncUrl: tursoUrl,
+    authToken: tursoToken,
+    syncInterval: 60000 // Sinkronisasi otomatis setiap 60 detik
+  });
+  if (typeof db.sync === 'function') {
+    try {
+      db.sync();
+      console.log('✅ Sinkronisasi awal dengan Turso Cloud (AWS Tokyo) berhasil!');
+    } catch (err) {
+      console.warn('⚠️ Sinkronisasi awal Turso:', err.message);
+    }
+  }
+} else {
+  dbPath = path.join(dataDir, 'database.sqlite');
+  db = new BetterSqlite3(dbPath);
+}
 
 // Enable WAL mode & foreign keys & busy timeout
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
-db.pragma('busy_timeout = 5000');
+try {
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
+  db.pragma('busy_timeout = 5000');
+} catch (e) {
+  console.warn('⚠️ Pragma setting notice:', e.message);
+}
+
+db.syncCloud = function() {
+  if (typeof db.sync === 'function') {
+    try {
+      db.sync();
+    } catch (e) {
+      console.warn('⚠️ Turso sync warning:', e.message);
+    }
+  }
+};
 
 function initDatabase() {
   db.exec(`
@@ -320,7 +360,7 @@ function restoreDatabaseFromBuffer(buffer) {
 
   let testTempDb;
   try {
-    testTempDb = new Database(tempRestorePath, { readonly: true });
+    testTempDb = new BetterSqlite3(tempRestorePath, { readonly: true });
     const tables = testTempDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all();
     if (tables.length === 0) {
       throw new Error('File database tidak memiliki tabel data yang valid.');
@@ -361,6 +401,9 @@ function restoreDatabaseFromBuffer(buffer) {
     try {
       db.pragma('wal_checkpoint(TRUNCATE)');
     } catch (e) {}
+
+    // Sinkronkan ke cloud Turso jika aktif
+    db.syncCloud();
 
     // Hitung ringkasan data yang berhasil dipulihkan
     const summary = {};
