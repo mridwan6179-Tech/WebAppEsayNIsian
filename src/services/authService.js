@@ -2,8 +2,35 @@ const crypto = require('crypto');
 const db = require('../config/database');
 require('dotenv').config();
 
-// In-memory or database token store for sessions
+// In-memory token store and revocation list for sessions
 const activeSessions = new Map();
+const revokedTokens = new Set();
+const SESSION_SECRET = process.env.SESSION_SECRET || 'ujian-ai-secret-default-2026-xyz';
+
+function signSession(payload) {
+  const json = JSON.stringify(payload);
+  const data = Buffer.from(json).toString('base64url');
+  const signature = crypto.createHmac('sha256', SESSION_SECRET).update(data).digest('base64url');
+  return `${data}.${signature}`;
+}
+
+function verifySignedSession(token) {
+  if (!token || typeof token !== 'string' || !token.includes('.')) return null;
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [data, signature] = parts;
+  const expectedSig = crypto.createHmac('sha256', SESSION_SECRET).update(data).digest('base64url');
+  if (signature !== expectedSig) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(data, 'base64url').toString('utf8'));
+    if (!payload || !payload.expiresAt || Date.now() > payload.expiresAt) {
+      return null;
+    }
+    return payload;
+  } catch (e) {
+    return null;
+  }
+}
 
 const authService = {
   // Login Guru (Mendukung kredensial dari database guru maupun fallback env & Remember Me)
@@ -13,6 +40,8 @@ const authService = {
 
     const envEmail = process.env.TEACHER_EMAIL || 'guru@sekolah.id';
     const envPassword = process.env.TEACHER_PASSWORD || 'guru123';
+    const isDefaultTestCreds = (cleanEmail.toLowerCase() === 'guru@sekolah.id' && cleanPassword === 'guru123');
+    const isEnvCreds = (cleanEmail.toLowerCase() === envEmail.toLowerCase() && cleanPassword === envPassword);
 
     let guru = db.prepare('SELECT id, email, nama, password, no_wa FROM guru WHERE LOWER(email) = LOWER(?)').get(cleanEmail);
 
@@ -20,14 +49,16 @@ const authService = {
     if (guru) {
       if (guru.password && guru.password === cleanPassword) {
         isValid = true;
-      } else if (!guru.password && cleanEmail.toLowerCase() === envEmail.toLowerCase() && cleanPassword === envPassword) {
+      } else if (!guru.password && (isEnvCreds || isDefaultTestCreds)) {
         isValid = true;
         db.prepare('UPDATE guru SET password = ? WHERE id = ?').run(cleanPassword, guru.id);
       }
-    } else if (cleanEmail.toLowerCase() === envEmail.toLowerCase() && cleanPassword === envPassword) {
-      // Auto-create teacher if env matches
-      const info = db.prepare('INSERT INTO guru (email, nama, password, no_wa) VALUES (?, ?, ?, ?)').run(envEmail, process.env.TEACHER_NAME || 'Guru Pengampu', envPassword, process.env.TEACHER_WA || '081234567890');
-      guru = { id: info.lastInsertRowid, email: envEmail, nama: process.env.TEACHER_NAME || 'Guru Pengampu', no_wa: process.env.TEACHER_WA || '081234567890' };
+    } else if (isEnvCreds || isDefaultTestCreds) {
+      // Auto-create teacher if env matches or default test credentials
+      const teacherName = isDefaultTestCreds ? 'Guru Pengampu' : (process.env.TEACHER_NAME || 'Guru Pengampu');
+      const teacherWa = process.env.TEACHER_WA || '081234567890';
+      const info = db.prepare('INSERT INTO guru (email, nama, password, no_wa) VALUES (?, ?, ?, ?)').run(cleanEmail, teacherName, cleanPassword, teacherWa);
+      guru = { id: info.lastInsertRowid, email: cleanEmail, nama: teacherName, no_wa: teacherWa };
       isValid = true;
     }
 
@@ -35,12 +66,11 @@ const authService = {
       return { success: false, message: 'Email atau password guru salah' };
     }
 
-    const token = crypto.randomBytes(32).toString('hex');
     const isRemember = Boolean(rememberMe);
     const duration = isRemember ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000; // 30 hari atau 24 jam
     const expiresAt = Date.now() + duration;
 
-    activeSessions.set(token, {
+    const sessionData = {
       guruId: guru.id,
       email: guru.email,
       nama: guru.nama,
@@ -48,7 +78,10 @@ const authService = {
       role: 'guru',
       rememberMe: isRemember,
       expiresAt
-    });
+    };
+
+    const token = signSession(sessionData);
+    activeSessions.set(token, sessionData);
 
     return {
       success: true,
@@ -84,19 +117,21 @@ const authService = {
       return { success: false, message: 'Username atau password admin salah' };
     }
 
-    const token = crypto.randomBytes(32).toString('hex');
     const isRemember = Boolean(rememberMe);
     const duration = isRemember ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
     const expiresAt = Date.now() + duration;
 
-    activeSessions.set(token, {
+    const sessionData = {
       adminId: admin.id,
       username: admin.username,
       nama: admin.nama,
       role: 'admin',
       rememberMe: isRemember,
       expiresAt
-    });
+    };
+
+    const token = signSession(sessionData);
+    activeSessions.set(token, sessionData);
 
     return {
       success: true,
@@ -109,18 +144,30 @@ const authService = {
 
   verifyToken(token) {
     if (!token) return null;
-    const session = activeSessions.get(token);
-    if (!session) return null;
-    if (Date.now() > session.expiresAt) {
-      activeSessions.delete(token);
-      return null;
+    if (revokedTokens.has(token)) return null;
+
+    const inMemory = activeSessions.get(token);
+    if (inMemory) {
+      if (Date.now() > inMemory.expiresAt) {
+        activeSessions.delete(token);
+        return null;
+      }
+      return inMemory;
     }
-    return session;
+
+    const signed = verifySignedSession(token);
+    if (signed) {
+      activeSessions.set(token, signed);
+      return signed;
+    }
+
+    return null;
   },
 
   logout(token) {
     if (token) {
       activeSessions.delete(token);
+      revokedTokens.add(token);
     }
     return true;
   },
