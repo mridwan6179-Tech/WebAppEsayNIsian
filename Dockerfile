@@ -1,4 +1,4 @@
-﻿FROM node:20-bullseye-slim
+FROM node:20-bullseye-slim
 
 WORKDIR /app
 
@@ -10,7 +10,11 @@ RUN npm install
 
 COPY . .
 
-ENV PORT=3000
+# Buat direktori data untuk SQLite database
+RUN mkdir -p /app/data
+
+ENV PORT=7860
+EXPOSE 7860
 EXPOSE 3000
 
 CMD ["node", "server.js"]
