@@ -668,6 +668,12 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
       jumlah_soal = jumlah_isian + jumlah_essay;
     }
 
+    // Hitung alokasi kuota soal listening vs non-listening
+    let jumlahListening = isListening ? (options.jumlah_listening !== undefined && options.jumlah_listening !== null ? Number(options.jumlah_listening) : jumlah_soal) : 0;
+    if (jumlahListening > jumlah_soal) jumlahListening = jumlah_soal;
+    if (isListening && jumlahListening <= 0) jumlahListening = 1;
+    const jumlahNonListening = isListening ? Math.max(0, jumlah_soal - jumlahListening) : jumlah_soal;
+
     let sumberDeskripsi = '';
     if (mode === 'teks_materi') {
       sumberDeskripsi = `
@@ -695,16 +701,30 @@ INSTRUKSI KHUSUS SUMBER: Buatlah paket soal yang relevan, berbobot ilmiah, dan s
 
     let listeningInstructions = '';
     if (isListening) {
-      listeningInstructions = `
-*** FITUR KHUSUS SOAL MENYIMAK (LISTENING / AUDIO COMPREHENSION) ***
-1. Soal ini dirancang khusus untuk menguji kemampuan menyimak (Listening).
+      if (jumlahListening < jumlah_soal) {
+        listeningInstructions = `
+*** FITUR SOAL MENYIMAK (KOMBINASI: ${jumlahListening} LISTENING + ${jumlahNonListening} TEKS BIASA) ***
+1. Dari total ${jumlah_soal} butir soal:
+   - TEPAT ${jumlahListening} butir soal adalah SOAL MENYIMAK (is_listening: 1), bahasa: "${bahasaPelajaran}", dan WAJIB memiliki naskah dialog percakapan/monolog lengkap pada field "audio_script".
+   - TEPAT ${jumlahNonListening} butir soal sisanya adalah SOAL TEKS BIASA NON-LISTENING (is_listening: 0, audio_script: null).
+2. Untuk butir soal menyimak ("is_listening": 1):
+   ${deskripsiAudio ? `Guru mendeskripsikan skenario percakapan/audio: "${deskripsiAudio}".` : 'Buatkan naskah dialog percakapan dua orang (Person A: ... Person B: ...) atau monolog yang wajar dan edukatif.'}
+   Field "audio_script" WAJIB diisi teks naskah audio lengkap. Pertanyaan menguji pemahaman dari isi audio yang didengar.
+3. Untuk butir soal biasa ("is_listening": 0):
+   Pertanyaan murni berbasis teks materi bacaan atau topik kurikulum tanpa memerlukan rekaman suara ("audio_script": null).
+`;
+      } else {
+        listeningInstructions = `
+*** FITUR KHUSUS SOAL MENYIMAK (SELURUH SOAL MENYIMAK / FULL LISTENING) ***
+1. Seluruh ${jumlah_soal} butir soal dirancang khusus untuk menguji kemampuan menyimak (Listening).
 2. Bahasa yang digunakan: ${bahasaPelajaran}.
 3. NASKAH AUDIO ("audio_script"):
-   ${deskripsiAudio ? `Guru mendeskripsikan skenario percakapan/audio: "${deskripsiAudio}".` : 'Buatkan naskah dialog percakapan dua orang (atau monolog/berita pendek) yang wajar, menarik, dan sesuai jenjang kurikulum.'}
-   Setiap butir soal WAJIB menyertakan naskah lengkap pada field "audio_script" (misalnya: "Person A: ... Person B: ..."). Naskah ini yang akan dibacakan atau disuarakan kepada siswa via Text-to-Speech (TTS).
+   ${deskripsiAudio ? `Guru mendeskripsikan skenario percakapan/audio: "${deskripsiAudio}".` : 'Buatkan naskah dialog percakapan dua orang (atau monolog/berita pendek) yang wajar dan sesuai jenjang kurikulum.'}
+   Setiap butir soal WAJIB menyertakan naskah lengkap pada field "audio_script" ("is_listening": 1).
 4. PERTANYAAN: Tanyakan pemahaman makna, fakta, atau kesimpulan dari apa yang dipercakapkan dalam naskah audio.
 5. PEMBAHASAN: Berikan transkrip bukti kalimat pada naskah audio dan penjelasan rinci mengapa kunci jawaban tersebut tepat.
 `;
+      }
     }
 
     return `
@@ -731,9 +751,9 @@ KOMPONEN WAJIB TIAP BUTIR SOAL:
 - "kunci_jawaban": Kunci acuan jawaban guru yang ideal, jelas, dan akurat.
 - "rubrik": Panduan rubrik kualitatif penilaian (Skor Penuh vs Skor Parsial).
 - "pembahasan": Penjelasan/pembahasan mendalam konsep materi dan ulasan mengapa jawaban tersebut benar untuk bahan evaluasi belajar siswa.
-- "is_listening": ${isListening ? 1 : 0}
+- "is_listening": ${isListening ? (jumlahListening < jumlah_soal ? `1 (untuk tepat ${jumlahListening} butir soal listening) atau 0 (untuk tepat ${jumlahNonListening} butir soal teks biasa)` : '1') : '0'}
 - "bahasa": "${bahasaPelajaran}"
-- "audio_script": ${isListening ? 'Teks naskah percakapan / monolog yang dibacakan / disuarakan' : 'null'}
+- "audio_script": ${isListening ? (jumlahListening < jumlah_soal ? 'Isi naskah percakapan/monolog jika is_listening=1, atau null jika is_listening=0' : 'Teks naskah percakapan / monolog yang dibacakan / disuarakan') : 'null'}
 
 FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
 {
@@ -770,23 +790,51 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
       ? (rawTopic.length > 35 ? rawTopic.substring(0, 32) + '...' : rawTopic)
       : (defaultListening ? 'Listening Comprehension' : 'Materi Pembelajaran');
 
-    let sanitized = questions.map((q, idx) => ({
-      kategori: (q.kategori && String(q.kategori).trim() && String(q.kategori).trim().toLowerCase() !== 'umum') 
-        ? String(q.kategori).trim() 
-        : defaultKategori,
-      sub_topik: (q.sub_topik && String(q.sub_topik).trim()) ? String(q.sub_topik).trim() : null,
-      pertanyaan: q.pertanyaan || `Soal nomor ${idx + 1}`,
-      jenis: (q.jenis || '').toLowerCase().includes('isian') ? 'isian' : 'essay',
-      bobot: Math.max(1, Math.round(Number(q.bobot) || 10)),
-      gambar_url: (q.gambar_url && typeof q.gambar_url === 'string' && q.gambar_url.trim() !== '') ? q.gambar_url.trim() : null,
-      kunci_jawaban: q.kunci_jawaban || '',
-      rubrik: q.rubrik || '',
-      pembahasan: q.pembahasan || (q.rubrik ? `Pembahasan: ${q.rubrik}` : null),
-      is_listening: (q.is_listening !== undefined) ? (q.is_listening ? 1 : 0) : defaultListening,
-      bahasa: q.bahasa || defaultBahasa,
-      audio_script: q.audio_script || (defaultListening ? (options.deskripsi_audio || null) : null),
-      audio_url: q.audio_url || null
-    }));
+    let sanitized = questions.map((q, idx) => {
+      const itemIsListening = (q.is_listening !== undefined) ? (q.is_listening ? 1 : 0) : defaultListening;
+      return {
+        kategori: (q.kategori && String(q.kategori).trim() && String(q.kategori).trim().toLowerCase() !== 'umum') 
+          ? String(q.kategori).trim() 
+          : defaultKategori,
+        sub_topik: (q.sub_topik && String(q.sub_topik).trim()) ? String(q.sub_topik).trim() : null,
+        pertanyaan: q.pertanyaan || `Soal nomor ${idx + 1}`,
+        jenis: (q.jenis || '').toLowerCase().includes('isian') ? 'isian' : 'essay',
+        bobot: Math.max(1, Math.round(Number(q.bobot) || 10)),
+        gambar_url: (q.gambar_url && typeof q.gambar_url === 'string' && q.gambar_url.trim() !== '') ? q.gambar_url.trim() : null,
+        kunci_jawaban: q.kunci_jawaban || '',
+        rubrik: q.rubrik || '',
+        pembahasan: q.pembahasan || (q.rubrik ? `Pembahasan: ${q.rubrik}` : null),
+        is_listening: itemIsListening,
+        bahasa: itemIsListening ? (q.bahasa || defaultBahasa) : null,
+        audio_script: itemIsListening ? (q.audio_script || options.deskripsi_audio || null) : null,
+        audio_url: q.audio_url || null
+      };
+    });
+
+    // Enforce alokasi kuota listening vs non-listening jika opsi jumlah_listening ditentukan
+    if (options.is_listening && options.jumlah_listening !== undefined && options.jumlah_listening !== null) {
+      const targetListeningCount = Math.min(sanitized.length, Math.max(0, Number(options.jumlah_listening)));
+      let currentListeningCount = sanitized.filter(q => q.is_listening === 1).length;
+      if (currentListeningCount !== targetListeningCount) {
+        sanitized.forEach((q, idx) => {
+          if (idx < targetListeningCount) {
+            q.is_listening = 1;
+            if (!q.audio_script) q.audio_script = options.deskripsi_audio || `Dialogue for question #${idx + 1}`;
+            if (!q.bahasa) q.bahasa = defaultBahasa;
+          } else {
+            q.is_listening = 0;
+            q.audio_script = null;
+          }
+        });
+      }
+    }
+
+    // Pastikan butir non-listening selalu memiliki audio_script = null
+    sanitized.forEach(q => {
+      if (!q.is_listening) {
+        q.audio_script = null;
+      }
+    });
 
     const currentTotal = sanitized.reduce((sum, q) => sum + q.bobot, 0);
     if (currentTotal !== targetTotal && currentTotal > 0) {

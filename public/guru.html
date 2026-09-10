@@ -1154,14 +1154,20 @@
                     </select>
                   </div>
                   <div>
-                    <label class="block font-semibold text-amber-950 text-[11px] mb-1">Skenario Suara AI</label>
-                    <span class="text-[11px] text-amber-800 font-medium block">AI otomatis meracik naskah & suara TTS di browser</span>
+                    <div class="flex items-center justify-between mb-1">
+                      <label class="block font-bold text-amber-950 text-[11px]">Berapa Soal Listening?</label>
+                      <span id="lbl-gen-listening-ratio" class="text-[10px] text-amber-700 font-semibold bg-amber-100/90 px-2 py-0.5 rounded-full">(Sisanya soal teks biasa)</span>
+                    </div>
+                    <div class="flex items-center space-x-1.5">
+                      <input type="number" id="gen-jumlah-listening" min="1" max="30" value="2" class="w-24 px-2.5 py-1.5 rounded-lg border border-amber-300 font-bold text-xs text-amber-950 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500">
+                      <span class="text-xs text-amber-900 font-semibold">butir soal</span>
+                    </div>
                   </div>
                 </div>
                 <div>
                   <label class="block font-semibold text-amber-950 text-[11px] mb-0.5">Deskripsi Skenario / Percakapan yang Ingin Dibuatkan Suaranya oleh AI (Opsional):</label>
                   <input type="text" id="gen-deskripsi-audio" placeholder="Contoh: Percakapan dua turis di stasiun menanyakan jadwal kereta ke Tokyo..." class="w-full px-2.5 py-1.5 rounded-lg border border-amber-300 text-xs bg-white">
-                  <p class="text-[10px] text-amber-700 mt-0.5">Jika Anda tidak memiliki berkas rekaman, AI akan otomatis membuat naskah dialog percakapan dan pembicara sintetis (TTS) untuk siswa!</p>
+                  <p id="lbl-gen-listening-summary" class="text-[10px] text-amber-800 font-semibold mt-1">💡 Kuota: Dari total butir soal, Anda dapat membagi berapa yang berupa audio menyimak dan berapa yang teks biasa.</p>
                 </div>
               </div>
             </div>
@@ -2932,7 +2938,52 @@
           if (lblTotalDetail) lblTotalDetail.textContent = `(~${nIsian} Isian + ~${nEssay} Essay)`;
         }
       }
+      syncListeningOptions();
     }
+
+    // Pengaturan Kuota Soal Menyimak (Listening)
+    const chkIsListening = document.getElementById('gen-is-listening');
+    const wrapperListeningOptions = document.getElementById('wrapper-gen-listening-options');
+    const inputJumlahListening = document.getElementById('gen-jumlah-listening');
+    const lblListeningRatio = document.getElementById('lbl-gen-listening-ratio');
+    const lblListeningSummary = document.getElementById('lbl-gen-listening-summary');
+
+    function syncListeningOptions() {
+      if (!chkIsListening || !wrapperListeningOptions) return;
+      if (chkIsListening.checked) {
+        wrapperListeningOptions.classList.remove('hidden');
+      } else {
+        wrapperListeningOptions.classList.add('hidden');
+      }
+
+      const totalSoal = parseInt(lblTotalCount?.textContent, 10) || 5;
+      if (inputJumlahListening) {
+        inputJumlahListening.max = totalSoal;
+        let currentListeningVal = parseInt(inputJumlahListening.value, 10);
+        if (isNaN(currentListeningVal) || currentListeningVal < 1) {
+          currentListeningVal = Math.min(2, totalSoal);
+          inputJumlahListening.value = currentListeningVal;
+        } else if (currentListeningVal > totalSoal) {
+          currentListeningVal = totalSoal;
+          inputJumlahListening.value = currentListeningVal;
+        }
+
+        const nonListening = Math.max(0, totalSoal - currentListeningVal);
+        if (lblListeningRatio) {
+          lblListeningRatio.textContent = nonListening > 0 
+            ? `(${nonListening} soal teks biasa)` 
+            : `(Semua ${totalSoal} soal menyimak)`;
+        }
+        if (lblListeningSummary) {
+          lblListeningSummary.textContent = nonListening > 0
+            ? `💡 Kuota: Dari total ${totalSoal} butir: ${currentListeningVal} soal menyimak audio + ${nonListening} soal teks biasa.`
+            : `💡 Kuota: Seluruh ${totalSoal} butir soal akan dibuat dalam format audio menyimak.`;
+        }
+      }
+    }
+
+    if (chkIsListening) chkIsListening.addEventListener('change', syncListeningOptions);
+    if (inputJumlahListening) inputJumlahListening.addEventListener('input', syncListeningOptions);
 
     if (genTipeSelect) genTipeSelect.addEventListener('change', syncGeneratorCounts);
     if (inputGenIsian) inputGenIsian.addEventListener('input', syncGeneratorCounts);
@@ -2970,6 +3021,7 @@
       }
 
       const isListeningGen = document.getElementById('gen-is-listening')?.checked ? 1 : 0;
+      const jumlahListeningGen = isListeningGen ? (parseInt(document.getElementById('gen-jumlah-listening')?.value, 10) || 1) : 0;
       const bahasaGen = document.getElementById('gen-bahasa')?.value || 'Bahasa Indonesia';
       const deskripsiAudioGen = document.getElementById('gen-deskripsi-audio')?.value?.trim() || '';
 
@@ -2984,6 +3036,7 @@
         tingkat_kesulitan: document.getElementById('gen-kesulitan').value,
         target_total_bobot: Number(document.getElementById('gen-target-bobot').value) || 100,
         is_listening: isListeningGen,
+        jumlah_listening: jumlahListeningGen,
         bahasa: bahasaGen,
         deskripsi_audio: deskripsiAudioGen
       };
@@ -3037,6 +3090,9 @@
                 <option value="isian" ${q.jenis === 'isian' ? 'selected' : ''}>Isian</option>
                 <option value="essay" ${q.jenis === 'essay' ? 'selected' : ''}>Essay</option>
               </select>
+              ${q.is_listening 
+                ? '<span class="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center space-x-1 shadow-xs"><span>🎧 Listening</span></span>' 
+                : '<span class="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-medium px-2 py-0.5 rounded-full">📄 Teks Biasa</span>'}
             </div>
             <div class="flex items-center space-x-2">
               <span class="text-slate-500 font-semibold">Bobot:</span>

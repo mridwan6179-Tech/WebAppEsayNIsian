@@ -175,6 +175,33 @@ test('=== SUITE: BANK SOAL, LISTENING, AUDIO & EKSPOR EXCEL ===', async (t) => {
     assert.ok(item.audio_script, 'Soal listening harus memiliki audio_script');
   });
 
+  await t.test('4.2 Generator Soal AI dengan Kuota Parsial Listening vs Teks Biasa', async () => {
+    const aiResult = await geminiService.generateQuestions({
+      mode: 'topik',
+      input_sumber: 'Airport Announcements and Travel',
+      jenjang_kelas: 'Kelas 8',
+      jumlah_soal: 5,
+      tipe_soal: 'campuran',
+      is_listening: 1,
+      jumlah_listening: 2, // 2 soal listening, 3 soal teks biasa
+      bahasa: 'Bahasa Inggris',
+      deskripsi_audio: 'Flight boarding announcements'
+    });
+
+    assert.equal(aiResult.success, true);
+    assert.equal(aiResult.soal.length, 5);
+    const listeningQuestions = aiResult.soal.filter(q => q.is_listening === 1);
+    const regularQuestions = aiResult.soal.filter(q => !q.is_listening);
+    assert.equal(listeningQuestions.length, 2, 'Harus ada tepat 2 butir soal listening');
+    assert.equal(regularQuestions.length, 3, 'Harus ada tepat 3 butir soal teks biasa');
+    listeningQuestions.forEach(q => {
+      assert.ok(q.audio_script, 'Soal listening harus memiliki audio_script');
+    });
+    regularQuestions.forEach(q => {
+      assert.equal(q.audio_script, null, 'Soal teks biasa audio_script harus null');
+    });
+  });
+
   await t.test('5. Prompt Builder AI Penilai mengikutsertakan Data Listening & Audio Script', async () => {
     const prompt = geminiService.buildPrompt({
       pertanyaan: 'What drink did the customer order?',
