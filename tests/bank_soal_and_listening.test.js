@@ -202,6 +202,47 @@ test('=== SUITE: BANK SOAL, LISTENING, AUDIO & EKSPOR EXCEL ===', async (t) => {
     });
   });
 
+  await t.test('4.3 Generator Soal AI dengan Kuota Per Tipe (Isian & Essay Terpisah)', async () => {
+    const aiResult = await geminiService.generateQuestions({
+      mode: 'topik',
+      input_sumber: 'Job Interviews and Professional Career',
+      jenjang_kelas: 'Kelas 9',
+      jumlah_soal: 7,
+      tipe_soal: 'kustom',
+      jumlah_isian: 4,
+      jumlah_essay: 3,
+      is_listening: 1,
+      jumlah_isian_listening: 2, // 2 isian audio, 2 isian teks
+      jumlah_essay_listening: 1, // 1 essay audio, 2 essay teks
+      bahasa: 'Bahasa Inggris',
+      deskripsi_audio: 'Job interview dialogues'
+    });
+
+    assert.equal(aiResult.success, true);
+    assert.equal(aiResult.soal.length, 7);
+
+    const isianItems = aiResult.soal.filter(q => q.jenis === 'isian');
+    const essayItems = aiResult.soal.filter(q => q.jenis === 'essay');
+    assert.equal(isianItems.length, 4, 'Total butir isian harus tepat 4');
+    assert.equal(essayItems.length, 3, 'Total butir essay harus tepat 3');
+
+    const isianListening = isianItems.filter(q => q.is_listening === 1);
+    const isianTeks = isianItems.filter(q => !q.is_listening);
+    assert.equal(isianListening.length, 2, 'Harus ada tepat 2 isian listening');
+    assert.equal(isianTeks.length, 2, 'Harus ada tepat 2 isian teks');
+
+    const essayListening = essayItems.filter(q => q.is_listening === 1);
+    const essayTeks = essayItems.filter(q => !q.is_listening);
+    assert.equal(essayListening.length, 1, 'Harus ada tepat 1 essay listening');
+    assert.equal(essayTeks.length, 2, 'Harus ada tepat 2 essay teks');
+
+    // Pastikan integritas audio_script
+    isianListening.forEach(q => assert.ok(q.audio_script));
+    essayListening.forEach(q => assert.ok(q.audio_script));
+    isianTeks.forEach(q => assert.equal(q.audio_script, null));
+    essayTeks.forEach(q => assert.equal(q.audio_script, null));
+  });
+
   await t.test('5. Prompt Builder AI Penilai mengikutsertakan Data Listening & Audio Script', async () => {
     const prompt = geminiService.buildPrompt({
       pertanyaan: 'What drink did the customer order?',

@@ -668,10 +668,41 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
       jumlah_soal = jumlah_isian + jumlah_essay;
     }
 
-    // Hitung alokasi kuota soal listening vs non-listening
-    let jumlahListening = isListening ? (options.jumlah_listening !== undefined && options.jumlah_listening !== null ? Number(options.jumlah_listening) : jumlah_soal) : 0;
-    if (jumlahListening > jumlah_soal) jumlahListening = jumlah_soal;
-    if (isListening && jumlahListening <= 0) jumlahListening = 1;
+    // Hitung alokasi kuota soal listening vs non-listening (termasuk per-tipe isian & essay)
+    const nIsian = Math.max(0, Number(jumlah_isian) || 0);
+    const nEssay = Math.max(0, Number(jumlah_essay) || 0);
+    let isianListening = 0;
+    let essayListening = 0;
+    let jumlahListening = 0;
+
+    if (isListening) {
+      if (isCustomBreakdown) {
+        if (options.jumlah_isian_listening !== undefined || options.jumlah_essay_listening !== undefined) {
+          isianListening = Math.min(nIsian, Math.max(0, Number(options.jumlah_isian_listening) || 0));
+          essayListening = Math.min(nEssay, Math.max(0, Number(options.jumlah_essay_listening) || 0));
+          jumlahListening = isianListening + essayListening;
+        } else if (options.jumlah_listening !== undefined && options.jumlah_listening !== null) {
+          const totalTarget = Math.min(jumlah_soal, Math.max(0, Number(options.jumlah_listening)));
+          essayListening = Math.min(nEssay, Math.floor(totalTarget / 2));
+          isianListening = Math.min(nIsian, totalTarget - essayListening);
+          jumlahListening = isianListening + essayListening;
+        } else {
+          isianListening = nIsian;
+          essayListening = nEssay;
+          jumlahListening = jumlah_soal;
+        }
+      } else {
+        if (options.jumlah_listening !== undefined && options.jumlah_listening !== null) {
+          jumlahListening = Math.min(jumlah_soal, Math.max(0, Number(options.jumlah_listening)));
+        } else {
+          jumlahListening = jumlah_soal;
+        }
+        essayListening = Math.floor(jumlahListening / 2);
+        isianListening = jumlahListening - essayListening;
+      }
+    }
+    const isianTeks = Math.max(0, nIsian - isianListening);
+    const essayTeks = Math.max(0, nEssay - essayListening);
     const jumlahNonListening = isListening ? Math.max(0, jumlah_soal - jumlahListening) : jumlah_soal;
 
     let sumberDeskripsi = '';
@@ -701,7 +732,25 @@ INSTRUKSI KHUSUS SUMBER: Buatlah paket soal yang relevan, berbobot ilmiah, dan s
 
     let listeningInstructions = '';
     if (isListening) {
-      if (jumlahListening < jumlah_soal) {
+      if (isCustomBreakdown) {
+        listeningInstructions = `
+*** FITUR SOAL MENYIMAK (PEMBAGIAN KUOTA LISTENING PER TIPE SOAL) ***
+Bahasa pengantar yang digunakan: ${bahasaPelajaran}.
+Total paket terdiri dari ${jumlah_soal} butir soal:
+1. SOAL ISIAN SINGKAT (Total ${nIsian} butir):
+   - TEPAT ${isianListening} butir berformat MENYIMAK ("is_listening": 1, "audio_script" berisi naskah audio singkat).
+   - TEPAT ${isianTeks} butir berformat TEKS BIASA NON-LISTENING ("is_listening": 0, "audio_script": null).
+2. SOAL ESSAY / URAIAN (Total ${nEssay} butir):
+   - TEPAT ${essayListening} butir berformat MENYIMAK ("is_listening": 1, "audio_script" dialog percakapan/monolog lengkap).
+   - TEPAT ${essayTeks} butir berformat TEKS BIASA NON-LISTENING ("is_listening": 0, "audio_script": null).
+
+3. KETENTUAN BUTIR SOAL MENYIMAK ("is_listening": 1):
+   ${deskripsiAudio ? `Guru mendeskripsikan skenario percakapan/audio: "${deskripsiAudio}".` : 'Buatkan naskah dialog percakapan dua orang (Person A: ... Person B: ...) atau monolog yang wajar dan edukatif.'}
+   Field "audio_script" WAJIB diisi teks naskah audio lengkap. Pertanyaan menguji pemahaman dari isi percakapan yang didengar.
+4. KETENTUAN BUTIR SOAL BIASA ("is_listening": 0):
+   Pertanyaan murni berbasis teks materi bacaan atau topik kurikulum tanpa rekaman suara ("audio_script": null).
+`;
+      } else if (jumlahListening < jumlah_soal) {
         listeningInstructions = `
 *** FITUR SOAL MENYIMAK (KOMBINASI: ${jumlahListening} LISTENING + ${jumlahNonListening} TEKS BIASA) ***
 1. Dari total ${jumlah_soal} butir soal:
@@ -811,20 +860,60 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
       };
     });
 
-    // Enforce alokasi kuota listening vs non-listening jika opsi jumlah_listening ditentukan
-    if (options.is_listening && options.jumlah_listening !== undefined && options.jumlah_listening !== null) {
-      const targetListeningCount = Math.min(sanitized.length, Math.max(0, Number(options.jumlah_listening)));
-      let currentListeningCount = sanitized.filter(q => q.is_listening === 1).length;
-      if (currentListeningCount !== targetListeningCount) {
+    // Enforce alokasi kuota listening vs non-listening per tipe jika opsi ditentukan
+    if (options.is_listening) {
+      const hasPerType = options.jumlah_isian_listening !== undefined || options.jumlah_essay_listening !== undefined;
+      if (hasPerType) {
+        const targetIsianListening = Math.max(0, Number(options.jumlah_isian_listening) || 0);
+        const targetEssayListening = Math.max(0, Number(options.jumlah_essay_listening) || 0);
+
+        let countIsianListening = 0;
+        let countEssayListening = 0;
+
         sanitized.forEach((q, idx) => {
-          if (idx < targetListeningCount) {
-            q.is_listening = 1;
-            if (!q.audio_script) q.audio_script = options.deskripsi_audio || `Dialogue for question #${idx + 1}`;
-            if (!q.bahasa) q.bahasa = defaultBahasa;
-          } else {
-            q.is_listening = 0;
-            q.audio_script = null;
+          if (q.jenis === 'isian') {
+            if (countIsianListening < targetIsianListening) {
+              q.is_listening = 1;
+              if (!q.audio_script) q.audio_script = options.deskripsi_audio || `Dialogue for question #${idx + 1}`;
+              if (!q.bahasa) q.bahasa = defaultBahasa;
+              countIsianListening++;
+            } else {
+              q.is_listening = 0;
+              q.audio_script = null;
+            }
+          } else { // essay
+            if (countEssayListening < targetEssayListening) {
+              q.is_listening = 1;
+              if (!q.audio_script) q.audio_script = options.deskripsi_audio || `Dialogue for question #${idx + 1}`;
+              if (!q.bahasa) q.bahasa = defaultBahasa;
+              countEssayListening++;
+            } else {
+              q.is_listening = 0;
+              q.audio_script = null;
+            }
           }
+        });
+      } else if (options.jumlah_listening !== undefined && options.jumlah_listening !== null) {
+        const targetListeningCount = Math.min(sanitized.length, Math.max(0, Number(options.jumlah_listening)));
+        let currentListeningCount = sanitized.filter(q => q.is_listening === 1).length;
+        if (currentListeningCount !== targetListeningCount) {
+          sanitized.forEach((q, idx) => {
+            if (idx < targetListeningCount) {
+              q.is_listening = 1;
+              if (!q.audio_script) q.audio_script = options.deskripsi_audio || `Dialogue for question #${idx + 1}`;
+              if (!q.bahasa) q.bahasa = defaultBahasa;
+            } else {
+              q.is_listening = 0;
+              q.audio_script = null;
+            }
+          });
+        }
+      } else {
+        // Full Listening: pastikan seluruh butir bertipe listening
+        sanitized.forEach((q, idx) => {
+          q.is_listening = 1;
+          if (!q.audio_script) q.audio_script = options.deskripsi_audio || `Dialogue for question #${idx + 1}`;
+          if (!q.bahasa) q.bahasa = defaultBahasa;
         });
       }
     }
@@ -869,11 +958,29 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
       const nIsian = Math.max(0, Number(options.jumlah_isian) || 0);
       const nEssay = Math.max(0, Number(options.jumlah_essay) || 0);
 
+      let targetIsianListening = 0;
+      let targetEssayListening = 0;
+
+      if (isListening) {
+        if (options.jumlah_isian_listening !== undefined || options.jumlah_essay_listening !== undefined) {
+          targetIsianListening = Math.min(nIsian, Math.max(0, Number(options.jumlah_isian_listening) || 0));
+          targetEssayListening = Math.min(nEssay, Math.max(0, Number(options.jumlah_essay_listening) || 0));
+        } else if (options.jumlah_listening !== undefined && options.jumlah_listening !== null) {
+          const totalTargetListening = Math.min(nIsian + nEssay, Math.max(0, Number(options.jumlah_listening)));
+          targetEssayListening = Math.min(nEssay, Math.floor(totalTargetListening / 2));
+          targetIsianListening = Math.min(nIsian, totalTargetListening - targetEssayListening);
+        } else {
+          targetIsianListening = nIsian;
+          targetEssayListening = nEssay;
+        }
+      }
+
       for (let i = 1; i <= nIsian; i++) {
+        const itemIsListening = isListening && (i <= targetIsianListening);
         sampleSoal.push({
-          kategori: isListening ? 'Listening Comprehension' : topik,
+          kategori: itemIsListening ? 'Listening Comprehension' : topik,
           sub_topik: `Bagian ${i}`,
-          pertanyaan: isListening
+          pertanyaan: itemIsListening
             ? `Berdasarkan rekaman percakapan di atas, sebutkan informasi penting terkait ${topik} (Isian #${i})!`
             : `Sebutkan istilah atau komponen penting terkait ${topik} (Isian #${i})!`,
           jenis: 'isian',
@@ -882,17 +989,18 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
           kunci_jawaban: `Kunci acuan istilah untuk ${topik} bagian ${i}`,
           rubrik: 'Menyebutkan istilah yang tepat sesuai konsep acuan',
           pembahasan: `Pembahasan rinci untuk konsep materi ${topik} bagian ${i}. Istilah ini mengacu pada standar kurikulum.`,
-          is_listening: isListening ? 1 : 0,
-          bahasa: bahasa,
-          audio_script: isListening ? (options.deskripsi_audio || `Speaker A: Hello, can you explain ${topik}? Speaker B: Yes, it is an important topic.`) : null
+          is_listening: itemIsListening ? 1 : 0,
+          bahasa: itemIsListening ? bahasa : null,
+          audio_script: itemIsListening ? (options.deskripsi_audio || `Speaker A: Hello, can you explain ${topik}? Speaker B: Yes, it is an important topic.`) : null
         });
       }
 
       for (let j = 1; j <= nEssay; j++) {
+        const itemIsListening = isListening && (j <= targetEssayListening);
         sampleSoal.push({
-          kategori: isListening ? 'Listening Comprehension' : topik,
+          kategori: itemIsListening ? 'Listening Comprehension' : topik,
           sub_topik: `Uraian ${j}`,
-          pertanyaan: isListening
+          pertanyaan: itemIsListening
             ? `Berdasarkan rekaman percakapan, jelaskan secara mendalam konsep dan kesimpulan dari ${topik} (Essay #${j})!`
             : `Jelaskan secara mendalam konsep dan mekanisme utama dari ${topik} (Essay #${j})!`,
           jenis: 'essay',
@@ -901,21 +1009,23 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
           kunci_jawaban: `Kunci uraian konsep mendalam untuk ${topik} bagian ${j}`,
           rubrik: 'Menjelaskan konsep lengkap dan runtut (skor penuh), menjelaskan sebagian (skor 50%), salah (skor 0)',
           pembahasan: `Pembahasan lengkap konsep ${topik} bagian ${j}. Menjelaskan esensi dan keterkaitan komponen secara sistematis.`,
-          is_listening: isListening ? 1 : 0,
-          bahasa: bahasa,
-          audio_script: isListening ? (options.deskripsi_audio || `Speaker A: Welcome to the lecture about ${topik}. Speaker B: Let us analyze the primary functions.`) : null
+          is_listening: itemIsListening ? 1 : 0,
+          bahasa: itemIsListening ? bahasa : null,
+          audio_script: itemIsListening ? (options.deskripsi_audio || `Speaker A: Welcome to the lecture about ${topik}. Speaker B: Let us analyze the primary functions.`) : null
         });
       }
     } else {
       const n = Math.min(30, Math.max(1, Number(options.jumlah_soal) || 3));
+      const targetSingleListening = isListening ? (options.jumlah_listening !== undefined ? Math.min(n, Math.max(0, Number(options.jumlah_listening))) : n) : 0;
       for (let i = 1; i <= n; i++) {
+        const itemIsListening = isListening && (i <= targetSingleListening);
         const isEssay = options.tipe_soal === 'essay' || (options.tipe_soal === 'campuran' && i % 2 === 0);
         sampleSoal.push({
-          kategori: isListening ? 'Listening Comprehension' : topik,
+          kategori: itemIsListening ? 'Listening Comprehension' : topik,
           sub_topik: `Topik ${i}`,
           pertanyaan: isEssay
-            ? (isListening ? `Berdasarkan audio percakapan, jelaskan konsep utama ${topik} (Nomor ${i})!` : `Jelaskan secara mendalam konsep dan fungsi utama dari ${topik} (Bagian ${i})!`)
-            : (isListening ? `Berdasarkan audio, sebutkan istilah penting terkait ${topik} (Nomor ${i})!` : `Sebutkan istilah atau komponen penting terkait ${topik} (Nomor ${i})!`),
+            ? (itemIsListening ? `Berdasarkan audio percakapan, jelaskan konsep utama ${topik} (Nomor ${i})!` : `Jelaskan secara mendalam konsep dan fungsi utama dari ${topik} (Bagian ${i})!`)
+            : (itemIsListening ? `Berdasarkan audio, sebutkan istilah penting terkait ${topik} (Nomor ${i})!` : `Sebutkan istilah atau komponen penting terkait ${topik} (Nomor ${i})!`),
           jenis: isEssay ? 'essay' : 'isian',
           bobot: isEssay ? 20 : 10,
           gambar_url: null,
@@ -924,9 +1034,9 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
             ? 'Menjelaskan konsep lengkap dan runtut (skor penuh), menjelaskan sebagian (skor 50%), salah (skor 0)'
             : 'Menyebutkan istilah yang tepat sesuai konsep acuan',
           pembahasan: `Pembahasan komprehensif materi ${topik} nomor ${i} berdasarkan rujukan ilmiah terpercaya.`,
-          is_listening: isListening ? 1 : 0,
-          bahasa: bahasa,
-          audio_script: isListening ? (options.deskripsi_audio || `Speaker: In this dialogue about ${topik}, we discuss key principles.`) : null
+          is_listening: itemIsListening ? 1 : 0,
+          bahasa: itemIsListening ? bahasa : null,
+          audio_script: itemIsListening ? (options.deskripsi_audio || `Speaker: In this dialogue about ${topik}, we discuss key principles.`) : null
         });
       }
     }

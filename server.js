@@ -350,6 +350,8 @@ app.post('/api/guru/generate-soal', requireGuru, async (req, res) => {
       jumlah_essay,
       is_listening,
       jumlah_listening,
+      jumlah_isian_listening,
+      jumlah_essay_listening,
       bahasa,
       deskripsi_audio
     } = req.body;
@@ -370,6 +372,8 @@ app.post('/api/guru/generate-soal', requireGuru, async (req, res) => {
       jumlah_essay,
       is_listening,
       jumlah_listening,
+      jumlah_isian_listening,
+      jumlah_essay_listening,
       bahasa,
       deskripsi_audio
     });
