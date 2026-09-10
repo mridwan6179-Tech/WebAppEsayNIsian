@@ -1,5 +1,4 @@
 const path = require('path');
-const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const XLSX = require('xlsx');
 
@@ -42,6 +41,7 @@ const fileParserService = {
     try {
       if (ext === '.pdf') {
         fileType = 'pdf';
+        const pdfParse = require('pdf-parse');
         const data = await pdfParse(buffer);
         extractedText = data.text || '';
       } else if (ext === '.docx' || ext === '.doc') {
