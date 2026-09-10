@@ -10,8 +10,8 @@ RUN npm install
 
 COPY . .
 
-# Buat direktori data untuk SQLite database
-RUN mkdir -p /app/data
+# Buat direktori data untuk SQLite database dan beri hak akses penuh (kompatibel UID 1000 HF Spaces)
+RUN mkdir -p /app/data && chmod -R 777 /app/data
 
 ENV PORT=7860
 EXPOSE 7860

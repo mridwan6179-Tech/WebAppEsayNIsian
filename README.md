@@ -1,3 +1,13 @@
+---
+title: Web App Ujian Esai Isian AI
+emoji: 📝
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # WebAppEsayNIsian — Sistem Ujian & Penilai Ulangan AI
 
 Sistem evaluasi dan koreksi ulangan esai & isian otomatis berbasis AI (Google Gemini Flash), dirancang untuk sekolah dan guru, serta mendukung integrasi *embed* Google Sites.
