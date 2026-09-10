@@ -695,7 +695,7 @@ KOMPONEN WAJIB TIAP BUTIR SOAL:
 - "bobot": Angka bobot soal (bilangan bulat positif > 0).
 - "gambar_url": (Opsional) Jika soal memerlukan diagram/ilustrasi (misalnya geometri matematika, grafik, siklus air, organ tubuh), Anda dapat menyertakan link gambar HTTPS edukasi publik atau SVG data-uri yang valid. Jika tidak perlu gambar, isi null.
 - "kunci_jawaban": Kunci acuan jawaban guru yang ideal, jelas, dan akurat.
-- "rubrik": Pembahasan konsep dan panduan rubrik penilaian untuk membantu AI penilai (misal: kriteria apa yang harus ada untuk skor penuh vs skor parsial).
+- "rubrik": Pembahasan konsep dan panduan rubrik penilaian untuk membantu AI penilai. PENTING: Gunakan panduan kualitatif seperti "Skor Penuh (jawaban lengkap dan tepat)" dan "Skor Parsial (jawaban sebagian)", HINDARI menulis angka mutlak seperti "Skor 10" jika bobot soalnya bukan 10 agar tidak membingungkan guru.
 
 FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
 {
