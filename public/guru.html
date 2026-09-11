@@ -102,32 +102,36 @@
   <!-- DASHBOARD SECTION (Jika sudah login) -->
   <div id="section-dashboard" class="hidden max-w-6xl mx-auto space-y-6">
     <!-- Navbar Guru -->
-    <header class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-4">
-      <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold shadow-md shadow-blue-200">
+    <header class="bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3 sm:gap-4">
+      <div class="flex items-center space-x-2.5 sm:space-x-3">
+        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold shadow-md shadow-blue-200 shrink-0">
           U
         </div>
-        <div>
-          <h1 class="font-bold text-base text-slate-900">Sistem Ulangan AI</h1>
-          <p id="teacher-profile" class="text-xs text-slate-500">Guru Pengampu</p>
+        <div class="min-w-0">
+          <h1 class="font-bold text-sm sm:text-base text-slate-900 truncate">Sistem Ulangan AI</h1>
+          <p id="teacher-profile" class="text-[11px] sm:text-xs text-slate-500 truncate">Guru Pengampu</p>
         </div>
       </div>
-      <div class="flex items-center space-x-2">
+      <div class="flex items-center flex-wrap gap-1.5 sm:gap-2">
         <!-- Live Calibrated Clock -->
-        <div id="badge-kalibrasi-waktu" class="hidden sm:flex items-center space-x-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-2.5 py-1.5 rounded-lg border border-slate-200 cursor-pointer transition" onclick="kalibrasiWaktuServer(true)" title="Waktu server terkalibrasi akurat. Klik untuk sinkronkan ulang">
-          <span class="text-blue-600">🕒</span>
+        <div id="badge-kalibrasi-waktu" class="flex items-center space-x-1.5 text-[11px] sm:text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg border border-slate-200 cursor-pointer transition" onclick="kalibrasiWaktuServer(true)" title="Waktu server terkalibrasi akurat. Klik untuk sinkronkan ulang">
+          <span class="text-blue-600 text-xs">🕒</span>
           <span id="nav-server-clock">Memuat Waktu...</span>
         </div>
-        <button id="btn-open-profile-modal" class="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg transition flex items-center space-x-1" title="Pengaturan Kontak WhatsApp & Profil">
-          <span>📱 Kontak WA Guru</span>
+        <button id="btn-open-profile-modal" class="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg transition flex items-center space-x-1" title="Pengaturan Kontak WhatsApp & Profil">
+          <span>📱</span>
+          <span class="hidden sm:inline">Kontak WA Guru</span>
+          <span class="sm:hidden">WA Guru</span>
         </button>
-        <a href="/admin.html" class="text-xs font-semibold text-slate-600 hover:text-blue-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition flex items-center space-x-1" title="Pengaturan Akun Guru & API Key">
-          <span>⚙️ Portal Admin</span>
+        <a href="/admin.html" class="text-xs font-semibold text-slate-600 hover:text-blue-600 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg transition flex items-center space-x-1" title="Pengaturan Akun Guru & API Key">
+          <span>⚙️</span>
+          <span class="hidden sm:inline">Portal Admin</span>
+          <span class="sm:hidden">Admin</span>
         </a>
-        <span id="ai-model-badge" class="text-xs bg-purple-50 text-purple-700 font-medium px-2.5 py-1 rounded-lg border border-purple-100">
+        <span id="ai-model-badge" class="text-[11px] sm:text-xs bg-purple-50 text-purple-700 font-medium px-2 py-1 sm:px-2.5 rounded-lg border border-purple-100 truncate max-w-[120px] sm:max-w-none">
           AI: Memuat...
         </span>
-        <button id="btn-logout" class="text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition">
+        <button id="btn-logout" class="text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg transition">
           Keluar
         </button>
       </div>
@@ -135,12 +139,14 @@
 
     <!-- Main Dashboard Nav: Ulangan vs Bank Soal -->
     <div class="flex items-center space-x-2 border-b border-slate-200 pb-2">
-      <button id="nav-tab-ulangan" type="button" class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-blue-600 text-white shadow-sm shadow-blue-500/20">
-        <span>📝 Paket Ulangan Siswa</span>
+      <button id="nav-tab-ulangan" type="button" class="flex-1 sm:flex-initial px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 bg-blue-600 text-white shadow-sm shadow-blue-500/20">
+        <span>📝 Paket Ulangan</span>
+        <span class="hidden sm:inline">Siswa</span>
       </button>
-      <button id="nav-tab-bank-soal" type="button" class="px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 bg-white text-slate-700 hover:bg-slate-100 border border-slate-200">
-        <span>📂 Bank Soal Mandiri</span>
-        <span id="badge-bank-soal-count" class="bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded-full">0</span>
+      <button id="nav-tab-bank-soal" type="button" class="flex-1 sm:flex-initial px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center justify-center space-x-2 bg-white text-slate-700 hover:bg-slate-100 border border-slate-200">
+        <span>📂 Bank Soal</span>
+        <span class="hidden sm:inline">Mandiri</span>
+        <span id="badge-bank-soal-count" class="bg-purple-100 text-purple-800 text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full">0</span>
       </button>
     </div>
 
@@ -372,17 +378,25 @@
       <!-- Panel Kanan: Detail Ulangan Terpilih, Soal, Antrean AI & Review Peserta -->
       <div class="lg:col-span-2 space-y-5">
         
-        <div id="exam-detail-card" class="hidden bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+        <div id="exam-detail-card" class="hidden bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+          <!-- Mobile Quick Navigation Back to Exam List -->
+          <div class="flex lg:hidden items-center justify-between pb-2 border-b border-slate-100">
+            <button type="button" onclick="document.getElementById('exam-list')?.scrollIntoView({ behavior: 'smooth' })" class="text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg border border-blue-200 flex items-center space-x-1 transition cursor-pointer">
+              <span>&larr; Pilih Paket Lain</span>
+            </button>
+            <span class="text-[11px] text-slate-400">Sedang Melihat Paket</span>
+          </div>
+
           <!-- Header Detail Ulangan -->
           <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
-            <div>
-              <div class="flex items-center space-x-2 mb-1">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center space-x-2 mb-1 flex-wrap">
                 <span id="detail-exam-status" class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">draft</span>
                 <span class="text-xs text-slate-400">&bull;</span>
                 <span id="detail-exam-subject" class="text-xs font-semibold text-slate-500">Mata Pelajaran</span>
               </div>
-              <h2 id="detail-exam-title" class="text-lg font-bold text-slate-900">Judul Ulangan</h2>
-              <div class="mt-1 flex items-center space-x-3 text-xs flex-wrap gap-y-1">
+              <h2 id="detail-exam-title" class="text-base sm:text-lg font-bold text-slate-900 break-words">Judul Ulangan</h2>
+              <div class="mt-1 flex items-center space-x-2 sm:space-x-3 text-xs flex-wrap gap-y-1">
                 <span class="text-slate-500">Kode Akses: <strong id="detail-exam-code" class="font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded font-bold">KODE</strong></span>
                 <span class="text-slate-400">Total Bobot: <strong id="detail-exam-bobot" class="text-slate-700">0</strong></span>
                 <span class="text-slate-500">KKM: <strong id="detail-exam-kkm" class="text-indigo-600 font-bold">75</strong></span>
@@ -392,17 +406,20 @@
               <div id="detail-exam-ai-rules" class="mt-2 flex items-center space-x-1.5 text-[11px] flex-wrap gap-y-1"></div>
             </div>
 
-            <div class="flex items-center space-x-2 flex-wrap gap-y-1">
-              <button id="btn-open-wa-broadcast" type="button" class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 transition flex items-center space-x-1.5 shadow-sm" title="Buat Sebaran Pengumuman WhatsApp Resmi">
-                <span>📲 Sebar ke WA</span>
+            <div class="flex items-center flex-wrap gap-1.5 sm:gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+              <button id="btn-open-wa-broadcast" type="button" class="flex-1 sm:flex-initial text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 transition flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer" title="Buat Sebaran Pengumuman WhatsApp Resmi">
+                <span>📲</span>
+                <span>Sebar ke WA</span>
               </button>
-              <button id="btn-edit-exam-modal" class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 bg-slate-50 hover:bg-slate-100 transition flex items-center space-x-1" title="Ubah Jadwal, Waktu, & Pengaturan Ulangan">
-                <span>⏱️ Edit Waktu & Aturan</span>
+              <button id="btn-edit-exam-modal" class="flex-1 sm:flex-initial text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 bg-slate-50 hover:bg-slate-100 transition flex items-center justify-center space-x-1 cursor-pointer" title="Ubah Jadwal, Waktu, & Pengaturan Ulangan">
+                <span>⏱️</span>
+                <span class="hidden sm:inline">Edit Waktu & Aturan</span>
+                <span class="sm:hidden">Edit Aturan</span>
               </button>
-              <button id="btn-toggle-status" class="text-xs font-semibold px-3 py-1.5 rounded-lg border transition">
+              <button id="btn-toggle-status" class="flex-1 sm:flex-initial text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg border transition text-center justify-center cursor-pointer">
                 Ubah Status
               </button>
-              <button id="btn-delete-exam" class="text-xs font-semibold text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition" title="Hapus Ulangan">
+              <button id="btn-delete-exam" class="text-xs font-semibold text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition shrink-0 ml-auto sm:ml-0 cursor-pointer" title="Hapus Ulangan">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
               </button>
             </div>
@@ -632,23 +649,23 @@
           <!-- TAB 2: REVIEW AI & PESERTA -->
           <div id="tab-content-students" class="hidden space-y-4">
             <!-- Box Kontrol AI Review -->
-            <div class="p-4 bg-slate-900 text-white rounded-xl space-y-3">
-              <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="p-3.5 sm:p-4 bg-slate-900 text-white rounded-xl space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-2.5">
                 <div>
                   <h4 class="font-bold text-sm">Review Otomatis Berbantuan Gemini AI</h4>
                   <p class="text-xs text-slate-400">Memproses 1 jawaban per waktu dengan jeda acak 5–13 detik.</p>
                 </div>
-                <div class="flex items-center space-x-2">
-                  <button id="btn-start-ai" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-lg transition flex items-center space-x-1.5">
+                <div class="flex items-center flex-wrap gap-2 w-full sm:w-auto">
+                  <button id="btn-start-ai" class="flex-1 sm:flex-initial px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-lg transition flex items-center justify-center space-x-1.5">
                     <span>Mulai Review AI</span>
                   </button>
-                  <button id="btn-stop-ai" class="hidden px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded-lg transition">
+                  <button id="btn-stop-ai" class="hidden flex-1 sm:flex-initial px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded-lg transition text-center justify-center">
                     Jeda / Stop
                   </button>
-                  <button id="btn-toggle-release" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg transition">
+                  <button id="btn-toggle-release" class="flex-1 sm:flex-initial px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg transition text-center justify-center">
                     Rilis Nilai
                   </button>
-                  <button id="btn-open-laporan" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-lg transition flex items-center space-x-1 shadow-sm">
+                  <button id="btn-open-laporan" class="flex-1 sm:flex-initial px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-lg transition flex items-center justify-center space-x-1 shadow-sm">
                     <span>🖨️ Cetak Laporan Nilai</span>
                   </button>
                 </div>
@@ -667,20 +684,20 @@
             </div>
 
             <!-- Toolbar Filter, Pengurutan & Deteksi Duplikat -->
-            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-2.5">
-              <div class="flex flex-wrap items-center gap-2">
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                 <!-- Filter Kelas -->
-                <div class="flex items-center space-x-1.5">
-                  <label for="filter-peserta-kelas" class="text-[11px] font-semibold text-slate-600">Kelas:</label>
-                  <select id="filter-peserta-kelas" class="px-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white font-medium text-slate-700 focus:ring-1 focus:ring-blue-500">
+                <div class="flex items-center space-x-1.5 flex-1 sm:flex-initial">
+                  <label for="filter-peserta-kelas" class="text-[11px] font-semibold text-slate-600 shrink-0">Kelas:</label>
+                  <select id="filter-peserta-kelas" class="w-full sm:w-auto px-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white font-medium text-slate-700 focus:ring-1 focus:ring-blue-500">
                     <option value="">Semua Kelas</option>
                   </select>
                 </div>
 
                 <!-- Urutkan (Sorting) -->
-                <div class="flex items-center space-x-1.5">
-                  <label for="sort-peserta" class="text-[11px] font-semibold text-slate-600">Urutkan:</label>
-                  <select id="sort-peserta" class="px-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white font-medium text-slate-700 focus:ring-1 focus:ring-blue-500">
+                <div class="flex items-center space-x-1.5 flex-1 sm:flex-initial">
+                  <label for="sort-peserta" class="text-[11px] font-semibold text-slate-600 shrink-0">Urutkan:</label>
+                  <select id="sort-peserta" class="w-full sm:w-auto px-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white font-medium text-slate-700 focus:ring-1 focus:ring-blue-500">
                     <option value="nama_asc" selected>Nama Siswa (A-Z Teratas)</option>
                     <option value="nama_desc">Nama Siswa (Z-A)</option>
                     <option value="nilai_desc">Nilai Final (Tertinggi)</option>
@@ -691,21 +708,21 @@
                 </div>
 
                 <!-- Cari Nama -->
-                <div class="relative">
-                  <input type="text" id="search-peserta-nama" placeholder="Cari nama siswa..." class="pl-7 pr-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white w-36 sm:w-44 focus:ring-1 focus:ring-blue-500">
+                <div class="relative flex-1 sm:flex-initial w-full sm:w-44">
+                  <input type="text" id="search-peserta-nama" placeholder="Cari nama siswa..." class="w-full pl-7 pr-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white focus:ring-1 focus:ring-blue-500">
                   <span class="absolute left-2 top-1.5 text-slate-400 text-xs">🔍</span>
                 </div>
 
                 <!-- Tombol Refresh Data Peserta -->
-                <button type="button" id="btn-refresh-peserta" onclick="loadPesertaList(activeUlanganId)" class="px-2.5 py-1 text-xs rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-semibold flex items-center space-x-1.5 transition shadow-xs cursor-pointer active:scale-95" title="Segarkan data tabel peserta dan nilai AI terkini">
+                <button type="button" id="btn-refresh-peserta" onclick="loadPesertaList(activeUlanganId)" class="px-2.5 py-1 text-xs rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-semibold flex items-center justify-center space-x-1.5 transition shadow-xs cursor-pointer active:scale-95 shrink-0" title="Segarkan data tabel peserta dan nilai AI terkini">
                   <span class="text-blue-600 font-bold">🔄</span>
                   <span>Refresh Data</span>
                 </button>
               </div>
 
               <!-- Deteksi Siswa Kirim Ganda / Duplikat Badge -->
-              <div id="duplicate-warning-box" class="hidden flex items-center space-x-1.5">
-                <button type="button" id="btn-toggle-duplicate-filter" class="px-2.5 py-1 text-xs rounded-lg bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-900 font-bold flex items-center space-x-1 transition shadow-sm" title="Klik untuk menampilkan siswa yang terdeteksi mengirim 2 kali atau lebih">
+              <div id="duplicate-warning-box" class="hidden flex items-center space-x-1.5 shrink-0">
+                <button type="button" id="btn-toggle-duplicate-filter" class="w-full sm:w-auto px-2.5 py-1 text-xs rounded-lg bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-900 font-bold flex items-center justify-center space-x-1 transition shadow-sm" title="Klik untuk menampilkan siswa yang terdeteksi mengirim 2 kali atau lebih">
                   <span>⚠️</span>
                   <span id="duplicate-count-badge">0 Kirim Ganda</span>
                 </button>
@@ -750,19 +767,25 @@
               </button>
             </div>
 
+            <!-- Petunjuk Usap Layar Ponsel (Mobile Swipe Hint) -->
+            <div class="sm:hidden flex items-center justify-between px-1 text-[11px] text-slate-500 font-medium">
+              <span>👈 Geser tabel ke samping untuk nilai & aksi 👉</span>
+              <span class="text-slate-400 text-[10px]">Swipeable</span>
+            </div>
+
             <!-- Tabel Peserta -->
-            <div class="overflow-x-auto border border-slate-200 rounded-xl">
-              <table class="w-full text-left text-xs">
+            <div class="overflow-x-auto border border-slate-200 rounded-xl shadow-2xs -mx-1 sm:mx-0">
+              <table class="w-full text-left text-xs min-w-[760px]">
                 <thead class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                   <tr>
-                    <th class="p-3">Siswa</th>
-                    <th class="p-3">Kelas</th>
-                    <th class="p-3">Waktu Submit</th>
-                    <th class="p-3">Status Dinilai</th>
-                    <th class="p-3">Nilai AI</th>
-                    <th class="p-3">Nilai Final</th>
-                    <th class="p-3">Status & Rilis</th>
-                    <th class="p-3 text-right">Aksi</th>
+                    <th class="p-3 whitespace-nowrap">Siswa</th>
+                    <th class="p-3 whitespace-nowrap">Kelas</th>
+                    <th class="p-3 whitespace-nowrap">Waktu Submit</th>
+                    <th class="p-3 whitespace-nowrap">Status Dinilai</th>
+                    <th class="p-3 whitespace-nowrap text-center">Nilai AI</th>
+                    <th class="p-3 whitespace-nowrap text-center">Nilai Final</th>
+                    <th class="p-3 whitespace-nowrap">Status & Rilis</th>
+                    <th class="p-3 text-right whitespace-nowrap">Aksi</th>
                   </tr>
                 </thead>
                 <tbody id="students-table-body" class="divide-y divide-slate-100">
@@ -772,11 +795,11 @@
             </div>
 
             <!-- Bar Paginasi Peserta (Batas Maksimal 20 Siswa per Halaman) -->
-            <div id="peserta-pagination-bar" class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div id="peserta-pagination-info" class="text-slate-600 font-medium">
+            <div id="peserta-pagination-bar" class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div id="peserta-pagination-info" class="text-slate-600 font-medium text-center sm:text-left">
                 Menampilkan <span id="peserta-page-start" class="font-bold text-slate-900">0</span> - <span id="peserta-page-end" class="font-bold text-slate-900">0</span> dari <span id="peserta-page-total" class="font-bold text-slate-900">0</span> siswa
               </div>
-              <div id="peserta-pagination-controls" class="flex items-center space-x-1.5">
+              <div id="peserta-pagination-controls" class="flex items-center justify-center sm:justify-end space-x-1.5 flex-wrap gap-y-1">
                 <!-- Tombol Navigasi Halaman di-render secara dinamis di JS -->
               </div>
             </div>
@@ -890,48 +913,49 @@
   </div>
 
   <!-- MODAL REVIEW JAWABAN SISWA -->
-  <div id="modal-review" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-3 z-50">
-    <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-xl border border-slate-200">
-      <div class="p-4 border-b border-slate-200 flex justify-between items-center">
-        <div>
-          <h3 id="modal-student-name" class="font-bold text-slate-900 text-sm">Review Jawaban Siswa</h3>
-          <p id="modal-student-meta" class="text-xs text-slate-500">Kelas &bull; Nilai AI vs Final</p>
+  <div id="modal-review" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4 z-50">
+    <div class="bg-white rounded-2xl max-w-3xl w-full max-h-[92vh] flex flex-col shadow-xl border border-slate-200 overflow-hidden">
+      <div class="p-3 sm:p-4 border-b border-slate-200 flex flex-wrap sm:flex-nowrap justify-between items-start gap-2 bg-slate-50/50">
+        <div class="min-w-0 flex-1">
+          <h3 id="modal-student-name" class="font-bold text-slate-900 text-sm truncate">Review Jawaban Siswa</h3>
+          <p id="modal-student-meta" class="text-xs text-slate-500 truncate">Kelas &bull; Nilai AI vs Final</p>
         </div>
-        <div class="flex items-center space-x-2">
-          <button id="btn-modal-force-submit" class="hidden text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1.5 rounded-lg transition flex items-center space-x-1" title="Kumpulkan draft jawaban siswa ini sekarang secara resmi">
-            <span>📥 Kumpulkan Jawaban</span>
+        <div class="flex items-center flex-wrap gap-1.5 justify-end">
+          <button id="btn-modal-force-submit" class="hidden text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg transition flex items-center space-x-1" title="Kumpulkan draft jawaban siswa ini sekarang secara resmi">
+            <span>📥 Kumpulkan</span>
           </button>
-          <button id="btn-modal-single-ai" class="hidden text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1.5 rounded-lg transition flex items-center space-x-1" title="Nilai lembar jawaban siswa ini dengan AI">
-            <span>✨ Nilai AI Siswa Ini</span>
+          <button id="btn-modal-single-ai" class="hidden text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg transition flex items-center space-x-1" title="Nilai lembar jawaban siswa ini dengan AI">
+            <span>✨ Nilai AI</span>
           </button>
-          <button id="btn-modal-toggle-release" class="hidden text-xs font-semibold px-2.5 py-1.5 rounded-lg transition">
+          <button id="btn-modal-toggle-release" class="hidden text-xs font-semibold px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg transition">
             <!-- Dinamis via JS -->
           </button>
-          <button id="btn-accept-all-ai" class="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg transition">
-            Setujui Semua Rekomendasi AI
+          <button id="btn-accept-all-ai" class="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg transition border border-emerald-200">
+            <span class="sm:hidden">Setujui AI</span>
+            <span class="hidden sm:inline">Setujui Semua Rekomendasi AI</span>
           </button>
-          <button id="btn-close-modal" class="text-slate-400 hover:text-slate-600 p-1.5">
+          <button id="btn-close-modal" class="text-slate-400 hover:text-slate-600 p-1 text-lg font-bold">
             &times;
           </button>
         </div>
       </div>
 
-      <div id="modal-answers-list" class="p-4 overflow-y-auto space-y-4 text-xs flex-1">
+      <div id="modal-answers-list" class="p-3 sm:p-4 overflow-y-auto space-y-4 text-xs flex-1">
         <!-- Item butir review di-inject via JS -->
       </div>
     </div>
   </div>
 
   <!-- MODAL EDIT ULANGAN & WAKTU -->
-  <div id="modal-edit-exam" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-8 max-h-[90vh] overflow-y-auto">
+  <div id="modal-edit-exam" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 my-auto max-h-[92vh] overflow-y-auto">
       <div class="flex items-center justify-between border-b border-slate-100 pb-3">
         <div>
-          <h3 class="font-bold text-slate-900 text-base flex items-center space-x-2">
+          <h3 class="font-bold text-slate-900 text-sm sm:text-base flex items-center space-x-2">
             <span>⏱️</span>
             <span>Edit Waktu & Pengaturan Ulangan</span>
           </h3>
-          <p class="text-xs text-slate-500">Perbarui jadwal, batas durasi waktu, KKM, dan acak bank soal</p>
+          <p class="text-[11px] sm:text-xs text-slate-500">Perbarui jadwal, batas durasi waktu, KKM, dan acak bank soal</p>
         </div>
         <button type="button" id="btn-close-edit-exam-modal" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
       </div>
@@ -944,7 +968,7 @@
           <input type="text" id="edit-exam-title" required class="w-full px-3 py-2 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label class="block font-semibold text-slate-700 mb-1">Mata Pelajaran</label>
             <input type="text" id="edit-exam-subject" required class="w-full px-3 py-2 rounded-xl border border-slate-300">
@@ -1005,7 +1029,7 @@
         <div class="p-3.5 bg-purple-50/60 rounded-xl border border-purple-200 space-y-2.5">
           <label class="block font-bold text-purple-900 text-xs">🎲 Bank Soal & Nilai KKM</label>
           
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block font-medium text-slate-600 text-[11px] mb-1">Nilai KKM</label>
               <input type="number" id="edit-exam-kkm" min="0" max="100" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-bold bg-white text-indigo-700">
@@ -1165,10 +1189,10 @@
   </div>
 
   <!-- MODAL AI GENERATOR SOAL -->
-  <div id="modal-ai-generator" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div id="modal-ai-generator" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
     <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden">
       <!-- Modal Header -->
-      <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-purple-50 to-indigo-50">
+      <div class="p-3.5 sm:p-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-purple-50 to-indigo-50">
         <div>
           <h3 class="font-bold text-slate-900 text-sm flex items-center space-x-1.5">
             <span class="text-purple-600">✨</span>
@@ -1186,13 +1210,13 @@
       </div>
 
       <!-- Modal Body (Scrollable) -->
-      <div class="p-5 overflow-y-auto space-y-4 text-xs flex-1">
+      <div class="p-3.5 sm:p-5 overflow-y-auto space-y-4 text-xs flex-1">
         <!-- Form Setup Generator -->
         <div id="gen-form-step" class="space-y-4">
           <!-- Pilihan Mode -->
           <div>
             <label class="block font-bold text-slate-800 mb-1.5">Pilih Sumber Pembuatan Soal</label>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
               <label class="flex items-start space-x-2 p-2.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition" id="label-mode-topik">
                 <input type="radio" name="gen_mode" value="topik" checked class="mt-0.5 text-purple-600 focus:ring-purple-500">
                 <div>
@@ -1479,7 +1503,7 @@
             <input type="text" id="bank-sub-topik" placeholder="Contoh: Percakapan Bandara, Looping For..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300">
           </div>
         </div>
-        <div class="grid grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label class="block font-semibold mb-1">Jenis Soal</label>
             <select id="bank-jenis" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300">
@@ -1617,7 +1641,7 @@
             <input type="text" id="smart-pick-subtopik" placeholder="Contoh: Fotosintesis, Tenses..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300">
           </div>
         </div>
-        <div class="grid grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
           <div>
             <label class="block font-semibold text-slate-700 mb-1">Total Soal</label>
             <input type="number" id="smart-pick-total" min="1" max="50" value="5" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-center font-bold">
@@ -1631,7 +1655,7 @@
             <input type="number" id="smart-pick-essay" min="0" max="50" value="1" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-center font-bold">
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
           <div>
             <label class="block font-semibold text-slate-700 mb-1">Tingkat Kesulitan</label>
             <select id="smart-pick-kesulitan" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white">
@@ -1703,20 +1727,20 @@
             <p class="text-slate-500 text-xs">Filter per kelas dan cetak / simpan sebagai PDF resmi</p>
           </div>
         </div>
-        <div class="flex items-center space-x-2.5">
-          <div class="flex items-center space-x-1.5">
-            <label class="text-xs font-semibold text-slate-600">Filter Kelas:</label>
-            <select id="laporan-filter-kelas" class="px-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white font-medium text-slate-700">
+        <div class="flex items-center flex-wrap gap-2 w-full sm:w-auto justify-end">
+          <div class="flex items-center space-x-1.5 flex-1 sm:flex-initial">
+            <label class="text-xs font-semibold text-slate-600 shrink-0">Filter Kelas:</label>
+            <select id="laporan-filter-kelas" class="w-full sm:w-auto px-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white font-medium text-slate-700">
               <option value="all">Semua Kelas</option>
             </select>
           </div>
-          <button id="btn-export-excel" type="button" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg transition flex items-center space-x-1 shadow">
-            <span>📥 Download Excel (.csv)</span>
+          <button id="btn-export-excel" type="button" class="flex-1 sm:flex-initial px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg transition flex items-center justify-center space-x-1 shadow cursor-pointer">
+            <span>📥 Download Excel</span>
           </button>
-          <button id="btn-do-print" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-lg transition flex items-center space-x-1 shadow">
-            <span>Cetak / Simpan PDF</span>
+          <button id="btn-do-print" class="flex-1 sm:flex-initial px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-lg transition flex items-center justify-center space-x-1 shadow cursor-pointer">
+            <span>🖨️ Cetak / PDF</span>
           </button>
-          <button id="btn-close-laporan" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs rounded-lg transition">
+          <button id="btn-close-laporan" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs rounded-lg transition cursor-pointer">
             Tutup
           </button>
         </div>
@@ -1769,16 +1793,16 @@
         </div>
       </div>
 
-      <div class="p-4 border-t border-slate-200 flex flex-wrap justify-between items-center gap-2 bg-slate-50 rounded-b-2xl">
-        <button id="btn-cancel-modal-wa" type="button" class="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition">
+      <div class="p-3.5 sm:p-4 border-t border-slate-200 flex flex-wrap justify-between items-center gap-2 bg-slate-50 rounded-b-2xl">
+        <button id="btn-cancel-modal-wa" type="button" class="w-full sm:w-auto px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition text-center cursor-pointer">
           Tutup
         </button>
-        <div class="flex items-center space-x-2">
-          <button id="btn-copy-wa-broadcast" type="button" class="px-3.5 py-2 text-xs font-bold bg-slate-800 hover:bg-slate-900 text-white rounded-xl transition flex items-center space-x-1.5 shadow-sm">
+        <div class="flex items-center flex-wrap gap-2 w-full sm:w-auto justify-end">
+          <button id="btn-copy-wa-broadcast" type="button" class="flex-1 sm:flex-initial px-3.5 py-2 text-xs font-bold bg-slate-800 hover:bg-slate-900 text-white rounded-xl transition flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer">
             <span id="copy-wa-icon">📋</span>
             <span id="copy-wa-text">Salin Pesan</span>
           </button>
-          <button id="btn-send-wa-broadcast" type="button" class="px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition flex items-center space-x-1.5 shadow-sm">
+          <button id="btn-send-wa-broadcast" type="button" class="flex-1 sm:flex-initial px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer">
             <span>💬 Buka WhatsApp</span>
           </button>
         </div>
@@ -2284,6 +2308,13 @@
       kalibrasiWaktuServer();
       document.getElementById('exam-empty-placeholder').classList.add('hidden');
       document.getElementById('exam-detail-card').classList.remove('hidden');
+
+      // Scroll mulus ke panel detail jika di layar HP / Tablet (< 1024px)
+      if (window.innerWidth < 1024) {
+        setTimeout(() => {
+          document.getElementById('exam-detail-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 80);
+      }
 
       document.getElementById('detail-exam-title').textContent = u.judul;
       document.getElementById('detail-exam-subject').textContent = `${u.mata_pelajaran} • ${u.tingkat_kelas}`;
@@ -4076,7 +4107,7 @@
         const dupCount = nameFreq[key] || 0;
 
         tr.innerHTML = `
-          <td class="p-3 font-semibold text-slate-900">
+          <td class="p-3 font-semibold text-slate-900 min-w-[150px]">
             <div class="flex items-center space-x-1.5 flex-wrap">
               <span>${escapeHtml(st.nama_siswa)}</span>
               ${dupCount > 1 ? `<span class="bg-rose-100 text-rose-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-rose-200" title="Nama siswa ini terdaftar ${dupCount} kali pengerjaan">⚠️ ${dupCount}x Kirim</span>` : ''}
@@ -4092,8 +4123,8 @@
               ` : ''}
             </div>
           </td>
-          <td class="p-3 text-slate-500">${escapeHtml(st.kelas_siswa)}</td>
-          <td class="p-3">
+          <td class="p-3 text-slate-500 whitespace-nowrap">${escapeHtml(st.kelas_siswa)}</td>
+          <td class="p-3 whitespace-nowrap">
             ${st.submitted_at 
               ? formatWaktuSubmit(st.submitted_at, st.zona_waktu || 'WIB')
               : `<span class="inline-flex items-center text-xs text-slate-400 italic bg-slate-50 px-2 py-0.5 rounded border border-slate-200" title="Jawaban masih berupa draft di server dan belum dikumpulkan">
@@ -4101,7 +4132,7 @@
                  </span>`
             }
           </td>
-          <td class="p-3">
+          <td class="p-3 whitespace-nowrap">
             ${st.status === 'submitted' ? `
               <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${st.total_dinilai >= st.total_jawaban ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
                 ${st.total_dinilai} / ${st.total_jawaban} Selesai
@@ -4120,9 +4151,9 @@
               </span>
             `))}
           </td>
-          <td class="p-3 font-semibold text-purple-700">${st.nilai_ai !== null && st.nilai_ai !== undefined ? st.nilai_ai : '-'}</td>
-          <td class="p-3 font-bold text-blue-600">${st.nilai_final !== null && st.nilai_final !== undefined ? st.nilai_final : '-'}</td>
-          <td class="p-3">
+          <td class="p-3 font-semibold text-purple-700 text-center whitespace-nowrap">${st.nilai_ai !== null && st.nilai_ai !== undefined ? st.nilai_ai : '-'}</td>
+          <td class="p-3 font-bold text-blue-600 text-center whitespace-nowrap">${st.nilai_final !== null && st.nilai_final !== undefined ? st.nilai_final : '-'}</td>
+          <td class="p-3 whitespace-nowrap">
             ${st.status !== 'submitted'
               ? (st.status_kehadiran === 'aktif'
                   ? `<div class="flex items-center space-x-1 flex-wrap">
@@ -4158,8 +4189,8 @@
                 )
             }
           </td>
-          <td class="p-3 text-right">
-            <div class="flex items-center justify-end space-x-1.5">
+          <td class="p-3 text-right whitespace-nowrap">
+            <div class="flex items-center justify-end space-x-1.5 flex-nowrap">
               ${st.status === 'submitted' ? `
                 <button type="button" onclick="runSingleStudentAiReview(${st.pengerjaan_id}, this)" class="text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-semibold px-2 py-1 rounded transition flex items-center space-x-1 cursor-pointer" title="Nilai lembar jawaban siswa ini dengan AI (Perorangan)">
                   <span>✨ Nilai AI</span>
@@ -4511,13 +4542,18 @@
             ` : ''}
           </div>
           <!-- Override Guru -->
-          <div class="flex items-center space-x-2 pt-1">
-            <label class="font-semibold text-slate-700">Skor Final Guru:</label>
-            <input type="number" step="0.5" min="0" max="${j.bobot}" id="input_skor_${j.jawaban_id}" value="${j.skor_final ?? j.skor_rekomendasi ?? 0}" class="w-20 px-2 py-1 rounded border border-slate-300 font-bold text-center">
-            <input type="text" id="input_catatan_${j.jawaban_id}" value="${j.catatan_guru || ''}" placeholder="Catatan guru..." class="flex-1 px-2 py-1 rounded border border-slate-300 text-xs">
-            <button onclick="saveJawabanScore(${j.jawaban_id})" class="px-3 py-1 bg-blue-600 text-white font-semibold rounded hover:bg-blue-700 transition">
-              Simpan
-            </button>
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2 pt-1">
+            <div class="flex items-center space-x-2 shrink-0">
+              <label class="font-semibold text-slate-700">Skor Final:</label>
+              <input type="number" step="0.5" min="0" max="${j.bobot}" id="input_skor_${j.jawaban_id}" value="${j.skor_final ?? j.skor_rekomendasi ?? 0}" class="w-20 px-2.5 py-1.5 rounded-lg border border-slate-300 font-bold text-center text-sm">
+              <span class="text-slate-400 text-xs sm:hidden">/ ${j.bobot}</span>
+            </div>
+            <div class="flex items-center space-x-2 flex-1">
+              <input type="text" id="input_catatan_${j.jawaban_id}" value="${j.catatan_guru || ''}" placeholder="Catatan guru..." class="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs">
+              <button onclick="saveJawabanScore(${j.jawaban_id})" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition shrink-0 cursor-pointer">
+                Simpan
+              </button>
+            </div>
           </div>
         `;
         listContainer.appendChild(item);
