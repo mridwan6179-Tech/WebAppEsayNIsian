@@ -277,6 +277,16 @@
               </div>
             </div>
 
+            <!-- Link Kisi-kisi Ulangan (Opsional) -->
+            <div class="p-2.5 bg-indigo-50/60 rounded-lg border border-indigo-200 space-y-2">
+              <span class="block font-semibold text-indigo-900">📖 Link Kisi-kisi Ulangan (Opsional)</span>
+              <div>
+                <label class="block text-slate-700 text-[11px] mb-1 font-medium">Tautan Dokumen / Materi Kisi-kisi:</label>
+                <input type="url" id="new-exam-link-kisi-kisi" placeholder="https://drive.google.com/... atau tautan kisi-kisi web" class="w-full px-2 py-1 text-xs rounded border border-slate-300">
+                <span class="block text-[10px] text-slate-500 mt-0.5">Siswa dapat langsung membuka dan mempelajari kisi-kisi ini tepat setelah memasukkan kode ulangan sebelum memulai ujian.</span>
+              </div>
+            </div>
+
             <!-- Pengaturan Toleransi Penilaian AI -->
             <div class="p-2.5 bg-emerald-50/70 rounded-lg border border-emerald-200 space-y-2">
               <span class="block font-semibold text-emerald-900">🤖 Toleransi Penilaian AI</span>
@@ -928,6 +938,13 @@
             <textarea id="edit-exam-instruksi-khusus" rows="2" placeholder="Contoh: Wajib sebutkan minimal 2 contoh, jawaban singkat padat tetap nilai penuh..." class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white"></textarea>
             <span class="block text-[10px] text-slate-500 mt-0.5">Kriteria khusus ini akan diprioritaskan AI saat mengevaluasi seluruh jawaban ulangan ini.</span>
           </div>
+        </div>
+
+        <!-- Link Kisi-kisi Ulangan (Opsional) -->
+        <div class="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-200 space-y-2">
+          <label class="block font-bold text-indigo-900 text-xs">📖 Link Kisi-kisi Ulangan (Opsional)</label>
+          <input type="url" id="edit-exam-link-kisi-kisi" placeholder="https://drive.google.com/... atau tautan kisi-kisi web" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white">
+          <span class="block text-[10px] text-slate-500">Siswa dapat langsung membuka dan mempelajari kisi-kisi ini tepat setelah memasukkan kode ulangan sebelum memulai ujian.</span>
         </div>
 
         <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
@@ -1944,6 +1961,7 @@
       const zonaWaktuVal = document.getElementById('new-exam-zona-waktu')?.value || 'WIB';
       const instruksiRemedial = document.getElementById('new-exam-instruksi-remedial').value.trim();
       const linkRemedial = document.getElementById('new-exam-link-remedial').value.trim();
+      const linkKisiKisi = document.getElementById('new-exam-link-kisi-kisi')?.value.trim();
       const izinkanSingkatan = document.getElementById('new-exam-izinkan-singkatan')?.checked ? 1 : 0;
       const izinkanInformal = document.getElementById('new-exam-izinkan-informal')?.checked ? 1 : 0;
       const toleransiTypo = document.getElementById('new-exam-toleransi-typo')?.checked ? 1 : 0;
@@ -1965,6 +1983,7 @@
         kkm: kkmVal ? parseInt(kkmVal, 10) : 75,
         instruksi_remedial: instruksiRemedial || null,
         link_remedial: linkRemedial || null,
+        link_kisi_kisi: linkKisiKisi || null,
         izinkan_singkatan: izinkanSingkatan,
         izinkan_informal: izinkanInformal,
         toleransi_typo: toleransiTypo,
@@ -2286,6 +2305,9 @@
         if (document.getElementById('edit-exam-instruksi-khusus')) {
           document.getElementById('edit-exam-instruksi-khusus').value = u.instruksi_penilaian_khusus || '';
         }
+        if (document.getElementById('edit-exam-link-kisi-kisi')) {
+          document.getElementById('edit-exam-link-kisi-kisi').value = u.link_kisi_kisi || '';
+        }
 
         // Render target kelas checkboxes
         const activeKelasIds = (u.kelas || []).map(k => k.id);
@@ -2355,6 +2377,7 @@
       const toleransiTypo = document.getElementById('edit-exam-toleransi-typo')?.checked ? 1 : 0;
       const instruksiKhusus = document.getElementById('edit-exam-instruksi-khusus')?.value.trim() || null;
       const tampilkanSimbol = document.getElementById('edit-exam-tampilkan-simbol')?.checked ? 1 : 0;
+      const linkKisiKisi = document.getElementById('edit-exam-link-kisi-kisi')?.value.trim();
 
       const selectedKelas = Array.from(document.querySelectorAll('input[name="edit_kelas_choice"]:checked'))
         .map(cb => parseInt(cb.value, 10));
@@ -2378,7 +2401,8 @@
         izinkan_informal: izinkanInformal,
         toleransi_typo: toleransiTypo,
         instruksi_penilaian_khusus: instruksiKhusus,
-        tampilkan_simbol: tampilkanSimbol
+        tampilkan_simbol: tampilkanSimbol,
+        link_kisi_kisi: linkKisiKisi || null
       };
 
       const btnSave = document.getElementById('btn-save-edit-exam');
