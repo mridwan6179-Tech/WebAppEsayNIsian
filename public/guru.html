@@ -220,6 +220,11 @@
                     <input type="number" id="new-exam-limit-essay" min="0" placeholder="Cth: 1" class="w-full px-2 py-1 text-xs rounded border border-slate-300">
                   </div>
                 </div>
+                <div class="mt-1.5">
+                  <label class="block text-[10px] text-slate-500 mb-0.5">🎧 Maks. Soal Listening (Audio) yang Keluar:</label>
+                  <input type="number" id="new-exam-limit-listening" min="0" placeholder="Kosongkan jika bebas (cth: 2)" class="w-full px-2 py-1 text-xs rounded border border-slate-300">
+                  <span class="block text-[10px] text-slate-400 mt-0.5">Membatasi agar siswa tidak mendapatkan terlalu banyak soal audio listening dari bank soal.</span>
+                </div>
                 <span class="block text-[10px] text-slate-400 mt-1">Contoh: Wajib 4 Isian + 1 Essay. Siswa akan otomatis mendapatkan kombinasi acak sesuai ketentuan ini.</span>
                 <div id="new-quota-calc-badge" class="mt-1.5 text-[11px] font-medium"></div>
               </div>
@@ -946,6 +951,11 @@
                 <label class="block text-[10px] text-slate-500 mb-0.5">Wajib Soal Essay:</label>
                 <input type="number" id="edit-exam-limit-essay" min="0" placeholder="Cth: 1" class="w-full px-2 py-1 text-xs rounded border border-slate-300 bg-white">
               </div>
+            </div>
+            <div class="mt-1.5">
+              <label class="block text-[10px] text-slate-500 mb-0.5">🎧 Maks. Soal Listening (Audio) yang Keluar:</label>
+              <input type="number" id="edit-exam-limit-listening" min="0" placeholder="Kosongkan jika bebas (cth: 2)" class="w-full px-2 py-1 text-xs rounded border border-slate-300 bg-white">
+              <span class="block text-[10px] text-slate-400 mt-0.5">Membatasi agar siswa tidak mendapatkan terlalu banyak soal audio listening dari bank soal.</span>
             </div>
             <span class="block text-[10px] text-slate-400">Contoh: Wajib 4 Isian + 1 Essay. Siswa akan otomatis mendapatkan kombinasi acak sesuai ketentuan ini.</span>
             <div id="edit-quota-calc-badge" class="mt-1.5 text-[11px] font-medium"></div>
@@ -1943,22 +1953,25 @@
     }
 
     // Helper sinkronisasi kuota tipe soal dengan batas jumlah total soal
-    function setupQuotaSync(limitId, isianId, essayId, badgeId) {
+    function setupQuotaSync(limitId, isianId, essayId, badgeId, listeningId) {
       const elLimit = document.getElementById(limitId);
       const elIsian = document.getElementById(isianId);
       const elEssay = document.getElementById(essayId);
       const elBadge = document.getElementById(badgeId);
+      const elListening = listeningId ? document.getElementById(listeningId) : null;
       if (!elLimit || !elIsian || !elEssay || !elBadge) return () => {};
 
       function update() {
         let limit = elLimit.value.trim() !== '' ? parseInt(elLimit.value, 10) : null;
         let isian = elIsian.value.trim() !== '' ? parseInt(elIsian.value, 10) : null;
         let essay = elEssay.value.trim() !== '' ? parseInt(elEssay.value, 10) : null;
+        let listening = (elListening && elListening.value.trim() !== '') ? parseInt(elListening.value, 10) : null;
 
         // Terapkan batas max dinamis mengikuti batas jumlah soal siswa
         if (limit !== null && limit > 0) {
           elIsian.max = limit;
           elEssay.max = limit;
+          if (elListening) elListening.max = limit;
 
           if (isian !== null && isian > limit) {
             elIsian.value = limit;
@@ -1968,42 +1981,49 @@
             elEssay.value = limit;
             essay = limit;
           }
+          if (listening !== null && listening > limit) {
+            elListening.value = limit;
+            listening = limit;
+          }
         } else {
           elIsian.removeAttribute('max');
           elEssay.removeAttribute('max');
+          if (elListening) elListening.removeAttribute('max');
         }
 
         const countIsian = isian || 0;
         const countEssay = essay || 0;
         const total = (isian !== null ? countIsian : 0) + (essay !== null ? countEssay : 0);
+        const listeningBadge = (listening !== null) ? `<span class="inline-flex items-center ml-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">🎧 Maks. ${listening} Listening</span>` : '';
 
-        if (isian === null && essay === null) {
+        if (isian === null && essay === null && listening === null) {
           elBadge.innerHTML = '';
           return;
         }
 
         if (limit !== null && limit > 0) {
           if (total === limit) {
-            elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200"><span>✅</span> <span><strong>Pas:</strong> ${countIsian} Isian + ${countEssay} Essay = ${total} / ${limit} Soal</span></span>`;
+            elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200"><span>✅</span> <span><strong>Pas:</strong> ${countIsian} Isian + ${countEssay} Essay = ${total} / ${limit} Soal</span></span> ${listeningBadge}`;
           } else if (total < limit) {
             const sisa = limit - total;
-            elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200"><span>ℹ️</span> <span>${countIsian} Isian + ${countEssay} Essay = ${total} / ${limit} Soal (${sisa} sisa acak bebas)</span></span>`;
+            elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200"><span>ℹ️</span> <span>${countIsian} Isian + ${countEssay} Essay = ${total} / ${limit} Soal (${sisa} sisa acak bebas)</span></span> ${listeningBadge}`;
           } else {
             const lebih = total - limit;
-            elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-red-700 bg-red-50 px-2.5 py-1 rounded-md border border-red-200"><span>⚠️</span> <span><strong>Melebihi Batas!</strong> Total ${total} soal (Batas maks: ${limit}, lebih ${lebih})</span></span>`;
+            elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-red-700 bg-red-50 px-2.5 py-1 rounded-md border border-red-200"><span>⚠️</span> <span><strong>Melebihi Batas!</strong> Total ${total} soal (Batas maks: ${limit}, lebih ${lebih})</span></span> ${listeningBadge}`;
           }
         } else {
-          elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-200"><span>🎯</span> <span>Total kuota: ${total} soal (${countIsian} Isian + ${countEssay} Essay)</span></span>`;
+          elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-200"><span>🎯</span> <span>Total kuota: ${total} soal (${countIsian} Isian + ${countEssay} Essay)</span></span> ${listeningBadge}`;
         }
       }
 
       elLimit.addEventListener('input', update);
       elIsian.addEventListener('input', update);
       elEssay.addEventListener('input', update);
+      if (elListening) elListening.addEventListener('input', update);
       return update;
     }
 
-    const updateNewQuotaSync = setupQuotaSync('new-exam-limit', 'new-exam-limit-isian', 'new-exam-limit-essay', 'new-quota-calc-badge');
+    const updateNewQuotaSync = setupQuotaSync('new-exam-limit', 'new-exam-limit-isian', 'new-exam-limit-essay', 'new-quota-calc-badge', 'new-exam-limit-listening');
 
     // Toggle Form Buat Ulangan
     const formCreateExam = document.getElementById('form-create-exam');
@@ -2020,10 +2040,15 @@
       const limitVal = document.getElementById('new-exam-limit').value.trim();
       const limitIsianVal = document.getElementById('new-exam-limit-isian')?.value.trim();
       const limitEssayVal = document.getElementById('new-exam-limit-essay')?.value.trim();
+      const limitListeningVal = document.getElementById('new-exam-limit-listening')?.value.trim();
 
       if (limitVal && ((limitIsianVal ? parseInt(limitIsianVal, 10) : 0) + (limitEssayVal ? parseInt(limitEssayVal, 10) : 0)) > parseInt(limitVal, 10)) {
         const totalQ = (limitIsianVal ? parseInt(limitIsianVal, 10) : 0) + (limitEssayVal ? parseInt(limitEssayVal, 10) : 0);
         alert(`Total kuota isian (${limitIsianVal || 0}) + essay (${limitEssayVal || 0}) = ${totalQ} butir, melebihi batas jumlah soal siswa (${limitVal} butir)! Silakan sesuaikan.`);
+        return;
+      }
+      if (limitVal && limitListeningVal && parseInt(limitListeningVal, 10) > parseInt(limitVal, 10)) {
+        alert(`Batas soal listening (${limitListeningVal}) melebihi batas jumlah soal siswa (${limitVal} butir)! Silakan sesuaikan.`);
         return;
       }
       const acakChecked = document.getElementById('new-exam-acak').checked;
@@ -2049,6 +2074,7 @@
         jumlah_soal_tampil: limitVal ? parseInt(limitVal, 10) : null,
         jumlah_soal_isian: (limitIsianVal !== undefined && limitIsianVal !== '') ? parseInt(limitIsianVal, 10) : null,
         jumlah_soal_essay: (limitEssayVal !== undefined && limitEssayVal !== '') ? parseInt(limitEssayVal, 10) : null,
+        jumlah_soal_listening: (limitListeningVal !== undefined && limitListeningVal !== '') ? parseInt(limitListeningVal, 10) : null,
         acak_soal: acakChecked ? 1 : 0,
         zona_waktu: zonaWaktuVal,
         tanggal_mulai: startVal || null,
@@ -2082,6 +2108,7 @@
           document.getElementById('new-exam-toggle-kisi-kisi').checked = false;
           toggleNewExamKisiKisi();
         }
+        updateNewQuotaSync();
         formCreateExam.classList.add('hidden');
         loadUlanganList();
         selectUlangan(data.data.id);
@@ -2183,20 +2210,21 @@
       }
 
       const randomInfoEl = document.getElementById('detail-exam-random-info');
-      const hasQuota = (u.jumlah_soal_isian > 0 || u.jumlah_soal_essay > 0);
+      const hasQuota = (u.jumlah_soal_isian > 0 || u.jumlah_soal_essay > 0 || (u.jumlah_soal_listening !== null && u.jumlah_soal_listening !== undefined));
       if (u.acak_soal || u.jumlah_soal_tampil || hasQuota) {
         randomInfoEl.classList.remove('hidden');
         let text = '🎲 ';
         const komposisi = [];
         if (u.jumlah_soal_isian) komposisi.push(`${u.jumlah_soal_isian} Isian`);
         if (u.jumlah_soal_essay) komposisi.push(`${u.jumlah_soal_essay} Essay`);
-        const komposisiText = komposisi.length > 0 ? ` (${komposisi.join(' + ')})` : '';
+        if (u.jumlah_soal_listening !== null && u.jumlah_soal_listening !== undefined) komposisi.push(`Maks. ${u.jumlah_soal_listening} Listening`);
+        const komposisiText = komposisi.length > 0 ? ` (${komposisi.join(', ')})` : '';
 
         const totalTampil = u.jumlah_soal_tampil || (komposisi.length > 0 ? (u.jumlah_soal_isian || 0) + (u.jumlah_soal_essay || 0) : null);
         if (totalTampil) {
           text += `Siswa mengerjakan ${totalTampil} soal acak${komposisiText} (dari ${u.soal?.length || 0} bank soal)`;
         } else if (komposisi.length > 0) {
-          text += `Siswa mengerjakan ${komposisi.join(' + ')} acak (dari ${u.soal?.length || 0} bank soal)`;
+          text += `Siswa mengerjakan ${komposisi.join(', ')} acak (dari ${u.soal?.length || 0} bank soal)`;
         } else {
           text += `Urutan soal diacak per siswa`;
         }
@@ -2476,7 +2504,7 @@
       }
     };
 
-    const updateEditQuotaSync = setupQuotaSync('edit-exam-limit', 'edit-exam-limit-isian', 'edit-exam-limit-essay', 'edit-quota-calc-badge');
+    const updateEditQuotaSync = setupQuotaSync('edit-exam-limit', 'edit-exam-limit-isian', 'edit-exam-limit-essay', 'edit-quota-calc-badge', 'edit-exam-limit-listening');
 
     btnOpenEditExam.onclick = async () => {
       if (!activeUlanganId) return;
@@ -2506,6 +2534,9 @@
         }
         if (document.getElementById('edit-exam-limit-essay')) {
           document.getElementById('edit-exam-limit-essay').value = (u.jumlah_soal_essay !== null && u.jumlah_soal_essay !== undefined) ? u.jumlah_soal_essay : '';
+        }
+        if (document.getElementById('edit-exam-limit-listening')) {
+          document.getElementById('edit-exam-limit-listening').value = (u.jumlah_soal_listening !== null && u.jumlah_soal_listening !== undefined) ? u.jumlah_soal_listening : '';
         }
         document.getElementById('edit-exam-acak').checked = Boolean(u.acak_soal);
         if (document.getElementById('edit-exam-izinkan-singkatan')) {
@@ -2577,10 +2608,15 @@
       const limitVal = document.getElementById('edit-exam-limit').value.trim();
       const limitIsianVal = document.getElementById('edit-exam-limit-isian')?.value.trim();
       const limitEssayVal = document.getElementById('edit-exam-limit-essay')?.value.trim();
+      const limitListeningVal = document.getElementById('edit-exam-limit-listening')?.value.trim();
 
       if (limitVal && ((limitIsianVal ? parseInt(limitIsianVal, 10) : 0) + (limitEssayVal ? parseInt(limitEssayVal, 10) : 0)) > parseInt(limitVal, 10)) {
         const totalQ = (limitIsianVal ? parseInt(limitIsianVal, 10) : 0) + (limitEssayVal ? parseInt(limitEssayVal, 10) : 0);
         alert(`Total kuota isian (${limitIsianVal || 0}) + essay (${limitEssayVal || 0}) = ${totalQ} butir, melebihi batas jumlah soal siswa (${limitVal} butir)! Silakan sesuaikan.`);
+        return;
+      }
+      if (limitVal && limitListeningVal && parseInt(limitListeningVal, 10) > parseInt(limitVal, 10)) {
+        alert(`Batas soal listening (${limitListeningVal}) melebihi batas jumlah soal siswa (${limitVal} butir)! Silakan sesuaikan.`);
         return;
       }
 
@@ -2618,6 +2654,7 @@
         jumlah_soal_tampil: limitVal ? parseInt(limitVal, 10) : null,
         jumlah_soal_isian: (limitIsianVal !== undefined && limitIsianVal !== '') ? parseInt(limitIsianVal, 10) : null,
         jumlah_soal_essay: (limitEssayVal !== undefined && limitEssayVal !== '') ? parseInt(limitEssayVal, 10) : null,
+        jumlah_soal_listening: (limitListeningVal !== undefined && limitListeningVal !== '') ? parseInt(limitListeningVal, 10) : null,
         acak_soal: acakChecked ? 1 : 0,
         kelas_ids: selectedKelas,
         izinkan_singkatan: izinkanSingkatan,

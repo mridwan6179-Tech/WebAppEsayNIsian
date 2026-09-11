@@ -1167,12 +1167,15 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
       lines.push(`*Durasi:* ${ulangan.durasi_menit} Menit`);
     }
 
-    if (ulangan.jumlah_soal_tampil || ulangan.jumlah_soal_isian || ulangan.jumlah_soal_essay) {
+    if (ulangan.jumlah_soal_tampil || ulangan.jumlah_soal_isian || ulangan.jumlah_soal_essay || ulangan.jumlah_soal_listening) {
+      const typeParts = [];
+      if (ulangan.jumlah_soal_isian) typeParts.push(`${ulangan.jumlah_soal_isian} Isian`);
+      if (ulangan.jumlah_soal_essay) typeParts.push(`${ulangan.jumlah_soal_essay} Essay`);
       const parts = [];
-      if (ulangan.jumlah_soal_isian) parts.push(`${ulangan.jumlah_soal_isian} Isian`);
-      if (ulangan.jumlah_soal_essay) parts.push(`${ulangan.jumlah_soal_essay} Essay`);
-      const detail = parts.length > 0 ? ` (${parts.join(' + ')})` : '';
-      const total = ulangan.jumlah_soal_tampil || (parts.length > 0 ? (ulangan.jumlah_soal_isian || 0) + (ulangan.jumlah_soal_essay || 0) : null);
+      if (typeParts.length > 0) parts.push(typeParts.join(' + '));
+      if (ulangan.jumlah_soal_listening) parts.push(`Maks. ${ulangan.jumlah_soal_listening} Listening`);
+      const detail = parts.length > 0 ? ` (${parts.join(', ')})` : '';
+      const total = ulangan.jumlah_soal_tampil || (typeParts.length > 0 ? (ulangan.jumlah_soal_isian || 0) + (ulangan.jumlah_soal_essay || 0) : null);
       if (total) {
         lines.push(`*Jumlah Soal:* ${total} Soal Acak${detail}`);
       }

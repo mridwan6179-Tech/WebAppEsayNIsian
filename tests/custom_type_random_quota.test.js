@@ -217,4 +217,66 @@ test('T-24: Fitur Distribusi & Kuota Wajib per Tipe Soal saat Pengacakan (misal:
       });
     }, /tidak boleh melebihi batas jumlah soal siswa/);
   });
+
+  await t.test('10. Penolakan validasi jika kuota batas listening melebihi batas jumlah soal siswa', () => {
+    assert.throws(() => {
+      examService.createUlangan(guru.id, {
+        judul: 'Ulangan Invalid Listening',
+        mata_pelajaran: 'Bahasa Inggris',
+        tingkat_kelas: 'Kelas 8',
+        jumlah_soal_tampil: 5,
+        jumlah_soal_listening: 7
+      });
+    }, /Batas soal listening/);
+
+    assert.throws(() => {
+      examService.updateUlangan(ulangan.id, guru.id, {
+        jumlah_soal_tampil: 10,
+        jumlah_soal_listening: 12
+      });
+    }, /Batas soal listening/);
+  });
+
+  await t.test('11. Batas kuota soal listening ditaati secara akurat dalam pembagian paket soal siswa', () => {
+    const examListening = examService.createUlangan(guru.id, {
+      judul: 'Ulangan Listening Quota Test',
+      mata_pelajaran: 'Bahasa Inggris',
+      tingkat_kelas: 'Kelas 8',
+      jumlah_soal_tampil: 5,
+      jumlah_soal_isian: 3,
+      jumlah_soal_essay: 2,
+      jumlah_soal_listening: 2,
+      acak_soal: 1
+    });
+
+    // Buat 4 listening dan 6 non-listening
+    examService.createSoal(examListening.id, { nomor: 1, jenis: 'isian', pertanyaan: 'Listen 1', bobot: 20, urutan: 1, is_listening: 1, audio_url: '/a1.mp3' });
+    examService.createSoal(examListening.id, { nomor: 2, jenis: 'isian', pertanyaan: 'Listen 2', bobot: 20, urutan: 2, is_listening: 1, audio_url: '/a2.mp3' });
+    examService.createSoal(examListening.id, { nomor: 3, jenis: 'essay', pertanyaan: 'Listen 3', bobot: 20, urutan: 3, is_listening: 1, audio_url: '/a3.mp3' });
+    examService.createSoal(examListening.id, { nomor: 4, jenis: 'essay', pertanyaan: 'Listen 4', bobot: 20, urutan: 4, is_listening: 1, audio_url: '/a4.mp3' });
+
+    examService.createSoal(examListening.id, { nomor: 5, jenis: 'isian', pertanyaan: 'Read 1', bobot: 20, urutan: 5, is_listening: 0 });
+    examService.createSoal(examListening.id, { nomor: 6, jenis: 'isian', pertanyaan: 'Read 2', bobot: 20, urutan: 6, is_listening: 0 });
+    examService.createSoal(examListening.id, { nomor: 7, jenis: 'isian', pertanyaan: 'Read 3', bobot: 20, urutan: 7, is_listening: 0 });
+    examService.createSoal(examListening.id, { nomor: 8, jenis: 'essay', pertanyaan: 'Read 4', bobot: 20, urutan: 8, is_listening: 0 });
+    examService.createSoal(examListening.id, { nomor: 9, jenis: 'essay', pertanyaan: 'Read 5', bobot: 20, urutan: 9, is_listening: 0 });
+    examService.createSoal(examListening.id, { nomor: 10, jenis: 'essay', pertanyaan: 'Read 6', bobot: 20, urutan: 10, is_listening: 0 });
+
+    examService.updateUlangan(examListening.id, guru.id, { status: 'dibuka' });
+
+    const studentA = studentService.startExam(examListening.kode_ujian, 'Student Listening A', '8A');
+    assert.strictEqual(studentA.soal.length, 5);
+    const listeningCount = studentA.soal.filter(s => Number(s.is_listening) === 1).length;
+    assert.ok(listeningCount <= 2, `Listening count (${listeningCount}) must not exceed 2`);
+    const isianCount = studentA.soal.filter(s => s.jenis === 'isian').length;
+    const essayCount = studentA.soal.filter(s => s.jenis === 'essay').length;
+    assert.strictEqual(isianCount, 3);
+    assert.strictEqual(essayCount, 2);
+
+    // Format broadcast WhatsApp
+    const geminiService = require('../src/services/geminiService');
+    const uUpdated = examService.getUlanganById(examListening.id, guru.id);
+    const broadcastText = geminiService.formatDefaultWhatsAppBroadcast(uUpdated, 'https://contoh.sch.id');
+    assert.ok(broadcastText.includes('Maks. 2 Listening'));
+  });
 });

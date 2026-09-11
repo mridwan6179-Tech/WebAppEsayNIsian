@@ -9,7 +9,7 @@ const studentService = {
     }
 
     const cleanCode = kodeUjian.trim().toUpperCase();
-    const ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, tampilkan_kisi_kisi FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
+    const ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, tampilkan_kisi_kisi FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
 
     if (!ulangan) {
       return { valid: false, message: 'Kode ulangan tidak ditemukan' };
@@ -120,6 +120,7 @@ const studentService = {
         jumlah_soal_tampil: ulangan.jumlah_soal_tampil,
         jumlah_soal_isian: ulangan.jumlah_soal_isian,
         jumlah_soal_essay: ulangan.jumlah_soal_essay,
+        jumlah_soal_listening: ulangan.jumlah_soal_listening,
         acak_soal: ulangan.acak_soal,
         tanggal_mulai: ulangan.tanggal_mulai,
         tanggal_selesai: ulangan.tanggal_selesai,
@@ -184,7 +185,7 @@ const studentService = {
       }
     }
 
-    const ulanganInfo = db.prepare('SELECT jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, acak_soal FROM ulangan WHERE id = ?').get(ulanganId);
+    const ulanganInfo = db.prepare('SELECT jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, acak_soal FROM ulangan WHERE id = ?').get(ulanganId);
     let soalList = [];
 
     if (Array.isArray(assignedQuestionIds) && assignedQuestionIds.length > 0) {
@@ -210,24 +211,96 @@ const studentService = {
       const limitSoal = ulanganInfo?.jumlah_soal_tampil;
       const targetIsian = ulanganInfo?.jumlah_soal_isian;
       const targetEssay = ulanganInfo?.jumlah_soal_essay;
+      const targetListening = (ulanganInfo?.jumlah_soal_listening !== undefined && ulanganInfo?.jumlah_soal_listening !== null)
+        ? Math.max(0, Number(ulanganInfo.jumlah_soal_listening))
+        : null;
       const hasSpecificQuota = (targetIsian !== null && targetIsian !== undefined && targetIsian > 0) ||
                                (targetEssay !== null && targetEssay !== undefined && targetEssay > 0);
+      const hasListeningLimit = (targetListening !== null);
       const isAcak = (ulanganInfo?.acak_soal === 1);
-      const needRandom = isAcak || (limitSoal && limitSoal < allQuestions.length) || hasSpecificQuota;
+      const needRandom = isAcak || (limitSoal && limitSoal < allQuestions.length) || hasSpecificQuota || hasListeningLimit;
 
-      if (hasSpecificQuota) {
+      const shuffleArr = (arr) => {
+        const res = [...arr];
+        for (let i = res.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [res[i], res[j]] = [res[j], res[i]];
+        }
+        return res;
+      };
+
+      if (hasListeningLimit) {
+        // Kuota khusus soal listening: pisahkan pool listening dan non-listening
+        const listeningPool = allQuestions.filter(q => Number(q.is_listening) === 1);
+        const nonListeningPool = allQuestions.filter(q => Number(q.is_listening) !== 1);
+
+        const maxListening = Math.min(targetListening, listeningPool.length);
+        const readyListening = (isAcak || maxListening < listeningPool.length) ? shuffleArr(listeningPool) : [...listeningPool];
+        const selectedListening = readyListening.slice(0, maxListening);
+
+        if (hasSpecificQuota) {
+          const listeningIsianCount = selectedListening.filter(q => q.jenis === 'isian').length;
+          const listeningEssayCount = selectedListening.filter(q => q.jenis === 'essay').length;
+
+          const neededIsian = (targetIsian !== null && targetIsian !== undefined && targetIsian > 0)
+            ? Math.max(0, targetIsian - listeningIsianCount)
+            : 0;
+          const neededEssay = (targetEssay !== null && targetEssay !== undefined && targetEssay > 0)
+            ? Math.max(0, targetEssay - listeningEssayCount)
+            : 0;
+
+          const nonListeningIsian = nonListeningPool.filter(q => q.jenis === 'isian');
+          const nonListeningEssay = nonListeningPool.filter(q => q.jenis === 'essay');
+
+          const readyNonIsian = (isAcak || neededIsian < nonListeningIsian.length) ? shuffleArr(nonListeningIsian) : [...nonListeningIsian];
+          const readyNonEssay = (isAcak || neededEssay < nonListeningEssay.length) ? shuffleArr(nonListeningEssay) : [...nonListeningEssay];
+
+          const selectedIsian = readyNonIsian.slice(0, Math.min(neededIsian, readyNonIsian.length));
+          const selectedEssay = readyNonEssay.slice(0, Math.min(neededEssay, readyNonEssay.length));
+
+          let combined = [...selectedListening, ...selectedIsian, ...selectedEssay];
+
+          // Jika ada limitSoal total yang lebih besar dari kuota wajib, penuhi dari nonListeningPool
+          if (limitSoal && limitSoal > combined.length) {
+            const chosenIds = new Set(combined.map(s => s.id));
+            const unchosenNon = nonListeningPool.filter(q => !chosenIds.has(q.id));
+            const remainingPool = isAcak ? shuffleArr(unchosenNon) : unchosenNon;
+            const needed = limitSoal - combined.length;
+            combined.push(...remainingPool.slice(0, needed));
+          } else if (limitSoal && limitSoal < combined.length) {
+            combined = combined.slice(0, limitSoal);
+          }
+
+          if (isAcak) {
+            soalList = shuffleArr(combined);
+          } else {
+            combined.sort((a, b) => (a.urutan - b.urutan) || (a.nomor - b.nomor));
+            soalList = combined;
+          }
+        } else {
+          // Tanpa kuota isian/essay spesifik: sisa diambil dari nonListeningPool
+          const targetTotal = limitSoal ? limitSoal : (selectedListening.length + nonListeningPool.length);
+          const remainingNeeded = Math.max(0, targetTotal - selectedListening.length);
+
+          const readyNonListening = (isAcak || remainingNeeded < nonListeningPool.length) ? shuffleArr(nonListeningPool) : [...nonListeningPool];
+          const selectedNonListening = readyNonListening.slice(0, remainingNeeded);
+
+          let combined = [...selectedListening, ...selectedNonListening];
+          if (limitSoal && combined.length > limitSoal) {
+            combined = combined.slice(0, limitSoal);
+          }
+
+          if (isAcak) {
+            soalList = shuffleArr(combined);
+          } else {
+            combined.sort((a, b) => (a.urutan - b.urutan) || (a.nomor - b.nomor));
+            soalList = combined;
+          }
+        }
+      } else if (hasSpecificQuota) {
         // Kuota wajib per jenis soal: pisahkan bank isian dan essay
         const isianPool = allQuestions.filter(q => q.jenis === 'isian');
         const essayPool = allQuestions.filter(q => q.jenis === 'essay');
-
-        const shuffleArr = (arr) => {
-          const res = [...arr];
-          for (let i = res.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [res[i], res[j]] = [res[j], res[i]];
-          }
-          return res;
-        };
 
         const readyIsian = (isAcak || (targetIsian && targetIsian < isianPool.length)) ? shuffleArr(isianPool) : [...isianPool];
         const readyEssay = (isAcak || (targetEssay && targetEssay < essayPool.length)) ? shuffleArr(essayPool) : [...essayPool];
@@ -590,7 +663,7 @@ const studentService = {
     const pengerjaan = db.prepare(`
       SELECT p.*, u.id as ulangan_id, u.judul, u.mata_pelajaran, u.tingkat_kelas, u.deskripsi,
              u.kode_ujian, u.durasi_menit, u.tanggal_mulai, u.tanggal_selesai, u.kkm, u.zona_waktu,
-             u.tampilkan_simbol, u.link_kisi_kisi, u.tampilkan_kisi_kisi, pes.id as peserta_id, pes.nama as nama_peserta, pes.kelas as kelas_peserta
+             u.tampilkan_simbol, u.link_kisi_kisi, u.tampilkan_kisi_kisi, u.jumlah_soal_listening, pes.id as peserta_id, pes.nama as nama_peserta, pes.kelas as kelas_peserta
       FROM pengerjaan p
       JOIN ulangan u ON p.ulangan_id = u.id
       JOIN peserta pes ON p.peserta_id = pes.id
@@ -697,7 +770,8 @@ const studentService = {
         zona_waktu: pengerjaan.zona_waktu || 'WIB',
         tampilkan_simbol: (pengerjaan.tampilkan_simbol !== undefined && pengerjaan.tampilkan_simbol !== null) ? Number(pengerjaan.tampilkan_simbol) : 1,
         link_kisi_kisi: (pengerjaan.tampilkan_kisi_kisi && pengerjaan.link_kisi_kisi) ? pengerjaan.link_kisi_kisi : null,
-        tampilkan_kisi_kisi: (pengerjaan.tampilkan_kisi_kisi && pengerjaan.link_kisi_kisi) ? 1 : 0
+        tampilkan_kisi_kisi: (pengerjaan.tampilkan_kisi_kisi && pengerjaan.link_kisi_kisi) ? 1 : 0,
+        jumlah_soal_listening: pengerjaan.jumlah_soal_listening
       },
       deadline_at: deadlineAt ? deadlineAt.toISOString() : null,
       server_time: new Date().toISOString(),

@@ -94,6 +94,7 @@ const examService = {
       : 'WIB';
     const cleanIsian = (jumlah_soal_isian !== undefined && jumlah_soal_isian !== null && jumlah_soal_isian !== '') ? Math.max(0, Number(jumlah_soal_isian)) : null;
     const cleanEssay = (jumlah_soal_essay !== undefined && jumlah_soal_essay !== null && jumlah_soal_essay !== '') ? Math.max(0, Number(jumlah_soal_essay)) : null;
+    const cleanListening = (data.jumlah_soal_listening !== undefined && data.jumlah_soal_listening !== null && data.jumlah_soal_listening !== '') ? Math.max(0, Number(data.jumlah_soal_listening)) : null;
     let limitSoal = (jumlah_soal_tampil !== undefined && jumlah_soal_tampil !== null && jumlah_soal_tampil !== '') ? Math.max(1, Number(jumlah_soal_tampil)) : null;
     if (!limitSoal && ((cleanIsian && cleanIsian > 0) || (cleanEssay && cleanEssay > 0))) {
       limitSoal = (cleanIsian || 0) + (cleanEssay || 0);
@@ -101,7 +102,10 @@ const examService = {
     if (limitSoal && ((cleanIsian || 0) + (cleanEssay || 0) > limitSoal)) {
       throw new Error(`Total kuota wajib (${(cleanIsian || 0) + (cleanEssay || 0)} soal) tidak boleh melebihi batas jumlah soal siswa (${limitSoal} soal)`);
     }
-    const isAcak = (acak_soal !== undefined && acak_soal !== null) ? (acak_soal ? 1 : 0) : ((limitSoal || cleanIsian || cleanEssay) ? 1 : 0);
+    if (limitSoal && cleanListening !== null && cleanListening > limitSoal) {
+      throw new Error(`Batas soal listening (${cleanListening} soal) tidak boleh melebihi batas jumlah soal siswa (${limitSoal} soal)`);
+    }
+    const isAcak = (acak_soal !== undefined && acak_soal !== null) ? (acak_soal ? 1 : 0) : ((limitSoal || cleanIsian || cleanEssay || cleanListening !== null) ? 1 : 0);
     const cleanTanggalMulai = tanggal_mulai ? this.parseIndonesianDateTime(tanggal_mulai, cleanZonaWaktu) : null;
     const cleanTanggalSelesai = tanggal_selesai ? this.parseIndonesianDateTime(tanggal_selesai, cleanZonaWaktu) : null;
     const cleanDurasi = (durasi_menit !== undefined && durasi_menit !== null && durasi_menit !== '') ? Math.max(1, Number(durasi_menit)) : null;
@@ -117,12 +121,12 @@ const examService = {
     const tampilkanKisiKisi = (data.tampilkan_kisi_kisi !== undefined && data.tampilkan_kisi_kisi !== null) ? (data.tampilkan_kisi_kisi ? 1 : 0) : (cleanLinkKisiKisi ? 1 : 0);
 
     const stmt = db.prepare(`
-      INSERT INTO ulangan (guru_id, judul, mata_pelajaran, tingkat_kelas, deskripsi, kode_ujian, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, instruksi_remedial, link_remedial, zona_waktu, izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus, tampilkan_simbol, link_kisi_kisi, tampilkan_kisi_kisi)
-      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO ulangan (guru_id, judul, mata_pelajaran, tingkat_kelas, deskripsi, kode_ujian, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, instruksi_remedial, link_remedial, zona_waktu, izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus, tampilkan_simbol, link_kisi_kisi, tampilkan_kisi_kisi)
+      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
       guruId, judul, mata_pelajaran, tingkat_kelas, deskripsi || '', kode_ujian,
-      limitSoal, cleanIsian, cleanEssay, isAcak, cleanTanggalMulai, cleanTanggalSelesai, cleanDurasi,
+      limitSoal, cleanIsian, cleanEssay, cleanListening, isAcak, cleanTanggalMulai, cleanTanggalSelesai, cleanDurasi,
       cleanKkm, cleanInstruksiRemedial, cleanLinkRemedial, cleanZonaWaktu,
       izinkanSingkatan, izinkanInformal, toleransiTypo, cleanInstruksiKhusus, tampilkanSimbol, cleanLinkKisiKisi, tampilkanKisiKisi
     );
@@ -219,12 +223,17 @@ const examService = {
       updates.push('jumlah_soal_essay = ?');
       params.push(limitEssay);
     }
+    if (data.jumlah_soal_listening !== undefined) {
+      const limitListening = (data.jumlah_soal_listening !== null && data.jumlah_soal_listening !== '') ? Math.max(0, Number(data.jumlah_soal_listening)) : null;
+      updates.push('jumlah_soal_listening = ?');
+      params.push(limitListening);
+    }
     if (acak_soal !== undefined) {
       updates.push('acak_soal = ?');
       params.push(acak_soal ? 1 : 0);
     }
     // Validasi kuota tipe soal tidak boleh melebihi batas jumlah soal siswa
-    const existingRow = db.prepare('SELECT jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, zona_waktu FROM ulangan WHERE id = ?').get(id);
+    const existingRow = db.prepare('SELECT jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, zona_waktu FROM ulangan WHERE id = ?').get(id);
     const finalLimit = jumlah_soal_tampil !== undefined 
       ? ((jumlah_soal_tampil !== null && jumlah_soal_tampil !== '') ? Math.max(1, Number(jumlah_soal_tampil)) : null)
       : existingRow?.jumlah_soal_tampil;
@@ -234,9 +243,15 @@ const examService = {
     const finalEssay = data.jumlah_soal_essay !== undefined
       ? ((data.jumlah_soal_essay !== null && data.jumlah_soal_essay !== '') ? Math.max(0, Number(data.jumlah_soal_essay)) : 0)
       : (existingRow?.jumlah_soal_essay || 0);
+    const finalListening = data.jumlah_soal_listening !== undefined
+      ? ((data.jumlah_soal_listening !== null && data.jumlah_soal_listening !== '') ? Math.max(0, Number(data.jumlah_soal_listening)) : null)
+      : (existingRow?.jumlah_soal_listening !== undefined ? existingRow.jumlah_soal_listening : null);
 
     if (finalLimit && (finalIsian + finalEssay > finalLimit)) {
       throw new Error(`Total kuota wajib (${finalIsian + finalEssay} soal) tidak boleh melebihi batas jumlah soal siswa (${finalLimit} soal)`);
+    }
+    if (finalLimit && finalListening !== null && finalListening > finalLimit) {
+      throw new Error(`Batas soal listening (${finalListening} soal) tidak boleh melebihi batas jumlah soal siswa (${finalLimit} soal)`);
     }
 
     let currentZw = data.zona_waktu;
