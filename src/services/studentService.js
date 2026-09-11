@@ -9,7 +9,7 @@ const studentService = {
     }
 
     const cleanCode = kodeUjian.trim().toUpperCase();
-    const ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
+    const ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, tampilkan_kisi_kisi FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
 
     if (!ulangan) {
       return { valid: false, message: 'Kode ulangan tidak ditemukan' };
@@ -127,7 +127,8 @@ const studentService = {
         kkm: ulangan.kkm || 75,
         zona_waktu: ulangan.zona_waktu || 'WIB',
         tampilkan_simbol: (ulangan.tampilkan_simbol !== undefined && ulangan.tampilkan_simbol !== null) ? Number(ulangan.tampilkan_simbol) : 1,
-        link_kisi_kisi: ulangan.link_kisi_kisi || null,
+        link_kisi_kisi: (ulangan.tampilkan_kisi_kisi && ulangan.link_kisi_kisi) ? ulangan.link_kisi_kisi : null,
+        tampilkan_kisi_kisi: (ulangan.tampilkan_kisi_kisi && ulangan.link_kisi_kisi) ? 1 : 0,
         available_classes: kelasList
       }
     };
@@ -589,7 +590,7 @@ const studentService = {
     const pengerjaan = db.prepare(`
       SELECT p.*, u.id as ulangan_id, u.judul, u.mata_pelajaran, u.tingkat_kelas, u.deskripsi,
              u.kode_ujian, u.durasi_menit, u.tanggal_mulai, u.tanggal_selesai, u.kkm, u.zona_waktu,
-             u.tampilkan_simbol, u.link_kisi_kisi, pes.id as peserta_id, pes.nama as nama_peserta, pes.kelas as kelas_peserta
+             u.tampilkan_simbol, u.link_kisi_kisi, u.tampilkan_kisi_kisi, pes.id as peserta_id, pes.nama as nama_peserta, pes.kelas as kelas_peserta
       FROM pengerjaan p
       JOIN ulangan u ON p.ulangan_id = u.id
       JOIN peserta pes ON p.peserta_id = pes.id
@@ -695,7 +696,8 @@ const studentService = {
         kkm: pengerjaan.kkm || 75,
         zona_waktu: pengerjaan.zona_waktu || 'WIB',
         tampilkan_simbol: (pengerjaan.tampilkan_simbol !== undefined && pengerjaan.tampilkan_simbol !== null) ? Number(pengerjaan.tampilkan_simbol) : 1,
-        link_kisi_kisi: pengerjaan.link_kisi_kisi || null
+        link_kisi_kisi: (pengerjaan.tampilkan_kisi_kisi && pengerjaan.link_kisi_kisi) ? pengerjaan.link_kisi_kisi : null,
+        tampilkan_kisi_kisi: (pengerjaan.tampilkan_kisi_kisi && pengerjaan.link_kisi_kisi) ? 1 : 0
       },
       deadline_at: deadlineAt ? deadlineAt.toISOString() : null,
       server_time: new Date().toISOString(),

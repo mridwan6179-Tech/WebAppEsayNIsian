@@ -433,10 +433,11 @@
           document.getElementById('exam-found-meta').textContent = `${data.ulangan.mata_pelajaran} • ${countText} • KKM: ${data.ulangan.kkm || 75}`;
           examFoundInfo.classList.remove('hidden');
 
-          // Tampilkan tombol kisi-kisi jika guru menyertakan link kisi-kisi
+          // Tampilkan tombol kisi-kisi hanya jika status kisi-kisi dihidupkan guru dan tautan tersedia
           const kisiContainer = document.getElementById('kisi-kisi-container');
           const btnKisi = document.getElementById('btn-kisi-kisi');
-          if (data.ulangan.link_kisi_kisi && data.ulangan.link_kisi_kisi.trim()) {
+          const isKisiAktif = (data.ulangan.tampilkan_kisi_kisi === 1 || data.ulangan.tampilkan_kisi_kisi === true) && data.ulangan.link_kisi_kisi && data.ulangan.link_kisi_kisi.trim();
+          if (isKisiAktif) {
             if (kisiContainer && btnKisi) {
               btnKisi.href = data.ulangan.link_kisi_kisi.trim();
               kisiContainer.classList.remove('hidden');
