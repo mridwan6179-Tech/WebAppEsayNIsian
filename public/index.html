@@ -245,6 +245,78 @@
           <p class="text-[11px] text-amber-100 leading-snug">Kerjakan secara mandiri. Penempelan teks (copy-paste) dicatat oleh sistem pengawas!</p>
         </div>
       </div>
+
+      <!-- Modal Konfirmasi Selesai Ujian -->
+      <div id="modal-confirm-submit" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 sm:p-6 space-y-4 border border-slate-100 transform transition-all animate-in fade-in zoom-in-95 duration-150">
+          <div class="flex items-start space-x-3">
+            <div class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 text-2xl font-bold shadow-2xs">
+              ✓
+            </div>
+            <div>
+              <h3 class="text-base sm:text-lg font-bold text-slate-900 leading-snug">Konfirmasi Penyelesaian Ujian</h3>
+              <p class="text-xs text-slate-500 mt-0.5">Apakah Anda yakin ingin menyelesaikan dan mengumpulkan ujian ini sekarang?</p>
+            </div>
+          </div>
+
+          <!-- Ringkasan Status Pengerjaan Soal -->
+          <div class="bg-slate-50 rounded-xl p-3.5 border border-slate-200 text-xs space-y-2">
+            <div class="flex justify-between items-center pb-1.5 border-b border-slate-200/60">
+              <span class="text-slate-600 font-medium">Total Soal Ujian:</span>
+              <span id="confirm-total-soal" class="font-bold text-slate-800">0 Soal</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-slate-600 font-medium">Sudah Terisi:</span>
+              <span id="confirm-terisi-soal" class="font-bold text-emerald-600">0 Soal</span>
+            </div>
+            <div id="confirm-kosong-row" class="flex justify-between items-center hidden">
+              <span class="text-amber-700 font-medium flex items-center space-x-1">
+                <span>⚠️</span>
+                <span>Belum Terisi:</span>
+              </span>
+              <span id="confirm-kosong-soal" class="font-bold text-amber-600">0 Soal</span>
+            </div>
+            <div id="confirm-kosong-warning" class="hidden text-[11px] text-amber-800 bg-amber-50 p-2.5 rounded-lg border border-amber-200 leading-relaxed font-medium">
+              ⚠️ <strong>Perhatian:</strong> Masih ada butir soal yang belum Anda jawab. Anda tetap dapat mengumpulkan, namun soal yang kosong akan bernilai 0.
+            </div>
+          </div>
+
+          <p class="text-[11px] text-slate-400 italic leading-relaxed">
+            Catatan: Setelah dikumpulkan, lembar ujian akan dikunci dan seluruh jawaban Anda diserahkan secara permanen ke guru.
+          </p>
+
+          <div class="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2 border-t border-slate-100">
+            <button type="button" id="btn-cancel-confirm-submit" class="w-full sm:w-auto px-4 py-2.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer text-center">
+              Periksa Kembali
+            </button>
+            <button type="button" id="btn-proceed-confirm-submit" class="w-full sm:w-auto px-5 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer flex items-center justify-center space-x-1.5">
+              <span>Ya, Kumpulkan Ujian</span>
+              <span>→</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Overlay Loading Proses Pengumpulan Jawaban -->
+      <div id="submit-loading-overlay" class="hidden fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-white text-center">
+        <div class="bg-white text-slate-800 p-6 sm:p-7 rounded-2xl shadow-2xl max-w-sm w-full space-y-4 border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+          <div class="relative w-14 h-14 mx-auto">
+            <div class="w-14 h-14 rounded-full border-4 border-emerald-200 border-t-emerald-600 animate-spin"></div>
+            <div class="absolute inset-0 flex items-center justify-center text-lg">
+              📝
+            </div>
+          </div>
+          <div>
+            <h3 id="submit-overlay-title" class="text-base font-bold text-slate-900">Mengumpulkan Jawaban...</h3>
+            <p id="submit-overlay-desc" class="text-xs text-slate-500 mt-1 leading-relaxed">
+              Menyimpan seluruh jawaban Anda ke server secara aman. Mohon jangan menutup halaman ini...
+            </p>
+          </div>
+          <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+            <div class="bg-emerald-600 h-1.5 rounded-full animate-pulse w-full"></div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- STEP 3: Sukses Pengumpulan & Tampilan Hasil -->
@@ -258,11 +330,19 @@
       </div>
 
       <!-- Kotak Status Penilaian / Nilai -->
-      <div id="result-box" class="p-5 rounded-xl border text-center my-4 bg-slate-50 border-slate-200">
-        <p class="text-sm text-slate-600 mb-2">Status Penilaian:</p>
-        <div id="result-status-content">
-          <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 mb-2">Sedang Diproses Guru & AI</span>
-          <p class="text-xs text-slate-500">Hasil nilai akan tampil di sini begitu guru menyelesaikan review dan merilis pengumuman nilai.</p>
+      <div id="result-box" class="p-5 rounded-xl border text-center my-4 bg-slate-50 border-slate-200 space-y-3">
+        <div>
+          <p class="text-sm text-slate-600 mb-2">Status Penilaian:</p>
+          <div id="result-status-content">
+            <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 mb-2">Sedang Diproses Guru & AI</span>
+            <p class="text-xs text-slate-500">Hasil nilai akan tampil di sini begitu guru menyelesaikan review dan merilis pengumuman nilai.</p>
+          </div>
+        </div>
+        <div class="pt-1">
+          <button id="btn-refresh-status-nilai" type="button" class="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition shadow-2xs cursor-pointer">
+            <span>🔄</span>
+            <span>Periksa Pembaruan Nilai</span>
+          </button>
         </div>
       </div>
 
@@ -1382,13 +1462,25 @@
       if (isSubmitting) return;
       isSubmitting = true;
 
+      if (typeof closeConfirmSubmitModal === 'function') {
+        closeConfirmSubmitModal();
+      }
+
+      const overlay = document.getElementById('submit-loading-overlay');
+      if (overlay) {
+        const titleEl = document.getElementById('submit-overlay-title');
+        const descEl = document.getElementById('submit-overlay-desc');
+        if (titleEl) titleEl.textContent = 'Waktu Habis! Mengumpulkan...';
+        if (descEl) descEl.textContent = 'Waktu pengerjaan telah berakhir. Jawaban Anda sedang dikumpulkan secara otomatis ke server...';
+        overlay.classList.remove('hidden');
+      }
+
       const btn = document.getElementById('btn-submit');
       if (btn) {
         btn.disabled = true;
         btn.textContent = 'Waktu Habis! Mengumpulkan...';
       }
 
-      alert('Waktu pengerjaan telah habis! Jawaban Anda sedang dikumpulkan secara otomatis ke server.');
       await doSubmit(true);
     }
 
@@ -1694,21 +1786,107 @@
       }
     }
 
+    // Modal Konfirmasi Selesai Ujian
+    function openConfirmSubmitModal() {
+      const modal = document.getElementById('modal-confirm-submit');
+      if (!modal) {
+        if (confirm('Apakah Anda yakin ingin menyelesaikan dan mengumpulkan ujian ini sekarang?')) {
+          doSubmit(false);
+        }
+        return;
+      }
+
+      // Kumpulkan draft jika ada untuk perhitungan akurat
+      const draftKey = `ulangan_draft_${currentPengerjaanId}`;
+      let savedDraftObj = {};
+      try {
+        const savedDraftStr = localStorage.getItem(draftKey);
+        if (savedDraftStr) savedDraftObj = JSON.parse(savedDraftStr);
+      } catch (e) {}
+
+      const inputs = document.querySelectorAll('#questions-container [data-soal-id]');
+      const total = inputs.length;
+      let filled = 0;
+
+      inputs.forEach(input => {
+        const sId = Number(input.dataset.soalId);
+        const textVal = (input.value || '').trim() || (savedDraftObj[sId] ? String(savedDraftObj[sId]).trim() : '');
+        if (textVal !== '') filled++;
+      });
+
+      const empty = Math.max(0, total - filled);
+
+      const totalEl = document.getElementById('confirm-total-soal');
+      const terisiEl = document.getElementById('confirm-terisi-soal');
+      const kosongRow = document.getElementById('confirm-kosong-row');
+      const kosongEl = document.getElementById('confirm-kosong-soal');
+      const kosongWarn = document.getElementById('confirm-kosong-warning');
+
+      if (totalEl) totalEl.textContent = `${total} Soal`;
+      if (terisiEl) terisiEl.textContent = `${filled} Soal`;
+
+      if (empty > 0) {
+        if (kosongRow) kosongRow.classList.remove('hidden');
+        if (kosongEl) kosongEl.textContent = `${empty} Soal`;
+        if (kosongWarn) {
+          kosongWarn.classList.remove('hidden');
+          kosongWarn.innerHTML = `⚠️ <strong>Perhatian:</strong> Masih ada <strong>${empty} butir soal</strong> yang belum Anda jawab. Anda tetap dapat mengumpulkan, namun soal kosong bernilai 0.`;
+        }
+      } else {
+        if (kosongRow) kosongRow.classList.add('hidden');
+        if (kosongWarn) kosongWarn.classList.add('hidden');
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeConfirmSubmitModal() {
+      const modal = document.getElementById('modal-confirm-submit');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    document.getElementById('btn-cancel-confirm-submit')?.addEventListener('click', closeConfirmSubmitModal);
+    document.getElementById('btn-proceed-confirm-submit')?.addEventListener('click', () => {
+      closeConfirmSubmitModal();
+      doSubmit(false);
+    });
+    document.getElementById('modal-confirm-submit')?.addEventListener('click', (e) => {
+      if (e.target.id === 'modal-confirm-submit') closeConfirmSubmitModal();
+    });
+
     async function doSubmit(isAutoSubmit = false) {
+      if (isSubmitting && !isAutoSubmit) return;
+      isSubmitting = true;
+
+      closeConfirmSubmitModal();
+
       if (window.speechSynthesis) {
         window.speechSynthesis.cancel();
       }
       document.querySelectorAll('audio').forEach(a => { if (!a.paused) a.pause(); });
+      clearTimeout(syncServerTimer);
+      stopHeartbeat();
+
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
+
+      const overlay = document.getElementById('submit-loading-overlay');
+      if (overlay) {
+        if (!isAutoSubmit) {
+          const titleEl = document.getElementById('submit-overlay-title');
+          const descEl = document.getElementById('submit-overlay-desc');
+          if (titleEl) titleEl.textContent = 'Mengumpulkan Jawaban...';
+          if (descEl) descEl.textContent = 'Menyimpan seluruh jawaban Anda ke server secara aman. Mohon tunggu sebentar...';
+        }
+        overlay.classList.remove('hidden');
+      }
 
       const btn = document.getElementById('btn-submit');
       if (btn) {
         btn.disabled = true;
         btn.textContent = isAutoSubmit ? 'Mengumpulkan Otomatis...' : 'Mengumpulkan...';
-      }
-
-      if (countdownInterval) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
       }
 
       // Kumpulkan draft dari localStorage sebagai fallback proteksi jawaban kosong
@@ -1750,6 +1928,7 @@
       if (!isAutoSubmit) {
         const hasAnyFilled = jawaban.some(j => j.jawaban_siswa && j.jawaban_siswa.trim() !== '');
         if (!hasAnyFilled) {
+          if (overlay) overlay.classList.add('hidden');
           alert('⚠️ Kamu belum mengisi jawaban apapun.\n\nSilakan isi jawaban terlebih dahulu sebelum mengumpulkan.\nJika ingin keluar, tutup saja tab ini — ulangan kamu tidak akan dikirim.');
           if (btn) {
             btn.disabled = false;
@@ -1761,9 +1940,13 @@
       }
 
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout guard
+
         const res = await fetch('/api/siswa/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
           body: JSON.stringify({ 
             pengerjaan_id: currentPengerjaanId, 
             jawaban,
@@ -1772,10 +1955,13 @@
             is_auto_submit: isAutoSubmit
           })
         });
+        clearTimeout(timeoutId);
+
         const data = await res.json();
 
         // Jika backend menolak karena jawaban kosong (bukan error sistem)
         if (!data.success && data.empty) {
+          if (overlay) overlay.classList.add('hidden');
           alert('⚠️ ' + data.message);
           if (btn) {
             btn.disabled = false;
@@ -1793,9 +1979,30 @@
           localStorage.removeItem(`ulangan_paste_${currentPengerjaanId}`);
         } catch (e) {}
 
-        checkResultStatus(currentPengerjaanId);
+        // TRANSISI INSTAN KE LAYAR SUKSES PENGUMPULAN (ANTI-HANG / ZERO LAG)
+        if (overlay) overlay.classList.add('hidden');
+        stepAuth.classList.add('hidden');
+        stepExam.classList.add('hidden');
+        const stepResuming = document.getElementById('step-resuming');
+        if (stepResuming) stepResuming.classList.add('hidden');
+        stepResult.classList.remove('hidden');
+
+        const submitTime = data.submitted_at || new Date().toISOString();
+        const submittedTimeInfo = document.getElementById('submitted-time-info');
+        if (submittedTimeInfo) {
+          submittedTimeInfo.textContent = `Waktu Pengumpulan: ${new Date(submitTime).toLocaleString('id-ID')}`;
+        }
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        // Ambil rincian hasil penilaian di latar belakang secara asinkron (dengan retry aman tanpa lempar balik ke soal)
+        checkResultStatusWithRetry(currentPengerjaanId, 0);
       } catch (err) {
-        alert('Gagal mengumpulkan: ' + err.message);
+        if (overlay) overlay.classList.add('hidden');
+        const errMsg = err.name === 'AbortError'
+          ? 'Koneksi pengumpulan ke server melebihi batas waktu (timeout). Silakan periksa jaringan internet Anda dan coba tekan tombol Kumpulkan Jawaban lagi.'
+          : (err.message || 'Gagal mengumpulkan');
+        alert('⚠️ Gagal mengumpulkan: ' + errMsg);
         if (btn) {
           btn.disabled = false;
           btn.textContent = 'Kumpulkan Jawaban';
@@ -1805,10 +2012,9 @@
     }
 
     // Submit Jawaban Manual
-    document.getElementById('form-exam').addEventListener('submit', async (e) => {
+    document.getElementById('form-exam').addEventListener('submit', (e) => {
       e.preventDefault();
-      if (!confirm('Apakah Anda yakin ingin mengumpulkan jawaban ini sekarang?')) return;
-      doSubmit(false);
+      openConfirmSubmitModal();
     });
 
     // Resume sesi pengerjaan aktif siswa saat me-refresh halaman (Anti-Refresh)
@@ -1899,23 +2105,54 @@
       }
     });
 
-    // Cek Status Hasil Nilai Siswa
-    async function checkResultStatus(pengerjaanId) {
+    // Cek Status Hasil Nilai Siswa dengan Retry Aman (Tanpa Pernah Lempar Balik ke Lembar Soal)
+    async function checkResultStatusWithRetry(pengerjaanId, attempt = 0) {
+      if (!pengerjaanId) return;
       try {
         const res = await fetch(`/api/siswa/hasil/${pengerjaanId}`);
         const result = await res.json();
-        if (res.ok && result.success) {
-          // Jika status masih aktif/mengerjakan dan belum disubmit, jangan tampilkan layar hasil
-          if (result.data.status !== 'submitted') {
-            resumeOrCheckSession(pengerjaanId);
+        if (res.ok && result.success && result.data) {
+          if (result.data.status === 'submitted') {
+            showResultStep(result.data);
             return;
           }
-          showResultStep(result.data);
+          // Jika status di basis data cloud masih replikasi, coba lagi hingga 3 kali
+          if (attempt < 3) {
+            setTimeout(() => checkResultStatusWithRetry(pengerjaanId, attempt + 1), 1500);
+            return;
+          }
         }
       } catch (e) {
-        console.error(e);
+        console.warn('Pengecekan rincian hasil nilai:', e.message);
+        if (attempt < 2) {
+          setTimeout(() => checkResultStatusWithRetry(pengerjaanId, attempt + 1), 2000);
+          return;
+        }
       }
+
+      loadExamHistory(pengerjaanId);
     }
+
+    // Kompatibilitas fungsi pemanggilan lama
+    async function checkResultStatus(pengerjaanId) {
+      return checkResultStatusWithRetry(pengerjaanId, 0);
+    }
+
+    // Tombol Periksa Pembaruan Nilai Manual
+    document.getElementById('btn-refresh-status-nilai')?.addEventListener('click', async () => {
+      const pId = currentPengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
+      if (!pId) return;
+      const btn = document.getElementById('btn-refresh-status-nilai');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳</span><span>Memeriksa...</span>';
+      }
+      await checkResultStatusWithRetry(pId, 0);
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>🔄</span><span>Periksa Pembaruan Nilai</span>';
+      }
+    });
 
     // Tampilkan Layar Hasil
     function showResultStep(data) {
