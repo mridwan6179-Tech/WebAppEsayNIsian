@@ -378,50 +378,46 @@
       <!-- Panel Kanan: Detail Ulangan Terpilih, Soal, Antrean AI & Review Peserta -->
       <div class="lg:col-span-2 space-y-5">
         
-        <div id="exam-detail-card" class="hidden bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-          <!-- Mobile Quick Navigation Back to Exam List -->
-          <div class="flex lg:hidden items-center justify-between pb-2 border-b border-slate-100">
-            <button type="button" onclick="document.getElementById('exam-list')?.scrollIntoView({ behavior: 'smooth' })" class="text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg border border-blue-200 flex items-center space-x-1 transition cursor-pointer">
-              <span>&larr; Pilih Paket Lain</span>
-            </button>
-            <span class="text-[11px] text-slate-400">Sedang Melihat Paket</span>
-          </div>
-
+        <div id="exam-detail-card" class="hidden bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
           <!-- Header Detail Ulangan -->
-          <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center space-x-2 mb-1 flex-wrap">
+          <div class="border-b border-slate-100 pb-3.5 space-y-2.5">
+            <!-- Baris 1: Status & Tombol Aksi -->
+            <div class="flex flex-wrap items-center justify-between gap-2.5">
+              <div class="flex items-center space-x-2 flex-wrap gap-y-1">
                 <span id="detail-exam-status" class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">draft</span>
                 <span class="text-xs text-slate-400">&bull;</span>
                 <span id="detail-exam-subject" class="text-xs font-semibold text-slate-500">Mata Pelajaran</span>
               </div>
-              <h2 id="detail-exam-title" class="text-base sm:text-lg font-bold text-slate-900 break-words">Judul Ulangan</h2>
-              <div class="mt-1 flex items-center space-x-2 sm:space-x-3 text-xs flex-wrap gap-y-1">
+
+              <div class="flex items-center space-x-2 flex-wrap gap-y-1.5">
+                <button id="btn-open-wa-broadcast" type="button" class="whitespace-nowrap text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Buat Sebaran Pengumuman WhatsApp Resmi">
+                  <span>📲</span>
+                  <span>Sebar ke WA</span>
+                </button>
+                <button id="btn-edit-exam-modal" class="whitespace-nowrap text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 bg-slate-50 hover:bg-slate-100 transition flex items-center space-x-1 cursor-pointer" title="Ubah Jadwal, Waktu, & Pengaturan Ulangan">
+                  <span>⏱️</span>
+                  <span>Edit Waktu & Aturan</span>
+                </button>
+                <button id="btn-toggle-status" class="whitespace-nowrap text-xs font-semibold px-3 py-1.5 rounded-lg border transition cursor-pointer">
+                  Ubah Status
+                </button>
+                <button id="btn-delete-exam" class="text-xs font-semibold text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition shrink-0 cursor-pointer" title="Hapus Ulangan">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Baris 2: Judul Ulangan & Metadata Lengkap (Full Width) -->
+            <div>
+              <h2 id="detail-exam-title" class="text-lg sm:text-xl font-bold text-slate-900 leading-snug">Judul Ulangan</h2>
+              <div class="mt-1.5 flex items-center space-x-3 text-xs flex-wrap gap-y-1">
                 <span class="text-slate-500">Kode Akses: <strong id="detail-exam-code" class="font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded font-bold">KODE</strong></span>
-                <span class="text-slate-400">Total Bobot: <strong id="detail-exam-bobot" class="text-slate-700">0</strong></span>
+                <span class="text-slate-400">Total Bobot: <strong id="detail-exam-bobot" class="text-slate-700 font-semibold">0</strong></span>
                 <span class="text-slate-500">KKM: <strong id="detail-exam-kkm" class="text-indigo-600 font-bold">75</strong></span>
                 <span id="detail-exam-random-info" class="hidden text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md font-medium border border-purple-200"></span>
                 <span id="detail-exam-schedule" class="hidden text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md font-medium border border-blue-200"></span>
               </div>
               <div id="detail-exam-ai-rules" class="mt-2 flex items-center space-x-1.5 text-[11px] flex-wrap gap-y-1"></div>
-            </div>
-
-            <div class="flex items-center flex-wrap gap-1.5 sm:gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-              <button id="btn-open-wa-broadcast" type="button" class="flex-1 sm:flex-initial text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 transition flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer" title="Buat Sebaran Pengumuman WhatsApp Resmi">
-                <span>📲</span>
-                <span>Sebar ke WA</span>
-              </button>
-              <button id="btn-edit-exam-modal" class="flex-1 sm:flex-initial text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 bg-slate-50 hover:bg-slate-100 transition flex items-center justify-center space-x-1 cursor-pointer" title="Ubah Jadwal, Waktu, & Pengaturan Ulangan">
-                <span>⏱️</span>
-                <span class="hidden sm:inline">Edit Waktu & Aturan</span>
-                <span class="sm:hidden">Edit Aturan</span>
-              </button>
-              <button id="btn-toggle-status" class="flex-1 sm:flex-initial text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg border transition text-center justify-center cursor-pointer">
-                Ubah Status
-              </button>
-              <button id="btn-delete-exam" class="text-xs font-semibold text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition shrink-0 ml-auto sm:ml-0 cursor-pointer" title="Hapus Ulangan">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-              </button>
             </div>
           </div>
 
@@ -439,8 +435,12 @@
             <div id="remedial-display-view" class="space-y-1.5 text-slate-700">
               <p id="remedial-instruksi-text" class="text-xs italic bg-white/80 p-2.5 rounded-lg border border-amber-100" dir="auto">Belum ada instruksi khusus remedial.</p>
               <div id="remedial-link-container" class="hidden pt-1">
-                <a id="remedial-link-url" href="#" target="_blank" class="inline-flex items-center space-x-1 text-xs text-blue-600 hover:underline font-semibold bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
-                  <span>🔗 Buka Tautan Tugas Remedial:</span> <span id="remedial-link-label" class="truncate max-w-xs"></span>
+                <a id="remedial-link-url" href="#" target="_blank" class="block bg-white hover:bg-blue-50/50 p-2.5 rounded-lg border border-blue-200 transition shadow-2xs group">
+                  <div class="flex items-center space-x-1.5 text-xs text-blue-900 font-bold mb-0.5">
+                    <span>🔗</span>
+                    <span>Buka Tautan Tugas Remedial:</span>
+                  </div>
+                  <div id="remedial-link-label" class="text-xs text-blue-600 group-hover:underline font-mono truncate pl-5 max-w-full"></div>
                 </a>
               </div>
             </div>
@@ -481,10 +481,13 @@
               </div>
             </div>
             <div id="kisi-kisi-display-view" class="space-y-1 text-slate-700">
-              <div id="kisi-kisi-link-container" class="hidden">
-                <a id="kisi-kisi-link-url" href="#" target="_blank" class="inline-flex items-center space-x-1 text-xs text-indigo-700 hover:underline font-semibold bg-white p-2 rounded-lg border border-indigo-200 shadow-xs">
-                  <span>🔗 Buka Dokumen/Materi Kisi-kisi:</span>
-                  <span id="kisi-kisi-link-label" class="truncate max-w-xs font-mono text-[11px]"></span>
+              <div id="kisi-kisi-link-container" class="hidden pt-1">
+                <a id="kisi-kisi-link-url" href="#" target="_blank" class="block bg-white hover:bg-indigo-50/50 p-2.5 rounded-lg border border-indigo-200 transition shadow-2xs group">
+                  <div class="flex items-center space-x-1.5 text-xs text-indigo-900 font-bold mb-0.5">
+                    <span>🔗</span>
+                    <span>Buka Dokumen / Materi Kisi-kisi:</span>
+                  </div>
+                  <div id="kisi-kisi-link-label" class="text-xs text-indigo-700 group-hover:underline font-mono truncate pl-5 max-w-full"></div>
                 </a>
               </div>
               <p id="kisi-kisi-empty-text" class="text-xs italic bg-white/80 p-2 rounded-lg border border-indigo-100 text-slate-500">
