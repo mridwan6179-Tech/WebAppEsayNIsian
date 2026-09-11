@@ -20,10 +20,12 @@ const reviewService = {
         p.nilai_final,
         p.released_at,
         p.paste_count,
+        p.paste_details,
         p.soal_ids,
         pes.nama as nama_siswa,
         pes.kelas as kelas_siswa,
         COUNT(j.id) as total_jawaban,
+        SUM(CASE WHEN j.jawaban_siswa IS NOT NULL AND TRIM(j.jawaban_siswa) != '' THEN 1 ELSE 0 END) as total_terisi,
         SUM(CASE WHEN j.status_penilaian = 'selesai' THEN 1 ELSE 0 END) as total_dinilai,
         CAST(ROUND((julianday('now') - julianday(COALESCE(p.last_active_at, p.started_at))) * 86400) AS INTEGER) as detik_sejak_aktif
       FROM pengerjaan p
@@ -34,19 +36,50 @@ const reviewService = {
       ORDER BY pes.kelas ASC, pes.nama ASC
     `).all(ulanganId);
 
+    // Ambil rincian kecurangan / paste & prompt injection dari tabel jawaban dalam 1 query efisien
+    let flaggedAnswers = [];
+    try {
+      flaggedAnswers = db.prepare(`
+        SELECT j.pengerjaan_id, j.soal_id, COALESCE(j.paste_count, 0) as paste_count, j.alasan_ai
+        FROM jawaban j
+        JOIN pengerjaan p ON j.pengerjaan_id = p.id
+        WHERE p.ulangan_id = ? AND (
+          j.paste_count > 0 
+          OR j.alasan_ai LIKE '%manipulasi%' 
+          OR j.alasan_ai LIKE '%prompt injection%' 
+          OR j.alasan_ai LIKE '%pengelabu%'
+        )
+      `).all(ulanganId);
+    } catch (errFlag) {
+      flaggedAnswers = [];
+    }
+
+    const flaggedByPengerjaan = new Map();
+    for (const fa of flaggedAnswers) {
+      if (!flaggedByPengerjaan.has(fa.pengerjaan_id)) {
+        flaggedByPengerjaan.set(fa.pengerjaan_id, []);
+      }
+      flaggedByPengerjaan.get(fa.pengerjaan_id).push(fa);
+    }
+
     const zona_waktu = ulangan.zona_waktu || 'WIB';
 
     return rows.map(r => {
       // Pastikan total_jawaban mencerminkan kuota soal unik pengerjaan siswa
       let total_jawaban = r.total_jawaban || 0;
+      let parsedSoalIds = [];
       if (r.soal_ids) {
         try {
           const parsedIds = JSON.parse(r.soal_ids);
           if (Array.isArray(parsedIds) && parsedIds.length > 0) {
+            parsedSoalIds = parsedIds.map(Number);
             total_jawaban = parsedIds.length;
           }
         } catch (e) {}
       }
+
+      let total_terisi = r.total_terisi || 0;
+      let draft_lengkap = (total_jawaban > 0 && total_terisi >= total_jawaban);
 
       let total_dinilai = r.total_dinilai || 0;
       let nilai_ai = r.nilai_ai;
@@ -63,6 +96,57 @@ const reviewService = {
         } catch (errRecalc) {
           console.warn('Peringatan auto-recalculate nilai pengerjaan:', errRecalc.message);
         }
+      }
+
+      // Deteksi nomor butir soal tempat terjadinya copy-paste dan peringatan AI
+      const pasteQuestionMap = new Map(); // nomor -> count
+      const aiAlertNumbers = new Set();
+
+      // 1. Dari p.paste_details jika ada
+      if (r.paste_details) {
+        try {
+          const pd = JSON.parse(r.paste_details);
+          if (pd && typeof pd === 'object') {
+            for (const [sIdStr, count] of Object.entries(pd)) {
+              const sId = Number(sIdStr);
+              const cnt = Number(count) || 0;
+              if (cnt > 0) {
+                const idx = parsedSoalIds.indexOf(sId);
+                const qNum = idx !== -1 ? (idx + 1) : sId;
+                pasteQuestionMap.set(qNum, Math.max(pasteQuestionMap.get(qNum) || 0, cnt));
+              }
+            }
+          }
+        } catch (e) {}
+      }
+
+      // 2. Dari jawaban yang ter-flag di database
+      const studentFlags = flaggedByPengerjaan.get(r.pengerjaan_id) || [];
+      for (const sf of studentFlags) {
+        const idx = parsedSoalIds.indexOf(sf.soal_id);
+        const qNum = idx !== -1 ? (idx + 1) : sf.soal_id;
+        if (sf.paste_count > 0) {
+          pasteQuestionMap.set(qNum, Math.max(pasteQuestionMap.get(qNum) || 0, sf.paste_count));
+        }
+        if (sf.alasan_ai && (
+          sf.alasan_ai.toLowerCase().includes('manipulasi') ||
+          sf.alasan_ai.toLowerCase().includes('prompt injection') ||
+          sf.alasan_ai.toLowerCase().includes('pengelabu')
+        )) {
+          aiAlertNumbers.add(qNum);
+        }
+      }
+
+      const paste_soal_nomor = Array.from(pasteQuestionMap.keys()).sort((a, b) => a - b);
+      let paste_summary = '';
+      if (paste_soal_nomor.length > 0) {
+        paste_summary = paste_soal_nomor.map(no => `Soal #${no}`).join(', ');
+      }
+
+      const ai_alert_soal_nomor = Array.from(aiAlertNumbers).sort((a, b) => a - b);
+      let ai_alert_summary = '';
+      if (ai_alert_soal_nomor.length > 0) {
+        ai_alert_summary = ai_alert_soal_nomor.map(no => `Soal #${no}`).join(', ');
       }
 
       // Format submitted_at sesuai tanggal, jam dan zona waktu ulangan (WIB / WITA / WIT)
@@ -128,6 +212,8 @@ const reviewService = {
       return {
         ...r,
         total_jawaban,
+        total_terisi,
+        draft_lengkap,
         total_dinilai,
         nilai_ai,
         nilai_final,
@@ -135,7 +221,11 @@ const reviewService = {
         submitted_at_formatted,
         status_kehadiran,
         terakhir_aktif_teks,
-        terakhir_aktif_teks_singkat
+        terakhir_aktif_teks_singkat,
+        paste_soal_nomor,
+        paste_summary,
+        ai_alert_soal_nomor,
+        ai_alert_summary
       };
     });
   },
@@ -153,12 +243,13 @@ const reviewService = {
     if (!pengerjaan) throw new Error('Data pengerjaan tidak ditemukan');
     if (pengerjaan.guru_id !== guruId) throw new Error('Akses ditolak: bukan ulangan milik Anda');
 
-    const jawabanList = db.prepare(`
+    const rawJawabanList = db.prepare(`
       SELECT 
         j.id as jawaban_id,
         j.pengerjaan_id,
         j.soal_id,
         j.jawaban_siswa,
+        COALESCE(j.paste_count, 0) as paste_count,
         j.status_penilaian,
         j.skor_rekomendasi,
         j.skor_maksimum,
@@ -182,6 +273,46 @@ const reviewService = {
       WHERE j.pengerjaan_id = ?
       ORDER BY s.urutan ASC, s.nomor ASC
     `).all(pengerjaanId);
+
+    // Jika siswa memiliki soal_ids acak, susun sesuai urutan yang dilihat siswa
+    let parsedSoalIds = [];
+    if (pengerjaan.soal_ids) {
+      try {
+        const pIds = JSON.parse(pengerjaan.soal_ids);
+        if (Array.isArray(pIds)) parsedSoalIds = pIds.map(Number);
+      } catch (e) {}
+    }
+
+    let parsedPasteDetails = {};
+    if (pengerjaan.paste_details) {
+      try {
+        const pd = JSON.parse(pengerjaan.paste_details);
+        if (pd && typeof pd === 'object') parsedPasteDetails = pd;
+      } catch (e) {}
+    }
+
+    const jawabanList = rawJawabanList.map((j) => {
+      const idx = parsedSoalIds.indexOf(j.soal_id);
+      const nomor_tampil = idx !== -1 ? (idx + 1) : (j.nomor || 1);
+      const pasteFromDetails = parsedPasteDetails[j.soal_id] ? Number(parsedPasteDetails[j.soal_id]) : 0;
+      const effectivePaste = Math.max(j.paste_count || 0, pasteFromDetails);
+      const has_injection_alert = Boolean(j.alasan_ai && (
+        j.alasan_ai.toLowerCase().includes('manipulasi') ||
+        j.alasan_ai.toLowerCase().includes('prompt injection') ||
+        j.alasan_ai.toLowerCase().includes('pengelabu')
+      ));
+
+      return {
+        ...j,
+        nomor_tampil,
+        paste_count: effectivePaste,
+        has_injection_alert
+      };
+    });
+
+    if (parsedSoalIds.length > 0) {
+      jawabanList.sort((a, b) => a.nomor_tampil - b.nomor_tampil);
+    }
 
     return {
       pengerjaan,

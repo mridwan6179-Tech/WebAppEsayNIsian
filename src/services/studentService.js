@@ -408,7 +408,7 @@ const studentService = {
   },
 
   // Auto-Save Draft Jawaban Siswa (Sinkronisasi berkala dari HP/Klien ke Server)
-  saveDraft(pengerjaanId, rawAnswers) {
+  saveDraft(pengerjaanId, rawAnswers, pasteCount = null, pasteDetails = null) {
     if (!pengerjaanId) throw new Error('ID pengerjaan tidak valid');
     const pengerjaan = db.prepare('SELECT id, status FROM pengerjaan WHERE id = ?').get(pengerjaanId);
     if (!pengerjaan) {
@@ -434,8 +434,18 @@ const studentService = {
       }
     }
 
-    const answers = Array.isArray(rawAnswers) ? rawAnswers : [];
-    if (answers.length === 0) {
+    let answers = [];
+    if (Array.isArray(rawAnswers)) {
+      answers = rawAnswers;
+    } else if (rawAnswers && typeof rawAnswers === 'object') {
+      answers = Object.entries(rawAnswers).map(([k, v]) => ({
+        soal_id: Number(k),
+        jawaban_siswa: typeof v === 'object' && v !== null ? (v.jawaban_siswa || v.teks_jawaban || '') : String(v || ''),
+        paste_count: typeof v === 'object' && v !== null ? (Number(v.paste_count) || 0) : 0
+      }));
+    }
+
+    if (answers.length === 0 && (pasteCount === null || pasteCount === undefined)) {
       return { success: true, savedCount: 0 };
     }
 
@@ -448,25 +458,40 @@ const studentService = {
         // Abaikan soal yang tidak termasuk dalam paket ujian siswa ini (mencegah kelebihan kuota)
         continue;
       }
-      uniqueAnswersMap.set(sId, String(a.jawaban_siswa !== undefined ? a.jawaban_siswa : (a.teks_jawaban || '')));
+      uniqueAnswersMap.set(sId, {
+        text: String(a.jawaban_siswa !== undefined ? a.jawaban_siswa : (a.teks_jawaban || '')),
+        paste_count: Number(a.paste_count) || (pasteDetails && pasteDetails[sId] ? Number(pasteDetails[sId]) : 0)
+      });
     }
 
     const saveTx = db.transaction(() => {
       const upsertStmt = db.prepare(`
-        INSERT INTO jawaban (pengerjaan_id, soal_id, jawaban_siswa, skor_maksimum, status_penilaian)
-        VALUES (?, ?, ?, ?, 'menunggu')
+        INSERT INTO jawaban (pengerjaan_id, soal_id, jawaban_siswa, skor_maksimum, status_penilaian, paste_count)
+        VALUES (?, ?, ?, ?, 'menunggu', ?)
         ON CONFLICT(pengerjaan_id, soal_id) DO UPDATE 
-        SET jawaban_siswa = excluded.jawaban_siswa
+        SET jawaban_siswa = excluded.jawaban_siswa,
+            paste_count = MAX(COALESCE(jawaban.paste_count, 0), excluded.paste_count)
       `);
       const soalStmt = db.prepare('SELECT bobot FROM soal WHERE id = ?');
 
       let savedCount = 0;
-      for (const [soalId, text] of uniqueAnswersMap.entries()) {
+      for (const [soalId, item] of uniqueAnswersMap.entries()) {
         const s = soalStmt.get(soalId);
         const bobot = s ? s.bobot : 10;
-        upsertStmt.run(pengerjaanId, soalId, text, bobot);
+        upsertStmt.run(pengerjaanId, soalId, item.text, bobot, item.paste_count);
         savedCount++;
       }
+
+      if (pasteCount !== null && pasteCount !== undefined) {
+        const pasteDetailsStr = pasteDetails && typeof pasteDetails === 'object' ? JSON.stringify(pasteDetails) : null;
+        db.prepare(`
+          UPDATE pengerjaan 
+          SET paste_count = MAX(COALESCE(paste_count, 0), ?),
+              paste_details = COALESCE(?, paste_details)
+          WHERE id = ?
+        `).run(Number(pasteCount) || 0, pasteDetailsStr, pengerjaanId);
+      }
+
       return savedCount;
     });
 
@@ -475,78 +500,84 @@ const studentService = {
   },
 
   // FR-08 & NFR-01: Submit Seluruh Jawaban Siswa
-  submitExam(pengerjaanId, rawAnswers, pasteCount = 0, isAutoSubmit = false) {
+  submitExam(pengerjaanId, rawAnswers, pasteCount = 0, isAutoSubmit = false, pasteDetails = null) {
     const pengerjaan = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(pengerjaanId);
     if (!pengerjaan) {
       throw new Error('Data pengerjaan tidak ditemukan');
     }
 
     if (pengerjaan.status === 'submitted') {
-      return { success: true, message: 'Ulangan sudah dikumpulkan sebelumnya', submitted_at: pengerjaan.submitted_at };
+      return {
+        success: true,
+        message: 'Ulangan sudah pernah dikumpulkan sebelumnya',
+        alreadySubmitted: true,
+        submitted_at: pengerjaan.submitted_at
+      };
     }
 
-    // Ambil daftar soal yang ditugaskan secara spesifik untuk pengerjaan siswa ini
-    let assignedIds = null;
+    // Ambil daftar soal yang sah untuk pengerjaan siswa ini (mencegah duplikasi kuota soal)
+    let assignedSoalIds = [];
     if (pengerjaan.soal_ids) {
       try {
-        assignedIds = JSON.parse(pengerjaan.soal_ids);
-      } catch (e) {
-        assignedIds = null;
-      }
-    }
-
-    let soalList;
-    if (Array.isArray(assignedIds) && assignedIds.length > 0) {
-      const placeholders = assignedIds.map(() => '?').join(',');
-      soalList = db.prepare(`SELECT id, bobot FROM soal WHERE id IN (${placeholders})`).all(...assignedIds);
-    } else {
-      soalList = db.prepare('SELECT id, bobot FROM soal WHERE ulangan_id = ?').all(pengerjaan.ulangan_id);
-    }
-    const soalMap = new Map(soalList.map(s => [s.id, s.bobot]));
-
-    // Format jawaban
-    const answers = Array.isArray(rawAnswers) ? rawAnswers : [];
-    const submittedMap = new Map();
-    for (const a of answers) {
-      if (a && a.soal_id) {
-        submittedMap.set(Number(a.soal_id), String(a.jawaban_siswa || ''));
-      }
-    }
-
-    // Guard: Tolak submit manual yang sama sekali kosong (tidak ada jawaban terisi)
-    // Kecuali auto-submit karena waktu habis — di sana kita submit apa pun yang ada.
-    if (!isAutoSubmit) {
-      // Deteksi apakah ada jawaban terisi, mendukung tiga format rawAnswers:
-      //   1. Array standar: [{ soal_id, jawaban_siswa }]
-      //   2. Array legacy test: [{ soal_id, teks_jawaban }]
-      //   3. Objek plain legacy: { [soalId]: 'nilai' }
-      let hasAnyFilledAnswer;
-      if (Array.isArray(rawAnswers)) {
-        hasAnyFilledAnswer = rawAnswers.some(a => {
-          const val = a && (a.jawaban_siswa !== undefined ? a.jawaban_siswa : a.teks_jawaban);
-          return String(val || '').trim() !== '';
-        });
-      } else if (rawAnswers && typeof rawAnswers === 'object') {
-        // Plain-object format: nilai-nilai adalah string jawaban
-        hasAnyFilledAnswer = Object.values(rawAnswers).some(v => String(v || '').trim() !== '');
-      } else {
-        hasAnyFilledAnswer = false;
-      }
-
-      if (!hasAnyFilledAnswer) {
-        // Cek juga draft yang sudah tersimpan di server sebelum menolak
-        const existingDraft = db.prepare(
-          "SELECT id FROM jawaban WHERE pengerjaan_id = ? AND jawaban_siswa IS NOT NULL AND jawaban_siswa != '' LIMIT 1"
-        ).get(pengerjaanId);
-        if (!existingDraft) {
-          // Tidak ada jawaban apapun — tolak, jangan ubah status
-          return {
-            success: false,
-            empty: true,
-            message: 'Jawaban masih kosong. Silakan isi jawaban terlebih dahulu sebelum mengumpulkan.'
-          };
+        const parsed = JSON.parse(pengerjaan.soal_ids);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          assignedSoalIds = parsed.map(Number);
         }
-        // Ada draft tersimpan di server → boleh submit (akan pakai data draft)
+      } catch (e) {
+        assignedSoalIds = [];
+      }
+    }
+
+    // Jika soal_ids belum tercatat, ambil dari master ulangan
+    if (assignedSoalIds.length === 0) {
+      const allSoal = db.prepare('SELECT id FROM soal WHERE ulangan_id = ?').all(pengerjaan.ulangan_id);
+      assignedSoalIds = allSoal.map(s => s.id);
+    }
+
+    const assignedSet = new Set(assignedSoalIds);
+
+    // Ambil bobot untuk setiap soal yang sah
+    const soalMap = new Map();
+    for (const sId of assignedSoalIds) {
+      const s = db.prepare('SELECT id, bobot FROM soal WHERE id = ?').get(sId);
+      if (s) soalMap.set(s.id, s.bobot);
+    }
+
+    // Map jawaban yang dikirimkan oleh siswa, buang soal yang bukan haknya
+    let answers = [];
+    if (Array.isArray(rawAnswers)) {
+      answers = rawAnswers;
+    } else if (rawAnswers && typeof rawAnswers === 'object') {
+      answers = Object.entries(rawAnswers).map(([k, v]) => ({
+        soal_id: Number(k),
+        jawaban_siswa: typeof v === 'object' && v !== null ? (v.jawaban_siswa || v.teks_jawaban || '') : String(v || ''),
+        paste_count: typeof v === 'object' && v !== null ? (Number(v.paste_count) || 0) : 0
+      }));
+    }
+
+    const submittedMap = new Map();
+    const submittedMapPaste = new Map();
+    for (const a of answers) {
+      if (!a || !a.soal_id) continue;
+      const sId = Number(a.soal_id);
+      if (!assignedSet.has(sId)) continue; // Tolak soal di luar kuota pengerjaan siswa ini
+      submittedMap.set(sId, String(a.jawaban_siswa !== undefined ? a.jawaban_siswa : (a.teks_jawaban || '')));
+      if (a.paste_count !== undefined) {
+        submittedMapPaste.set(sId, Number(a.paste_count) || 0);
+      }
+    }
+
+    // Verifikasi jawaban tidak kosong
+    const hasAnySubmittedText = Array.from(submittedMap.values()).some(txt => txt && txt.trim() !== '');
+    if (!hasAnySubmittedText && !isAutoSubmit) {
+      const draftRows = db.prepare('SELECT jawaban_siswa FROM jawaban WHERE pengerjaan_id = ?').all(pengerjaanId);
+      const hasAnyDraft = draftRows.some(r => r.jawaban_siswa && r.jawaban_siswa.trim() !== '');
+      if (!hasAnyDraft) {
+        return {
+          success: false,
+          empty: true,
+          message: 'Kamu belum mengisi jawaban apapun. Ulangan tidak dapat dikumpulkan dalam kondisi kosong.'
+        };
       }
     }
 
@@ -554,12 +585,13 @@ const studentService = {
     const insertOrUpdateJawaban = db.transaction(() => {
       const checkStmt = db.prepare('SELECT id, jawaban_siswa FROM jawaban WHERE pengerjaan_id = ? AND soal_id = ?');
       const upsertStmt = db.prepare(`
-        INSERT INTO jawaban (pengerjaan_id, soal_id, jawaban_siswa, skor_maksimum, status_penilaian)
-        VALUES (?, ?, ?, ?, 'menunggu')
+        INSERT INTO jawaban (pengerjaan_id, soal_id, jawaban_siswa, skor_maksimum, status_penilaian, paste_count)
+        VALUES (?, ?, ?, ?, 'menunggu', ?)
         ON CONFLICT(pengerjaan_id, soal_id) DO UPDATE 
         SET jawaban_siswa = excluded.jawaban_siswa,
             skor_maksimum = excluded.skor_maksimum,
-            status_penilaian = 'menunggu'
+            status_penilaian = 'menunggu',
+            paste_count = MAX(COALESCE(jawaban.paste_count, 0), excluded.paste_count)
       `);
 
       for (const [soalId, bobot] of soalMap.entries()) {
@@ -576,16 +608,18 @@ const studentService = {
           finalJawaban = submittedText;
         }
 
-        upsertStmt.run(pengerjaanId, soalId, finalJawaban, bobot);
+        const itemPaste = (pasteDetails && pasteDetails[soalId]) ? Number(pasteDetails[soalId]) : (submittedMapPaste.get(soalId) || 0);
+        upsertStmt.run(pengerjaanId, soalId, finalJawaban, bobot, itemPaste);
       }
 
-      // Update status pengerjaan ke submitted & catat paste_count dan auto_submitted
+      // Update status pengerjaan ke submitted & catat paste_count, paste_details dan auto_submitted
       const nowIso = new Date().toISOString();
+      const pasteDetailsStr = pasteDetails && typeof pasteDetails === 'object' ? JSON.stringify(pasteDetails) : null;
       db.prepare(`
         UPDATE pengerjaan 
-        SET status = 'submitted', submitted_at = ?, paste_count = ?, auto_submitted = ?
+        SET status = 'submitted', submitted_at = ?, paste_count = MAX(COALESCE(paste_count, 0), ?), auto_submitted = ?, paste_details = COALESCE(?, paste_details)
         WHERE id = ?
-      `).run(nowIso, Number(pasteCount) || 0, isAutoSubmit ? 1 : 0, pengerjaanId);
+      `).run(nowIso, Number(pasteCount) || 0, isAutoSubmit ? 1 : 0, pasteDetailsStr, pengerjaanId);
     });
 
     insertOrUpdateJawaban();
@@ -596,6 +630,37 @@ const studentService = {
       success: true,
       message: 'Jawaban berhasil dikumpulkan',
       submitted_at: updated.submitted_at
+    };
+  },
+
+  // Finalisasi pengerjaan siswa terputus (DC) oleh guru (Force Submit)
+  forceSubmitByGuru(pengerjaanId, guruId) {
+    if (!pengerjaanId) throw new Error('ID pengerjaan tidak valid');
+    const pengerjaan = db.prepare(`
+      SELECT p.*, u.guru_id
+      FROM pengerjaan p
+      JOIN ulangan u ON p.ulangan_id = u.id
+      WHERE p.id = ?
+    `).get(pengerjaanId);
+
+    if (!pengerjaan) throw new Error('Data pengerjaan tidak ditemukan');
+    if (pengerjaan.guru_id !== guruId) throw new Error('Akses ditolak: bukan ulangan milik Anda');
+
+    if (pengerjaan.status === 'submitted') {
+      return { success: true, message: 'Ulangan sudah berstatus dikumpulkan', alreadySubmitted: true, submitted_at: pengerjaan.submitted_at };
+    }
+
+    const nowIso = new Date().toISOString();
+    db.prepare(`
+      UPDATE pengerjaan
+      SET status = 'submitted', submitted_at = ?, auto_submitted = 1
+      WHERE id = ?
+    `).run(nowIso, pengerjaanId);
+
+    return {
+      success: true,
+      message: 'Pengerjaan siswa berhasil dikumpulkan secara resmi oleh guru',
+      submitted_at: nowIso
     };
   },
 

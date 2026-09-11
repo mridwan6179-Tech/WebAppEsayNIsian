@@ -210,5 +210,81 @@ test('Deteksi Status Kehadiran Siswa (Aktif vs DC) & Review AI Perorangan', asyn
     assert.ok(submitRes.submitted_at.endsWith('Z'), 'submitted_at harus berakhiran Z (UTC ISO 8601)');
     assert.ok(submitRes.submitted_at.includes('T'), 'submitted_at harus memuat separator T');
   });
+
+  await t.test('11. Deteksi Jawaban Lengkap Siswa Terputus (DC) & Force Submit oleh Guru', () => {
+    // Buat pengerjaan baru yang belum disubmit (status = 'mengerjakan')
+    const sDc = studentService.startExam(ulangan.kode_ujian, 'Siswa DC Lengkap', '9A');
+    studentService.saveDraft(sDc.pengerjaanId, [
+      { soal_id: soal1.id, jawaban_siswa: 'Jawaban soal 1 lengkap' },
+      { soal_id: soal2.id, jawaban_siswa: 'Jawaban soal 2 lengkap' }
+    ]);
+
+    // Simulasikan DC (heartbeat 20 menit lalu)
+    db.prepare("UPDATE pengerjaan SET last_active_at = datetime('now', '-20 minutes') WHERE id = ?").run(sDc.pengerjaanId);
+
+    const list = reviewService.getPengerjaanListByUlangan(ulangan.id, guru.id);
+    const dcStudent = list.find(p => p.pengerjaan_id === sDc.pengerjaanId);
+    assert.ok(dcStudent);
+    assert.strictEqual(dcStudent.status_kehadiran, 'dc');
+    assert.strictEqual(dcStudent.total_jawaban, 2);
+    assert.strictEqual(dcStudent.total_terisi, 2);
+    assert.strictEqual(dcStudent.draft_lengkap, true, 'draft_lengkap harus true karena 2 dari 2 soal terisi');
+
+    // Guru melakukan force submit
+    const forceRes = studentService.forceSubmitByGuru(sDc.pengerjaanId, guru.id);
+    assert.strictEqual(forceRes.success, true);
+    assert.strictEqual(forceRes.alreadySubmitted, undefined);
+
+    const updatedP = db.prepare('SELECT status, submitted_at, auto_submitted FROM pengerjaan WHERE id = ?').get(sDc.pengerjaanId);
+    assert.strictEqual(updatedP.status, 'submitted');
+    assert.strictEqual(updatedP.auto_submitted, 1);
+    assert.ok(updatedP.submitted_at);
+  });
+
+  await t.test('12. Pelacakan Butir Soal Copy-Paste (Nomor Soal & Rincian per Jawaban)', () => {
+    const sPaste = studentService.startExam(ulangan.kode_ujian, 'Siswa Tukang Paste', '9B');
+    // Siswa paste pada soal2 sebanyak 3 kali
+    const pasteMap = { [soal2.id]: 3 };
+    studentService.submitExam(sPaste.pengerjaanId, [
+      { soal_id: soal1.id, jawaban_siswa: 'Murni ketik sendiri' },
+      { soal_id: soal2.id, jawaban_siswa: 'Hasil paste dari internet', paste_count: 3 }
+    ], 3, false, pasteMap);
+
+    const list = reviewService.getPengerjaanListByUlangan(ulangan.id, guru.id);
+    const pStudent = list.find(p => p.pengerjaan_id === sPaste.pengerjaanId);
+    assert.ok(pStudent);
+    assert.strictEqual(pStudent.paste_count, 3);
+    assert.ok(pStudent.paste_soal_nomor.length > 0, 'Harus mencatat nomor soal yang dipaste');
+    assert.ok(pStudent.paste_summary.includes('Soal #'), 'paste_summary harus memuat nomor soal');
+
+    // Cek di getPengerjaanDetail
+    const detail = reviewService.getPengerjaanDetail(sPaste.pengerjaanId, guru.id);
+    const j2 = detail.jawabanList.find(j => j.soal_id === soal2.id);
+    assert.ok(j2);
+    assert.strictEqual(j2.paste_count, 3, 'j2.paste_count harus 3');
+  });
+
+  await t.test('13. Review AI Perorangan Otomatis Memfinalisasi Pengerjaan Draft yang Terisi', async () => {
+    const sDraft = studentService.startExam(ulangan.kode_ujian, 'Siswa Draft Auto AI', '9C');
+    studentService.saveDraft(sDraft.pengerjaanId, [
+      { soal_id: soal1.id, jawaban_siswa: 'Jawaban draft untuk dinilai' },
+      { soal_id: soal2.id, jawaban_siswa: 'Jawaban draft 2 untuk dinilai' }
+    ]);
+
+    const res = await queueService.startReviewSingle(sDraft.pengerjaanId, guru.id, async (queueItem) => {
+      return {
+        skor_rekomendasi: 10,
+        status_jawaban: 'benar',
+        alasan_ai: 'Penjelasan AI untuk draft'
+      };
+    }, 0);
+
+    assert.strictEqual(res.success, true);
+    assert.strictEqual(res.nilai_ai, 66.67);
+
+    const pFinal = db.prepare('SELECT status FROM pengerjaan WHERE id = ?').get(sDraft.pengerjaanId);
+    assert.strictEqual(pFinal.status, 'submitted', 'Status pengerjaan harus otomatis beralih ke submitted');
+  });
 });
+
 

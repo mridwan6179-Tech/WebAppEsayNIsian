@@ -191,7 +191,7 @@ app.get('/api/siswa/antrean/:ticketId', (req, res) => {
 
 app.post('/api/siswa/submit', async (req, res) => {
   try {
-    const { pengerjaan_id, jawaban, paste_count, is_auto_submit } = req.body;
+    const { pengerjaan_id, jawaban, paste_count, is_auto_submit, paste_details } = req.body;
     if (!pengerjaan_id) {
       return res.status(400).json({ success: false, message: 'pengerjaan_id wajib disertakan' });
     }
@@ -201,7 +201,7 @@ app.post('/api/siswa/submit', async (req, res) => {
 
     // Eksekusi submit melalui antrean penulisan aman (maks 20 submit serentak untuk proteksi database)
     const result = await waitingRoomService.queueSubmit(async () => {
-      return studentService.submitExam(pengerjaan_id, jawaban, paste_count, Boolean(is_auto_submit));
+      return studentService.submitExam(pengerjaan_id, jawaban, paste_count, Boolean(is_auto_submit), paste_details);
     });
 
     // Lepaskan 1 slot untuk antrean ruang tunggu
@@ -217,8 +217,8 @@ app.post('/api/siswa/submit', async (req, res) => {
 
 app.post('/api/siswa/draft', (req, res) => {
   try {
-    const { pengerjaan_id, jawaban } = req.body;
-    const result = studentService.saveDraft(pengerjaan_id, jawaban);
+    const { pengerjaan_id, jawaban, paste_count, paste_details } = req.body;
+    const result = studentService.saveDraft(pengerjaan_id, jawaban, paste_count, paste_details);
     res.json({ success: true, data: result });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -638,6 +638,16 @@ app.get('/api/guru/pengerjaan/:id', requireGuru, (req, res) => {
 app.delete('/api/guru/pengerjaan/:id', requireGuru, (req, res) => {
   try {
     const result = reviewService.deletePengerjaan(req.params.id, req.guru.guruId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// Finalisasi pengerjaan siswa terputus (DC) oleh guru
+app.post('/api/guru/pengerjaan/:id/force-submit', requireGuru, (req, res) => {
+  try {
+    const result = studentService.forceSubmitByGuru(req.params.id, req.guru.guruId);
     res.json(result);
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });

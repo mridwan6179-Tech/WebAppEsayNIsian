@@ -710,17 +710,35 @@
     });
 
     let pasteDetectionCount = 0;
+    let pasteDetailsMap = {}; // { [soalId]: count }
     let toastTimeout = null;
 
-    function showPasteWarning() {
+    function showPasteWarning(soalId = null, nomorTampil = null) {
       pasteDetectionCount++;
+      if (soalId) {
+        pasteDetailsMap[soalId] = (pasteDetailsMap[soalId] || 0) + 1;
+        if (currentPengerjaanId) {
+          try {
+            localStorage.setItem(`ulangan_paste_${currentPengerjaanId}`, JSON.stringify(pasteDetailsMap));
+          } catch (e) {}
+        }
+      }
+
       const toast = document.getElementById('paste-warning-toast');
       if (toast) {
+        const msgEl = toast.querySelector('p');
+        if (msgEl) {
+          if (nomorTampil) {
+            msgEl.textContent = `Peringatan: Penempelan teks (copy-paste) pada Soal #${nomorTampil} dicatat oleh sistem. Kerjakan secara mandiri.`;
+          } else {
+            msgEl.textContent = 'Kerjakan secara mandiri. Penempelan teks (copy-paste) dicatat oleh sistem!';
+          }
+        }
         toast.classList.remove('hidden');
         if (toastTimeout) clearTimeout(toastTimeout);
         toastTimeout = setTimeout(() => {
           toast.classList.add('hidden');
-        }, 3500);
+        }, 4000);
       }
     }
 
@@ -1418,6 +1436,8 @@
       data.soal.forEach((s, idx) => {
         const card = document.createElement('div');
         card.className = 'bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200 space-y-2.5';
+        card.dataset.nomorSoal = idx + 1;
+        card.dataset.soalId = s.id;
 
         const isEssay = s.jenis === 'essay';
         const canShowListeningText = (s.tampilkan_teks_listening !== null && s.tampilkan_teks_listening !== undefined)
@@ -1586,6 +1606,16 @@
         if (savedDraft) localDrafts = JSON.parse(savedDraft);
       } catch (e) {}
 
+      // Pemulihan Catatan Copy-Paste
+      const pasteKey = `ulangan_paste_${currentPengerjaanId}`;
+      try {
+        const savedPaste = localStorage.getItem(pasteKey);
+        if (savedPaste) {
+          pasteDetailsMap = JSON.parse(savedPaste);
+          pasteDetectionCount = Object.values(pasteDetailsMap).reduce((sum, n) => sum + Number(n || 0), 0);
+        }
+      } catch (e) {}
+
       container.querySelectorAll('[data-soal-id]').forEach(input => {
         const sId = input.dataset.soalId;
         // Cek dari server data soal
@@ -1605,9 +1635,11 @@
         if (!currentPengerjaanId || isSubmitting) return;
         const answersPayload = [];
         container.querySelectorAll('[data-soal-id]').forEach(input => {
+          const sId = Number(input.dataset.soalId);
           answersPayload.push({
-            soal_id: Number(input.dataset.soalId),
-            jawaban_siswa: input.value
+            soal_id: sId,
+            jawaban_siswa: input.value,
+            paste_count: pasteDetailsMap[sId] || 0
           });
         });
         fetch('/api/siswa/draft', {
@@ -1615,7 +1647,9 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             pengerjaan_id: currentPengerjaanId,
-            jawaban: answersPayload
+            jawaban: answersPayload,
+            paste_count: pasteDetectionCount,
+            paste_details: pasteDetailsMap
           })
         }).catch(() => {});
       };
@@ -1644,7 +1678,10 @@
           syncDraftToServer();
         });
         field.addEventListener('paste', () => {
-          showPasteWarning();
+          const sId = Number(field.dataset.soalId);
+          const card = field.closest('[data-nomor-soal]');
+          const noTampil = card ? card.dataset.nomorSoal : null;
+          showPasteWarning(sId, noTampil);
           saveDraft();
         });
       });
@@ -1692,16 +1729,19 @@
         const textVal = input.value.trim() || (savedDraftObj[sId] ? String(savedDraftObj[sId]).trim() : '');
         jawaban.push({
           soal_id: sId,
-          jawaban_siswa: textVal
+          jawaban_siswa: textVal,
+          paste_count: pasteDetailsMap[sId] || 0
         });
       });
 
       // Fallback darurat: jika DOM inputs kosong saat auto-submit dipanggil cepat, ambil langsung dari savedDraftObj
       if (jawaban.length === 0 && savedDraftObj && Object.keys(savedDraftObj).length > 0) {
         for (const [sId, text] of Object.entries(savedDraftObj)) {
+          const numId = Number(sId);
           jawaban.push({
-            soal_id: Number(sId),
-            jawaban_siswa: String(text || '').trim()
+            soal_id: numId,
+            jawaban_siswa: String(text || '').trim(),
+            paste_count: pasteDetailsMap[numId] || 0
           });
         }
       }
@@ -1728,6 +1768,7 @@
             pengerjaan_id: currentPengerjaanId, 
             jawaban,
             paste_count: pasteDetectionCount,
+            paste_details: pasteDetailsMap,
             is_auto_submit: isAutoSubmit
           })
         });
@@ -1749,6 +1790,7 @@
         // Bersihkan draft tersimpan saat berhasil submit
         try {
           localStorage.removeItem(`ulangan_draft_${currentPengerjaanId}`);
+          localStorage.removeItem(`ulangan_paste_${currentPengerjaanId}`);
         } catch (e) {}
 
         checkResultStatus(currentPengerjaanId);

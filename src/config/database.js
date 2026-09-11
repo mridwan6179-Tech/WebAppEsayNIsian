@@ -166,6 +166,7 @@ function initDatabase() {
       status TEXT CHECK(status IN ('mengerjakan', 'submitted')) DEFAULT 'mengerjakan',
       soal_ids TEXT DEFAULT NULL,
       paste_count INTEGER DEFAULT 0,
+      paste_details TEXT DEFAULT NULL,
       auto_submitted INTEGER DEFAULT 0,
       started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       submitted_at DATETIME,
@@ -182,6 +183,7 @@ function initDatabase() {
       pengerjaan_id INTEGER NOT NULL,
       soal_id INTEGER NOT NULL,
       jawaban_siswa TEXT,
+      paste_count INTEGER DEFAULT 0,
       status_penilaian TEXT CHECK(status_penilaian IN ('menunggu', 'diproses', 'selesai', 'gagal')) DEFAULT 'menunggu',
       skor_rekomendasi REAL,
       skor_maksimum REAL,
@@ -328,6 +330,8 @@ function initDatabase() {
   safeAddColumn('ulangan', 'acak_soal', 'INTEGER DEFAULT 0');
   safeAddColumn('pengerjaan', 'soal_ids', 'TEXT DEFAULT NULL');
   safeAddColumn('pengerjaan', 'paste_count', 'INTEGER DEFAULT 0');
+  safeAddColumn('pengerjaan', 'paste_details', 'TEXT DEFAULT NULL');
+  safeAddColumn('jawaban', 'paste_count', 'INTEGER DEFAULT 0');
   safeAddColumn('soal', 'gambar_url', 'TEXT DEFAULT NULL');
   safeAddColumn('guru', 'password', 'TEXT DEFAULT NULL');
   safeAddColumn('ulangan', 'durasi_menit', 'INTEGER DEFAULT NULL');

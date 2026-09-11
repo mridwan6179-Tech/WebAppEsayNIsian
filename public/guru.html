@@ -898,6 +898,9 @@
           <p id="modal-student-meta" class="text-xs text-slate-500">Kelas &bull; Nilai AI vs Final</p>
         </div>
         <div class="flex items-center space-x-2">
+          <button id="btn-modal-force-submit" class="hidden text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1.5 rounded-lg transition flex items-center space-x-1" title="Kumpulkan draft jawaban siswa ini sekarang secara resmi">
+            <span>📥 Kumpulkan Jawaban</span>
+          </button>
           <button id="btn-modal-single-ai" class="hidden text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1.5 rounded-lg transition flex items-center space-x-1" title="Nilai lembar jawaban siswa ini dengan AI">
             <span>✨ Nilai AI Siswa Ini</span>
           </button>
@@ -4077,33 +4080,69 @@
             <div class="flex items-center space-x-1.5 flex-wrap">
               <span>${escapeHtml(st.nama_siswa)}</span>
               ${dupCount > 1 ? `<span class="bg-rose-100 text-rose-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-rose-200" title="Nama siswa ini terdaftar ${dupCount} kali pengerjaan">⚠️ ${dupCount}x Kirim</span>` : ''}
-              ${st.paste_count > 0 ? `<span class="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded font-bold" title="Terdeteksi ${st.paste_count} kali copy-paste teks ke lembar jawaban">📋 ${st.paste_count}x Paste</span>` : ''}
+              ${st.paste_count > 0 ? `
+                <span class="bg-amber-100 text-amber-900 text-[10px] px-1.5 py-0.5 rounded font-bold border border-amber-300 shadow-2xs" title="Terdeteksi ${st.paste_count}x copy-paste teks ${st.paste_summary ? `pada: ${st.paste_summary}` : ''}">
+                  📋 ${st.paste_count}x Paste ${st.paste_summary ? `<span class="font-normal text-amber-700">(${escapeHtml(st.paste_summary)})</span>` : ''}
+                </span>
+              ` : ''}
+              ${st.ai_alert_summary ? `
+                <span class="bg-rose-100 text-rose-900 text-[10px] px-1.5 py-0.5 rounded font-bold border border-rose-300 shadow-2xs animate-pulse" title="Terdeteksi percobaan manipulasi prompt AI pada: ${st.ai_alert_summary}">
+                  ⚠️ AI Alert (${escapeHtml(st.ai_alert_summary)})
+                </span>
+              ` : ''}
             </div>
           </td>
           <td class="p-3 text-slate-500">${escapeHtml(st.kelas_siswa)}</td>
-          <td class="p-3">${formatWaktuSubmit(st.submitted_at, st.zona_waktu || 'WIB')}</td>
           <td class="p-3">
-            <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${st.total_dinilai >= st.total_jawaban ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
-              ${st.total_dinilai} / ${st.total_jawaban} Selesai
-            </span>
+            ${st.submitted_at 
+              ? formatWaktuSubmit(st.submitted_at, st.zona_waktu || 'WIB')
+              : `<span class="inline-flex items-center text-xs text-slate-400 italic bg-slate-50 px-2 py-0.5 rounded border border-slate-200" title="Jawaban masih berupa draft di server dan belum dikumpulkan">
+                   <span>📝 Draft Tersimpan</span>
+                 </span>`
+            }
+          </td>
+          <td class="p-3">
+            ${st.status === 'submitted' ? `
+              <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${st.total_dinilai >= st.total_jawaban ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+                ${st.total_dinilai} / ${st.total_jawaban} Selesai
+              </span>
+            ` : (st.draft_lengkap ? `
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs cursor-help" title="Seluruh ${st.total_terisi} dari ${st.total_jawaban} butir soal telah terisi lengkap di server. Siswa terputus koneksi sebelum klik kumpulkan.">
+                <span class="mr-1">✅</span> ${st.total_terisi} / ${st.total_jawaban} Lengkap
+              </span>
+            ` : (st.total_terisi > 0 ? `
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-300 cursor-help" title="${st.total_terisi} dari ${st.total_jawaban} butir soal telah terisi di draft">
+                <span class="mr-1">📝</span> ${st.total_terisi} / ${st.total_jawaban} Terisi
+              </span>
+            ` : `
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200" title="Belum ada jawaban terisi di draft">
+                0 / ${st.total_jawaban} Terisi
+              </span>
+            `))}
           </td>
           <td class="p-3 font-semibold text-purple-700">${st.nilai_ai !== null && st.nilai_ai !== undefined ? st.nilai_ai : '-'}</td>
           <td class="p-3 font-bold text-blue-600">${st.nilai_final !== null && st.nilai_final !== undefined ? st.nilai_final : '-'}</td>
           <td class="p-3">
             ${st.status !== 'submitted'
               ? (st.status_kehadiran === 'aktif'
-                  ? `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs cursor-help" title="${escapeHtml(st.terakhir_aktif_teks || 'Sedang aktif di halaman ujian')}">
-                      <span class="relative flex h-2 w-2 mr-1.5">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  ? `<div class="flex items-center space-x-1 flex-wrap">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs cursor-help" title="${escapeHtml(st.terakhir_aktif_teks || 'Sedang aktif di halaman ujian')}">
+                        <span class="relative flex h-2 w-2 mr-1.5">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        <span>Aktif</span>
                       </span>
-                      <span>Aktif</span>
-                     </span>`
-                  : `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-300 shadow-2xs cursor-help" title="${escapeHtml(st.terakhir_aktif_teks || 'Koneksi terputus / keluar')}">
-                      <span class="w-2 h-2 rounded-full bg-rose-500 mr-1.5 inline-block"></span>
-                      <span>Terputus (DC)</span>
-                      ${st.terakhir_aktif_teks_singkat ? `<span class="text-[10px] text-rose-600 font-normal ml-1">(${escapeHtml(st.terakhir_aktif_teks_singkat)})</span>` : ''}
-                     </span>`
+                      ${st.draft_lengkap ? `<span class="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-emerald-300 shadow-2xs" title="Seluruh jawaban (${st.total_terisi} butir soal) sudah lengkap terisi di server">🟢 Jawaban Lengkap</span>` : ''}
+                     </div>`
+                  : `<div class="flex items-center space-x-1 flex-wrap">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-300 shadow-2xs cursor-help" title="${escapeHtml(st.terakhir_aktif_teks || 'Koneksi terputus / keluar')}">
+                        <span class="w-2 h-2 rounded-full bg-rose-500 mr-1.5 inline-block"></span>
+                        <span>Terputus (DC)</span>
+                        ${st.terakhir_aktif_teks_singkat ? `<span class="text-[10px] text-rose-600 font-normal ml-1">(${escapeHtml(st.terakhir_aktif_teks_singkat)})</span>` : ''}
+                      </span>
+                      ${st.draft_lengkap ? `<span class="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-emerald-300 shadow-2xs" title="Siswa terputus namun seluruh jawaban (${st.total_terisi} butir soal) sudah lengkap di server">🟢 Jawaban Lengkap</span>` : ''}
+                     </div>`
                 )
               : (st.released_at 
                   ? `<button type="button" onclick="toggleReleaseSingleStudent(${st.pengerjaan_id}, false, '${escapeHtml(st.nama_siswa).replace(/'/g, "\\'")}')" class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 hover:bg-rose-100 text-emerald-800 hover:text-rose-700 border border-emerald-300 hover:border-rose-300 shadow-xs transition group cursor-pointer" title="Nilai sudah dapat dilihat siswa. Klik untuk MENARIK rilis nilai siswa ini.">
@@ -4122,14 +4161,21 @@
           <td class="p-3 text-right">
             <div class="flex items-center justify-end space-x-1.5">
               ${st.status === 'submitted' ? `
-                <button type="button" onclick="runSingleStudentAiReview(${st.pengerjaan_id}, this)" class="text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-semibold px-2 py-1 rounded transition flex items-center space-x-1" title="Nilai lembar jawaban siswa ini dengan AI (Perorangan)">
+                <button type="button" onclick="runSingleStudentAiReview(${st.pengerjaan_id}, this)" class="text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-semibold px-2 py-1 rounded transition flex items-center space-x-1 cursor-pointer" title="Nilai lembar jawaban siswa ini dengan AI (Perorangan)">
                   <span>✨ Nilai AI</span>
                 </button>
-              ` : ''}
-              <button onclick="openReviewModal(${st.pengerjaan_id})" class="text-xs bg-slate-100 hover:bg-blue-50 text-blue-600 font-semibold px-2.5 py-1 rounded transition" title="Review butir jawaban siswa">
+              ` : (st.total_terisi > 0 ? `
+                <button type="button" onclick="forceSubmitAndGradeSingle(${st.pengerjaan_id}, this, '${escapeHtml(st.nama_siswa).replace(/'/g, "\\'")}', ${st.draft_lengkap ? 'true' : 'false'})" class="text-xs ${st.draft_lengkap ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold' : 'bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-semibold'} px-2 py-1 rounded transition flex items-center space-x-1 cursor-pointer" title="Kumpulkan draft jawaban siswa & langsung nilai dengan AI">
+                  <span>✨ Nilai AI</span>
+                </button>
+                <button type="button" onclick="forceSubmitSingleStudent(${st.pengerjaan_id}, this, '${escapeHtml(st.nama_siswa).replace(/'/g, "\\'")}')" class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold px-2 py-1 rounded transition cursor-pointer" title="Kumpulkan pengerjaan draft siswa ini (Finalisasi oleh Guru)">
+                  <span>📥 Kumpul</span>
+                </button>
+              ` : '')}
+              <button onclick="openReviewModal(${st.pengerjaan_id})" class="text-xs bg-slate-100 hover:bg-blue-50 text-blue-600 font-semibold px-2.5 py-1 rounded transition cursor-pointer" title="Review butir jawaban siswa">
                 Review &orarr;
               </button>
-              <button data-id="${st.pengerjaan_id}" data-nama="${escapeHtml(st.nama_siswa)}" data-kelas="${escapeHtml(st.kelas_siswa)}" onclick="btnHapusPengerjaanHandler(this)" class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-semibold px-2 py-1 rounded transition" title="Hapus pengerjaan siswa ini">
+              <button data-id="${st.pengerjaan_id}" data-nama="${escapeHtml(st.nama_siswa)}" data-kelas="${escapeHtml(st.kelas_siswa)}" onclick="btnHapusPengerjaanHandler(this)" class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-semibold px-2 py-1 rounded transition cursor-pointer" title="Hapus pengerjaan siswa ini">
                 🗑️ Hapus
               </button>
             </div>
@@ -4343,20 +4389,44 @@
       if (!res.ok || !data.success) return;
 
       const d = data.data;
-      const pasteBadge = d.pengerjaan.paste_count > 0 ? ` • ⚠️ ${d.pengerjaan.paste_count}x Copy-Paste` : '';
+      const pasteQuestions = (d.jawabanList || []).filter(j => j.paste_count > 0).map(j => `Soal #${j.nomor_tampil || 1}`);
+      const pasteDetailText = pasteQuestions.length > 0 ? ` (pada ${pasteQuestions.join(', ')})` : '';
+      const pasteBadge = d.pengerjaan.paste_count > 0 ? ` • ⚠️ ${d.pengerjaan.paste_count}x Copy-Paste${pasteDetailText}` : '';
+      
+      const terisiCount = (d.jawabanList || []).filter(j => j.jawaban_siswa && j.jawaban_siswa.trim() !== '').length;
+      const draftBadge = d.pengerjaan.status !== 'submitted' 
+        ? ` • 📝 Draft (${terisiCount}/${d.jawabanList.length} Terisi${terisiCount >= d.jawabanList.length ? ' - Lengkap' : ''})` 
+        : '';
+
       document.getElementById('modal-student-name').textContent = `Review Jawaban: ${d.pengerjaan.nama_siswa}`;
-      document.getElementById('modal-student-meta').textContent = `${d.pengerjaan.kelas_siswa} • Nilai AI: ${d.pengerjaan.nilai_ai ?? '-'} • Nilai Final: ${d.pengerjaan.nilai_final ?? '-'}${pasteBadge}`;
+      document.getElementById('modal-student-meta').textContent = `${d.pengerjaan.kelas_siswa} • Nilai AI: ${d.pengerjaan.nilai_ai ?? '-'} • Nilai Final: ${d.pengerjaan.nilai_final ?? '-'}${pasteBadge}${draftBadge}`;
+
+      // Tombol Force Submit oleh Guru di modal
+      const btnModalForce = document.getElementById('btn-modal-force-submit');
+      if (btnModalForce) {
+        if (d.pengerjaan.status !== 'submitted') {
+          btnModalForce.classList.remove('hidden');
+          btnModalForce.onclick = async () => {
+            await window.forceSubmitSingleStudent(pengerjaanId, btnModalForce, d.pengerjaan.nama_siswa);
+          };
+        } else {
+          btnModalForce.classList.add('hidden');
+        }
+      }
 
       // Konfigurasi tombol review AI individual di header modal review
       const btnModalAi = document.getElementById('btn-modal-single-ai');
       if (btnModalAi) {
-        if (d.pengerjaan.status !== 'submitted') {
+        if (d.pengerjaan.status !== 'submitted' && terisiCount === 0) {
           btnModalAi.classList.add('hidden');
         } else {
           btnModalAi.classList.remove('hidden');
           btnModalAi.disabled = false;
           btnModalAi.innerHTML = '<span>✨ Nilai AI Siswa Ini</span>';
           btnModalAi.onclick = async () => {
+            if (d.pengerjaan.status !== 'submitted') {
+              if (!confirm(`Pengerjaan "${d.pengerjaan.nama_siswa}" masih berstatus draft/terputus. Kumpulkan jawaban sekarang dan langsung nilai dengan AI?`)) return;
+            }
             await window.runSingleStudentAiReview(pengerjaanId, btnModalAi);
           };
         }
@@ -4390,23 +4460,40 @@
       d.jawabanList.forEach((j, idx) => {
         const item = document.createElement('div');
         item.className = 'p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2';
-        const hasInjectionAlert = j.alasan_ai && (j.alasan_ai.toLowerCase().includes('manipulasi') || j.alasan_ai.toLowerCase().includes('prompt injection') || j.alasan_ai.toLowerCase().includes('pengelabu'));
+        const hasInjectionAlert = j.has_injection_alert || (j.alasan_ai && (j.alasan_ai.toLowerCase().includes('manipulasi') || j.alasan_ai.toLowerCase().includes('prompt injection') || j.alasan_ai.toLowerCase().includes('pengelabu')));
+        const noSoal = j.nomor_tampil || (idx + 1);
 
         item.innerHTML = `
           <div class="flex justify-between items-start font-semibold text-slate-800" dir="auto">
-            <span>#${idx + 1} (${j.jenis}): ${j.pertanyaan}</span>
+            <span>#${noSoal} (${j.jenis}): ${j.pertanyaan}</span>
             <span class="text-slate-400">Maks: ${j.bobot}</span>
           </div>
           ${j.gambar_url ? `
             <div class="my-2">
-              <img src="${j.gambar_url}" alt="Gambar Soal ${idx + 1}" class="max-h-48 max-w-full rounded-lg border border-slate-200 object-contain bg-white">
+              <img src="${j.gambar_url}" alt="Gambar Soal ${noSoal}" class="max-h-48 max-w-full rounded-lg border border-slate-200 object-contain bg-white">
             </div>
           ` : ''}
           <p class="text-slate-500" dir="auto"><strong class="text-slate-600">Kunci Acuan:</strong> ${j.kunci_jawaban || '-'}</p>
-          <div class="bg-white p-2.5 rounded-lg border border-slate-200">
-            <strong class="text-slate-700">Jawaban Siswa:</strong>
-            <p class="text-slate-800 mt-0.5 text-sm" dir="auto">${j.jawaban_siswa || '(kosong)'}</p>
+          <div class="bg-white p-2.5 rounded-lg border border-slate-200 space-y-1.5">
+            <div class="flex justify-between items-center">
+              <strong class="text-slate-700">Jawaban Siswa:</strong>
+              ${j.paste_count > 0 ? `
+                <span class="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] px-2 py-0.5 rounded font-bold flex items-center space-x-1">
+                  <span>📋</span>
+                  <span>Terdeteksi ${j.paste_count}x Copy-Paste pada Soal Ini</span>
+                </span>
+              ` : ''}
+            </div>
+            <p class="text-slate-800 mt-0.5 text-sm" dir="auto">${j.jawaban_siswa || '<span class="italic text-slate-400">(belum diisi / kosong)</span>'}</p>
           </div>
+          ${j.paste_count > 0 ? `
+            <div class="p-2 bg-amber-50/90 border border-amber-300 rounded-lg text-xs text-amber-900 font-bold flex items-center justify-between">
+              <span class="flex items-center space-x-1.5">
+                <span>⚠️</span>
+                <span>Peringatan Integritas: Siswa menempelkan teks (paste) ${j.paste_count}x pada nomor soal ini</span>
+              </span>
+            </div>
+          ` : ''}
           <div class="bg-purple-50/70 p-2.5 rounded-lg border border-purple-100 text-purple-900">
             <div class="flex justify-between font-semibold mb-1">
               <span>Rekomendasi AI (${j.status_jawaban || 'menunggu'}):</span>
@@ -4414,9 +4501,12 @@
             </div>
             <p class="text-[11px] text-purple-800">${j.alasan_ai || 'Belum dinilai oleh AI'}</p>
             ${hasInjectionAlert ? `
-              <div class="mt-2 p-2 bg-red-100 border border-red-200 rounded text-xs text-red-800 font-bold flex items-center space-x-1.5">
-                <span>🛡️</span>
-                <span>Percobaan Manipulasi / Pengelabu AI Terdeteksi & Dinetralkan!</span>
+              <div class="mt-2 p-2.5 bg-rose-100 border border-rose-300 rounded-lg text-xs text-rose-900 font-bold flex items-center space-x-2">
+                <span class="text-base">🛡️</span>
+                <div>
+                  <div>Terdeteksi Percobaan Manipulasi / Prompt Injection pada soal ini!</div>
+                  <div class="text-[10px] font-normal text-rose-700 mt-0.5">Siswa mencoba mengelabui instruksi sistem AI. Sistem mengabaikan manipulasi tersebut.</div>
+                </div>
               </div>
             ` : ''}
           </div>
@@ -4502,6 +4592,48 @@
           btnEl.innerHTML = originalHtml;
         }
       }
+    };
+
+    // Guru memfinalisasi pengerjaan draft siswa secara manual (Force Submit)
+    window.forceSubmitSingleStudent = async (pengerjaanId, btnEl, namaSiswa) => {
+      if (!confirm(`Kumpulkan pengerjaan draft untuk "${namaSiswa}" secara resmi sekarang?`)) return;
+      const originalHtml = btnEl ? btnEl.innerHTML : '';
+      if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.innerHTML = '<span class="inline-block animate-spin mr-1">⏳</span><span>Mengumpulkan...</span>';
+      }
+      try {
+        const res = await guruFetch(`/api/guru/pengerjaan/${pengerjaanId}/force-submit`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          alert('⚠️ Gagal mengumpulkan: ' + (data.message || 'Kendala server'));
+          return;
+        }
+        alert(`✅ Pengerjaan "${namaSiswa}" berhasil dikumpulkan secara resmi!`);
+        if (typeof loadPesertaList === 'function' && activeUlanganId) {
+          loadPesertaList(activeUlanganId);
+        }
+        const modalEl = document.getElementById('modal-review');
+        if (modalEl && !modalEl.classList.contains('hidden') && activePengerjaanId === pengerjaanId) {
+          window.openReviewModal(pengerjaanId);
+        }
+      } catch (err) {
+        alert('Gagal menghubungi server: ' + err.message);
+      } finally {
+        if (btnEl) {
+          btnEl.disabled = false;
+          btnEl.innerHTML = originalHtml;
+        }
+      }
+    };
+
+    // Kumpulkan draft & langsung nilai perorangan dengan AI
+    window.forceSubmitAndGradeSingle = async (pengerjaanId, btnEl, namaSiswa, isLengkap) => {
+      const promptText = isLengkap
+        ? `Seluruh jawaban "${namaSiswa}" sudah lengkap di server. Kumpulkan dan langsung nilai dengan AI sekarang?`
+        : `Jawaban "${namaSiswa}" masih berstatus draf. Kumpulkan jawaban yang ada dan nilai dengan AI sekarang?`;
+      if (!confirm(promptText)) return;
+      await window.runSingleStudentAiReview(pengerjaanId, btnEl);
     };
 
     // AI Review Queue Controls & Status Polling (Optimal untuk Serverless Vercel & Real-time Progress)

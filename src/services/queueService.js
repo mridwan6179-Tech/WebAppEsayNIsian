@@ -397,7 +397,18 @@ const queueService = {
 
     if (!pengerjaan) throw new Error('Data pengerjaan tidak ditemukan');
     if (pengerjaan.guru_id !== guruId) throw new Error('Akses ditolak: bukan ulangan milik Anda');
-    if (pengerjaan.status !== 'submitted') throw new Error('Ujian belum dikumpulkan oleh siswa');
+    
+    if (pengerjaan.status !== 'submitted') {
+      // Periksa apakah siswa sudah memiliki draf jawaban yang terisi
+      const hasDraft = db.prepare("SELECT id FROM jawaban WHERE pengerjaan_id = ? AND jawaban_siswa IS NOT NULL AND TRIM(jawaban_siswa) != '' LIMIT 1").get(pengerjaanId);
+      if (!hasDraft) {
+        throw new Error('Ujian belum dikumpulkan dan belum ada jawaban yang terisi');
+      }
+      // Finalisasi pengerjaan siswa secara otomatis oleh guru agar siap dinilai
+      const nowIso = new Date().toISOString();
+      db.prepare("UPDATE pengerjaan SET status = 'submitted', submitted_at = ?, auto_submitted = 1 WHERE id = ?").run(nowIso, pengerjaanId);
+      pengerjaan.status = 'submitted';
+    }
 
     const ulanganId = pengerjaan.ulangan_id;
     if (runningWorkers.get(Number(ulanganId))?.isRunning) {
