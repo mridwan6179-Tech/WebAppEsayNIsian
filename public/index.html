@@ -1633,6 +1633,20 @@
         }
       }
 
+      // Guard Frontend: Jika submit manual dan semua jawaban masih kosong, batalkan tanpa kirim ke server
+      if (!isAutoSubmit) {
+        const hasAnyFilled = jawaban.some(j => j.jawaban_siswa && j.jawaban_siswa.trim() !== '');
+        if (!hasAnyFilled) {
+          alert('⚠️ Kamu belum mengisi jawaban apapun.\n\nSilakan isi jawaban terlebih dahulu sebelum mengumpulkan.\nJika ingin keluar, tutup saja tab ini — ulangan kamu tidak akan dikirim.');
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Kumpulkan Jawaban';
+          }
+          isSubmitting = false;
+          return;
+        }
+      }
+
       try {
         const res = await fetch('/api/siswa/submit', {
           method: 'POST',
@@ -1645,6 +1659,18 @@
           })
         });
         const data = await res.json();
+
+        // Jika backend menolak karena jawaban kosong (bukan error sistem)
+        if (!data.success && data.empty) {
+          alert('⚠️ ' + data.message);
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Kumpulkan Jawaban';
+          }
+          isSubmitting = false;
+          return;
+        }
+
         if (!res.ok || !data.success) throw new Error(data.message || 'Gagal submit');
 
         // Bersihkan draft tersimpan saat berhasil submit

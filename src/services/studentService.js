@@ -491,6 +491,43 @@ const studentService = {
       }
     }
 
+    // Guard: Tolak submit manual yang sama sekali kosong (tidak ada jawaban terisi)
+    // Kecuali auto-submit karena waktu habis — di sana kita submit apa pun yang ada.
+    if (!isAutoSubmit) {
+      // Deteksi apakah ada jawaban terisi, mendukung tiga format rawAnswers:
+      //   1. Array standar: [{ soal_id, jawaban_siswa }]
+      //   2. Array legacy test: [{ soal_id, teks_jawaban }]
+      //   3. Objek plain legacy: { [soalId]: 'nilai' }
+      let hasAnyFilledAnswer;
+      if (Array.isArray(rawAnswers)) {
+        hasAnyFilledAnswer = rawAnswers.some(a => {
+          const val = a && (a.jawaban_siswa !== undefined ? a.jawaban_siswa : a.teks_jawaban);
+          return String(val || '').trim() !== '';
+        });
+      } else if (rawAnswers && typeof rawAnswers === 'object') {
+        // Plain-object format: nilai-nilai adalah string jawaban
+        hasAnyFilledAnswer = Object.values(rawAnswers).some(v => String(v || '').trim() !== '');
+      } else {
+        hasAnyFilledAnswer = false;
+      }
+
+      if (!hasAnyFilledAnswer) {
+        // Cek juga draft yang sudah tersimpan di server sebelum menolak
+        const existingDraft = db.prepare(
+          "SELECT id FROM jawaban WHERE pengerjaan_id = ? AND jawaban_siswa IS NOT NULL AND jawaban_siswa != '' LIMIT 1"
+        ).get(pengerjaanId);
+        if (!existingDraft) {
+          // Tidak ada jawaban apapun — tolak, jangan ubah status
+          return {
+            success: false,
+            empty: true,
+            message: 'Jawaban masih kosong. Silakan isi jawaban terlebih dahulu sebelum mengumpulkan.'
+          };
+        }
+        // Ada draft tersimpan di server → boleh submit (akan pakai data draft)
+      }
+    }
+
     // Transaksi penyimpanan jawaban agar atomik
     const insertOrUpdateJawaban = db.transaction(() => {
       const checkStmt = db.prepare('SELECT id, jawaban_siswa FROM jawaban WHERE pengerjaan_id = ? AND soal_id = ?');
