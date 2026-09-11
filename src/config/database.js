@@ -26,12 +26,15 @@ if (tursoUrl && tursoToken) {
     syncInterval: 60000 // Sinkronisasi otomatis setiap 60 detik
   });
   if (typeof db.sync === 'function') {
-    try {
-      db.sync();
-      console.log('✅ Sinkronisasi awal dengan Turso Cloud (AWS Tokyo) berhasil!');
-    } catch (err) {
-      console.warn('⚠️ Sinkronisasi awal Turso:', err.message);
-    }
+    // Jalankan sinkronisasi awal secara non-blocking agar server langsung bisa menerima request
+    setImmediate(() => {
+      try {
+        db.sync();
+        console.log('✅ Sinkronisasi latar belakang Turso Cloud (AWS Tokyo) berhasil!');
+      } catch (err) {
+        console.warn('⚠️ Sinkronisasi latar belakang Turso:', err.message);
+      }
+    });
   }
 
   // libSQL embedded replica tidak mendukung transaksi manual "BEGIN " via exec()
@@ -60,24 +63,33 @@ try {
   console.warn('⚠️ Pragma setting notice:', e.message);
 }
 
+let isSyncing = false;
 let lastSyncTime = 0;
 db.syncCloud = function(force = false) {
-  if (typeof db.sync === 'function') {
-    const now = Date.now();
-    if (force || now - lastSyncTime > 5000) {
-      lastSyncTime = now;
-      try {
-        db.sync();
-      } catch (e) {
-        console.warn('⚠️ Turso sync warning:', e.message);
-      }
+  if (typeof db.sync !== 'function' || isSyncing) return;
+  const now = Date.now();
+  const minInterval = force ? 10000 : 30000;
+  if (now - lastSyncTime < minInterval) return;
+
+  lastSyncTime = now;
+  isSyncing = true;
+  // Jalankan sinkronisasi di background tanpa memblokir event loop dan respons Express
+  setImmediate(() => {
+    try {
+      db.sync();
+    } catch (e) {
+      console.warn('⚠️ Turso background sync:', e.message);
+    } finally {
+      isSyncing = false;
     }
-  }
+  });
 };
 
 function initDatabase() {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS guru (
+  const hasSchema = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='guru'").get());
+  if (!hasSchema) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS guru (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT UNIQUE NOT NULL,
       nama TEXT NOT NULL,
@@ -285,45 +297,72 @@ function initDatabase() {
       FOREIGN KEY (guru_id) REFERENCES guru(id) ON DELETE CASCADE
     );
   `);
+  }
 
-  // Migrasi aman untuk database yang sudah ada
-  try { db.exec('ALTER TABLE ulangan ADD COLUMN jumlah_soal_tampil INTEGER DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE ulangan ADD COLUMN acak_soal INTEGER DEFAULT 0;'); } catch (e) {}
-  try { db.exec('ALTER TABLE pengerjaan ADD COLUMN soal_ids TEXT DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE pengerjaan ADD COLUMN paste_count INTEGER DEFAULT 0;'); } catch (e) {}
-  try { db.exec('ALTER TABLE soal ADD COLUMN gambar_url TEXT DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE guru ADD COLUMN password TEXT DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE ulangan ADD COLUMN durasi_menit INTEGER DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE pengerjaan ADD COLUMN auto_submitted INTEGER DEFAULT 0;'); } catch (e) {}
-  try { db.exec('ALTER TABLE ulangan ADD COLUMN kkm INTEGER DEFAULT 75;'); } catch (e) {}
-  try { db.exec('ALTER TABLE guru ADD COLUMN no_wa TEXT DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE ulangan ADD COLUMN instruksi_remedial TEXT DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE ulangan ADD COLUMN link_remedial TEXT DEFAULT NULL;'); } catch (e) {}
-  try { db.exec("ALTER TABLE ulangan ADD COLUMN zona_waktu TEXT DEFAULT 'WIB';"); } catch (e) {}
-  try { db.exec('ALTER TABLE ulangan ADD COLUMN izinkan_singkatan INTEGER DEFAULT 0;'); } catch (e) {}
-  try { db.exec('ALTER TABLE ulangan ADD COLUMN izinkan_informal INTEGER DEFAULT 0;'); } catch (e) {}
-  try { db.exec('ALTER TABLE ulangan ADD COLUMN toleransi_typo INTEGER DEFAULT 1;'); } catch (e) {}
-  try { db.exec('ALTER TABLE ulangan ADD COLUMN instruksi_penilaian_khusus TEXT DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE ulangan ADD COLUMN jumlah_soal_isian INTEGER DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE ulangan ADD COLUMN jumlah_soal_essay INTEGER DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE ulangan ADD COLUMN jumlah_soal_listening INTEGER DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE soal ADD COLUMN pembahasan TEXT DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE soal ADD COLUMN audio_url TEXT DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE soal ADD COLUMN audio_script TEXT DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE soal ADD COLUMN is_listening INTEGER DEFAULT 0;'); } catch (e) {}
-  try { db.exec('ALTER TABLE soal ADD COLUMN bahasa TEXT DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE soal ADD COLUMN kategori TEXT DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE bank_soal ADD COLUMN audio_url TEXT DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE bank_soal ADD COLUMN audio_script TEXT DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE bank_soal ADD COLUMN is_listening INTEGER DEFAULT 0;'); } catch (e) {}
-  try { db.exec('ALTER TABLE bank_soal ADD COLUMN bahasa TEXT DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE ulangan ADD COLUMN tampilkan_simbol INTEGER DEFAULT 1;'); } catch (e) {}
-  try { db.exec('ALTER TABLE ulangan ADD COLUMN link_kisi_kisi TEXT DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE ulangan ADD COLUMN tampilkan_kisi_kisi INTEGER DEFAULT 0;'); } catch (e) {}
-  try { db.exec("UPDATE ulangan SET tampilkan_kisi_kisi = 1 WHERE link_kisi_kisi IS NOT NULL AND TRIM(link_kisi_kisi) != '' AND (tampilkan_kisi_kisi IS NULL OR tampilkan_kisi_kisi = 0);"); } catch (e) {}
-  try { db.exec('ALTER TABLE ulangan ADD COLUMN tampilkan_teks_listening INTEGER DEFAULT 0;'); } catch (e) {}
-  try { db.exec('ALTER TABLE soal ADD COLUMN tampilkan_teks_listening INTEGER DEFAULT NULL;'); } catch (e) {}
-  try { db.exec('ALTER TABLE bank_soal ADD COLUMN tampilkan_teks_listening INTEGER DEFAULT 0;'); } catch (e) {}
+  // Migrasi cerdas: Periksa ketersediaan kolom via local pragma sebelum mengeksekusi ALTER TABLE
+  // Mencegah puluhan round-trip remote yang memblokir server saat startup
+  const tableColumnsMap = new Map();
+  function hasColumn(tableName, colName) {
+    if (!tableColumnsMap.has(tableName)) {
+      try {
+        const info = db.pragma(`table_info("${tableName}")`);
+        tableColumnsMap.set(tableName, new Set(info.map(c => c.name.toLowerCase())));
+      } catch (e) {
+        tableColumnsMap.set(tableName, new Set());
+      }
+    }
+    return tableColumnsMap.get(tableName).has(colName.toLowerCase());
+  }
+
+  function safeAddColumn(tableName, colName, colDef) {
+    if (!hasColumn(tableName, colName)) {
+      try {
+        db.exec(`ALTER TABLE "${tableName}" ADD COLUMN ${colName} ${colDef};`);
+        tableColumnsMap.get(tableName).add(colName.toLowerCase());
+      } catch (e) {}
+    }
+  }
+
+  safeAddColumn('ulangan', 'jumlah_soal_tampil', 'INTEGER DEFAULT NULL');
+  safeAddColumn('ulangan', 'acak_soal', 'INTEGER DEFAULT 0');
+  safeAddColumn('pengerjaan', 'soal_ids', 'TEXT DEFAULT NULL');
+  safeAddColumn('pengerjaan', 'paste_count', 'INTEGER DEFAULT 0');
+  safeAddColumn('soal', 'gambar_url', 'TEXT DEFAULT NULL');
+  safeAddColumn('guru', 'password', 'TEXT DEFAULT NULL');
+  safeAddColumn('ulangan', 'durasi_menit', 'INTEGER DEFAULT NULL');
+  safeAddColumn('pengerjaan', 'auto_submitted', 'INTEGER DEFAULT 0');
+  safeAddColumn('ulangan', 'kkm', 'INTEGER DEFAULT 75');
+  safeAddColumn('guru', 'no_wa', 'TEXT DEFAULT NULL');
+  safeAddColumn('ulangan', 'instruksi_remedial', 'TEXT DEFAULT NULL');
+  safeAddColumn('ulangan', 'link_remedial', 'TEXT DEFAULT NULL');
+  safeAddColumn('ulangan', 'zona_waktu', "TEXT DEFAULT 'WIB'");
+  safeAddColumn('ulangan', 'izinkan_singkatan', 'INTEGER DEFAULT 0');
+  safeAddColumn('ulangan', 'izinkan_informal', 'INTEGER DEFAULT 0');
+  safeAddColumn('ulangan', 'toleransi_typo', 'INTEGER DEFAULT 1');
+  safeAddColumn('ulangan', 'instruksi_penilaian_khusus', 'TEXT DEFAULT NULL');
+  safeAddColumn('ulangan', 'jumlah_soal_isian', 'INTEGER DEFAULT NULL');
+  safeAddColumn('ulangan', 'jumlah_soal_essay', 'INTEGER DEFAULT NULL');
+  safeAddColumn('ulangan', 'jumlah_soal_listening', 'INTEGER DEFAULT NULL');
+  safeAddColumn('soal', 'pembahasan', 'TEXT DEFAULT NULL');
+  safeAddColumn('soal', 'audio_url', 'TEXT DEFAULT NULL');
+  safeAddColumn('soal', 'audio_script', 'TEXT DEFAULT NULL');
+  safeAddColumn('soal', 'is_listening', 'INTEGER DEFAULT 0');
+  safeAddColumn('soal', 'bahasa', 'TEXT DEFAULT NULL');
+  safeAddColumn('soal', 'kategori', 'TEXT DEFAULT NULL');
+  safeAddColumn('bank_soal', 'audio_url', 'TEXT DEFAULT NULL');
+  safeAddColumn('bank_soal', 'audio_script', 'TEXT DEFAULT NULL');
+  safeAddColumn('bank_soal', 'is_listening', 'INTEGER DEFAULT 0');
+  safeAddColumn('bank_soal', 'bahasa', 'TEXT DEFAULT NULL');
+  safeAddColumn('ulangan', 'tampilkan_simbol', 'INTEGER DEFAULT 1');
+  safeAddColumn('ulangan', 'link_kisi_kisi', 'TEXT DEFAULT NULL');
+  safeAddColumn('ulangan', 'tampilkan_kisi_kisi', 'INTEGER DEFAULT 0');
+  safeAddColumn('ulangan', 'tampilkan_teks_listening', 'INTEGER DEFAULT 0');
+  safeAddColumn('soal', 'tampilkan_teks_listening', 'INTEGER DEFAULT NULL');
+  safeAddColumn('bank_soal', 'tampilkan_teks_listening', 'INTEGER DEFAULT 0');
+
+  try {
+    db.exec("UPDATE ulangan SET tampilkan_kisi_kisi = 1 WHERE link_kisi_kisi IS NOT NULL AND TRIM(link_kisi_kisi) != '' AND (tampilkan_kisi_kisi IS NULL OR tampilkan_kisi_kisi = 0);");
+  } catch (e) {}
 
   // Seed initial guru if table is empty
   const teacherEmail = process.env.TEACHER_EMAIL || 'mridwan700611@gmail.com';

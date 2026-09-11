@@ -40,17 +40,19 @@ app.use((req, res, next) => {
 // Static Files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Otomatis sinkronisasi Turso Cloud untuk request API
+// Endpoint Health Check untuk monitoring platform hosting (Render/Vercel/Uptime)
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
+
+// Jadwalkan sinkronisasi latar belakang Turso secara debounced setelah request write selesai (tidak memblokir request klien)
 app.use((req, res, next) => {
-  if (req.path && req.path.startsWith('/api/')) {
-    db.syncCloud();
-    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
-      res.on('finish', () => {
-        if (res.statusCode >= 200 && res.statusCode < 400) {
-          db.syncCloud(true);
-        }
-      });
-    }
+  if (req.path && req.path.startsWith('/api/') && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+    res.on('finish', () => {
+      if (res.statusCode >= 200 && res.statusCode < 400 && typeof db.syncCloud === 'function') {
+        db.syncCloud();
+      }
+    });
   }
   next();
 });
