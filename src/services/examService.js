@@ -119,16 +119,17 @@ const examService = {
     const tampilkanSimbol = (data.tampilkan_simbol !== undefined && data.tampilkan_simbol !== null) ? (data.tampilkan_simbol ? 1 : 0) : 1;
     const cleanLinkKisiKisi = data.link_kisi_kisi ? String(data.link_kisi_kisi).trim() : null;
     const tampilkanKisiKisi = (data.tampilkan_kisi_kisi !== undefined && data.tampilkan_kisi_kisi !== null) ? (data.tampilkan_kisi_kisi ? 1 : 0) : (cleanLinkKisiKisi ? 1 : 0);
+    const tampilkanTeksListening = data.tampilkan_teks_listening ? 1 : 0;
 
     const stmt = db.prepare(`
-      INSERT INTO ulangan (guru_id, judul, mata_pelajaran, tingkat_kelas, deskripsi, kode_ujian, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, instruksi_remedial, link_remedial, zona_waktu, izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus, tampilkan_simbol, link_kisi_kisi, tampilkan_kisi_kisi)
-      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO ulangan (guru_id, judul, mata_pelajaran, tingkat_kelas, deskripsi, kode_ujian, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, instruksi_remedial, link_remedial, zona_waktu, izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus, tampilkan_simbol, link_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening)
+      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
       guruId, judul, mata_pelajaran, tingkat_kelas, deskripsi || '', kode_ujian,
       limitSoal, cleanIsian, cleanEssay, cleanListening, isAcak, cleanTanggalMulai, cleanTanggalSelesai, cleanDurasi,
       cleanKkm, cleanInstruksiRemedial, cleanLinkRemedial, cleanZonaWaktu,
-      izinkanSingkatan, izinkanInformal, toleransiTypo, cleanInstruksiKhusus, tampilkanSimbol, cleanLinkKisiKisi, tampilkanKisiKisi
+      izinkanSingkatan, izinkanInformal, toleransiTypo, cleanInstruksiKhusus, tampilkanSimbol, cleanLinkKisiKisi, tampilkanKisiKisi, tampilkanTeksListening
     );
     const ulanganId = info.lastInsertRowid;
 
@@ -317,6 +318,10 @@ const examService = {
       updates.push('tampilkan_kisi_kisi = ?');
       params.push(data.tampilkan_kisi_kisi ? 1 : 0);
     }
+    if (data.tampilkan_teks_listening !== undefined) {
+      updates.push('tampilkan_teks_listening = ?');
+      params.push(data.tampilkan_teks_listening ? 1 : 0);
+    }
     if (status !== undefined) {
       if (!['draft', 'dibuka', 'ditutup', 'selesai'].includes(status)) {
         throw new Error('Status tidak valid');
@@ -396,9 +401,13 @@ const examService = {
     const nextUrutan = (maxOrder?.max_u || 0) + 1;
 
     const stmt = db.prepare(`
-      INSERT INTO soal (ulangan_id, nomor, jenis, pertanyaan, gambar_url, kunci_jawaban, rubrik, bobot, tingkat_kelas, tingkat_kesulitan, urutan, pembahasan, audio_url, audio_script, is_listening, bahasa, kategori)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO soal (ulangan_id, nomor, jenis, pertanyaan, gambar_url, kunci_jawaban, rubrik, bobot, tingkat_kelas, tingkat_kesulitan, urutan, pembahasan, audio_url, audio_script, is_listening, bahasa, kategori, tampilkan_teks_listening)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
+
+    const cleanTampilkanTeks = (data.tampilkan_teks_listening !== undefined && data.tampilkan_teks_listening !== null && data.tampilkan_teks_listening !== '')
+      ? (data.tampilkan_teks_listening ? 1 : 0)
+      : null;
 
     const info = stmt.run(
       ulanganId,
@@ -417,7 +426,8 @@ const examService = {
       audio_script || null,
       is_listening ? 1 : 0,
       bahasa || null,
-      kategori || null
+      kategori || null,
+      cleanTampilkanTeks
     );
 
     return db.prepare('SELECT * FROM soal WHERE id = ?').get(info.lastInsertRowid);
@@ -469,6 +479,13 @@ const examService = {
     if (data.is_listening !== undefined) { updates.push('is_listening = ?'); params.push(data.is_listening ? 1 : 0); }
     if (data.bahasa !== undefined) { updates.push('bahasa = ?'); params.push(data.bahasa || null); }
     if (data.kategori !== undefined) { updates.push('kategori = ?'); params.push(data.kategori || null); }
+    if (data.tampilkan_teks_listening !== undefined) {
+      const cleanTampilkanTeks = (data.tampilkan_teks_listening !== null && data.tampilkan_teks_listening !== '')
+        ? (data.tampilkan_teks_listening ? 1 : 0)
+        : null;
+      updates.push('tampilkan_teks_listening = ?');
+      params.push(cleanTampilkanTeks);
+    }
 
     if (updates.length === 0) return this.getSoalById(soalId);
 

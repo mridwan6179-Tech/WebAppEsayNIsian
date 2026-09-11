@@ -76,13 +76,16 @@ const bankSoalService = {
     const cleanKesulitan = ['mudah', 'sedang', 'sulit'].includes(tingkat_kesulitan) ? tingkat_kesulitan : 'sedang';
     const cleanBobot = (bobot_standar !== undefined && bobot_standar !== null && Number(bobot_standar) > 0) ? Number(bobot_standar) : 10;
     const cleanListening = is_listening ? 1 : 0;
+    const cleanTampilkanTeks = (data.tampilkan_teks_listening !== undefined && data.tampilkan_teks_listening !== null && data.tampilkan_teks_listening !== '')
+      ? (data.tampilkan_teks_listening ? 1 : 0)
+      : 0;
 
     const stmt = db.prepare(`
       INSERT INTO bank_soal (
         guru_id, kategori, sub_topik, tingkat_kelas, jenis,
         pertanyaan, kunci_jawaban, rubrik, pembahasan, tingkat_kesulitan,
-        bobot_standar, gambar_url, audio_url, audio_script, is_listening, bahasa
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        bobot_standar, gambar_url, audio_url, audio_script, is_listening, bahasa, tampilkan_teks_listening
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const info = stmt.run(
@@ -101,7 +104,8 @@ const bankSoalService = {
       audio_url || null,
       audio_script || null,
       cleanListening,
-      bahasa || null
+      bahasa || null,
+      cleanTampilkanTeks
     );
 
     db.syncCloud();
@@ -157,6 +161,10 @@ const bankSoalService = {
     if (data.audio_script !== undefined) { updates.push('audio_script = ?'); params.push(data.audio_script || null); }
     if (data.is_listening !== undefined) { updates.push('is_listening = ?'); params.push(data.is_listening ? 1 : 0); }
     if (data.bahasa !== undefined) { updates.push('bahasa = ?'); params.push(data.bahasa || null); }
+    if (data.tampilkan_teks_listening !== undefined) {
+      updates.push('tampilkan_teks_listening = ?');
+      params.push(data.tampilkan_teks_listening ? 1 : 0);
+    }
 
     if (updates.length === 0) return existing;
 
@@ -213,7 +221,8 @@ const bankSoalService = {
       audio_url: row.audio_url,
       audio_script: row.audio_script,
       is_listening: row.is_listening,
-      bahasa: row.bahasa
+      bahasa: row.bahasa,
+      tampilkan_teks_listening: row.tampilkan_teks_listening
     });
   },
 
@@ -254,7 +263,8 @@ const bankSoalService = {
         audio_script: bSoal.audio_script || null,
         is_listening: bSoal.is_listening || 0,
         bahasa: bSoal.bahasa || null,
-        kategori: bSoal.kategori || null
+        kategori: bSoal.kategori || null,
+        tampilkan_teks_listening: bSoal.tampilkan_teks_listening
       });
       createdSoalList.push(newSoal);
     }

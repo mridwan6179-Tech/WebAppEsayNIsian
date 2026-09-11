@@ -198,6 +198,16 @@ app.post('/api/siswa/submit', async (req, res) => {
   }
 });
 
+app.post('/api/siswa/draft', (req, res) => {
+  try {
+    const { pengerjaan_id, jawaban } = req.body;
+    const result = studentService.saveDraft(pengerjaan_id, jawaban);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 app.get('/api/siswa/sesi/:pengerjaan_id', (req, res) => {
   try {
     const session = studentService.getActiveSession(req.params.pengerjaan_id);

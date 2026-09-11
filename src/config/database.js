@@ -115,6 +115,7 @@ function initDatabase() {
       tampilkan_simbol INTEGER DEFAULT 1,
       link_kisi_kisi TEXT DEFAULT NULL,
       tampilkan_kisi_kisi INTEGER DEFAULT 0,
+      tampilkan_teks_listening INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (guru_id) REFERENCES guru(id) ON DELETE RESTRICT
@@ -320,6 +321,9 @@ function initDatabase() {
   try { db.exec('ALTER TABLE ulangan ADD COLUMN link_kisi_kisi TEXT DEFAULT NULL;'); } catch (e) {}
   try { db.exec('ALTER TABLE ulangan ADD COLUMN tampilkan_kisi_kisi INTEGER DEFAULT 0;'); } catch (e) {}
   try { db.exec("UPDATE ulangan SET tampilkan_kisi_kisi = 1 WHERE link_kisi_kisi IS NOT NULL AND TRIM(link_kisi_kisi) != '' AND (tampilkan_kisi_kisi IS NULL OR tampilkan_kisi_kisi = 0);"); } catch (e) {}
+  try { db.exec('ALTER TABLE ulangan ADD COLUMN tampilkan_teks_listening INTEGER DEFAULT 0;'); } catch (e) {}
+  try { db.exec('ALTER TABLE soal ADD COLUMN tampilkan_teks_listening INTEGER DEFAULT NULL;'); } catch (e) {}
+  try { db.exec('ALTER TABLE bank_soal ADD COLUMN tampilkan_teks_listening INTEGER DEFAULT 0;'); } catch (e) {}
 
   // Seed initial guru if table is empty
   const teacherEmail = process.env.TEACHER_EMAIL || 'mridwan700611@gmail.com';

@@ -9,7 +9,7 @@ const studentService = {
     }
 
     const cleanCode = kodeUjian.trim().toUpperCase();
-    const ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, tampilkan_kisi_kisi FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
+    const ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
 
     if (!ulangan) {
       return { valid: false, message: 'Kode ulangan tidak ditemukan' };
@@ -130,6 +130,7 @@ const studentService = {
         tampilkan_simbol: (ulangan.tampilkan_simbol !== undefined && ulangan.tampilkan_simbol !== null) ? Number(ulangan.tampilkan_simbol) : 1,
         link_kisi_kisi: (ulangan.tampilkan_kisi_kisi && ulangan.link_kisi_kisi) ? ulangan.link_kisi_kisi : null,
         tampilkan_kisi_kisi: (ulangan.tampilkan_kisi_kisi && ulangan.link_kisi_kisi) ? 1 : 0,
+        tampilkan_teks_listening: (ulangan.tampilkan_teks_listening !== undefined && ulangan.tampilkan_teks_listening !== null) ? Number(ulangan.tampilkan_teks_listening) : 0,
         available_classes: kelasList
       }
     };
@@ -192,7 +193,7 @@ const studentService = {
       // Siswa sudah memulai sebelumnya: muat soal yang sama persis (persisten / anti-refresh)
       const placeholders = assignedQuestionIds.map(() => '?').join(',');
       const rows = db.prepare(`
-        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa
+        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa, tampilkan_teks_listening
         FROM soal
         WHERE id IN (${placeholders})
       `).all(...assignedQuestionIds);
@@ -202,7 +203,7 @@ const studentService = {
     } else {
       // Pengerjaan baru: ambil semua soal dari bank soal
       const allQuestions = db.prepare(`
-        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa
+        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa, tampilkan_teks_listening
         FROM soal
         WHERE ulangan_id = ?
         ORDER BY urutan ASC, nomor ASC
@@ -365,10 +366,15 @@ const studentService = {
       }
     }
 
-    // Berikan nomor urut tampilan yang rapi 1..N
+    // Ambil draft jawaban yang tersimpan di server jika ada (misal siswa login ulang)
+    const existingJawabanRows = db.prepare('SELECT soal_id, jawaban_siswa FROM jawaban WHERE pengerjaan_id = ?').all(pengerjaan.id);
+    const existingJawabanMap = new Map(existingJawabanRows.map(j => [j.soal_id, j.jawaban_siswa]));
+
+    // Berikan nomor urut tampilan yang rapi 1..N dan sertakan jawaban_siswa jika ada
     const displaySoalList = soalList.map((s, idx) => ({
       ...s,
-      nomor: idx + 1
+      nomor: idx + 1,
+      jawaban_siswa: existingJawabanMap.get(s.id) || ''
     }));
 
     // Hitung batas waktu deadline pengerjaan siswa
@@ -399,6 +405,51 @@ const studentService = {
       server_time: new Date().toISOString(),
       soal: displaySoalList
     };
+  },
+
+  // Auto-Save Draft Jawaban Siswa (Sinkronisasi berkala dari HP/Klien ke Server)
+  saveDraft(pengerjaanId, rawAnswers) {
+    if (!pengerjaanId) throw new Error('ID pengerjaan tidak valid');
+    const pengerjaan = db.prepare('SELECT id, status FROM pengerjaan WHERE id = ?').get(pengerjaanId);
+    if (!pengerjaan) {
+      throw new Error('Data pengerjaan tidak ditemukan');
+    }
+    if (pengerjaan.status === 'submitted') {
+      return { success: true, message: 'Ulangan sudah dikumpulkan', alreadySubmitted: true };
+    }
+
+    const answers = Array.isArray(rawAnswers) ? rawAnswers : [];
+    if (answers.length === 0) {
+      return { success: true, savedCount: 0 };
+    }
+
+    const saveTx = db.transaction(() => {
+      const checkStmt = db.prepare('SELECT id, jawaban_siswa FROM jawaban WHERE pengerjaan_id = ? AND soal_id = ?');
+      const updateStmt = db.prepare('UPDATE jawaban SET jawaban_siswa = ? WHERE id = ?');
+      const insertStmt = db.prepare(`INSERT INTO jawaban (pengerjaan_id, soal_id, jawaban_siswa, skor_maksimum, status_penilaian) VALUES (?, ?, ?, ?, 'menunggu')`);
+      const soalStmt = db.prepare('SELECT bobot FROM soal WHERE id = ?');
+
+      let savedCount = 0;
+      for (const a of answers) {
+        if (!a || !a.soal_id) continue;
+        const soalId = Number(a.soal_id);
+        const text = String(a.jawaban_siswa || '');
+        const existing = checkStmt.get(pengerjaanId, soalId);
+        if (existing) {
+          updateStmt.run(text, existing.id);
+          savedCount++;
+        } else {
+          const s = soalStmt.get(soalId);
+          const bobot = s ? s.bobot : 10;
+          insertStmt.run(pengerjaanId, soalId, text, bobot);
+          savedCount++;
+        }
+      }
+      return savedCount;
+    });
+
+    const savedCount = saveTx();
+    return { success: true, savedCount };
   },
 
   // FR-08 & NFR-01: Submit Seluruh Jawaban Siswa
@@ -442,7 +493,7 @@ const studentService = {
 
     // Transaksi penyimpanan jawaban agar atomik
     const insertOrUpdateJawaban = db.transaction(() => {
-      const checkStmt = db.prepare('SELECT id FROM jawaban WHERE pengerjaan_id = ? AND soal_id = ?');
+      const checkStmt = db.prepare('SELECT id, jawaban_siswa FROM jawaban WHERE pengerjaan_id = ? AND soal_id = ?');
       const updateStmt = db.prepare(`
         UPDATE jawaban 
         SET jawaban_siswa = ?, skor_maksimum = ?, status_penilaian = 'menunggu'
@@ -454,13 +505,23 @@ const studentService = {
       `);
 
       for (const [soalId, bobot] of soalMap.entries()) {
-        const jawabanText = submittedMap.get(soalId) || '';
+        const submittedText = submittedMap.get(soalId);
         const existing = checkStmt.get(pengerjaanId, soalId);
 
+        // Proteksi: jangan menimpa jawaban yang sudah tersimpan di draft server jika submittedText kosong/tidak ada
+        let finalJawaban = '';
+        if (submittedText !== undefined && submittedText !== null && submittedText.trim() !== '') {
+          finalJawaban = submittedText;
+        } else if (existing && existing.jawaban_siswa && existing.jawaban_siswa.trim() !== '') {
+          finalJawaban = existing.jawaban_siswa;
+        } else if (submittedText !== undefined && submittedText !== null) {
+          finalJawaban = submittedText;
+        }
+
         if (existing) {
-          updateStmt.run(jawabanText, bobot, existing.id);
+          updateStmt.run(finalJawaban, bobot, existing.id);
         } else {
-          insertStmt.run(pengerjaanId, soalId, jawabanText, bobot);
+          insertStmt.run(pengerjaanId, soalId, finalJawaban, bobot);
         }
       }
 
@@ -663,7 +724,7 @@ const studentService = {
     const pengerjaan = db.prepare(`
       SELECT p.*, u.id as ulangan_id, u.judul, u.mata_pelajaran, u.tingkat_kelas, u.deskripsi,
              u.kode_ujian, u.durasi_menit, u.tanggal_mulai, u.tanggal_selesai, u.kkm, u.zona_waktu,
-             u.tampilkan_simbol, u.link_kisi_kisi, u.tampilkan_kisi_kisi, u.jumlah_soal_listening, pes.id as peserta_id, pes.nama as nama_peserta, pes.kelas as kelas_peserta
+             u.tampilkan_simbol, u.link_kisi_kisi, u.tampilkan_kisi_kisi, u.jumlah_soal_listening, u.tampilkan_teks_listening, pes.id as peserta_id, pes.nama as nama_peserta, pes.kelas as kelas_peserta
       FROM pengerjaan p
       JOIN ulangan u ON p.ulangan_id = u.id
       JOIN peserta pes ON p.peserta_id = pes.id
@@ -702,16 +763,27 @@ const studentService = {
       }
     }
 
+    // Ambil jawaban draft yang tersimpan di server jika ada
+    const existingJawabanRows = db.prepare('SELECT soal_id, jawaban_siswa FROM jawaban WHERE pengerjaan_id = ?').all(pengerjaanId);
+    const existingJawabanMap = new Map(existingJawabanRows.map(j => [j.soal_id, j.jawaban_siswa]));
+
     const now = new Date();
-    if (deadlineAt && now > deadlineAt) {
-      // Waktu pengerjaan sudah habis saat reload -> auto submit
-      this.submitExam(pengerjaan.id, [], 0, true);
-      return {
-        alreadySubmitted: true,
-        pengerjaanId: pengerjaan.id,
-        autoSubmitted: true,
-        message: 'Waktu pengerjaan telah habis.'
-      };
+    const isTimeExpired = Boolean(deadlineAt && now > deadlineAt);
+
+    if (isTimeExpired) {
+      if (existingJawabanRows.length > 0) {
+        // Jika sudah ada jawaban tersimpan di server dan waktu benar-benar habis, submit dengan jawaban yang ada
+        const formattedAnswers = existingJawabanRows.map(j => ({ soal_id: j.soal_id, jawaban_siswa: j.jawaban_siswa }));
+        this.submitExam(pengerjaan.id, formattedAnswers, pengerjaan.paste_count || 0, true);
+        return {
+          alreadySubmitted: true,
+          pengerjaanId: pengerjaan.id,
+          autoSubmitted: true,
+          message: 'Waktu pengerjaan telah habis.'
+        };
+      }
+      // Jika di server belum ada jawaban, JANGAN pernah submit [] kosong yang menghancurkan data!
+      // Biarkan client menerima sesi dan mengirimkan draft localStorage-nya
     }
 
     // Ambil soal yang ditugaskan ke pengerjaan ini
@@ -728,7 +800,7 @@ const studentService = {
     if (Array.isArray(assignedQuestionIds) && assignedQuestionIds.length > 0) {
       const placeholders = assignedQuestionIds.map(() => '?').join(',');
       const rows = db.prepare(`
-        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa
+        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa, tampilkan_teks_listening
         FROM soal
         WHERE id IN (${placeholders})
       `).all(...assignedQuestionIds);
@@ -740,17 +812,24 @@ const studentService = {
       }).filter(Boolean);
     } else {
       displaySoalList = db.prepare(`
-        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa
+        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa, tampilkan_teks_listening
         FROM soal
         WHERE ulangan_id = ?
         ORDER BY urutan ASC, nomor ASC
       `).all(pengerjaan.ulangan_id).map((s, idx) => ({ ...s, nomor: idx + 1 }));
     }
 
+    // Pasangkan teks draft jawaban tersimpan ke butir soal
+    const displaySoalWithAnswers = displaySoalList.map(s => ({
+      ...s,
+      jawaban_siswa: existingJawabanMap.get(s.id) || ''
+    }));
+
     const stats = db.prepare('SELECT COUNT(*) as total_soal, COALESCE(SUM(bobot), 0) as total_bobot FROM soal WHERE ulangan_id = ?').get(pengerjaan.ulangan_id);
 
     return {
       alreadySubmitted: false,
+      timeExpired: isTimeExpired,
       pengerjaanId: pengerjaan.id,
       peserta: {
         id: pengerjaan.peserta_id,
@@ -764,18 +843,19 @@ const studentService = {
         tingkat_kelas: pengerjaan.tingkat_kelas,
         deskripsi: pengerjaan.deskripsi,
         total_soal: stats.total_soal,
-        soal_dikerjakan: displaySoalList.length,
+        soal_dikerjakan: displaySoalWithAnswers.length,
         total_bobot: stats.total_bobot,
         kkm: pengerjaan.kkm || 75,
         zona_waktu: pengerjaan.zona_waktu || 'WIB',
         tampilkan_simbol: (pengerjaan.tampilkan_simbol !== undefined && pengerjaan.tampilkan_simbol !== null) ? Number(pengerjaan.tampilkan_simbol) : 1,
         link_kisi_kisi: (pengerjaan.tampilkan_kisi_kisi && pengerjaan.link_kisi_kisi) ? pengerjaan.link_kisi_kisi : null,
         tampilkan_kisi_kisi: (pengerjaan.tampilkan_kisi_kisi && pengerjaan.link_kisi_kisi) ? 1 : 0,
-        jumlah_soal_listening: pengerjaan.jumlah_soal_listening
+        jumlah_soal_listening: pengerjaan.jumlah_soal_listening,
+        tampilkan_teks_listening: Number(pengerjaan.tampilkan_teks_listening || 0)
       },
       deadline_at: deadlineAt ? deadlineAt.toISOString() : null,
       server_time: new Date().toISOString(),
-      soal: displaySoalList
+      soal: displaySoalWithAnswers
     };
   }
 };

@@ -304,6 +304,19 @@
               </div>
             </div>
 
+            <!-- Fitur Soal Menyimak / Listening (Kontrol Guru/Admin) -->
+            <div class="p-2.5 bg-amber-50/70 rounded-lg border border-amber-200 space-y-1.5">
+              <span class="block font-semibold text-amber-950 text-xs flex items-center space-x-1.5">
+                <span>🎧</span>
+                <span>Pengaturan Naskah Listening</span>
+              </span>
+              <label class="flex items-center space-x-2 cursor-pointer">
+                <input type="checkbox" id="new-exam-tampilkan-teks-listening" class="rounded text-amber-600 focus:ring-amber-500">
+                <span class="text-slate-800 text-[11px] font-medium">Izinkan siswa melihat naskah teks audio listening</span>
+              </label>
+              <span class="block text-[10px] text-slate-500">Bila tidak dicentang (default), teks naskah audio dan tombol 'Tunjukkan Teks' disembunyikan sepenuhnya dari siswa agar menjadi ujian listening murni.</span>
+            </div>
+
             <!-- Pengaturan Toleransi Penilaian AI -->
             <div class="p-2.5 bg-emerald-50/70 rounded-lg border border-emerald-200 space-y-2">
               <span class="block font-semibold text-emerald-900">🤖 Toleransi Penilaian AI</span>
@@ -584,11 +597,14 @@
                     <label class="block font-semibold text-amber-950 text-[11px] mb-1">Naskah Percakapan / Suara AI (Text-to-Speech):</label>
                     <textarea id="soal-audio-script" rows="2" placeholder="Ketik teks percakapan yang dibacakan suara AI jika tidak mengunggah file mp3..." class="w-full px-2.5 py-1.5 rounded-lg border border-amber-300 text-xs bg-white"></textarea>
                   </div>
-                  <div class="flex items-center justify-between">
+                  <div class="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-amber-200/60">
                     <button type="button" id="btn-test-soal-tts" class="text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold px-3 py-1 rounded-lg transition flex items-center space-x-1 shadow-sm">
                       <span>🔊 Dengar Contoh Suara (TTS)</span>
                     </button>
-                    <span class="text-[10px] text-amber-800 font-medium">Siswa hanya akan mendengar suara tanpa melihat teks naskah.</span>
+                    <label class="flex items-center space-x-1.5 cursor-pointer">
+                      <input type="checkbox" id="soal-tampilkan-teks-listening" class="rounded text-amber-600 focus:ring-amber-500">
+                      <span class="text-slate-800 text-[11px] font-semibold">Izinkan siswa melihat naskah</span>
+                    </label>
                   </div>
                 </div>
               </div>
@@ -1025,6 +1041,19 @@
           <div id="edit-exam-kisi-kisi-off-note" class="hidden text-[11px] text-slate-500 bg-white/70 p-2 rounded-lg border border-indigo-100 italic">
             🔴 Kisi-kisi dinonaktifkan. Tautan tersimpan tidak akan ditampilkan ke siswa sampai Anda mengaktifkannya kembali.
           </div>
+        </div>
+
+        <!-- Fitur Soal Menyimak / Listening (Kontrol Guru/Admin) -->
+        <div class="p-3.5 bg-amber-50/70 rounded-xl border border-amber-200 space-y-1.5">
+          <label class="block font-bold text-amber-950 text-xs flex items-center space-x-1.5">
+            <span>🎧</span>
+            <span>Pengaturan Naskah Listening</span>
+          </label>
+          <label class="flex items-center space-x-2 cursor-pointer pt-1">
+            <input type="checkbox" id="edit-exam-tampilkan-teks-listening" class="rounded text-amber-600 focus:ring-amber-500">
+            <span class="text-slate-800 text-xs font-semibold">Izinkan siswa melihat naskah teks audio listening</span>
+          </label>
+          <span class="block text-[10px] text-slate-500">Bila tidak dicentang (default), naskah percakapan audio dan tombol 'Tunjukkan Teks' disembunyikan total dari layar ujian siswa agar menjadi ujian listening murni.</span>
         </div>
 
         <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
@@ -2085,6 +2114,7 @@
         link_remedial: linkRemedial || null,
         tampilkan_kisi_kisi: toggleKisiKisi,
         link_kisi_kisi: toggleKisiKisi ? (linkKisiKisi || null) : null,
+        tampilkan_teks_listening: document.getElementById('new-exam-tampilkan-teks-listening')?.checked ? 1 : 0,
         izinkan_singkatan: izinkanSingkatan,
         izinkan_informal: izinkanInformal,
         toleransi_typo: toleransiTypo,
@@ -2104,6 +2134,7 @@
         if (document.getElementById('new-exam-zona-waktu')) document.getElementById('new-exam-zona-waktu').value = 'WIB';
         if (document.getElementById('new-exam-toleransi-typo')) document.getElementById('new-exam-toleransi-typo').checked = true;
         if (document.getElementById('new-exam-tampilkan-simbol')) document.getElementById('new-exam-tampilkan-simbol').checked = true;
+        if (document.getElementById('new-exam-tampilkan-teks-listening')) document.getElementById('new-exam-tampilkan-teks-listening').checked = false;
         if (document.getElementById('new-exam-toggle-kisi-kisi')) {
           document.getElementById('new-exam-toggle-kisi-kisi').checked = false;
           toggleNewExamKisiKisi();
@@ -2304,7 +2335,13 @@
           badges.push(`<span class="bg-purple-100 text-purple-900 px-2 py-0.5 rounded font-bold border border-purple-300 cursor-help" title="${escapeHtml(u.instruksi_penilaian_khusus)}">🎯 Ada Parameter Khusus Guru</span>`);
         }
 
-        aiRulesEl.innerHTML = `<span class="text-slate-500 font-semibold text-[11px]">Toleransi AI:</span> ${badges.join(' ')}`;
+        if (u.tampilkan_teks_listening) {
+          badges.push('<span class="bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-medium border border-amber-300">🎧 Naskah Listening: Ditampilkan</span>');
+        } else {
+          badges.push('<span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium border border-slate-200">🎧 Naskah Listening: Disembunyikan (Murni)</span>');
+        }
+
+        aiRulesEl.innerHTML = `<span class="text-slate-500 font-semibold text-[11px]">Toleransi & Pengaturan:</span> ${badges.join(' ')}`;
       }
 
       renderSoalList(u.soal || []);
@@ -2561,6 +2598,9 @@
           document.getElementById('edit-exam-toggle-kisi-kisi').checked = !!(u.tampilkan_kisi_kisi);
           toggleEditExamKisiKisi();
         }
+        if (document.getElementById('edit-exam-tampilkan-teks-listening')) {
+          document.getElementById('edit-exam-tampilkan-teks-listening').checked = !!(u.tampilkan_teks_listening);
+        }
 
         // Render target kelas checkboxes
         const activeKelasIds = (u.kelas || []).map(k => k.id);
@@ -2663,7 +2703,8 @@
         instruksi_penilaian_khusus: instruksiKhusus,
         tampilkan_simbol: tampilkanSimbol,
         tampilkan_kisi_kisi: toggleKisiKisi,
-        link_kisi_kisi: linkKisiKisi || null
+        link_kisi_kisi: linkKisiKisi || null,
+        tampilkan_teks_listening: document.getElementById('edit-exam-tampilkan-teks-listening')?.checked ? 1 : 0
       };
 
       const btnSave = document.getElementById('btn-save-edit-exam');
@@ -2754,6 +2795,7 @@
               <span class="text-slate-400 font-medium">Bobot: <strong>${s.bobot}</strong></span>
               ${s.kategori ? `<span class="bg-purple-100 text-purple-800 text-[10px] font-semibold px-2 py-0.5 rounded">${escapeHtml(s.kategori)}</span>` : ''}
               ${s.is_listening ? `<span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded flex items-center space-x-1"><span>🎧 Menyimak (${escapeHtml(s.bahasa || 'Umum')})</span></span>` : ''}
+              ${s.is_listening ? `<span class="text-[10px] font-semibold px-2 py-0.5 rounded border ${s.tampilkan_teks_listening ? 'bg-amber-50 text-amber-900 border-amber-300' : 'bg-slate-100 text-slate-600 border-slate-300'}">${s.tampilkan_teks_listening ? '👁️ Naskah Ditampilkan' : '🔒 Naskah Tersembunyi'}</span>` : ''}
             </div>
             <div class="flex items-center space-x-1.5 flex-shrink-0">
               <button onclick="copyExamSoalToBank(${s.id})" type="button" class="text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 font-semibold px-2 py-0.5 rounded border border-purple-200 transition flex items-center space-x-1" title="Simpan butir soal ini ke Bank Soal Mandiri">
@@ -2981,6 +3023,7 @@
         pembahasan: document.getElementById('soal-pembahasan')?.value?.trim() || null,
         kategori: document.getElementById('soal-kategori')?.value?.trim() || null,
         is_listening: document.getElementById('soal-is-listening')?.checked ? 1 : 0,
+        tampilkan_teks_listening: document.getElementById('soal-tampilkan-teks-listening')?.checked ? 1 : 0,
         bahasa: document.getElementById('soal-bahasa')?.value || 'Bahasa Indonesia',
         audio_script: document.getElementById('soal-audio-script')?.value?.trim() || null,
         audio_url: inputSoalAudioUrl?.value?.trim() || null,
@@ -2995,6 +3038,7 @@
       if (res.ok) {
         formAddSoal.reset();
         resetGambarForm();
+        if (document.getElementById('soal-tampilkan-teks-listening')) document.getElementById('soal-tampilkan-teks-listening').checked = false;
         if (wrapperSoalListening) wrapperSoalListening.classList.add('hidden');
         formAddSoal.classList.add('hidden');
         selectUlangan(activeUlanganId);
