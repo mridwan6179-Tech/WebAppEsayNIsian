@@ -99,6 +99,21 @@ app.get('/api/auth/me', (req, res) => {
   res.json({ authenticated: true, guru: session });
 });
 
+// Kalibrasi & Sinkronisasi Waktu Server
+app.get('/api/waktu-server', (req, res) => {
+  const now = new Date();
+  const zw = (req.query.zona_waktu && ['WIB', 'WITA', 'WIT'].includes(String(req.query.zona_waktu).toUpperCase()))
+    ? String(req.query.zona_waktu).toUpperCase()
+    : 'WITA';
+  res.json({
+    success: true,
+    server_time: now.toISOString(),
+    server_timestamp: now.getTime(),
+    zona_waktu: zw,
+    waktu_terkalibrasi: examService.formatIndonesianDateTime(now.toISOString(), zw)
+  });
+});
+
 // ----------------------------------------------------
 // ROUTE: Modul Siswa (FR-06 - FR-08, FR-22, NFR-01)
 // ----------------------------------------------------

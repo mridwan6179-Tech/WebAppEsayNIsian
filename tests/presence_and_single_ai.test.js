@@ -200,5 +200,15 @@ test('Deteksi Status Kehadiran Siswa (Aktif vs DC) & Review AI Perorangan', asyn
     assert.strictEqual(rian.nilai_final, 50, 'Nilai Final harus terhitung dan muncul');
     assert.strictEqual(rian.released_at, null, 'Nilai AI belum dirilis (released_at harus tetap NULL agar aman ditinjau guru)');
   });
+
+  await t.test('10. submitExam mencatat submitted_at berformat ISO UTC standar (ISO 8601 dengan Z)', () => {
+    const sTest = studentService.startExam(ulangan.kode_ujian, 'Tes Format Waktu', '9A');
+    const submitRes = studentService.submitExam(sTest.pengerjaanId, [
+      { soal_id: soal1.id, jawaban_siswa: 'Jawaban waktu' }
+    ]);
+    assert.strictEqual(submitRes.success, true);
+    assert.ok(submitRes.submitted_at.endsWith('Z'), 'submitted_at harus berakhiran Z (UTC ISO 8601)');
+    assert.ok(submitRes.submitted_at.includes('T'), 'submitted_at harus memuat separator T');
+  });
 });
 

@@ -57,8 +57,14 @@
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen antialiased p-3 sm:p-6">
 
+  <!-- AUTH LOADING (Saat memverifikasi sesi login / refresh) -->
+  <div id="section-auth-loading" class="max-w-md mx-auto my-24 text-center text-slate-400">
+    <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent mb-3 shadow-xs"></div>
+    <p class="text-xs font-semibold text-slate-500">Memeriksa sesi login guru...</p>
+  </div>
+
   <!-- AUTH SECTION (Jika belum login) -->
-  <div id="section-login" class="max-w-md mx-auto my-12 bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200">
+  <div id="section-login" class="hidden max-w-md mx-auto my-12 bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200">
     <div class="text-center mb-6">
       <div class="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-xl mx-auto mb-3 shadow-md shadow-blue-200">
         G
@@ -107,6 +113,11 @@
         </div>
       </div>
       <div class="flex items-center space-x-2">
+        <!-- Live Calibrated Clock -->
+        <div id="badge-kalibrasi-waktu" class="hidden sm:flex items-center space-x-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-2.5 py-1.5 rounded-lg border border-slate-200 cursor-pointer transition" onclick="kalibrasiWaktuServer(true)" title="Waktu server terkalibrasi akurat. Klik untuk sinkronkan ulang">
+          <span class="text-blue-600">🕒</span>
+          <span id="nav-server-clock">Memuat Waktu...</span>
+        </div>
         <button id="btn-open-profile-modal" class="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg transition flex items-center space-x-1" title="Pengaturan Kontak WhatsApp & Profil">
           <span>📱 Kontak WA Guru</span>
         </button>
@@ -1784,8 +1795,11 @@
     }
 
     let activeUlanganId = null;
+    let activeUlanganData = null;
     let activePengerjaanId = null;
     let aiPollingTimer = null;
+    let serverTimeOffset = 0;
+    let serverClockInterval = null;
 
     // Helper fetch dengan dukungan Cookie dan Authorization Header (Bearer token fallback)
     function guruFetch(url, options = {}) {
@@ -1801,6 +1815,47 @@
         }
       }
       return fetch(url, options);
+    }
+
+    async function kalibrasiWaktuServer(isManual = false) {
+      try {
+        const startPing = Date.now();
+        const zw = activeUlanganData?.zona_waktu || 'WITA';
+        const res = await fetch(`/api/waktu-server?zona_waktu=${encodeURIComponent(zw)}`);
+        const endPing = Date.now();
+        const data = await res.json();
+        if (data.success && data.server_timestamp) {
+          const latency = (endPing - startPing) / 2;
+          serverTimeOffset = (data.server_timestamp + latency) - Date.now();
+          updateLiveClockDisplay();
+          if (isManual) {
+            alert(`✅ Waktu server berhasil disinkronkan & terkalibrasi!\n\nWaktu Terkalibrasi: ${data.waktu_terkalibrasi}\nZona Waktu: ${data.zona_waktu}`);
+          }
+        }
+      } catch (err) {
+        console.warn('Peringatan kalibrasi waktu server:', err);
+      }
+    }
+
+    function updateLiveClockDisplay() {
+      const clockEl = document.getElementById('nav-server-clock');
+      if (!clockEl) return;
+      const now = new Date(Date.now() + serverTimeOffset);
+      const zw = activeUlanganData?.zona_waktu || 'WITA';
+      const tzMap = { WIB: 'Asia/Jakarta', WITA: 'Asia/Makassar', WIT: 'Asia/Jayapura' };
+      const tz = tzMap[zw] || 'Asia/Makassar';
+      try {
+        const timeStr = new Intl.DateTimeFormat('id-ID', {
+          timeZone: tz,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        }).format(now).replace(/\./g, ':');
+        clockEl.textContent = `${timeStr} ${zw}`;
+      } catch (e) {
+        clockEl.textContent = now.toLocaleTimeString('id-ID') + ` ${zw}`;
+      }
     }
 
     // Login check
@@ -1821,6 +1876,7 @@
     }
 
     function showLogin() {
+      document.getElementById('section-auth-loading')?.classList.add('hidden');
       document.getElementById('section-login').classList.remove('hidden');
       document.getElementById('section-dashboard').classList.add('hidden');
 
@@ -1840,6 +1896,7 @@
     }
 
     function showDashboard(guru) {
+      document.getElementById('section-auth-loading')?.classList.add('hidden');
       document.getElementById('section-login').classList.add('hidden');
       document.getElementById('section-dashboard').classList.remove('hidden');
       document.getElementById('teacher-profile').textContent = `${guru.nama} (${guru.email})`;
@@ -1847,6 +1904,10 @@
       loadKelasList();
       loadUlanganList();
       loadTeacherProfile();
+
+      kalibrasiWaktuServer();
+      if (serverClockInterval) clearInterval(serverClockInterval);
+      serverClockInterval = setInterval(updateLiveClockDisplay, 1000);
     }
 
     // Login Action with Remember Me
@@ -1897,6 +1958,8 @@
     document.getElementById('btn-logout').addEventListener('click', async () => {
       sessionStorage.removeItem('guru_token');
       localStorage.removeItem('guru_token');
+      sessionStorage.removeItem('active_guru_ulangan_id');
+      if (serverClockInterval) clearInterval(serverClockInterval);
       try {
         await guruFetch('/api/auth/logout', { method: 'POST' });
       } catch (e) {}
@@ -2022,6 +2085,14 @@
           `;
           container.appendChild(card);
         });
+
+        // Pulihkan paket ulangan yang sedang aktif jika halaman di-refresh
+        if (!activeUlanganId) {
+          const savedId = sessionStorage.getItem('active_guru_ulangan_id');
+          if (savedId && data.data.some(x => String(x.id) === String(savedId))) {
+            selectUlangan(parseInt(savedId, 10));
+          }
+        }
       } catch (err) {
         console.error(err);
       }
@@ -2197,6 +2268,7 @@
     // Select Ulangan
     async function selectUlangan(id) {
       activeUlanganId = id;
+      sessionStorage.setItem('active_guru_ulangan_id', id);
       currentStudentPage = 1;
       loadUlanganList();
 
@@ -2205,6 +2277,8 @@
       if (!res.ok || !data.success) return;
 
       const u = data.data;
+      activeUlanganData = u;
+      kalibrasiWaktuServer();
       document.getElementById('exam-empty-placeholder').classList.add('hidden');
       document.getElementById('exam-detail-card').classList.remove('hidden');
 

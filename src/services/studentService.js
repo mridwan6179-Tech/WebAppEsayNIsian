@@ -580,11 +580,12 @@ const studentService = {
       }
 
       // Update status pengerjaan ke submitted & catat paste_count dan auto_submitted
+      const nowIso = new Date().toISOString();
       db.prepare(`
         UPDATE pengerjaan 
-        SET status = 'submitted', submitted_at = CURRENT_TIMESTAMP, paste_count = ?, auto_submitted = ?
+        SET status = 'submitted', submitted_at = ?, paste_count = ?, auto_submitted = ?
         WHERE id = ?
-      `).run(Number(pasteCount) || 0, isAutoSubmit ? 1 : 0, pengerjaanId);
+      `).run(nowIso, Number(pasteCount) || 0, isAutoSubmit ? 1 : 0, pengerjaanId);
     });
 
     insertOrUpdateJawaban();
