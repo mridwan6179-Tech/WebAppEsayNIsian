@@ -396,4 +396,47 @@ test('=== SUITE: BANK SOAL, LISTENING, AUDIO & EKSPOR EXCEL ===', async (t) => {
       await new Promise((resolve) => server.close(resolve));
     }
   });
+
+  await t.test('8. Pengaturan tampilkan_simbol (Toolbar Simbol Khusus) pada Ulangan & Siswa', async () => {
+    // 1. Buat ulangan dengan tampilkan_simbol: 0 (disembunyikan)
+    const examNoSymbol = examService.createUlangan(guruId, {
+      judul: 'Ulangan Bahasa Indonesia Tanpa Simbol',
+      mata_pelajaran: 'Bahasa Indonesia',
+      tingkat_kelas: 'Kelas 8',
+      tampilkan_simbol: 0
+    });
+    assert.equal(examNoSymbol.tampilkan_simbol, 0);
+
+    // Tambahkan 1 butir soal
+    examService.createSoal(examNoSymbol.id, {
+      pertanyaan: 'Apa makna peribahasa air tenang menghanyutkan?',
+      jenis: 'isian',
+      bobot: 10,
+      kunci_jawaban: 'Orang yang pendiam namun berilmu'
+    });
+
+    // Buka ulangan dan mulai ujian sebagai siswa
+    examService.updateUlangan(examNoSymbol.id, guruId, { status: 'dibuka' });
+    const studentVal = studentService.validateExamCode(examNoSymbol.kode_ujian);
+    assert.equal(studentVal.valid, true);
+    assert.equal(studentVal.ulangan.tampilkan_simbol, 0, 'Siswa harus menerima tampilkan_simbol = 0');
+
+    const started = studentService.startExam(examNoSymbol.kode_ujian, 'Siswa Uji Simbol', '8A');
+    assert.equal(started.ulangan.tampilkan_simbol, 0);
+
+    // 2. Update ulangan agar menampilkan simbol kembali (tampilkan_simbol: 1)
+    examService.updateUlangan(examNoSymbol.id, guruId, {
+      tampilkan_simbol: 1
+    });
+    const updatedVal = studentService.validateExamCode(examNoSymbol.kode_ujian);
+    assert.equal(updatedVal.ulangan.tampilkan_simbol, 1, 'Siswa harus menerima tampilkan_simbol = 1 setelah diupdate guru');
+
+    // 3. Buat ulangan tanpa menyertakan tampilkan_simbol (harus default 1)
+    const examDefault = examService.createUlangan(guruId, {
+      judul: 'Ulangan Matematika Default Simbol',
+      mata_pelajaran: 'Matematika',
+      tingkat_kelas: 'Kelas 9'
+    });
+    assert.equal(examDefault.tampilkan_simbol, 1, 'Default tampilkan_simbol harus bernilai 1');
+  });
 });

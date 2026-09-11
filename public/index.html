@@ -591,27 +591,279 @@
       if (el) el.textContent = `Diputar: ${audioPlayCounts[soalId]} kali`;
     };
 
-    window.playStudentTts = function(soalId, encodedScript, bahasa) {
-      window.incrementAudioPlay(soalId);
-      const text = decodeURIComponent(encodedScript);
-      if (!window.speechSynthesis) {
+    // Parser naskah audio percakapan menjadi segmen kalimat/dialog
+    function parseAudioScriptToChunks(script) {
+      if (!script) return [];
+      // Pisahkan berdasarkan baris baru dialog
+      let lines = script.split(/\r?\n+/).map(l => l.trim()).filter(Boolean);
+      // Jika hanya 1 baris teks tanpa enter, pisahkan per tanda baca kalimat (. ! ?)
+      if (lines.length === 1) {
+        const sentences = lines[0].split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
+        if (sentences.length > 1) {
+          lines = sentences;
+        }
+      }
+      return lines.length > 0 ? lines : [script.trim()];
+    }
+
+    // State pemutar Text-to-Speech (TTS) Listening Siswa
+    window.ttsPlayers = window.ttsPlayers || {};
+
+    window.initTtsPlayer = function(soalId, rawScript, bahasa) {
+      const chunks = parseAudioScriptToChunks(rawScript);
+      window.ttsPlayers[soalId] = {
+        soalId,
+        rawScript,
+        bahasa: bahasa || 'Bahasa Indonesia',
+        chunks,
+        currentIndex: 0,
+        isPlaying: false,
+        isPaused: false,
+        timer: null
+      };
+
+      const slider = document.getElementById(`tts-slider-${soalId}`);
+      const totalLabel = document.getElementById(`tts-total-chunks-${soalId}`);
+      const currLabel = document.getElementById(`tts-curr-chunk-num-${soalId}`);
+      const caption = document.getElementById(`tts-caption-${soalId}`);
+
+      if (slider) {
+        slider.min = 0;
+        slider.max = Math.max(0, chunks.length - 1);
+        slider.value = 0;
+        if (chunks.length <= 1) {
+          slider.disabled = true;
+          slider.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+      }
+      if (totalLabel) totalLabel.textContent = chunks.length;
+      if (currLabel) currLabel.textContent = '1';
+      if (caption && chunks[0]) {
+        caption.textContent = chunks[0];
+      }
+    };
+
+    function stopAllOtherTts(currentSoalId) {
+      if (window.ttsPlayers) {
+        for (const [id, p] of Object.entries(window.ttsPlayers)) {
+          if (id !== String(currentSoalId) && p.isPlaying) {
+            p.isPlaying = false;
+            p.isPaused = true;
+            if (p.timer) clearTimeout(p.timer);
+            updateTtsUI(id, 'dijeda');
+          }
+        }
+      }
+      // Hentikan audio native yang sedang bermain
+      document.querySelectorAll('audio').forEach(a => {
+        if (!a.paused) a.pause();
+      });
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+    }
+
+    window.toggleTtsPlay = function(soalId) {
+      const player = window.ttsPlayers[soalId];
+      if (!player) return;
+
+      if (!('speechSynthesis' in window)) {
         alert('Browser Anda belum mendukung pemutaran suara Text-to-Speech.');
         return;
       }
+
+      if (player.isPlaying) {
+        // Jeda (Pause)
+        window.speechSynthesis.cancel();
+        if (player.timer) clearTimeout(player.timer);
+        player.isPlaying = false;
+        player.isPaused = true;
+        updateTtsUI(soalId, 'dijeda');
+      } else if (player.isPaused) {
+        // Lanjutkan dari posisi saat ini
+        stopAllOtherTts(soalId);
+        player.isPlaying = true;
+        player.isPaused = false;
+        updateTtsUI(soalId, 'memutar');
+        playCurrentChunk(soalId);
+      } else {
+        // Putar audio baru dari awal / posisi slider
+        stopAllOtherTts(soalId);
+        window.incrementAudioPlay(soalId);
+        player.isPlaying = true;
+        player.isPaused = false;
+        updateTtsUI(soalId, 'memutar');
+        playCurrentChunk(soalId);
+      }
+    };
+
+    window.restartTts = function(soalId) {
+      const player = window.ttsPlayers[soalId];
+      if (!player) return;
+
+      stopAllOtherTts(soalId);
+      window.incrementAudioPlay(soalId);
+      player.currentIndex = 0;
+      player.isPlaying = true;
+      player.isPaused = false;
+      updateTtsUI(soalId, 'memutar');
+      playCurrentChunk(soalId);
+    };
+
+    window.seekTts = function(soalId, indexVal) {
+      const player = window.ttsPlayers[soalId];
+      if (!player) return;
+
+      const idx = Math.min(Math.max(0, parseInt(indexVal, 10) || 0), player.chunks.length - 1);
+      player.currentIndex = idx;
+
+      const currLabel = document.getElementById(`tts-curr-chunk-num-${soalId}`);
+      if (currLabel) currLabel.textContent = idx + 1;
+
+      const caption = document.getElementById(`tts-caption-${soalId}`);
+      if (caption && player.chunks[idx]) {
+        caption.textContent = player.chunks[idx];
+      }
+
+      const hint = document.getElementById(`tts-seek-hint-${soalId}`);
+      if (hint) {
+        hint.textContent = `Melompat ke bag. ${idx + 1}`;
+        setTimeout(() => { if (hint) hint.textContent = ''; }, 2000);
+      }
+
+      if (player.isPlaying) {
+        // Replay langsung dari titik slider di tengah percakapan
+        window.speechSynthesis.cancel();
+        if (player.timer) clearTimeout(player.timer);
+        playCurrentChunk(soalId);
+      } else {
+        // Posisi siap diputar dari bagian tengah ini
+        const badge = document.getElementById(`tts-badge-${soalId}`);
+        if (badge) {
+          badge.textContent = `Siap dari bag. ${idx + 1}`;
+          badge.className = 'text-[11px] font-medium px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 border border-amber-200';
+        }
+      }
+    };
+
+    function playCurrentChunk(soalId) {
+      const player = window.ttsPlayers[soalId];
+      if (!player || !player.isPlaying) return;
+
+      if (player.currentIndex >= player.chunks.length) {
+        // Selesai seluruh naskah
+        player.isPlaying = false;
+        player.isPaused = false;
+        player.currentIndex = 0;
+        updateTtsUI(soalId, 'selesai');
+        return;
+      }
+
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      const bLower = (bahasa || '').toLowerCase();
-      if (bLower.includes('inggris') || bLower.includes('en')) {
+      if (player.timer) clearTimeout(player.timer);
+
+      const chunk = player.chunks[player.currentIndex];
+      updateTtsUI(soalId, 'memutar');
+
+      const utterance = new SpeechSynthesisUtterance(chunk);
+      const bLower = (player.bahasa || '').toLowerCase();
+      if (bLower.includes('inggris') || bLower.includes('english') || bLower.includes('en')) {
         utterance.lang = 'en-US';
-      } else if (bLower.includes('arab') || bLower.includes('ar')) {
+      } else if (bLower.includes('arab') || bLower.includes('arabic') || bLower.includes('ar')) {
         utterance.lang = 'ar-SA';
-      } else if (bLower.includes('jepang') || bLower.includes('ja')) {
+      } else if (bLower.includes('jepang') || bLower.includes('japanese') || bLower.includes('ja')) {
         utterance.lang = 'ja-JP';
       } else {
         utterance.lang = 'id-ID';
       }
-      utterance.rate = 0.9;
+      utterance.rate = 0.92;
+
+      utterance.onend = function() {
+        if (!player.isPlaying) return;
+        player.currentIndex++;
+        if (player.currentIndex < player.chunks.length) {
+          player.timer = setTimeout(() => {
+            if (player.isPlaying) {
+              playCurrentChunk(soalId);
+            }
+          }, 350);
+        } else {
+          player.isPlaying = false;
+          player.isPaused = false;
+          player.currentIndex = 0;
+          updateTtsUI(soalId, 'selesai');
+        }
+      };
+
+      utterance.onerror = function(e) {
+        if (e.error === 'interrupted' || e.error === 'canceled') return;
+        console.warn('TTS utterance error:', e);
+        player.isPlaying = false;
+        updateTtsUI(soalId, 'error');
+      };
+
       window.speechSynthesis.speak(utterance);
+    }
+
+    function updateTtsUI(soalId, state) {
+      const player = window.ttsPlayers[soalId];
+      if (!player) return;
+
+      const btnToggle = document.getElementById(`tts-btn-toggle-${soalId}`);
+      const iconToggle = document.getElementById(`tts-icon-toggle-${soalId}`);
+      const labelToggle = document.getElementById(`tts-label-toggle-${soalId}`);
+      const badge = document.getElementById(`tts-badge-${soalId}`);
+      const slider = document.getElementById(`tts-slider-${soalId}`);
+      const currLabel = document.getElementById(`tts-curr-chunk-num-${soalId}`);
+      const caption = document.getElementById(`tts-caption-${soalId}`);
+
+      if (slider) slider.value = player.currentIndex;
+      if (currLabel) currLabel.textContent = player.currentIndex + 1;
+      if (caption && player.chunks[player.currentIndex]) {
+        caption.textContent = player.chunks[player.currentIndex];
+      }
+
+      if (state === 'memutar') {
+        if (btnToggle) btnToggle.className = 'px-3.5 py-1.5 bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center space-x-1.5 cursor-pointer ring-2 ring-amber-400/50';
+        if (iconToggle) iconToggle.textContent = '⏸';
+        if (labelToggle) labelToggle.textContent = 'Jeda';
+        if (badge) {
+          badge.textContent = 'Sedang Memutar...';
+          badge.className = 'text-[11px] font-medium px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 animate-pulse';
+        }
+      } else if (state === 'dijeda') {
+        if (btnToggle) btnToggle.className = 'px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center space-x-1.5 cursor-pointer';
+        if (iconToggle) iconToggle.textContent = '▶';
+        if (labelToggle) labelToggle.textContent = 'Lanjutkan';
+        if (badge) {
+          badge.textContent = `Dijeda (bag. ${player.currentIndex + 1})`;
+          badge.className = 'text-[11px] font-medium px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 border border-amber-200';
+        }
+      } else if (state === 'selesai') {
+        if (btnToggle) btnToggle.className = 'px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center space-x-1.5 cursor-pointer';
+        if (iconToggle) iconToggle.textContent = '▶';
+        if (labelToggle) labelToggle.textContent = 'Putar Lagi';
+        if (badge) {
+          badge.textContent = 'Selesai Diputar';
+          badge.className = 'text-[11px] font-medium px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600 border border-slate-200';
+        }
+      } else {
+        if (btnToggle) btnToggle.className = 'px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center space-x-1.5 cursor-pointer';
+        if (iconToggle) iconToggle.textContent = '▶';
+        if (labelToggle) labelToggle.textContent = 'Putar Audio';
+        if (badge) {
+          badge.textContent = 'Siap diputar';
+          badge.className = 'text-[11px] font-medium px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600 border border-slate-200';
+        }
+      }
+    }
+
+    // Fallback kompatibilitas jika dipanggil dengan nama fungsi lama
+    window.playStudentTts = function(soalId, encodedScript, bahasa) {
+      if (window.ttsPlayers && window.ttsPlayers[soalId]) {
+        window.toggleTtsPlay(soalId);
+      } else {
+        window.initTtsPlayer(soalId, decodeURIComponent(encodedScript), bahasa);
+        window.toggleTtsPlay(soalId);
+      }
     };
 
     window.insertSymbol = function(fieldName, sym) {
@@ -738,6 +990,8 @@
       pasteDetectionCount = 0;
       isSubmitting = false;
 
+      const showSymbols = (data.ulangan && data.ulangan.tampilkan_simbol !== 0);
+
       // Cegah klik kanan pada teks pertanyaan agar sulit di-copy
       container.oncontextmenu = (e) => {
         if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
@@ -781,29 +1035,70 @@
                 <span class="text-[11px] text-amber-700 font-medium" id="audio-play-count-${s.id}">Diputar: 0 kali</span>
               </div>
               ${s.audio_url ? `
-                <audio controls class="w-full h-9 rounded-lg" onplay="incrementAudioPlay('${s.id}')">
+                <audio controls class="w-full h-9 rounded-lg" onplay="incrementAudioPlay('${s.id}'); if (window.speechSynthesis) window.speechSynthesis.cancel();">
                   <source src="${s.audio_url}">
                   Browser Anda tidak mendukung pemutar audio.
                 </audio>
               ` : ''}
               ${(s.audio_script && !s.audio_url) ? `
-                <div class="flex items-center space-x-2">
-                  <button type="button" onclick="playStudentTts('${s.id}', '${encodeURIComponent(s.audio_script)}', '${s.bahasa || 'en-US'}')" class="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center space-x-1.5">
-                    <span>🔊</span>
-                    <span>Putar Audio Percakapan</span>
-                  </button>
-                  <span class="text-[11px] text-slate-500">Dengarkan naskah percakapan dengan cermat</span>
+                <div id="tts-player-${s.id}" class="bg-white/95 border border-amber-300/80 rounded-xl p-3 shadow-xs space-y-2.5 mt-2">
+                  <!-- Baris 1: Tombol Kontrol Utama & Badge -->
+                  <div class="flex items-center justify-between flex-wrap gap-2">
+                    <div class="flex items-center space-x-2">
+                      <button type="button" id="tts-btn-toggle-${s.id}" onclick="toggleTtsPlay('${s.id}')" class="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center space-x-1.5 cursor-pointer">
+                        <span id="tts-icon-toggle-${s.id}">▶</span>
+                        <span id="tts-label-toggle-${s.id}">Putar Audio</span>
+                      </button>
+                      <button type="button" onclick="restartTts('${s.id}')" title="Ulangi dari Awal Percakapan" class="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold text-xs rounded-xl transition flex items-center space-x-1 cursor-pointer">
+                        <span>⏮</span>
+                        <span>Ulangi Awal</span>
+                      </button>
+                      <span id="tts-badge-${s.id}" class="text-[11px] font-medium px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600 border border-slate-200/60">
+                        Siap diputar
+                      </span>
+                    </div>
+                    <div class="text-[11px] text-amber-900 font-medium flex items-center space-x-1 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/60">
+                      <span>Bagian:</span>
+                      <span id="tts-curr-chunk-num-${s.id}" class="font-bold text-amber-700">1</span>
+                      <span>/</span>
+                      <span id="tts-total-chunks-${s.id}" class="font-bold text-slate-600">1</span>
+                    </div>
+                  </div>
+
+                  <!-- Baris 2: Scrubber Slider untuk Replay di Tengah / Lompat Bagian -->
+                  <div class="space-y-1 pt-1">
+                    <div class="flex items-center space-x-2">
+                      <span class="text-[10px] text-slate-400 font-mono font-medium">Awal</span>
+                      <input type="range" id="tts-slider-${s.id}" min="0" max="0" value="0" step="1" oninput="seekTts('${s.id}', this.value)" class="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer accent-amber-600 focus:outline-none">
+                      <span class="text-[10px] text-slate-400 font-mono font-medium">Akhir</span>
+                    </div>
+                    <div class="flex items-center justify-between text-[10px] text-slate-500">
+                      <span>Geser slider untuk melompat atau replay di tengah percakapan</span>
+                      <span id="tts-seek-hint-${s.id}" class="text-amber-700 font-medium"></span>
+                    </div>
+                  </div>
+
+                  <!-- Baris 3: Teks Kalimat / Dialog yang Sedang Berjalan -->
+                  <div class="bg-amber-50/70 border border-amber-200/70 rounded-lg px-2.5 py-1.5 text-xs text-amber-950">
+                    <div class="flex items-center justify-between mb-0.5">
+                      <span class="text-[10px] uppercase font-bold text-amber-700 tracking-wider">Sedang Dibacakan:</span>
+                      <span id="tts-lang-badge-${s.id}" class="text-[10px] text-slate-400 font-medium">${s.bahasa || 'Audio'}</span>
+                    </div>
+                    <p id="tts-caption-${s.id}" class="italic text-slate-700 leading-relaxed font-sans text-xs min-h-[18px]" dir="auto">(Klik Putar Audio untuk mendengarkan)</p>
+                  </div>
                 </div>
               ` : ''}
             </div>
           ` : ''}
           <div class="space-y-1.5">
+            ${showSymbols ? `
             <div class="flex items-center space-x-1 overflow-x-auto py-1 text-xs">
               <span class="text-[10px] text-slate-400 font-semibold uppercase mr-1">Simbol:</span>
               ${['²', '³', '√', '°', 'π', '×', '÷', '±', '½', '¼', '≠', '≤', '≥', '∞', 'Δ', 'α', 'β', 'θ', 'Ω'].map(sym => 
                 `<button type="button" tabindex="-1" onclick="insertSymbol('soal_${s.id}', '${sym}')" class="px-1.5 py-0.5 bg-slate-100 hover:bg-blue-100 hover:text-blue-700 text-slate-700 font-mono text-xs rounded border border-slate-200 transition">${sym}</button>`
               ).join('')}
             </div>
+            ` : ''}
             ${isEssay 
               ? `<textarea name="soal_${s.id}" data-soal-id="${s.id}" rows="3" dir="auto" placeholder="Ketik jawaban essay Anda di sini..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base sm:text-sm transition leading-relaxed"></textarea>`
               : `<input type="text" name="soal_${s.id}" data-soal-id="${s.id}" dir="auto" placeholder="Ketik jawaban singkat Anda..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base sm:text-sm transition">`
@@ -811,6 +1106,11 @@
           </div>
         `;
         container.appendChild(card);
+
+        // Inisialisasi controller TTS jika butir soal merupakan listening skrip
+        if (s.is_listening && s.audio_script && !s.audio_url) {
+          initTtsPlayer(s.id, s.audio_script, s.bahasa);
+        }
       });
       renderMath(container);
 
@@ -823,6 +1123,11 @@
     }
 
     async function doSubmit(isAutoSubmit = false) {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      document.querySelectorAll('audio').forEach(a => { if (!a.paused) a.pause(); });
+
       const btn = document.getElementById('btn-submit');
       if (btn) {
         btn.disabled = true;

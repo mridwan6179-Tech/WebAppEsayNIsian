@@ -111,6 +111,7 @@ function initDatabase() {
       izinkan_informal INTEGER DEFAULT 0,
       toleransi_typo INTEGER DEFAULT 1,
       instruksi_penilaian_khusus TEXT DEFAULT NULL,
+      tampilkan_simbol INTEGER DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (guru_id) REFERENCES guru(id) ON DELETE RESTRICT
@@ -311,6 +312,7 @@ function initDatabase() {
   try { db.exec('ALTER TABLE bank_soal ADD COLUMN audio_script TEXT DEFAULT NULL;'); } catch (e) {}
   try { db.exec('ALTER TABLE bank_soal ADD COLUMN is_listening INTEGER DEFAULT 0;'); } catch (e) {}
   try { db.exec('ALTER TABLE bank_soal ADD COLUMN bahasa TEXT DEFAULT NULL;'); } catch (e) {}
+  try { db.exec('ALTER TABLE ulangan ADD COLUMN tampilkan_simbol INTEGER DEFAULT 1;'); } catch (e) {}
 
   // Seed initial guru if table is empty
   const teacherEmail = process.env.TEACHER_EMAIL || 'mridwan700611@gmail.com';

@@ -9,7 +9,7 @@ const studentService = {
     }
 
     const cleanCode = kodeUjian.trim().toUpperCase();
-    const ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
+    const ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
 
     if (!ulangan) {
       return { valid: false, message: 'Kode ulangan tidak ditemukan' };
@@ -101,6 +101,7 @@ const studentService = {
         durasi_menit: ulangan.durasi_menit,
         kkm: ulangan.kkm || 75,
         zona_waktu: ulangan.zona_waktu || 'WIB',
+        tampilkan_simbol: (ulangan.tampilkan_simbol !== undefined && ulangan.tampilkan_simbol !== null) ? Number(ulangan.tampilkan_simbol) : 1,
         available_classes: kelasList
       }
     };

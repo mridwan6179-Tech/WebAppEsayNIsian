@@ -112,16 +112,17 @@ const examService = {
     const izinkanInformal = data.izinkan_informal ? 1 : 0;
     const toleransiTypo = (data.toleransi_typo !== undefined && data.toleransi_typo !== null) ? (data.toleransi_typo ? 1 : 0) : 1;
     const cleanInstruksiKhusus = data.instruksi_penilaian_khusus ? String(data.instruksi_penilaian_khusus).trim() : null;
+    const tampilkanSimbol = (data.tampilkan_simbol !== undefined && data.tampilkan_simbol !== null) ? (data.tampilkan_simbol ? 1 : 0) : 1;
 
     const stmt = db.prepare(`
-      INSERT INTO ulangan (guru_id, judul, mata_pelajaran, tingkat_kelas, deskripsi, kode_ujian, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, instruksi_remedial, link_remedial, zona_waktu, izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus)
-      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO ulangan (guru_id, judul, mata_pelajaran, tingkat_kelas, deskripsi, kode_ujian, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, instruksi_remedial, link_remedial, zona_waktu, izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus, tampilkan_simbol)
+      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
       guruId, judul, mata_pelajaran, tingkat_kelas, deskripsi || '', kode_ujian,
       limitSoal, cleanIsian, cleanEssay, isAcak, cleanTanggalMulai, cleanTanggalSelesai, cleanDurasi,
       cleanKkm, cleanInstruksiRemedial, cleanLinkRemedial, cleanZonaWaktu,
-      izinkanSingkatan, izinkanInformal, toleransiTypo, cleanInstruksiKhusus
+      izinkanSingkatan, izinkanInformal, toleransiTypo, cleanInstruksiKhusus, tampilkanSimbol
     );
     const ulanganId = info.lastInsertRowid;
 
@@ -274,6 +275,10 @@ const examService = {
     if (data.instruksi_penilaian_khusus !== undefined) {
       updates.push('instruksi_penilaian_khusus = ?');
       params.push(data.instruksi_penilaian_khusus ? String(data.instruksi_penilaian_khusus).trim() : null);
+    }
+    if (data.tampilkan_simbol !== undefined) {
+      updates.push('tampilkan_simbol = ?');
+      params.push(data.tampilkan_simbol ? 1 : 0);
     }
     if (status !== undefined) {
       if (!['draft', 'dibuka', 'ditutup', 'selesai'].includes(status)) {

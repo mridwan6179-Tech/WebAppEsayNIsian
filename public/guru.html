@@ -293,6 +293,10 @@
                   <input type="checkbox" id="new-exam-toleransi-typo" checked class="rounded text-emerald-600 focus:ring-emerald-500">
                   <span class="text-slate-700 text-[11px]">Toleransi salah ketik ringan (typo / fonetik)</span>
                 </label>
+                <label class="flex items-center space-x-2 cursor-pointer pt-1 border-t border-emerald-200/60">
+                  <input type="checkbox" id="new-exam-tampilkan-simbol" checked class="rounded text-blue-600 focus:ring-blue-500">
+                  <span class="text-slate-700 text-[11px] font-semibold">Tampilkan Tombol Simbol Matematika / Karakter Khusus di Siswa (², ³, √, π, dll)</span>
+                </label>
               </div>
               <div>
                 <label class="block text-slate-700 text-[11px] mb-1 font-medium">Instruksi / Parameter Penilaian Khusus Guru (Opsional):</label>
@@ -912,6 +916,10 @@
             <label class="flex items-center space-x-2 text-slate-700 cursor-pointer">
               <input type="checkbox" id="edit-exam-toleransi-typo" class="rounded text-emerald-600 focus:ring-emerald-500">
               <span class="font-medium text-[11px]">Toleransi salah ketik ringan (typo / fonetik)</span>
+            </label>
+            <label class="flex items-center space-x-2 text-slate-700 cursor-pointer pt-1 border-t border-slate-200/60">
+              <input type="checkbox" id="edit-exam-tampilkan-simbol" class="rounded text-blue-600 focus:ring-blue-500">
+              <span class="font-semibold text-slate-800 text-[11px]">Tampilkan Tombol Simbol Matematika / Karakter Khusus di Siswa (², ³, √, π, dll)</span>
             </label>
           </div>
 
@@ -1960,7 +1968,8 @@
         izinkan_singkatan: izinkanSingkatan,
         izinkan_informal: izinkanInformal,
         toleransi_typo: toleransiTypo,
-        instruksi_penilaian_khusus: instruksiKhusus
+        instruksi_penilaian_khusus: instruksiKhusus,
+        tampilkan_simbol: document.getElementById('new-exam-tampilkan-simbol')?.checked ? 1 : 0
       };
 
       const res = await guruFetch('/api/guru/ulangan', {
@@ -1974,6 +1983,7 @@
         document.getElementById('new-exam-kkm').value = '75';
         if (document.getElementById('new-exam-zona-waktu')) document.getElementById('new-exam-zona-waktu').value = 'WIB';
         if (document.getElementById('new-exam-toleransi-typo')) document.getElementById('new-exam-toleransi-typo').checked = true;
+        if (document.getElementById('new-exam-tampilkan-simbol')) document.getElementById('new-exam-tampilkan-simbol').checked = true;
         formCreateExam.classList.add('hidden');
         loadUlanganList();
         selectUlangan(data.data.id);
@@ -2270,6 +2280,9 @@
         if (document.getElementById('edit-exam-toleransi-typo')) {
           document.getElementById('edit-exam-toleransi-typo').checked = (u.toleransi_typo !== 0);
         }
+        if (document.getElementById('edit-exam-tampilkan-simbol')) {
+          document.getElementById('edit-exam-tampilkan-simbol').checked = (u.tampilkan_simbol !== 0);
+        }
         if (document.getElementById('edit-exam-instruksi-khusus')) {
           document.getElementById('edit-exam-instruksi-khusus').value = u.instruksi_penilaian_khusus || '';
         }
@@ -2332,6 +2345,7 @@
       const izinkanInformal = document.getElementById('edit-exam-izinkan-informal')?.checked ? 1 : 0;
       const toleransiTypo = document.getElementById('edit-exam-toleransi-typo')?.checked ? 1 : 0;
       const instruksiKhusus = document.getElementById('edit-exam-instruksi-khusus')?.value.trim() || null;
+      const tampilkanSimbol = document.getElementById('edit-exam-tampilkan-simbol')?.checked ? 1 : 0;
 
       const selectedKelas = Array.from(document.querySelectorAll('input[name="edit_kelas_choice"]:checked'))
         .map(cb => parseInt(cb.value, 10));
@@ -2354,7 +2368,8 @@
         izinkan_singkatan: izinkanSingkatan,
         izinkan_informal: izinkanInformal,
         toleransi_typo: toleransiTypo,
-        instruksi_penilaian_khusus: instruksiKhusus
+        instruksi_penilaian_khusus: instruksiKhusus,
+        tampilkan_simbol: tampilkanSimbol
       };
 
       const btnSave = document.getElementById('btn-save-edit-exam');
@@ -2553,14 +2568,18 @@
         alert('Naskah percakapan / audio masih kosong.');
         return;
       }
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        return;
+      }
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       const l = (language || '').toLowerCase();
-      if (l.includes('inggris') || l.includes('english')) {
+      if (l.includes('inggris') || l.includes('english') || l.includes('en')) {
         utterance.lang = 'en-US';
-      } else if (l.includes('arab') || l.includes('arabic')) {
+      } else if (l.includes('arab') || l.includes('arabic') || l.includes('ar')) {
         utterance.lang = 'ar-SA';
-      } else if (l.includes('jepang') || l.includes('japanese')) {
+      } else if (l.includes('jepang') || l.includes('japanese') || l.includes('ja')) {
         utterance.lang = 'ja-JP';
       } else {
         utterance.lang = 'id-ID';
