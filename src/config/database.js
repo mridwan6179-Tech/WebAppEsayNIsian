@@ -370,6 +370,23 @@ function initDatabase() {
     db.exec("UPDATE ulangan SET tampilkan_kisi_kisi = 1 WHERE link_kisi_kisi IS NOT NULL AND TRIM(link_kisi_kisi) != '' AND (tampilkan_kisi_kisi IS NULL OR tampilkan_kisi_kisi = 0);");
   } catch (e) {}
 
+  // Bersihkan data duplikat jawaban (jika ada soal_id yang ter-insert lebih dari 1 kali untuk pengerjaan yang sama)
+  try {
+    db.exec(`
+      DELETE FROM jawaban 
+      WHERE id NOT IN (
+        SELECT MIN(id) 
+        FROM jawaban 
+        GROUP BY pengerjaan_id, soal_id
+      );
+    `);
+  } catch (e) {}
+
+  // Tambahkan UNIQUE index agar tidak akan pernah ada duplikasi butir soal per pengerjaan
+  try {
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_jawaban_pengerjaan_soal ON jawaban(pengerjaan_id, soal_id);");
+  } catch (e) {}
+
   // Seed initial guru if table is empty
   const teacherEmail = process.env.TEACHER_EMAIL || 'mridwan700611@gmail.com';
   const teacherName = process.env.TEACHER_NAME || 'Muhammad Ridwan, S.Kom';

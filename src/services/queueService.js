@@ -193,7 +193,7 @@ const queueService = {
     // Ambil 1 pekerjaan antrean tertua yang siap diproses
     const queueItem = db.prepare(`
       SELECT a.id as antrean_id, a.jawaban_id, a.attempt_count,
-             j.jawaban_siswa, j.skor_maksimum,
+             j.pengerjaan_id, j.jawaban_siswa, j.skor_maksimum,
              s.pertanyaan, s.jenis, s.bobot, s.kunci_jawaban, s.rubrik, s.tingkat_kelas, s.tingkat_kesulitan,
              s.pembahasan, s.audio_script, s.is_listening, s.bahasa,
              u.izinkan_singkatan, u.izinkan_informal, u.toleransi_typo, u.instruksi_penilaian_khusus
@@ -241,6 +241,12 @@ const queueService = {
         result = await geminiService.gradeAnswer(queueItem);
       }
 
+      let normalizedStatus = result.status_jawaban;
+      if (!['benar', 'parsial', 'salah', 'perlu_review'].includes(normalizedStatus)) {
+        if (normalizedStatus === 'sebagian') normalizedStatus = 'parsial';
+        else normalizedStatus = 'perlu_review';
+      }
+
       // Simpan hasil penilaian yang berhasil
       db.transaction(() => {
         db.prepare(`
@@ -254,7 +260,7 @@ const queueService = {
           WHERE id = ?
         `).run(
           result.skor_rekomendasi,
-          result.status_jawaban,
+          normalizedStatus,
           result.alasan_ai,
           result.model_ai || 'gemini',
           queueItem.jawaban_id
@@ -266,6 +272,17 @@ const queueService = {
           WHERE id = ?
         `).run(queueItem.antrean_id);
       })();
+
+      // Auto-kalkulasi nilai total pengerjaan siswa saat butir soal dinilai AI
+      // Nilai AI & Nilai Final langsung muncul di tabel depan guru (status tetap belum dirilis / released_at tetap NULL)
+      try {
+        const reviewService = require('./reviewService');
+        if (queueItem.pengerjaan_id) {
+          reviewService.recalculatePengerjaanTotal(queueItem.pengerjaan_id);
+        }
+      } catch (e) {
+        console.warn('⚠️ Gagal auto-kalkulasi nilai pengerjaan:', e.message);
+      }
 
       if (typeof db.syncCloud === 'function') {
         db.syncCloud(true);

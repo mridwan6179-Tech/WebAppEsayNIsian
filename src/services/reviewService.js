@@ -4,7 +4,7 @@ const examService = require('./examService');
 const reviewService = {
   // Ambil daftar seluruh siswa/pengerjaan pada suatu ulangan
   getPengerjaanListByUlangan(ulanganId, guruId) {
-    const ulangan = db.prepare('SELECT id FROM ulangan WHERE id = ? AND guru_id = ?').get(ulanganId, guruId);
+    const ulangan = db.prepare('SELECT id, zona_waktu FROM ulangan WHERE id = ? AND guru_id = ?').get(ulanganId, guruId);
     if (!ulangan) throw new Error('Ulangan tidak ditemukan atau bukan milik guru ini');
 
     const rows = db.prepare(`
@@ -20,6 +20,7 @@ const reviewService = {
         p.nilai_final,
         p.released_at,
         p.paste_count,
+        p.soal_ids,
         pes.nama as nama_siswa,
         pes.kelas as kelas_siswa,
         COUNT(j.id) as total_jawaban,
@@ -33,7 +34,66 @@ const reviewService = {
       ORDER BY pes.kelas ASC, pes.nama ASC
     `).all(ulanganId);
 
+    const zona_waktu = ulangan.zona_waktu || 'WIB';
+
     return rows.map(r => {
+      // Pastikan total_jawaban mencerminkan kuota soal unik pengerjaan siswa
+      let total_jawaban = r.total_jawaban || 0;
+      if (r.soal_ids) {
+        try {
+          const parsedIds = JSON.parse(r.soal_ids);
+          if (Array.isArray(parsedIds) && parsedIds.length > 0) {
+            total_jawaban = parsedIds.length;
+          }
+        } catch (e) {}
+      }
+
+      let total_dinilai = r.total_dinilai || 0;
+      let nilai_ai = r.nilai_ai;
+      let nilai_final = r.nilai_final;
+
+      // Auto-recalculate jika seluruh butir soal sudah dinilai AI tapi nilai_ai belum tersimpan di pengerjaan
+      if (total_jawaban > 0 && total_dinilai >= total_jawaban && (nilai_ai === null || nilai_ai === undefined)) {
+        try {
+          const recalculated = this.recalculatePengerjaanTotal(r.pengerjaan_id);
+          if (recalculated) {
+            nilai_ai = recalculated.nilai_ai;
+            nilai_final = recalculated.nilai_final;
+          }
+        } catch (errRecalc) {
+          console.warn('Peringatan auto-recalculate nilai pengerjaan:', errRecalc.message);
+        }
+      }
+
+      // Format submitted_at sesuai tanggal, jam dan zona waktu ulangan (WIB / WITA / WIT)
+      let submitted_at_formatted = null;
+      if (r.submitted_at) {
+        try {
+          let s = String(r.submitted_at).trim();
+          if (!s.includes('T') && s.includes(' ')) s = s.replace(' ', 'T');
+          if (!s.endsWith('Z') && !s.includes('+') && !s.slice(10).includes('-')) s += 'Z';
+          const d = new Date(s);
+          if (!isNaN(d.getTime())) {
+            const tzMap = { WIB: 'Asia/Jakarta', WITA: 'Asia/Makassar', WIT: 'Asia/Jayapura' };
+            const tz = tzMap[zona_waktu] || 'Asia/Jakarta';
+            const dateStr = new Intl.DateTimeFormat('id-ID', {
+              timeZone: tz,
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric'
+            }).format(d);
+            const timeStr = new Intl.DateTimeFormat('id-ID', {
+              timeZone: tz,
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false
+            }).format(d).replace(/\./g, ':');
+            submitted_at_formatted = `${dateStr}, ${timeStr} ${zona_waktu}`;
+          }
+        } catch (errDate) {}
+      }
+
       let status_kehadiran = 'selesai';
       let terakhir_aktif_teks = 'Sudah mengumpulkan';
       let terakhir_aktif_teks_singkat = '';
@@ -67,6 +127,12 @@ const reviewService = {
 
       return {
         ...r,
+        total_jawaban,
+        total_dinilai,
+        nilai_ai,
+        nilai_final,
+        zona_waktu,
+        submitted_at_formatted,
         status_kehadiran,
         terakhir_aktif_teks,
         terakhir_aktif_teks_singkat

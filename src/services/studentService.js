@@ -421,32 +421,51 @@ const studentService = {
     // Perbarui waktu aktif pengerjaan (presence / heartbeat)
     db.prepare('UPDATE pengerjaan SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?').run(pengerjaanId);
 
+    // Ambil daftar soal yang sah ditugaskan untuk pengerjaan siswa ini
+    let allowedSoalSet = null;
+    if (pengerjaan.soal_ids) {
+      try {
+        const parsed = JSON.parse(pengerjaan.soal_ids);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          allowedSoalSet = new Set(parsed.map(Number));
+        }
+      } catch (e) {
+        allowedSoalSet = null;
+      }
+    }
+
     const answers = Array.isArray(rawAnswers) ? rawAnswers : [];
     if (answers.length === 0) {
       return { success: true, savedCount: 0 };
     }
 
+    // Deduplikasi payload jawaban berdasarkan soal_id dan filter hanya soal yang ditugaskan
+    const uniqueAnswersMap = new Map();
+    for (const a of answers) {
+      if (!a || !a.soal_id) continue;
+      const sId = Number(a.soal_id);
+      if (allowedSoalSet && !allowedSoalSet.has(sId)) {
+        // Abaikan soal yang tidak termasuk dalam paket ujian siswa ini (mencegah kelebihan kuota)
+        continue;
+      }
+      uniqueAnswersMap.set(sId, String(a.jawaban_siswa !== undefined ? a.jawaban_siswa : (a.teks_jawaban || '')));
+    }
+
     const saveTx = db.transaction(() => {
-      const checkStmt = db.prepare('SELECT id, jawaban_siswa FROM jawaban WHERE pengerjaan_id = ? AND soal_id = ?');
-      const updateStmt = db.prepare('UPDATE jawaban SET jawaban_siswa = ? WHERE id = ?');
-      const insertStmt = db.prepare(`INSERT INTO jawaban (pengerjaan_id, soal_id, jawaban_siswa, skor_maksimum, status_penilaian) VALUES (?, ?, ?, ?, 'menunggu')`);
+      const upsertStmt = db.prepare(`
+        INSERT INTO jawaban (pengerjaan_id, soal_id, jawaban_siswa, skor_maksimum, status_penilaian)
+        VALUES (?, ?, ?, ?, 'menunggu')
+        ON CONFLICT(pengerjaan_id, soal_id) DO UPDATE 
+        SET jawaban_siswa = excluded.jawaban_siswa
+      `);
       const soalStmt = db.prepare('SELECT bobot FROM soal WHERE id = ?');
 
       let savedCount = 0;
-      for (const a of answers) {
-        if (!a || !a.soal_id) continue;
-        const soalId = Number(a.soal_id);
-        const text = String(a.jawaban_siswa || '');
-        const existing = checkStmt.get(pengerjaanId, soalId);
-        if (existing) {
-          updateStmt.run(text, existing.id);
-          savedCount++;
-        } else {
-          const s = soalStmt.get(soalId);
-          const bobot = s ? s.bobot : 10;
-          insertStmt.run(pengerjaanId, soalId, text, bobot);
-          savedCount++;
-        }
+      for (const [soalId, text] of uniqueAnswersMap.entries()) {
+        const s = soalStmt.get(soalId);
+        const bobot = s ? s.bobot : 10;
+        upsertStmt.run(pengerjaanId, soalId, text, bobot);
+        savedCount++;
       }
       return savedCount;
     });
@@ -534,14 +553,13 @@ const studentService = {
     // Transaksi penyimpanan jawaban agar atomik
     const insertOrUpdateJawaban = db.transaction(() => {
       const checkStmt = db.prepare('SELECT id, jawaban_siswa FROM jawaban WHERE pengerjaan_id = ? AND soal_id = ?');
-      const updateStmt = db.prepare(`
-        UPDATE jawaban 
-        SET jawaban_siswa = ?, skor_maksimum = ?, status_penilaian = 'menunggu'
-        WHERE id = ?
-      `);
-      const insertStmt = db.prepare(`
+      const upsertStmt = db.prepare(`
         INSERT INTO jawaban (pengerjaan_id, soal_id, jawaban_siswa, skor_maksimum, status_penilaian)
         VALUES (?, ?, ?, ?, 'menunggu')
+        ON CONFLICT(pengerjaan_id, soal_id) DO UPDATE 
+        SET jawaban_siswa = excluded.jawaban_siswa,
+            skor_maksimum = excluded.skor_maksimum,
+            status_penilaian = 'menunggu'
       `);
 
       for (const [soalId, bobot] of soalMap.entries()) {
@@ -558,11 +576,7 @@ const studentService = {
           finalJawaban = submittedText;
         }
 
-        if (existing) {
-          updateStmt.run(finalJawaban, bobot, existing.id);
-        } else {
-          insertStmt.run(pengerjaanId, soalId, finalJawaban, bobot);
-        }
+        upsertStmt.run(pengerjaanId, soalId, finalJawaban, bobot);
       }
 
       // Update status pengerjaan ke submitted & catat paste_count dan auto_submitted

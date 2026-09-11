@@ -684,6 +684,12 @@
                   <input type="text" id="search-peserta-nama" placeholder="Cari nama siswa..." class="pl-7 pr-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white w-36 sm:w-44 focus:ring-1 focus:ring-blue-500">
                   <span class="absolute left-2 top-1.5 text-slate-400 text-xs">🔍</span>
                 </div>
+
+                <!-- Tombol Refresh Data Peserta -->
+                <button type="button" id="btn-refresh-peserta" onclick="loadPesertaList(activeUlanganId)" class="px-2.5 py-1 text-xs rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-semibold flex items-center space-x-1.5 transition shadow-xs cursor-pointer active:scale-95" title="Segarkan data tabel peserta dan nilai AI terkini">
+                  <span class="text-blue-600 font-bold">🔄</span>
+                  <span>Refresh Data</span>
+                </button>
               </div>
 
               <!-- Deteksi Siswa Kirim Ganda / Duplikat Badge -->
@@ -749,9 +755,19 @@
                   </tr>
                 </thead>
                 <tbody id="students-table-body" class="divide-y divide-slate-100">
-                  <tr><td colspan="7" class="p-4 text-center text-slate-400">Belum ada siswa yang mengumpulkan jawaban.</td></tr>
+                  <tr><td colspan="8" class="p-4 text-center text-slate-400">Belum ada siswa yang mengumpulkan jawaban.</td></tr>
                 </tbody>
               </table>
+            </div>
+
+            <!-- Bar Paginasi Peserta (Batas Maksimal 20 Siswa per Halaman) -->
+            <div id="peserta-pagination-bar" class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div id="peserta-pagination-info" class="text-slate-600 font-medium">
+                Menampilkan <span id="peserta-page-start" class="font-bold text-slate-900">0</span> - <span id="peserta-page-end" class="font-bold text-slate-900">0</span> dari <span id="peserta-page-total" class="font-bold text-slate-900">0</span> siswa
+              </div>
+              <div id="peserta-pagination-controls" class="flex items-center space-x-1.5">
+                <!-- Tombol Navigasi Halaman di-render secara dinamis di JS -->
+              </div>
             </div>
           </div>
 
@@ -2181,6 +2197,7 @@
     // Select Ulangan
     async function selectUlangan(id) {
       activeUlanganId = id;
+      currentStudentPage = 1;
       loadUlanganList();
 
       const res = await guruFetch(`/api/guru/ulangan/${id}`);
@@ -3815,6 +3832,8 @@
     };
     let currentStudentsList = [];
     let filterOnlyDuplicates = false;
+    let currentStudentPage = 1;
+    const STUDENTS_PER_PAGE = 20;
 
     // Toolbar filter & sorting listeners
     const filterKelasEl = document.getElementById('filter-peserta-kelas');
@@ -3822,14 +3841,54 @@
     const searchNamaEl = document.getElementById('search-peserta-nama');
     const btnToggleDupFilter = document.getElementById('btn-toggle-duplicate-filter');
 
-    if (filterKelasEl) filterKelasEl.onchange = () => renderStudentsTable();
-    if (sortPesertaEl) sortPesertaEl.onchange = () => renderStudentsTable();
-    if (searchNamaEl) searchNamaEl.oninput = () => renderStudentsTable();
+    if (filterKelasEl) filterKelasEl.onchange = () => { currentStudentPage = 1; renderStudentsTable(); };
+    if (sortPesertaEl) sortPesertaEl.onchange = () => { currentStudentPage = 1; renderStudentsTable(); };
+    if (searchNamaEl) searchNamaEl.oninput = () => { currentStudentPage = 1; renderStudentsTable(); };
     if (btnToggleDupFilter) {
       btnToggleDupFilter.onclick = () => {
         filterOnlyDuplicates = !filterOnlyDuplicates;
+        currentStudentPage = 1;
         renderStudentsTable();
       };
+    }
+
+    function formatWaktuSubmit(dateStr, zonaWaktu = 'WIB') {
+      if (!dateStr) return '<span class="text-slate-400">-</span>';
+      try {
+        let s = String(dateStr).trim();
+        if (!s.includes('T') && s.includes(' ')) s = s.replace(' ', 'T');
+        if (!s.endsWith('Z') && !s.includes('+') && !s.slice(10).includes('-')) s += 'Z';
+        const d = new Date(s);
+        if (isNaN(d.getTime())) return '<span class="text-slate-400">-</span>';
+
+        const tzMap = { WIB: 'Asia/Jakarta', WITA: 'Asia/Makassar', WIT: 'Asia/Jayapura' };
+        const tz = tzMap[zonaWaktu] || 'Asia/Jakarta';
+
+        const dateFormatted = new Intl.DateTimeFormat('id-ID', {
+          timeZone: tz,
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        }).format(d);
+
+        const timeFormatted = new Intl.DateTimeFormat('id-ID', {
+          timeZone: tz,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        }).format(d).replace(/\./g, ':');
+
+        return `
+          <div class="font-semibold text-slate-800 flex items-center space-x-1 whitespace-nowrap">
+            <span>${timeFormatted}</span>
+            <span class="text-[9px] font-extrabold text-blue-700 bg-blue-50 px-1 py-0.2 rounded border border-blue-200 uppercase">${escapeHtml(zonaWaktu)}</span>
+          </div>
+          <div class="text-[10px] text-slate-400 font-normal whitespace-nowrap">${dateFormatted}</div>
+        `;
+      } catch (err) {
+        return `<span class="text-slate-500">${escapeHtml(dateStr)}</span>`;
+      }
     }
 
     function renderStudentsTable() {
@@ -3837,8 +3896,9 @@
       tbody.innerHTML = '';
 
       if (!currentStudentsList || currentStudentsList.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">Belum ada siswa yang mengumpulkan jawaban.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-slate-400">Belum ada siswa yang mengumpulkan jawaban.</td></tr>';
         document.getElementById('duplicate-warning-box')?.classList.add('hidden');
+        renderPesertaPagination(0, 1, 0, 0);
         return;
       }
 
@@ -3915,12 +3975,23 @@
         return 0;
       });
 
-      if (filtered.length === 0) {
+      const totalFiltered = filtered.length;
+      if (totalFiltered === 0) {
         tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-slate-400">Tidak ada data siswa yang cocok dengan kriteria filter.</td></tr>';
+        renderPesertaPagination(0, 1, 0, 0);
         return;
       }
 
-      filtered.forEach(st => {
+      // Hitung Paginasi (Maksimal 20 Siswa / Halaman)
+      const totalPages = Math.ceil(totalFiltered / STUDENTS_PER_PAGE) || 1;
+      if (currentStudentPage > totalPages) currentStudentPage = totalPages;
+      if (currentStudentPage < 1) currentStudentPage = 1;
+
+      const startIndex = (currentStudentPage - 1) * STUDENTS_PER_PAGE;
+      const endIndex = Math.min(startIndex + STUDENTS_PER_PAGE, totalFiltered);
+      const pagedStudents = filtered.slice(startIndex, endIndex);
+
+      pagedStudents.forEach(st => {
         const tr = document.createElement('tr');
         const cleanName = (st.nama_siswa || '').trim().toLowerCase();
         const cleanClass = (st.kelas_siswa || '').trim().toLowerCase();
@@ -3936,14 +4007,14 @@
             </div>
           </td>
           <td class="p-3 text-slate-500">${escapeHtml(st.kelas_siswa)}</td>
-          <td class="p-3 text-slate-500">${st.submitted_at ? new Date(st.submitted_at).toLocaleTimeString('id-ID') : '-'}</td>
+          <td class="p-3">${formatWaktuSubmit(st.submitted_at, st.zona_waktu || 'WIB')}</td>
           <td class="p-3">
             <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${st.total_dinilai >= st.total_jawaban ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
               ${st.total_dinilai} / ${st.total_jawaban} Selesai
             </span>
           </td>
-          <td class="p-3 font-semibold text-purple-700">${st.nilai_ai !== null ? st.nilai_ai : '-'}</td>
-          <td class="p-3 font-bold text-blue-600">${st.nilai_final !== null ? st.nilai_final : '-'}</td>
+          <td class="p-3 font-semibold text-purple-700">${st.nilai_ai !== null && st.nilai_ai !== undefined ? st.nilai_ai : '-'}</td>
+          <td class="p-3 font-bold text-blue-600">${st.nilai_final !== null && st.nilai_final !== undefined ? st.nilai_final : '-'}</td>
           <td class="p-3">
             ${st.status !== 'submitted'
               ? (st.status_kehadiran === 'aktif'
@@ -3992,6 +4063,62 @@
         `;
         tbody.appendChild(tr);
       });
+
+      renderPesertaPagination(totalFiltered, totalPages, startIndex, endIndex);
+    }
+
+    function renderPesertaPagination(totalItems, totalPages, startIndex, endIndex) {
+      const bar = document.getElementById('peserta-pagination-bar');
+      const infoEl = document.getElementById('peserta-pagination-info');
+      const controlsEl = document.getElementById('peserta-pagination-controls');
+      if (!bar || !infoEl || !controlsEl) return;
+
+      if (totalItems === 0) {
+        bar.classList.add('hidden');
+        return;
+      }
+
+      bar.classList.remove('hidden');
+      infoEl.innerHTML = `Menampilkan <span class="font-bold text-slate-900">${startIndex + 1} - ${endIndex}</span> dari <span class="font-bold text-slate-900">${totalItems}</span> siswa`;
+
+      if (totalPages <= 1) {
+        controlsEl.innerHTML = '';
+        return;
+      }
+
+      let html = '';
+      html += `
+        <button type="button" onclick="goToPesertaPage(${currentStudentPage - 1})" ${currentStudentPage === 1 ? 'disabled' : ''} class="px-2.5 py-1 text-xs rounded-lg border border-slate-300 font-medium transition ${currentStudentPage === 1 ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400' : 'bg-white hover:bg-slate-100 text-slate-700 cursor-pointer shadow-xs active:scale-95'}">
+          &larr; Sebelumnya
+        </button>
+      `;
+
+      for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= currentStudentPage - 1 && i <= currentStudentPage + 1)) {
+          const isActive = i === currentStudentPage;
+          html += `
+            <button type="button" onclick="goToPesertaPage(${i})" class="w-7 h-7 flex items-center justify-center text-xs rounded-lg font-semibold transition ${isActive ? 'bg-blue-600 text-white shadow-xs' : 'bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 cursor-pointer active:scale-95'}">
+              ${i}
+            </button>
+          `;
+        } else if (i === currentStudentPage - 2 || i === currentStudentPage + 2) {
+          html += `<span class="px-1 text-slate-400 font-bold">...</span>`;
+        }
+      }
+
+      html += `
+        <button type="button" onclick="goToPesertaPage(${currentStudentPage + 1})" ${currentStudentPage === totalPages ? 'disabled' : ''} class="px-2.5 py-1 text-xs rounded-lg border border-slate-300 font-medium transition ${currentStudentPage === totalPages ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400' : 'bg-white hover:bg-slate-100 text-slate-700 cursor-pointer shadow-xs active:scale-95'}">
+          Berikutnya &rarr;
+        </button>
+      `;
+
+      controlsEl.innerHTML = html;
+    }
+
+    function goToPesertaPage(page) {
+      currentStudentPage = page;
+      renderStudentsTable();
+      document.getElementById('students-table-body')?.closest('.overflow-x-auto')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     async function loadPesertaList(ulanganId) {

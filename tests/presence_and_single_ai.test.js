@@ -162,4 +162,43 @@ test('Deteksi Status Kehadiran Siswa (Aktif vs DC) & Review AI Perorangan', asyn
       /belum dikumpulkan/
     );
   });
+
+  await t.test('7. Proteksi Unique Index pada jawaban(pengerjaan_id, soal_id) mencegah duplikasi', () => {
+    // Coba simpan draft berulang kali untuk soal yang sama
+    const draftRes = studentService.saveDraft(s1.pengerjaanId, [
+      { soal_id: soal1.id, jawaban_siswa: 'Draft jawaban 1' },
+      { soal_id: soal1.id, jawaban_siswa: 'Draft jawaban 1 versi 2' },
+      { soal_id: soal2.id, jawaban_siswa: 'Draft jawaban 2' }
+    ]);
+    assert.strictEqual(draftRes.success, true);
+
+    const countRows = db.prepare('SELECT COUNT(*) as c FROM jawaban WHERE pengerjaan_id = ?').get(s1.pengerjaanId).c;
+    assert.strictEqual(countRows, 2, 'Jumlah baris jawaban tidak boleh lebih dari jumlah soal yang dikerjakan');
+
+    // Cek isi jawaban terupdate ke versi terakhir
+    const j1 = db.prepare('SELECT jawaban_siswa FROM jawaban WHERE pengerjaan_id = ? AND soal_id = ?').get(s1.pengerjaanId, soal1.id);
+    assert.strictEqual(j1.jawaban_siswa, 'Draft jawaban 1 versi 2');
+  });
+
+  await t.test('8. Kuota total_jawaban akurat sesuai soal_ids (tidak melebihi batas jumlah_soal)', () => {
+    const list = reviewService.getPengerjaanListByUlangan(ulangan.id, guru.id);
+    const ahmad = list.find(p => p.pengerjaan_id === s1.pengerjaanId);
+    assert.ok(ahmad);
+    assert.strictEqual(ahmad.total_jawaban, 2, 'total_jawaban harus tepat 2');
+  });
+
+  await t.test('9. Format waktu submit menyertakan zona waktu & nilai AI tampil di depan tanpa langsung rilis', async () => {
+    // Set zona_waktu ke WITA
+    examService.updateUlangan(ulangan.id, guru.id, { zona_waktu: 'WITA' });
+
+    const list = reviewService.getPengerjaanListByUlangan(ulangan.id, guru.id);
+    const rian = list.find(p => p.pengerjaan_id === s3.pengerjaanId);
+    assert.ok(rian);
+    assert.strictEqual(rian.zona_waktu, 'WITA');
+    assert.ok(rian.submitted_at_formatted.includes('WITA'), 'submitted_at_formatted harus menyertakan label WITA');
+    assert.strictEqual(rian.nilai_ai, 50, 'Nilai AI harus terhitung dan muncul');
+    assert.strictEqual(rian.nilai_final, 50, 'Nilai Final harus terhitung dan muncul');
+    assert.strictEqual(rian.released_at, null, 'Nilai AI belum dirilis (released_at harus tetap NULL agar aman ditinjau guru)');
+  });
 });
+
