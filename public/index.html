@@ -430,6 +430,59 @@
       }
     });
 
+    // Deteksi Presence / Detak Jantung Siswa (Aktif vs DC)
+    let heartbeatInterval = null;
+    function startHeartbeat() {
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      sendHeartbeat();
+      heartbeatInterval = setInterval(sendHeartbeat, 15000);
+    }
+
+    function stopHeartbeat() {
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+      }
+    }
+
+    function sendHeartbeat() {
+      const pId = currentPengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
+      if (!pId || !stepExam || stepExam.classList.contains('hidden') || isSubmitting) return;
+      fetch('/api/siswa/ping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pengerjaan_id: pId, status: 'active' })
+      }).catch(() => {});
+    }
+
+    // Segera kirim ping jika tab browser kembali aktif / visible
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        sendHeartbeat();
+      }
+    });
+
+    // Deteksi siswa menutup tab browser atau keluar dari lembar ujian (DC eksplisit)
+    window.addEventListener('pagehide', () => {
+      const pId = currentPengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
+      if (pId && stepExam && !stepExam.classList.contains('hidden') && !isSubmitting) {
+        try {
+          const payload = JSON.stringify({ pengerjaan_id: pId, status: 'offline' });
+          if (navigator.sendBeacon) {
+            const blob = new Blob([payload], { type: 'application/json' });
+            navigator.sendBeacon('/api/siswa/ping', blob);
+          } else {
+            fetch('/api/siswa/ping', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: payload,
+              keepalive: true
+            });
+          }
+        } catch (e) {}
+      }
+    });
+
     // Proteksi Tombol Back di HP Android & Browser (Cegah keluar tidak sengaja lewat tombol navigasi HP)
     window.addEventListener('popstate', () => {
       if (stepExam && !stepExam.classList.contains('hidden') && !isSubmitting) {
@@ -1327,6 +1380,9 @@
       stepResult.classList.add('hidden');
       stepExam.classList.remove('hidden');
 
+      // Mulai pengiriman heartbeat kehadiran aktif (status online/mengerjakan)
+      startHeartbeat();
+
       // Kunci history state untuk navigasi HP
       try {
         history.pushState({ inExam: true }, '');
@@ -1821,6 +1877,7 @@
 
     // Tampilkan Layar Hasil
     function showResultStep(data) {
+      stopHeartbeat();
       if (countdownInterval) {
         clearInterval(countdownInterval);
         countdownInterval = null;

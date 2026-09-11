@@ -15,6 +15,7 @@ const reviewService = {
         p.status,
         p.started_at,
         p.submitted_at,
+        p.last_active_at,
         p.nilai_ai,
         p.nilai_final,
         p.released_at,
@@ -22,7 +23,8 @@ const reviewService = {
         pes.nama as nama_siswa,
         pes.kelas as kelas_siswa,
         COUNT(j.id) as total_jawaban,
-        SUM(CASE WHEN j.status_penilaian = 'selesai' THEN 1 ELSE 0 END) as total_dinilai
+        SUM(CASE WHEN j.status_penilaian = 'selesai' THEN 1 ELSE 0 END) as total_dinilai,
+        CAST(ROUND((julianday('now') - julianday(COALESCE(p.last_active_at, p.started_at))) * 86400) AS INTEGER) as detik_sejak_aktif
       FROM pengerjaan p
       JOIN peserta pes ON p.peserta_id = pes.id
       LEFT JOIN jawaban j ON p.id = j.pengerjaan_id
@@ -31,7 +33,45 @@ const reviewService = {
       ORDER BY pes.kelas ASC, pes.nama ASC
     `).all(ulanganId);
 
-    return rows;
+    return rows.map(r => {
+      let status_kehadiran = 'selesai';
+      let terakhir_aktif_teks = 'Sudah mengumpulkan';
+      let terakhir_aktif_teks_singkat = '';
+
+      if (r.status !== 'submitted') {
+        const diff = r.detik_sejak_aktif;
+        // Batas toleransi heartbeat aktif: 45 detik (ping dikirim klien setiap 15 detik)
+        if (diff !== null && diff !== undefined && diff >= 0 && diff <= 45) {
+          status_kehadiran = 'aktif';
+          terakhir_aktif_teks = 'Sedang aktif di lembar ujian (mengetik/online)';
+          terakhir_aktif_teks_singkat = 'Aktif';
+        } else {
+          status_kehadiran = 'dc';
+          if (diff === null || diff === undefined || diff > 86400 * 30) {
+            terakhir_aktif_teks = 'Terputus (keluar/tutup browser/offline)';
+            terakhir_aktif_teks_singkat = 'Keluar';
+          } else if (diff < 60) {
+            terakhir_aktif_teks = `Terputus (${diff} detik lalu)`;
+            terakhir_aktif_teks_singkat = `${diff}s lalu`;
+          } else if (diff < 3600) {
+            const m = Math.floor(diff / 60);
+            terakhir_aktif_teks = `Terputus (${m} menit lalu)`;
+            terakhir_aktif_teks_singkat = `${m}m lalu`;
+          } else {
+            const h = Math.floor(diff / 3600);
+            terakhir_aktif_teks = `Terputus (${h} jam lalu)`;
+            terakhir_aktif_teks_singkat = `${h}j lalu`;
+          }
+        }
+      }
+
+      return {
+        ...r,
+        status_kehadiran,
+        terakhir_aktif_teks,
+        terakhir_aktif_teks_singkat
+      };
+    });
   },
 
   // Ambil detail pengerjaan siswa untuk review butir soal

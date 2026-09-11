@@ -172,6 +172,7 @@ function initDatabase() {
       nilai_ai REAL,
       nilai_final REAL,
       released_at DATETIME,
+      last_active_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (ulangan_id) REFERENCES ulangan(id) ON DELETE CASCADE,
       FOREIGN KEY (peserta_id) REFERENCES peserta(id) ON DELETE CASCADE
     );
@@ -359,6 +360,11 @@ function initDatabase() {
   safeAddColumn('ulangan', 'tampilkan_teks_listening', 'INTEGER DEFAULT 0');
   safeAddColumn('soal', 'tampilkan_teks_listening', 'INTEGER DEFAULT NULL');
   safeAddColumn('bank_soal', 'tampilkan_teks_listening', 'INTEGER DEFAULT 0');
+  safeAddColumn('pengerjaan', 'last_active_at', 'DATETIME');
+
+  try {
+    db.exec("UPDATE pengerjaan SET last_active_at = COALESCE(last_active_at, started_at, CURRENT_TIMESTAMP) WHERE last_active_at IS NULL;");
+  } catch (e) {}
 
   try {
     db.exec("UPDATE ulangan SET tampilkan_kisi_kisi = 1 WHERE link_kisi_kisi IS NOT NULL AND TRIM(link_kisi_kisi) != '' AND (tampilkan_kisi_kisi IS NULL OR tampilkan_kisi_kisi = 0);");

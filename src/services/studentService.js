@@ -356,12 +356,12 @@ const studentService = {
       const nowIso = new Date().toISOString();
       if (!pengerjaan) {
         const info = db.prepare(`
-          INSERT INTO pengerjaan (ulangan_id, peserta_id, status, soal_ids, started_at)
-          VALUES (?, ?, 'mengerjakan', ?, ?)
-        `).run(ulanganId, peserta.id, soalIdsJson, nowIso);
+          INSERT INTO pengerjaan (ulangan_id, peserta_id, status, soal_ids, started_at, last_active_at)
+          VALUES (?, ?, 'mengerjakan', ?, ?, ?)
+        `).run(ulanganId, peserta.id, soalIdsJson, nowIso, nowIso);
         pengerjaan = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(info.lastInsertRowid);
       } else {
-        db.prepare('UPDATE pengerjaan SET soal_ids = ? WHERE id = ?').run(soalIdsJson, pengerjaan.id);
+        db.prepare('UPDATE pengerjaan SET soal_ids = ?, last_active_at = CURRENT_TIMESTAMP WHERE id = ?').run(soalIdsJson, pengerjaan.id);
         pengerjaan.soal_ids = soalIdsJson;
       }
     }
@@ -417,6 +417,9 @@ const studentService = {
     if (pengerjaan.status === 'submitted') {
       return { success: true, message: 'Ulangan sudah dikumpulkan', alreadySubmitted: true };
     }
+
+    // Perbarui waktu aktif pengerjaan (presence / heartbeat)
+    db.prepare('UPDATE pengerjaan SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?').run(pengerjaanId);
 
     const answers = Array.isArray(rawAnswers) ? rawAnswers : [];
     if (answers.length === 0) {
@@ -894,6 +897,24 @@ const studentService = {
       server_time: new Date().toISOString(),
       soal: displaySoalWithAnswers
     };
+  },
+
+  // Rekam detak jantung / presence siswa saat mengerjakan (mendeteksi aktif vs terputus/dc)
+  recordPing(pengerjaanId, status = 'active') {
+    if (!pengerjaanId) return { success: false, message: 'pengerjaan_id wajib diisi' };
+    const pengerjaan = db.prepare('SELECT id, status FROM pengerjaan WHERE id = ?').get(pengerjaanId);
+    if (!pengerjaan || pengerjaan.status !== 'mengerjakan') {
+      return { success: false, message: 'Pengerjaan tidak ditemukan atau sudah dikumpulkan' };
+    }
+
+    if (status === 'offline') {
+      // Disconnect eksplisit (misal user tutup tab / browser pagehide)
+      db.prepare(`UPDATE pengerjaan SET last_active_at = '2000-01-01 00:00:00' WHERE id = ?`).run(pengerjaanId);
+      return { success: true, status: 'offline' };
+    }
+
+    db.prepare('UPDATE pengerjaan SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?').run(pengerjaanId);
+    return { success: true, status: 'active' };
   }
 };
 

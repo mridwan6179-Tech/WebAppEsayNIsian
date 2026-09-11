@@ -210,6 +210,22 @@ app.post('/api/siswa/draft', (req, res) => {
   }
 });
 
+// Heartbeat & presence pengerjaan siswa (mendeteksi aktif vs terputus/dc)
+app.post('/api/siswa/ping', (req, res) => {
+  try {
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch (e) {}
+    }
+    const pengerjaan_id = body?.pengerjaan_id;
+    const status = body?.status || 'active';
+    const result = studentService.recordPing(pengerjaan_id, status);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 app.get('/api/siswa/sesi/:pengerjaan_id', (req, res) => {
   try {
     const session = studentService.getActiveSession(req.params.pengerjaan_id);
@@ -646,6 +662,16 @@ app.post('/api/guru/pengerjaan/:id/release', requireGuru, (req, res) => {
   try {
     const { isReleased } = req.body;
     const result = reviewService.toggleReleaseSinglePengerjaan(req.params.id, req.guru.guruId, Boolean(isReleased));
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// Penilaian AI Perorangan (Review AI per Siswa)
+app.post('/api/guru/pengerjaan/:id/ai/start', requireGuru, async (req, res) => {
+  try {
+    const result = await queueService.startReviewSingle(req.params.id, req.guru.guruId);
     res.json(result);
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });

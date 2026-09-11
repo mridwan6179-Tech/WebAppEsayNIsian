@@ -709,6 +709,30 @@
               <div id="overall-release-stat" class="text-[11px] font-bold text-slate-700"></div>
             </div>
 
+            <!-- Status Aktivitas / Kehadiran Siswa (Aktif vs DC) -->
+            <div id="presence-summary-bar" class="p-2.5 bg-slate-100/90 rounded-xl border border-slate-200 text-xs flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center space-x-2 flex-wrap gap-1.5">
+                <span class="font-bold text-slate-800 flex items-center space-x-1 text-[11px]">
+                  <span>📶</span>
+                  <span>Aktivitas Siswa:</span>
+                </span>
+                <span id="badge-presence-aktif" class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 mr-1 animate-pulse inline-block"></span>
+                  <span>Aktif: 0</span>
+                </span>
+                <span id="badge-presence-dc" class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                  <span class="w-2 h-2 rounded-full bg-rose-500 mr-1 inline-block"></span>
+                  <span>Terputus (DC): 0</span>
+                </span>
+                <span id="badge-presence-selesai" class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-100 text-blue-800 border border-blue-300">
+                  <span>✅ Selesai: 0</span>
+                </span>
+              </div>
+              <button type="button" onclick="loadPesertaList(activeUlanganId)" class="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center space-x-1 transition cursor-pointer" title="Perbarui status kehadiran dan data peserta secara langsung">
+                <span>🔄 Segarkan Status</span>
+              </button>
+            </div>
+
             <!-- Tabel Peserta -->
             <div class="overflow-x-auto border border-slate-200 rounded-xl">
               <table class="w-full text-left text-xs">
@@ -720,7 +744,7 @@
                     <th class="p-3">Status Dinilai</th>
                     <th class="p-3">Nilai AI</th>
                     <th class="p-3">Nilai Final</th>
-                    <th class="p-3">Status Rilis</th>
+                    <th class="p-3">Status & Rilis</th>
                     <th class="p-3 text-right">Aksi</th>
                   </tr>
                 </thead>
@@ -847,6 +871,9 @@
           <p id="modal-student-meta" class="text-xs text-slate-500">Kelas &bull; Nilai AI vs Final</p>
         </div>
         <div class="flex items-center space-x-2">
+          <button id="btn-modal-single-ai" class="hidden text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1.5 rounded-lg transition flex items-center space-x-1" title="Nilai lembar jawaban siswa ini dengan AI">
+            <span>✨ Nilai AI Siswa Ini</span>
+          </button>
           <button id="btn-modal-toggle-release" class="hidden text-xs font-semibold px-2.5 py-1.5 rounded-lg transition">
             <!-- Dinamis via JS -->
           </button>
@@ -2759,6 +2786,13 @@
       loadPesertaList(activeUlanganId);
     };
 
+    // Auto-refresh berkala status kehadiran & aktivitas siswa (Aktif vs DC) saat melihat tab hasil peserta
+    setInterval(() => {
+      if (activeUlanganId && tabContentStudents && !tabContentStudents.classList.contains('hidden') && document.visibilityState === 'visible') {
+        loadPesertaList(activeUlanganId);
+      }
+    }, 15000);
+
     // Render Soal List
     function renderMath(elem) {
       if (window.renderMathInElement && elem) {
@@ -3912,9 +3946,20 @@
           <td class="p-3 font-bold text-blue-600">${st.nilai_final !== null ? st.nilai_final : '-'}</td>
           <td class="p-3">
             ${st.status !== 'submitted'
-              ? `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-400 border border-slate-200" title="Siswa belum mengumpulkan ujian">
-                  ⏳ Mengerjakan
-                 </span>`
+              ? (st.status_kehadiran === 'aktif'
+                  ? `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs cursor-help" title="${escapeHtml(st.terakhir_aktif_teks || 'Sedang aktif di halaman ujian')}">
+                      <span class="relative flex h-2 w-2 mr-1.5">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <span>Aktif</span>
+                     </span>`
+                  : `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-300 shadow-2xs cursor-help" title="${escapeHtml(st.terakhir_aktif_teks || 'Koneksi terputus / keluar')}">
+                      <span class="w-2 h-2 rounded-full bg-rose-500 mr-1.5 inline-block"></span>
+                      <span>Terputus (DC)</span>
+                      ${st.terakhir_aktif_teks_singkat ? `<span class="text-[10px] text-rose-600 font-normal ml-1">(${escapeHtml(st.terakhir_aktif_teks_singkat)})</span>` : ''}
+                     </span>`
+                )
               : (st.released_at 
                   ? `<button type="button" onclick="toggleReleaseSingleStudent(${st.pengerjaan_id}, false, '${escapeHtml(st.nama_siswa).replace(/'/g, "\\'")}')" class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 hover:bg-rose-100 text-emerald-800 hover:text-rose-700 border border-emerald-300 hover:border-rose-300 shadow-xs transition group cursor-pointer" title="Nilai sudah dapat dilihat siswa. Klik untuk MENARIK rilis nilai siswa ini.">
                       <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:bg-rose-500 mr-1.5 animate-pulse"></span>
@@ -3931,6 +3976,11 @@
           </td>
           <td class="p-3 text-right">
             <div class="flex items-center justify-end space-x-1.5">
+              ${st.status === 'submitted' ? `
+                <button type="button" onclick="runSingleStudentAiReview(${st.pengerjaan_id}, this)" class="text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-semibold px-2 py-1 rounded transition flex items-center space-x-1" title="Nilai lembar jawaban siswa ini dengan AI (Perorangan)">
+                  <span>✨ Nilai AI</span>
+                </button>
+              ` : ''}
               <button onclick="openReviewModal(${st.pengerjaan_id})" class="text-xs bg-slate-100 hover:bg-blue-50 text-blue-600 font-semibold px-2.5 py-1 rounded transition" title="Review butir jawaban siswa">
                 Review &orarr;
               </button>
@@ -3951,6 +4001,25 @@
         const data = await res.json();
         currentStudentsList = data.data || [];
         document.getElementById('count-peserta').textContent = currentStudentsList.length;
+
+        // Hitung Ringkasan Aktivitas / Kehadiran Siswa (Aktif vs DC)
+        const totalAktif = currentStudentsList.filter(s => s.status !== 'submitted' && s.status_kehadiran === 'aktif').length;
+        const totalDc = currentStudentsList.filter(s => s.status !== 'submitted' && s.status_kehadiran === 'dc').length;
+        const totalSelesai = currentStudentsList.filter(s => s.status === 'submitted').length;
+
+        const badgeAktif = document.getElementById('badge-presence-aktif');
+        const badgeDc = document.getElementById('badge-presence-dc');
+        const badgeSelesai = document.getElementById('badge-presence-selesai');
+
+        if (badgeAktif) {
+          badgeAktif.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 inline-block ${totalAktif > 0 ? 'animate-pulse' : ''}"></span><span>Aktif: ${totalAktif}</span>`;
+        }
+        if (badgeDc) {
+          badgeDc.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1 inline-block"></span><span>Terputus (DC): ${totalDc}</span>`;
+        }
+        if (badgeSelesai) {
+          badgeSelesai.innerHTML = `<span>✅ Selesai: ${totalSelesai}</span>`;
+        }
 
         // Hitung Ringkasan Rilis Nilai Keseluruhan
         const totalSubmitted = currentStudentsList.filter(s => s.status === 'submitted').length;
@@ -4077,6 +4146,21 @@
       document.getElementById('modal-student-name').textContent = `Review Jawaban: ${d.pengerjaan.nama_siswa}`;
       document.getElementById('modal-student-meta').textContent = `${d.pengerjaan.kelas_siswa} • Nilai AI: ${d.pengerjaan.nilai_ai ?? '-'} • Nilai Final: ${d.pengerjaan.nilai_final ?? '-'}${pasteBadge}`;
 
+      // Konfigurasi tombol review AI individual di header modal review
+      const btnModalAi = document.getElementById('btn-modal-single-ai');
+      if (btnModalAi) {
+        if (d.pengerjaan.status !== 'submitted') {
+          btnModalAi.classList.add('hidden');
+        } else {
+          btnModalAi.classList.remove('hidden');
+          btnModalAi.disabled = false;
+          btnModalAi.innerHTML = '<span>✨ Nilai AI Siswa Ini</span>';
+          btnModalAi.onclick = async () => {
+            await window.runSingleStudentAiReview(pengerjaanId, btnModalAi);
+          };
+        }
+      }
+
       // Konfigurasi tombol rilis individual di header modal review
       const btnModalRelease = document.getElementById('btn-modal-toggle-release');
       if (btnModalRelease) {
@@ -4175,6 +4259,48 @@
       if (!confirm('Setujui seluruh skor rekomendasi AI untuk siswa ini?')) return;
       await guruFetch(`/api/guru/pengerjaan/${activePengerjaanId}/accept-ai`, { method: 'POST' });
       openReviewModal(activePengerjaanId);
+    };
+
+    // Eksekusi penilaian AI khusus perorangan siswa (Individual Review)
+    window.runSingleStudentAiReview = async (pengerjaanId, btnEl) => {
+      if (!pengerjaanId) return;
+      const originalHtml = btnEl ? btnEl.innerHTML : '';
+      if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.innerHTML = '<span class="inline-block animate-spin mr-1">⏳</span><span>Menilai...</span>';
+      }
+
+      try {
+        const res = await guruFetch(`/api/guru/pengerjaan/${pengerjaanId}/ai/start`, {
+          method: 'POST'
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          alert('⚠️ Gagal menjalankan review AI: ' + (data.message || 'Terjadi kendala sistem'));
+          return;
+        }
+
+        alert(`✅ Review AI perorangan selesai!\n\nNilai AI: ${data.nilai_ai !== null ? data.nilai_ai : '-'}\nNilai Final: ${data.nilai_final !== null ? data.nilai_final : '-'}`);
+
+        // Perbarui tabel peserta
+        if (typeof loadPesertaList === 'function' && activeUlanganId) {
+          loadPesertaList(activeUlanganId);
+        }
+
+        // Jika modal sedang terbuka untuk pengerjaan siswa ini, perbarui tampilannya
+        const modalEl = document.getElementById('modal-review');
+        if (modalEl && !modalEl.classList.contains('hidden') && activePengerjaanId === pengerjaanId) {
+          window.openReviewModal(pengerjaanId);
+        }
+      } catch (err) {
+        alert('Gagal menghubungi server: ' + err.message);
+      } finally {
+        if (btnEl) {
+          btnEl.disabled = false;
+          btnEl.innerHTML = originalHtml;
+        }
+      }
     };
 
     // AI Review Queue Controls & Status Polling (Optimal untuk Serverless Vercel & Real-time Progress)

@@ -86,6 +86,67 @@ const queueService = {
     return this.getQueueStatus(ulanganId);
   },
 
+  // Masukkan seluruh jawaban dari satu pengerjaan siswa ke antrean (atau reset jika ingin dinilai ulang)
+  enqueuePengerjaan(pengerjaanId) {
+    const pengerjaan = db.prepare('SELECT id, ulangan_id, status FROM pengerjaan WHERE id = ?').get(pengerjaanId);
+    if (!pengerjaan) throw new Error('Pengerjaan tidak ditemukan');
+    if (pengerjaan.status !== 'submitted') throw new Error('Siswa belum mengumpulkan ujian');
+
+    this.recoverStaleLocks(pengerjaan.ulangan_id);
+
+    let pendingAnswers = db.prepare(`
+      SELECT j.id as jawaban_id
+      FROM jawaban j
+      WHERE j.pengerjaan_id = ? AND j.status_penilaian != 'selesai'
+    `).all(pengerjaanId);
+
+    // Jika seluruh jawaban sudah berstatus 'selesai', reset agar bisa dinilai ulang dengan AI
+    if (pendingAnswers.length === 0) {
+      db.prepare(`
+        UPDATE jawaban 
+        SET status_penilaian = 'menunggu', attempt_count = 0 
+        WHERE pengerjaan_id = ?
+      `).run(pengerjaanId);
+
+      pendingAnswers = db.prepare(`
+        SELECT j.id as jawaban_id
+        FROM jawaban j
+        WHERE j.pengerjaan_id = ?
+      `).all(pengerjaanId);
+    }
+
+    const insertStmt = db.prepare(`
+      INSERT OR IGNORE INTO antrean_review (jawaban_id, status, attempt_count)
+      VALUES (?, 'menunggu', 0)
+    `);
+
+    const updateStatusStmt = db.prepare(`
+      UPDATE antrean_review 
+      SET status = 'menunggu', error_message = NULL
+      WHERE jawaban_id = ?
+    `);
+
+    const updateJawabanStmt = db.prepare(`
+      UPDATE jawaban 
+      SET status_penilaian = 'menunggu' 
+      WHERE id = ?
+    `);
+
+    const transaction = db.transaction(() => {
+      for (const item of pendingAnswers) {
+        insertStmt.run(item.jawaban_id);
+        updateStatusStmt.run(item.jawaban_id);
+        updateJawabanStmt.run(item.jawaban_id);
+      }
+    });
+
+    transaction();
+    if (typeof db.syncCloud === 'function') {
+      db.syncCloud(true);
+    }
+    return pendingAnswers;
+  },
+
   // Mendapatkan status & statistik antrean untuk ulangan ini
   getQueueStatus(ulanganId) {
     this.recoverStaleLocks(ulanganId);
@@ -305,6 +366,145 @@ const queueService = {
       success: true,
       message: 'Review AI berhasil dimulai',
       status: this.getQueueStatus(id)
+    };
+  },
+
+  // Jalankan review AI khusus untuk 1 pengerjaan siswa secara perorangan / individual
+  async startReviewSingle(pengerjaanId, guruId, gradeFunction = null, delayOverride = null) {
+    const pengerjaan = db.prepare(`
+      SELECT p.id, p.ulangan_id, p.status, p.nilai_ai, p.nilai_final, u.guru_id
+      FROM pengerjaan p
+      JOIN ulangan u ON p.ulangan_id = u.id
+      WHERE p.id = ?
+    `).get(pengerjaanId);
+
+    if (!pengerjaan) throw new Error('Data pengerjaan tidak ditemukan');
+    if (pengerjaan.guru_id !== guruId) throw new Error('Akses ditolak: bukan ulangan milik Anda');
+    if (pengerjaan.status !== 'submitted') throw new Error('Ujian belum dikumpulkan oleh siswa');
+
+    const ulanganId = pengerjaan.ulangan_id;
+    if (runningWorkers.get(Number(ulanganId))?.isRunning) {
+      return {
+        success: false,
+        message: 'Review massal seluruh ulangan sedang berjalan. Harap tunggu hingga selesai atau hentikan review massal terlebih dahulu.'
+      };
+    }
+
+    const pendingAnswers = this.enqueuePengerjaan(pengerjaanId);
+    if (pendingAnswers.length === 0) {
+      return {
+        success: true,
+        message: 'Tidak ada jawaban yang perlu dinilai',
+        nilai_ai: pengerjaan.nilai_ai,
+        nilai_final: pengerjaan.nilai_final
+      };
+    }
+
+    const geminiService = require('./geminiService');
+    const reviewService = require('./reviewService');
+
+    const results = [];
+    for (let i = 0; i < pendingAnswers.length; i++) {
+      const item = pendingAnswers[i];
+      const queueItem = db.prepare(`
+        SELECT a.id as antrean_id, a.jawaban_id, a.attempt_count,
+               j.jawaban_siswa, j.skor_maksimum,
+               s.pertanyaan, s.jenis, s.bobot, s.kunci_jawaban, s.rubrik, s.tingkat_kelas, s.tingkat_kesulitan,
+               s.pembahasan, s.audio_script, s.is_listening, s.bahasa,
+               u.izinkan_singkatan, u.izinkan_informal, u.toleransi_typo, u.instruksi_penilaian_khusus
+        FROM antrean_review a
+        JOIN jawaban j ON a.jawaban_id = j.id
+        JOIN soal s ON j.soal_id = s.id
+        JOIN pengerjaan p ON j.pengerjaan_id = p.id
+        JOIN ulangan u ON p.ulangan_id = u.id
+        WHERE j.id = ?
+      `).get(item.jawaban_id);
+
+      if (!queueItem) continue;
+
+      db.prepare(`UPDATE antrean_review SET status = 'diproses', locked_at = CURRENT_TIMESTAMP WHERE id = ?`).run(queueItem.antrean_id);
+      db.prepare(`UPDATE jawaban SET status_penilaian = 'diproses' WHERE id = ?`).run(queueItem.jawaban_id);
+
+      try {
+        let result;
+        if (gradeFunction) {
+          result = await gradeFunction(queueItem);
+        } else {
+          result = await geminiService.gradeAnswer(queueItem);
+        }
+
+        let normalizedStatus = result.status_jawaban;
+        if (!['benar', 'parsial', 'salah', 'perlu_review'].includes(normalizedStatus)) {
+          if (normalizedStatus === 'sebagian') normalizedStatus = 'parsial';
+          else normalizedStatus = 'perlu_review';
+        }
+
+        db.transaction(() => {
+          db.prepare(`
+            UPDATE jawaban
+            SET status_penilaian = 'selesai',
+                skor_rekomendasi = ?,
+                status_jawaban = ?,
+                alasan_ai = ?,
+                model_ai = ?,
+                reviewed_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `).run(
+            result.skor_rekomendasi,
+            normalizedStatus,
+            result.alasan_ai,
+            result.model_ai || 'gemini',
+            queueItem.jawaban_id
+          );
+
+          db.prepare(`
+            UPDATE antrean_review
+            SET status = 'selesai', completed_at = CURRENT_TIMESTAMP, error_message = NULL
+            WHERE id = ?
+          `).run(queueItem.antrean_id);
+        })();
+
+        results.push({ jawaban_id: queueItem.jawaban_id, success: true, result });
+      } catch (err) {
+        db.transaction(() => {
+          db.prepare(`
+            UPDATE antrean_review
+            SET status = 'gagal', error_message = ?
+            WHERE id = ?
+          `).run(String(err.message), queueItem.antrean_id);
+
+          db.prepare(`
+            UPDATE jawaban
+            SET status_penilaian = 'gagal', last_error = ?
+            WHERE id = ?
+          `).run(String(err.message), queueItem.jawaban_id);
+        })();
+
+        results.push({ jawaban_id: queueItem.jawaban_id, success: false, error: String(err.message) });
+      }
+
+      if (i < pendingAnswers.length - 1) {
+        const delayMs = delayOverride !== null ? delayOverride : 600;
+        if (delayMs > 0) {
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+      }
+    }
+
+    const scores = reviewService.recalculatePengerjaanTotal(pengerjaanId);
+    if (typeof db.syncCloud === 'function') {
+      db.syncCloud(true);
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    return {
+      success: true,
+      message: `Review AI perorangan selesai (${successCount}/${pendingAnswers.length} jawaban dinilai)`,
+      pengerjaan_id: pengerjaanId,
+      nilai_ai: scores.nilai_ai,
+      nilai_final: scores.nilai_final,
+      total_dinilai: successCount,
+      results
     };
   }
 };
