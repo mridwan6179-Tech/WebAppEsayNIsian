@@ -16,10 +16,10 @@
 
     /* Anti Pull-to-Refresh pada Mobile Browser (Chrome/Safari di HP) */
     html, body {
-      overscroll-behavior-y: contain;
+      overscroll-behavior-y: none;
     }
     #step-exam {
-      overscroll-behavior-y: contain;
+      overscroll-behavior-y: none;
     }
 
     /* Scrollbar tersembunyi untuk toolbar horizontal di HP */
@@ -57,14 +57,16 @@
         <h3 class="font-bold text-slate-800 text-base">Memulihkan Sesi Ujian...</h3>
         <p class="text-xs text-slate-500 mt-1">Sistem sedang memuat lembar soal dan jawaban Anda yang tersimpan.</p>
       </div>
-      <div id="resuming-retry-box" class="hidden pt-2 border-t border-slate-100">
-        <p class="text-xs text-rose-600 font-medium mb-3" id="resuming-error-msg">Gagal memuat sesi ujian. Periksa koneksi internet Anda.</p>
+      <div id="resuming-retry-box" class="hidden pt-3 border-t border-slate-100 space-y-2.5">
+        <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-2.5 leading-relaxed font-medium" id="resuming-error-msg">
+          Koneksi internet terputus sesaat. Lembar soal dan seluruh jawaban Anda tetap tersimpan aman di perangkat ini.
+        </p>
         <div class="flex items-center justify-center space-x-2">
-          <button type="button" onclick="retryResumeSession()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow transition cursor-pointer">
-            🔄 Coba Lagi
+          <button type="button" onclick="retryResumeSession()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow transition cursor-pointer flex items-center space-x-1.5">
+            <span>🔄 Hubungkan Kembali</span>
           </button>
-          <button type="button" onclick="cancelResumeSession()" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer">
-            Ke Halaman Depan
+          <button type="button" onclick="cancelResumeSession()" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold rounded-xl transition cursor-pointer">
+            Keluar Ujian
           </button>
         </div>
       </div>
@@ -425,6 +427,16 @@
         e.preventDefault();
         e.returnValue = '';
         return '';
+      }
+    });
+
+    // Proteksi Tombol Back di HP Android & Browser (Cegah keluar tidak sengaja lewat tombol navigasi HP)
+    window.addEventListener('popstate', () => {
+      if (stepExam && !stepExam.classList.contains('hidden') && !isSubmitting) {
+        try {
+          history.pushState({ inExam: true }, '');
+        } catch (err) {}
+        alert('⚠️ Anda sedang dalam sesi ujian aktif.\n\nJangan menekan tombol kembali di HP agar lembar pengerjaan tidak tertutup.\nJika telah selesai, periksa kembali seluruh jawaban Anda lalu tekan tombol "Kumpulkan Jawaban" di bagian bawah.');
       }
     });
 
@@ -1315,6 +1327,11 @@
       stepResult.classList.add('hidden');
       stepExam.classList.remove('hidden');
 
+      // Kunci history state untuk navigasi HP
+      try {
+        history.pushState({ inExam: true }, '');
+      } catch (e) {}
+
       // Update Top Header & Floating Bar
       document.getElementById('exam-title').textContent = data.ulangan.judul;
       document.getElementById('exam-badge').textContent = `${data.ulangan.mata_pelajaran} • ${data.ulangan.tingkat_kelas}`;
@@ -1738,26 +1755,51 @@
         }
       } catch (e) {
         console.error('Gagal resume sesi:', e);
-        if (stepResuming && resumingRetryBox) {
+        // Pertahankan layar pengerjaan/resuming, JANGAN PERNAH lempar siswa ke login depan saat koneksi bermasalah
+        if (stepResuming) {
+          stepResuming.classList.remove('hidden');
+          stepAuth.classList.add('hidden');
+          stepExam.classList.add('hidden');
+          stepResult.classList.add('hidden');
+        }
+        if (resumingRetryBox) {
           resumingRetryBox.classList.remove('hidden');
           const errEl = document.getElementById('resuming-error-msg');
-          if (errEl) errEl.textContent = `Gagal memuat sesi: ${e.message || 'Koneksi terputus'}. Data jawaban Anda tetap aman.`;
-        } else {
-          stepAuth.classList.remove('hidden');
+          if (errEl) {
+            errEl.textContent = `Koneksi internet terputus sesaat (${e.message || 'Gagal tersambung'}). Lembar soal dan seluruh jawaban Anda tetap tersimpan aman di perangkat ini.`;
+          }
         }
       }
     }
 
     window.retryResumeSession = function() {
       const pId = currentPengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
+      const stepRes = document.getElementById('step-resuming');
+      const retryBox = document.getElementById('resuming-retry-box');
+      if (retryBox) retryBox.classList.add('hidden');
+      if (stepRes) stepRes.classList.remove('hidden');
       if (pId) resumeOrCheckSession(pId);
     };
 
     window.cancelResumeSession = function() {
+      const ok = confirm('Apakah Anda yakin ingin keluar dari ujian?\n\nPerhatian: Jawaban Anda yang belum dikumpulkan tidak akan diserahkan ke guru.');
+      if (!ok) return;
+      localStorage.removeItem('ulangan_pengerjaan_id');
+      currentPengerjaanId = null;
       const stepRes = document.getElementById('step-resuming');
       if (stepRes) stepRes.classList.add('hidden');
       stepAuth.classList.remove('hidden');
     };
+
+    // Auto-reconnect jika perangkat mendeteksi koneksi internet kembali aktif di HP / Laptop
+    window.addEventListener('online', () => {
+      const pId = currentPengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
+      const stepRes = document.getElementById('step-resuming');
+      if (pId && stepRes && !stepRes.classList.contains('hidden')) {
+        console.log('Koneksi internet kembali aktif, memulihkan sesi ujian otomatis...');
+        window.retryResumeSession();
+      }
+    });
 
     // Cek Status Hasil Nilai Siswa
     async function checkResultStatus(pengerjaanId) {

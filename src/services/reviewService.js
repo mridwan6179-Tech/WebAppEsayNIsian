@@ -188,8 +188,12 @@ const reviewService = {
     };
   },
 
-  // FR-22: Rilis hasil ujian ke siswa (bisa untuk semua kelas atau filter kelas tertentu)
-  toggleReleasePengerjaan(ulanganId, guruId, isReleased, kelasFilter = null) {
+  // FR-22: Rilis hasil ujian ke siswa (bisa untuk semua kelas, kelas tertentu, atau perorangan siswa)
+  toggleReleasePengerjaan(ulanganId, guruId, isReleased, kelasFilter = null, pengerjaanId = null) {
+    if (pengerjaanId) {
+      return this.toggleReleaseSinglePengerjaan(pengerjaanId, guruId, isReleased);
+    }
+
     const ulangan = db.prepare('SELECT id FROM ulangan WHERE id = ? AND guru_id = ?').get(ulanganId, guruId);
     if (!ulangan) throw new Error('Ulangan tidak ditemukan atau bukan milik guru ini');
 
@@ -228,6 +232,45 @@ const reviewService = {
     }
 
     return { success: true, isReleased, kelas: cleanKelas || 'semua' };
+  },
+
+  // Rilis hasil ujian perorangan / siswa tertentu
+  toggleReleaseSinglePengerjaan(pengerjaanId, guruId, isReleased) {
+    const pengerjaan = db.prepare(`
+      SELECT p.id, p.ulangan_id, p.status, p.released_at, pes.nama as nama_siswa
+      FROM pengerjaan p
+      JOIN ulangan u ON p.ulangan_id = u.id
+      JOIN peserta pes ON p.peserta_id = pes.id
+      WHERE p.id = ? AND u.guru_id = ?
+    `).get(pengerjaanId, guruId);
+
+    if (!pengerjaan) throw new Error('Data pengerjaan tidak ditemukan atau bukan milik guru ini');
+
+    if (isReleased) {
+      if (pengerjaan.status !== 'submitted') {
+        throw new Error(`Nilai siswa ${pengerjaan.nama_siswa} belum dapat dirilis karena ujian belum dikumpulkan`);
+      }
+      db.prepare(`
+        UPDATE pengerjaan 
+        SET released_at = CURRENT_TIMESTAMP 
+        WHERE id = ? AND status = 'submitted'
+      `).run(pengerjaanId);
+    } else {
+      db.prepare(`
+        UPDATE pengerjaan 
+        SET released_at = NULL 
+        WHERE id = ?
+      `).run(pengerjaanId);
+    }
+
+    const updated = db.prepare('SELECT released_at FROM pengerjaan WHERE id = ?').get(pengerjaanId);
+    return {
+      success: true,
+      pengerjaanId: Number(pengerjaanId),
+      isReleased: Boolean(isReleased),
+      released_at: updated?.released_at || null,
+      nama_siswa: pengerjaan.nama_siswa
+    };
   },
 
   // Laporan Rekapitulasi Nilai per Kelas & per Ulangan untuk Dicetak
