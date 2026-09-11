@@ -128,6 +128,18 @@ const examService = {
 
     if (Array.isArray(kelas_ids) && kelas_ids.length > 0) {
       classService.assignKelasToUlangan(ulanganId, kelas_ids);
+    } else if (tingkat_kelas && tingkat_kelas.toLowerCase() !== 'umum') {
+      try {
+        const classNames = tingkat_kelas.split(/[,;/]+/).map(s => s.trim()).filter(Boolean);
+        const matchingClasses = db.prepare('SELECT id, nama_kelas FROM kelas WHERE guru_id = ?').all(guruId);
+        const nameMap = new Map(matchingClasses.map(k => [k.nama_kelas.toLowerCase(), k.id]));
+        const ids = classNames.map(cn => nameMap.get(cn.toLowerCase())).filter(Boolean);
+        if (ids.length > 0) {
+          classService.assignKelasToUlangan(ulanganId, ids);
+        }
+      } catch (e) {
+        console.warn('Auto-link classes error in createUlangan:', e);
+      }
     }
 
     return this.getUlanganById(ulanganId, guruId);
@@ -294,7 +306,23 @@ const examService = {
       db.prepare(`UPDATE ulangan SET ${updates.join(', ')} WHERE id = ? AND guru_id = ?`).run(...params);
     }
 
-    if (Array.isArray(kelas_ids)) {
+    if (Array.isArray(kelas_ids) && kelas_ids.length > 0) {
+      classService.assignKelasToUlangan(id, kelas_ids);
+    } else if (tingkat_kelas !== undefined && tingkat_kelas && tingkat_kelas.toLowerCase() !== 'umum') {
+      try {
+        const classNames = tingkat_kelas.split(/[,;/]+/).map(s => s.trim()).filter(Boolean);
+        const matchingClasses = db.prepare('SELECT id, nama_kelas FROM kelas WHERE guru_id = ?').all(guruId);
+        const nameMap = new Map(matchingClasses.map(k => [k.nama_kelas.toLowerCase(), k.id]));
+        const ids = classNames.map(cn => nameMap.get(cn.toLowerCase())).filter(Boolean);
+        if (ids.length > 0) {
+          classService.assignKelasToUlangan(id, ids);
+        } else if (Array.isArray(kelas_ids)) {
+          classService.assignKelasToUlangan(id, kelas_ids);
+        }
+      } catch (e) {
+        if (Array.isArray(kelas_ids)) classService.assignKelasToUlangan(id, kelas_ids);
+      }
+    } else if (Array.isArray(kelas_ids)) {
       classService.assignKelasToUlangan(id, kelas_ids);
     }
 

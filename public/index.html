@@ -353,9 +353,9 @@
       authAlert.classList.remove('hidden');
     }
 
-    // Cek apakah siswa punya sesi pengerjaan yang tersimpan
+    // Cek apakah siswa punya sesi pengerjaan yang tersimpan (Mendukung Resume Sesi & Anti-Refresh)
     if (currentPengerjaanId) {
-      checkResultStatus(currentPengerjaanId);
+      resumeOrCheckSession(currentPengerjaanId);
     }
 
     // Cek kode ulangan otomatis dan isi dropdown kelas
@@ -1114,12 +1114,39 @@
       });
       renderMath(container);
 
-      // Deteksi penempelan (paste) di semua input/textarea jawaban
+      // Deteksi penempelan (paste) & Auto-Save draft jawaban ke localStorage
+      const draftKey = `ulangan_draft_${currentPengerjaanId}`;
+      const saveDraft = () => {
+        if (!currentPengerjaanId) return;
+        const drafts = {};
+        container.querySelectorAll('[data-soal-id]').forEach(input => {
+          drafts[input.dataset.soalId] = input.value;
+        });
+        try {
+          localStorage.setItem(draftKey, JSON.stringify(drafts));
+        } catch (e) {}
+      };
+
       container.querySelectorAll('input, textarea').forEach(field => {
+        field.addEventListener('input', saveDraft);
         field.addEventListener('paste', () => {
           showPasteWarning();
+          saveDraft();
         });
       });
+
+      // Pulihkan draft jawaban jika siswa me-refresh halaman
+      try {
+        const savedDraft = localStorage.getItem(draftKey);
+        if (savedDraft) {
+          const parsedDraft = JSON.parse(savedDraft);
+          container.querySelectorAll('[data-soal-id]').forEach(input => {
+            if (parsedDraft[input.dataset.soalId] !== undefined) {
+              input.value = parsedDraft[input.dataset.soalId];
+            }
+          });
+        }
+      } catch (e) {}
     }
 
     async function doSubmit(isAutoSubmit = false) {
@@ -1162,6 +1189,11 @@
         const data = await res.json();
         if (!res.ok || !data.success) throw new Error(data.message || 'Gagal submit');
 
+        // Bersihkan draft tersimpan saat berhasil submit
+        try {
+          localStorage.removeItem(`ulangan_draft_${currentPengerjaanId}`);
+        } catch (e) {}
+
         checkResultStatus(currentPengerjaanId);
       } catch (err) {
         alert('Gagal mengumpulkan: ' + err.message);
@@ -1180,12 +1212,41 @@
       doSubmit(false);
     });
 
+    // Resume sesi pengerjaan aktif siswa saat me-refresh halaman (Anti-Refresh)
+    async function resumeOrCheckSession(pengerjaanId) {
+      try {
+        const res = await fetch(`/api/siswa/sesi/${pengerjaanId}`);
+        const result = await res.json();
+        if (!res.ok || !result.success || !result.data) {
+          localStorage.removeItem('ulangan_pengerjaan_id');
+          currentPengerjaanId = null;
+          return;
+        }
+
+        if (result.data.alreadySubmitted) {
+          // Benar-benar sudah submit -> tampilkan hasil nilai
+          checkResultStatus(pengerjaanId);
+        } else {
+          // Siswa me-refresh halaman saat sedang ujian -> Lanjutkan (Resume) sesi ujian!
+          currentPengerjaanId = pengerjaanId;
+          showExamStep(result.data);
+        }
+      } catch (e) {
+        console.error('Gagal resume sesi:', e);
+      }
+    }
+
     // Cek Status Hasil Nilai Siswa
     async function checkResultStatus(pengerjaanId) {
       try {
         const res = await fetch(`/api/siswa/hasil/${pengerjaanId}`);
         const result = await res.json();
         if (res.ok && result.success) {
+          // Jika status masih aktif/mengerjakan dan belum disubmit, jangan tampilkan layar hasil
+          if (result.data.status !== 'submitted') {
+            resumeOrCheckSession(pengerjaanId);
+            return;
+          }
           showResultStep(result.data);
         }
       } catch (e) {

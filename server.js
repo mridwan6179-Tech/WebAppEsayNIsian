@@ -198,6 +198,18 @@ app.post('/api/siswa/submit', async (req, res) => {
   }
 });
 
+app.get('/api/siswa/sesi/:pengerjaan_id', (req, res) => {
+  try {
+    const session = studentService.getActiveSession(req.params.pengerjaan_id);
+    if (!session) {
+      return res.status(404).json({ success: false, message: 'Data sesi pengerjaan tidak ditemukan' });
+    }
+    res.json({ success: true, data: session });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 app.get('/api/siswa/hasil/:pengerjaan_id', (req, res) => {
   try {
     const status = studentService.getPengerjaanStatus(req.params.pengerjaan_id);

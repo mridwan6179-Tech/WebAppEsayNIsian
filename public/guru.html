@@ -2289,6 +2289,7 @@
 
         // Render target kelas checkboxes
         const activeKelasIds = (u.kelas || []).map(k => k.id);
+        const activeKelasNames = (u.tingkat_kelas || '').split(/[,;/]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
         const container = document.getElementById('edit-exam-kelas-checkboxes');
         container.innerHTML = '';
 
@@ -2298,13 +2299,21 @@
           globalKelasList.forEach(k => {
             const label = document.createElement('label');
             label.className = 'inline-flex items-center space-x-1.5 px-2.5 py-1 bg-white rounded-lg border border-slate-200 text-slate-700 cursor-pointer text-xs hover:bg-slate-50';
-            const isChecked = activeKelasIds.includes(k.id);
+            const isChecked = activeKelasIds.includes(k.id) || activeKelasNames.includes(k.nama_kelas.toLowerCase());
             label.innerHTML = `
               <input type="checkbox" name="edit_kelas_choice" value="${k.id}" ${isChecked ? 'checked' : ''} class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
               <span>${escapeHtml(k.nama_kelas)}</span>
             `;
             container.appendChild(label);
           });
+
+          container.onchange = () => {
+            const checked = Array.from(container.querySelectorAll('input[name="edit_kelas_choice"]:checked'));
+            const names = checked.map(cb => cb.parentElement.textContent.trim());
+            if (names.length > 0) {
+              document.getElementById('edit-exam-tingkat').value = names.join(', ');
+            }
+          };
         }
 
         updateEditQuotaSync();

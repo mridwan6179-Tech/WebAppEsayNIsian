@@ -60,7 +60,7 @@ const studentService = {
     // Hitung total soal & total bobot tanpa membocorkan soal
     const stats = db.prepare('SELECT COUNT(*) as total_soal, COALESCE(SUM(bobot), 0) as total_bobot FROM soal WHERE ulangan_id = ?').get(ulangan.id);
 
-    // Ambil daftar kelas yang ditautkan ke ulangan ini, atau seluruh kelas guru jika belum dispesifikasi
+    // Ambil daftar kelas yang ditautkan ke ulangan ini
     let kelasList = db.prepare(`
       SELECT k.nama_kelas 
       FROM ulangan_kelas uk 
@@ -70,7 +70,32 @@ const studentService = {
     `).all(ulangan.id).map(k => k.nama_kelas);
 
     if (kelasList.length === 0) {
-      // Fallback: ambil semua kelas yang dibuat guru pemilik ulangan
+      // Periksa apakah tingkat_kelas berisi nama-nama kelas yang dipisah koma (cth: "7A, 7B")
+      if (ulangan.tingkat_kelas && ulangan.tingkat_kelas.trim() && ulangan.tingkat_kelas.toLowerCase() !== 'umum') {
+        const parsed = ulangan.tingkat_kelas.split(/[,;/]+/).map(s => s.trim()).filter(Boolean);
+        if (parsed.length > 0) {
+          kelasList = parsed;
+          // Auto-link ke ulangan_kelas jika ada kecocokan di tabel kelas guru
+          try {
+            const teacherId = db.prepare('SELECT guru_id FROM ulangan WHERE id = ?').get(ulangan.id)?.guru_id;
+            if (teacherId) {
+              const matchingClasses = db.prepare('SELECT id, nama_kelas FROM kelas WHERE guru_id = ?').all(teacherId);
+              const nameMap = new Map(matchingClasses.map(k => [k.nama_kelas.toLowerCase(), k.id]));
+              const idsToLink = parsed.map(name => nameMap.get(name.toLowerCase())).filter(Boolean);
+              if (idsToLink.length > 0) {
+                const insertUk = db.prepare('INSERT OR IGNORE INTO ulangan_kelas (ulangan_id, kelas_id) VALUES (?, ?)');
+                idsToLink.forEach(kid => insertUk.run(ulangan.id, kid));
+              }
+            }
+          } catch (e) {
+            console.warn('Auto-link class error:', e);
+          }
+        }
+      }
+    }
+
+    if (kelasList.length === 0) {
+      // Fallback: hanya jika ulangan berstatus "Umum" tanpa spesifikasi kelas tertentu
       const teacherId = db.prepare('SELECT guru_id FROM ulangan WHERE id = ?').get(ulangan.id)?.guru_id;
       if (teacherId) {
         kelasList = db.prepare('SELECT nama_kelas FROM kelas WHERE guru_id = ? ORDER BY nama_kelas ASC').all(teacherId).map(k => k.nama_kelas);
@@ -554,6 +579,126 @@ const studentService = {
         }
       };
     });
+  },
+
+  // Mengambil sesi pengerjaan aktif siswa (Mendukung Resume Sesi & Anti-Refresh)
+  getActiveSession(pengerjaanId) {
+    if (!pengerjaanId) return null;
+
+    const pengerjaan = db.prepare(`
+      SELECT p.*, u.id as ulangan_id, u.judul, u.mata_pelajaran, u.tingkat_kelas, u.deskripsi,
+             u.kode_ujian, u.durasi_menit, u.tanggal_mulai, u.tanggal_selesai, u.kkm, u.zona_waktu,
+             u.tampilkan_simbol, pes.id as peserta_id, pes.nama as nama_peserta, pes.kelas as kelas_peserta
+      FROM pengerjaan p
+      JOIN ulangan u ON p.ulangan_id = u.id
+      JOIN peserta pes ON p.peserta_id = pes.id
+      WHERE p.id = ?
+    `).get(pengerjaanId);
+
+    if (!pengerjaan) return null;
+
+    if (pengerjaan.status === 'submitted') {
+      return {
+        alreadySubmitted: true,
+        pengerjaanId: pengerjaan.id,
+        submittedAt: pengerjaan.submitted_at,
+        releasedAt: pengerjaan.released_at,
+        nilaiFinal: pengerjaan.nilai_final,
+        message: 'Anda sudah mengumpulkan ulangan ini sebelumnya.'
+      };
+    }
+
+    // Hitung batas waktu deadline pengerjaan siswa
+    let deadlineAt = null;
+    const startedAtStr = pengerjaan.started_at
+      ? (pengerjaan.started_at.includes('T') ? pengerjaan.started_at : pengerjaan.started_at.replace(' ', 'T') + 'Z')
+      : new Date().toISOString();
+    const startedAt = new Date(startedAtStr);
+
+    if (pengerjaan.durasi_menit) {
+      const durationDeadline = new Date(startedAt.getTime() + pengerjaan.durasi_menit * 60 * 1000);
+      deadlineAt = durationDeadline;
+    }
+
+    if (pengerjaan.tanggal_selesai) {
+      const closeDeadline = new Date(pengerjaan.tanggal_selesai);
+      if (!deadlineAt || closeDeadline < deadlineAt) {
+        deadlineAt = closeDeadline;
+      }
+    }
+
+    const now = new Date();
+    if (deadlineAt && now > deadlineAt) {
+      // Waktu pengerjaan sudah habis saat reload -> auto submit
+      this.submitExam(pengerjaan.id, [], 0, true);
+      return {
+        alreadySubmitted: true,
+        pengerjaanId: pengerjaan.id,
+        autoSubmitted: true,
+        message: 'Waktu pengerjaan telah habis.'
+      };
+    }
+
+    // Ambil soal yang ditugaskan ke pengerjaan ini
+    let assignedQuestionIds = null;
+    if (pengerjaan.soal_ids) {
+      try {
+        assignedQuestionIds = JSON.parse(pengerjaan.soal_ids);
+      } catch (e) {
+        assignedQuestionIds = null;
+      }
+    }
+
+    let displaySoalList = [];
+    if (Array.isArray(assignedQuestionIds) && assignedQuestionIds.length > 0) {
+      const placeholders = assignedQuestionIds.map(() => '?').join(',');
+      const rows = db.prepare(`
+        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa
+        FROM soal
+        WHERE id IN (${placeholders})
+      `).all(...assignedQuestionIds);
+
+      const rowMap = new Map(rows.map(r => [r.id, r]));
+      displaySoalList = assignedQuestionIds.map((id, idx) => {
+        const item = rowMap.get(id);
+        return item ? { ...item, nomor: idx + 1 } : null;
+      }).filter(Boolean);
+    } else {
+      displaySoalList = db.prepare(`
+        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa
+        FROM soal
+        WHERE ulangan_id = ?
+        ORDER BY urutan ASC, nomor ASC
+      `).all(pengerjaan.ulangan_id).map((s, idx) => ({ ...s, nomor: idx + 1 }));
+    }
+
+    const stats = db.prepare('SELECT COUNT(*) as total_soal, COALESCE(SUM(bobot), 0) as total_bobot FROM soal WHERE ulangan_id = ?').get(pengerjaan.ulangan_id);
+
+    return {
+      alreadySubmitted: false,
+      pengerjaanId: pengerjaan.id,
+      peserta: {
+        id: pengerjaan.peserta_id,
+        nama: pengerjaan.nama_peserta,
+        kelas: pengerjaan.kelas_peserta
+      },
+      ulangan: {
+        id: pengerjaan.ulangan_id,
+        judul: pengerjaan.judul,
+        mata_pelajaran: pengerjaan.mata_pelajaran,
+        tingkat_kelas: pengerjaan.tingkat_kelas,
+        deskripsi: pengerjaan.deskripsi,
+        total_soal: stats.total_soal,
+        soal_dikerjakan: displaySoalList.length,
+        total_bobot: stats.total_bobot,
+        kkm: pengerjaan.kkm || 75,
+        zona_waktu: pengerjaan.zona_waktu || 'WIB',
+        tampilkan_simbol: (pengerjaan.tampilkan_simbol !== undefined && pengerjaan.tampilkan_simbol !== null) ? Number(pengerjaan.tampilkan_simbol) : 1
+      },
+      deadline_at: deadlineAt ? deadlineAt.toISOString() : null,
+      server_time: new Date().toISOString(),
+      soal: displaySoalList
+    };
   }
 };
 
