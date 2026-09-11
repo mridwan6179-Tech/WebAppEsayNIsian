@@ -672,13 +672,13 @@
         currentIndex: 0,
         isPlaying: false,
         isPaused: false,
+        showCaption: false, // Default SEMBUNYI untuk ujian listening agar siswa murni menyimak suara
         timer: null
       };
 
       const slider = document.getElementById(`tts-slider-${soalId}`);
       const totalLabel = document.getElementById(`tts-total-chunks-${soalId}`);
       const currLabel = document.getElementById(`tts-curr-chunk-num-${soalId}`);
-      const caption = document.getElementById(`tts-caption-${soalId}`);
 
       if (slider) {
         slider.min = 0;
@@ -691,10 +691,72 @@
       }
       if (totalLabel) totalLabel.textContent = chunks.length;
       if (currLabel) currLabel.textContent = '1';
-      if (caption && chunks[0]) {
-        caption.textContent = chunks[0];
-      }
+      renderCaptionText(soalId);
     };
+
+    window.toggleTtsCaptionVisibility = function(soalId) {
+      const player = window.ttsPlayers[soalId];
+      if (!player) return;
+      player.showCaption = !player.showCaption;
+      renderCaptionText(soalId);
+    };
+
+    function renderCaptionText(soalId) {
+      const player = window.ttsPlayers[soalId];
+      if (!player) return;
+
+      const captionEl = document.getElementById(`tts-caption-${soalId}`);
+      const btnToggle = document.getElementById(`tts-btn-toggle-caption-${soalId}`);
+      const iconToggle = document.getElementById(`tts-caption-toggle-icon-${soalId}`);
+      const textToggle = document.getElementById(`tts-caption-toggle-text-${soalId}`);
+      const statusBadge = document.getElementById(`tts-caption-status-badge-${soalId}`);
+      const captionBox = document.getElementById(`tts-caption-box-${soalId}`);
+
+      if (!captionEl) return;
+
+      const currentChunkText = (player.chunks && player.chunks[player.currentIndex]) || '';
+
+      if (player.showCaption) {
+        // Mode TAMPILKAN TEKS (Ditunjukkan)
+        if (btnToggle) {
+          btnToggle.className = 'px-2.5 py-1 bg-amber-200 hover:bg-amber-300 active:bg-amber-400 text-amber-950 font-bold text-[11px] rounded-lg border border-amber-400 transition flex items-center space-x-1 cursor-pointer shadow-2xs ring-1 ring-amber-300';
+        }
+        if (iconToggle) iconToggle.textContent = '🙈';
+        if (textToggle) textToggle.textContent = 'Sembunyikan Teks';
+        if (statusBadge) {
+          statusBadge.textContent = 'Ditunjukkan';
+          statusBadge.className = 'text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300';
+        }
+        if (captionBox) {
+          captionBox.className = 'p-2.5 rounded-lg bg-amber-50/90 border border-amber-300/80 min-h-[38px] flex items-center transition';
+        }
+        captionEl.className = 'text-xs text-slate-800 font-medium leading-relaxed font-sans';
+        captionEl.textContent = currentChunkText || '(Naskah kalimat listening belum tersedia)';
+      } else {
+        // Mode SEMBUNYIKAN TEKS (Default untuk soal listening murni)
+        if (btnToggle) {
+          btnToggle.className = 'px-2.5 py-1 bg-white hover:bg-amber-100 active:bg-amber-200 text-amber-800 font-bold text-[11px] rounded-lg border border-amber-300 transition flex items-center space-x-1 cursor-pointer shadow-2xs';
+        }
+        if (iconToggle) iconToggle.textContent = '👁️';
+        if (textToggle) textToggle.textContent = 'Tunjukkan Teks';
+        if (statusBadge) {
+          statusBadge.textContent = 'Disembunyikan';
+          statusBadge.className = 'text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200';
+        }
+        if (captionBox) {
+          captionBox.className = 'p-2.5 rounded-lg bg-white/90 border border-amber-200/60 min-h-[38px] flex items-center transition';
+        }
+        captionEl.className = 'text-xs italic text-slate-500 leading-relaxed font-sans';
+        
+        if (player.isPlaying) {
+          captionEl.innerHTML = '<span class="text-amber-700 font-semibold">🔊 Sedang membacakan percakapan audio...</span> <span class="text-slate-400 font-normal ml-1">(Teks disembunyikan agar Anda menyimak suara)</span>';
+        } else if (player.isPaused) {
+          captionEl.innerHTML = '<span class="text-amber-700 font-semibold">⏸ Audio dijeda</span> <span class="text-slate-400 font-normal ml-1">(Teks tersembunyi. Klik "Lanjutkan" untuk memutar)</span>';
+        } else {
+          captionEl.innerHTML = '<span>🔒 Teks bacaan disembunyikan agar Anda fokus menyimak audio. Klik <strong>"Tunjukkan Teks"</strong> jika ingin melihat naskah.</span>';
+        }
+      }
+    }
 
     function stopAllOtherTts(currentSoalId) {
       if (window.ttsPlayers) {
@@ -771,10 +833,7 @@
       const currLabel = document.getElementById(`tts-curr-chunk-num-${soalId}`);
       if (currLabel) currLabel.textContent = idx + 1;
 
-      const caption = document.getElementById(`tts-caption-${soalId}`);
-      if (caption && player.chunks[idx]) {
-        caption.textContent = player.chunks[idx];
-      }
+      renderCaptionText(soalId);
 
       const hint = document.getElementById(`tts-seek-hint-${soalId}`);
       if (hint) {
@@ -870,9 +929,7 @@
 
       if (slider) slider.value = player.currentIndex;
       if (currLabel) currLabel.textContent = player.currentIndex + 1;
-      if (caption && player.chunks[player.currentIndex]) {
-        caption.textContent = player.chunks[player.currentIndex];
-      }
+      renderCaptionText(soalId);
 
       if (state === 'memutar') {
         if (btnToggle) btnToggle.className = 'px-3.5 py-1.5 bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center space-x-1.5 cursor-pointer ring-2 ring-amber-400/50';
@@ -1343,13 +1400,31 @@
                     </div>
                   </div>
 
-                  <!-- Baris 3: Teks Kalimat / Dialog yang Sedang Berjalan -->
-                  <div class="bg-amber-50/70 border border-amber-200/70 rounded-lg px-2.5 py-1.5 text-xs text-amber-950">
-                    <div class="flex items-center justify-between mb-0.5">
-                      <span class="text-[10px] uppercase font-bold text-amber-700 tracking-wider">Sedang Dibacakan:</span>
-                      <span id="tts-lang-badge-${s.id}" class="text-[10px] text-slate-400 font-medium">${s.bahasa || 'Audio'}</span>
+                  <!-- Baris 3: Teks Kalimat / Dialog yang Sedang Dibacakan (Bisa Disembunyikan / Ditunjukkan) -->
+                  <div class="bg-amber-50/70 border border-amber-200/70 rounded-xl p-2.5 text-xs text-amber-950 space-y-1.5">
+                    <div class="flex items-center justify-between flex-wrap gap-1">
+                      <div class="flex items-center space-x-1.5">
+                        <span class="text-[10px] uppercase font-bold text-amber-800 tracking-wider flex items-center space-x-1">
+                          <span>🎧</span>
+                          <span>Sedang Dibacakan:</span>
+                        </span>
+                        <span id="tts-caption-status-badge-${s.id}" class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                          Disembunyikan
+                        </span>
+                      </div>
+                      <div class="flex items-center space-x-1.5">
+                        <span id="tts-lang-badge-${s.id}" class="text-[10px] text-slate-500 font-medium bg-white px-1.5 py-0.5 rounded border border-amber-200">${s.bahasa || 'Audio'}</span>
+                        <button type="button" id="tts-btn-toggle-caption-${s.id}" onclick="toggleTtsCaptionVisibility('${s.id}')" class="px-2 py-0.5 bg-white hover:bg-amber-100 active:bg-amber-200 text-amber-800 font-bold text-[11px] rounded-lg border border-amber-300 transition flex items-center space-x-1 cursor-pointer shadow-2xs" title="Tampilkan atau sembunyikan naskah bacaan">
+                          <span id="tts-caption-toggle-icon-${s.id}">👁️</span>
+                          <span id="tts-caption-toggle-text-${s.id}">Tunjukkan Teks</span>
+                        </button>
+                      </div>
                     </div>
-                    <p id="tts-caption-${s.id}" class="italic text-slate-700 leading-relaxed font-sans text-xs min-h-[18px]" dir="auto">(Klik Putar Audio untuk mendengarkan)</p>
+                    <div id="tts-caption-box-${s.id}" class="p-2 rounded-lg bg-white/90 border border-amber-200/60 min-h-[36px] flex items-center transition">
+                      <p id="tts-caption-${s.id}" class="text-xs italic text-slate-500 leading-relaxed font-sans" dir="auto">
+                        🔒 Teks bacaan disembunyikan agar Anda fokus menyimak audio. Klik <strong>"Tunjukkan Teks"</strong> jika ingin melihat naskah.
+                      </p>
+                    </div>
                   </div>
                 </div>
               ` : ''}
