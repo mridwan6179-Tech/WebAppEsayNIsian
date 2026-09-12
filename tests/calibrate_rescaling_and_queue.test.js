@@ -237,4 +237,32 @@ test('PENGUJIAN KALIBRASI BOBOT PROPORSIONAL INSTAN & ANTREAN REVIEW AI BEBAS ER
     assert.strictEqual(nextStep.status.selesai, 1);
     assert.strictEqual(nextStep.status.menunggu, 5);
   });
+
+  await t.test('6. Auto-heal pada recalculatePengerjaanTotal saat skor_maksimum out-of-sync dengan soal.bobot', async () => {
+    // Simulasikan kondisi di mana skor_maksimum lama adalah 4, tapi soal.bobot adalah 21
+    // Siswa mendapat skor 4/4 (100%), namun jika tanpa auto-heal akan terhitung 4/21 (19%)
+    const j1_1 = db.prepare('SELECT id FROM jawaban WHERE pengerjaan_id = ? AND soal_id = ?').get(s1.pengerjaanId, soal1.id);
+    db.prepare("UPDATE jawaban SET status_penilaian = 'selesai', skor_rekomendasi = 4, skor_maksimum = 4 WHERE id = ?").run(j1_1.id);
+
+    // Jalankan recalculatePengerjaanTotal
+    const healed = reviewService.recalculatePengerjaanTotal(s1.pengerjaanId);
+    assert.ok(healed.nilai_ai > 50, `Nilai AI (${healed.nilai_ai}) harus tetap tinggi dan tidak anjlok ke bawah 50`);
+
+    // Pastikan database jawaban ter-self-heal
+    const j1_1After = db.prepare('SELECT skor_rekomendasi, skor_maksimum FROM jawaban WHERE id = ?').get(j1_1.id);
+    const curBobot1 = db.prepare('SELECT bobot FROM soal WHERE id = ?').get(soal1.id).bobot;
+    assert.strictEqual(j1_1After.skor_maksimum, curBobot1);
+    assert.strictEqual(j1_1After.skor_rekomendasi, curBobot1);
+  });
+
+  await t.test('7. updateSoal dengan perubahan bobot otomatis me-rescale jawaban siswa secara proporsional', async () => {
+    // Ubah bobot soal 2 dari bobot sekarang ke 50
+    examService.updateSoal(soal2.id, { bobot: 50 });
+
+    const updatedBobot = db.prepare('SELECT bobot FROM soal WHERE id = ?').get(soal2.id).bobot;
+    assert.strictEqual(updatedBobot, 50);
+
+    const j1_2 = db.prepare('SELECT skor_rekomendasi, skor_maksimum FROM jawaban WHERE pengerjaan_id = ? AND soal_id = ?').get(s1.pengerjaanId, soal2.id);
+    assert.strictEqual(j1_2.skor_maksimum, 50);
+  });
 });

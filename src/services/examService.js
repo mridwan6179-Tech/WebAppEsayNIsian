@@ -520,6 +520,62 @@ const examService = {
 
     params.push(soalId);
     db.prepare(`UPDATE soal SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+
+    // Jika bobot soal diubah, sesuaikan skor jawaban siswa yang sudah dinilai secara proporsional
+    if (data.bobot !== undefined && Number(data.bobot) !== Number(existing.bobot)) {
+      const oldBobot = Number(existing.bobot) || 1;
+      const newBobot = Number(data.bobot);
+
+      const answers = db.prepare(`
+        SELECT j.id, j.status_penilaian, j.skor_rekomendasi, j.skor_maksimum, rg.id as rg_id, rg.skor_final
+        FROM jawaban j
+        LEFT JOIN review_guru rg ON j.id = rg.jawaban_id
+        WHERE j.soal_id = ?
+      `).all(soalId);
+
+      const updateJawabanDone = db.prepare('UPDATE jawaban SET skor_rekomendasi = ?, skor_maksimum = ? WHERE id = ?');
+      const updateJawabanPending = db.prepare('UPDATE jawaban SET skor_maksimum = ? WHERE id = ?');
+      const updateReviewGuru = db.prepare('UPDATE review_guru SET skor_ai = ?, skor_final = ? WHERE id = ?');
+
+      db.transaction(() => {
+        for (const j of answers) {
+          if (j.status_penilaian === 'selesai') {
+            const oldMax = Number(j.skor_maksimum) || oldBobot || 1;
+            const curScore = Number(j.skor_rekomendasi ?? 0);
+            const ratio = Math.max(0, Math.min(1, curScore / oldMax));
+            const newScore = Math.min(newBobot, Math.max(0, Math.round(ratio * newBobot * 100) / 100));
+
+            updateJawabanDone.run(newScore, newBobot, j.id);
+
+            if (j.rg_id) {
+              const curFinal = Number(j.skor_final ?? curScore);
+              const guruRatio = Math.max(0, Math.min(1, curFinal / oldMax));
+              const newFinal = Math.min(newBobot, Math.max(0, Math.round(guruRatio * newBobot * 100) / 100));
+              updateReviewGuru.run(newScore, newFinal, j.rg_id);
+            }
+          } else {
+            updateJawabanPending.run(newBobot, j.id);
+          }
+        }
+      })();
+
+      try {
+        const pRows = db.prepare('SELECT id FROM pengerjaan WHERE ulangan_id = ?').all(existing.ulangan_id);
+        if (pRows && pRows.length > 0) {
+          const reviewService = require('./reviewService');
+          for (const p of pRows) {
+            reviewService.recalculatePengerjaanTotal(p.id);
+          }
+        }
+      } catch (errRecalc) {
+        console.warn('⚠️ Gagal kalkulasi ulang nilai pengerjaan setelah update bobot soal:', errRecalc.message);
+      }
+
+      if (typeof db.syncCloud === 'function') {
+        db.syncCloud();
+      }
+    }
+
     return this.getSoalById(soalId);
   },
 
@@ -538,14 +594,23 @@ const examService = {
     let totalMaxPossible = 0;
 
     for (const item of scoredItems) {
-      const maxScore = Number(item.bobot || item.skor_maksimum || 0);
-      const score = Number(item.skor_final ?? item.skor_rekomendasi ?? 0);
+      const targetMax = Number(item.bobot || item.skor_maksimum || 0);
+      const rawScore = Number(item.skor_final ?? item.skor_rekomendasi ?? 0);
+      const itemMax = Number(item.skor_maksimum) || targetMax;
 
-      // Batasi skor pada rentang 0 sampai bobot soal (NFR-08)
-      const clampedScore = Math.max(0, Math.min(score, maxScore));
+      let score = rawScore;
+      // Jika skor_maksimum saat penilaian berbeda dari bobot target (misal bobot soal dikalibrasi/diubah)
+      // maka konversikan skor secara proporsional agar persentase capaian siswa tetap akurat
+      if (itemMax > 0 && targetMax > 0 && Math.abs(itemMax - targetMax) > 0.001) {
+        const ratio = Math.max(0, Math.min(1, rawScore / itemMax));
+        score = ratio * targetMax;
+      }
+
+      // Batasi skor pada rentang 0 sampai bobot target (NFR-08)
+      const clampedScore = Math.max(0, Math.min(score, targetMax));
 
       totalObtained += clampedScore;
-      totalMaxPossible += maxScore;
+      totalMaxPossible += targetMax;
     }
 
     if (totalMaxPossible <= 0) return 0;

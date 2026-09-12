@@ -35,10 +35,12 @@ const reviewService = {
         COUNT(j.id) as total_jawaban,
         SUM(CASE WHEN j.jawaban_siswa IS NOT NULL AND TRIM(j.jawaban_siswa) != '' THEN 1 ELSE 0 END) as total_terisi,
         SUM(CASE WHEN j.status_penilaian = 'selesai' THEN 1 ELSE 0 END) as total_dinilai,
+        SUM(CASE WHEN j.status_penilaian = 'selesai' AND ABS(COALESCE(j.skor_maksimum, 0) - COALESCE(s.bobot, 0)) > 0.001 THEN 1 ELSE 0 END) as total_out_of_sync,
         CAST(ROUND((julianday('now') - julianday(COALESCE(p.last_active_at, p.started_at))) * 86400) AS INTEGER) as detik_sejak_aktif
       FROM pengerjaan p
       JOIN peserta pes ON p.peserta_id = pes.id
       LEFT JOIN jawaban j ON p.id = j.pengerjaan_id
+      LEFT JOIN soal s ON j.soal_id = s.id
       WHERE p.ulangan_id = ?
       GROUP BY p.id
       ORDER BY pes.kelas ASC, pes.nama ASC
@@ -93,8 +95,11 @@ const reviewService = {
       let nilai_ai = r.nilai_ai;
       let nilai_final = r.nilai_final;
 
-      // Auto-recalculate jika seluruh butir soal sudah dinilai AI tapi nilai_ai belum tersimpan di pengerjaan
-      if (total_jawaban > 0 && total_dinilai >= total_jawaban && (nilai_ai === null || nilai_ai === undefined)) {
+      // Auto-recalculate jika seluruh butir soal sudah dinilai AI tapi nilai_ai belum tersimpan di pengerjaan,
+      // atau jika terdeteksi bobot butir soal yang out-of-sync
+      const needsRecalc = (total_jawaban > 0 && total_dinilai >= total_jawaban && (nilai_ai === null || nilai_ai === undefined))
+                          || (Number(r.total_out_of_sync) > 0);
+      if (needsRecalc) {
         try {
           const recalculated = this.recalculatePengerjaanTotal(r.pengerjaan_id);
           if (recalculated) {
@@ -277,6 +282,15 @@ const reviewService = {
     if (!pengerjaan) throw new Error('Data pengerjaan tidak ditemukan');
     if (pengerjaan.guru_id !== guruId) throw new Error('Akses ditolak: bukan ulangan milik Anda');
 
+    // Sinkronkan dan pulihkan nilai otomatis jika ada perbedaan bobot soal
+    try {
+      const recalculated = this.recalculatePengerjaanTotal(pengerjaanId);
+      if (recalculated) {
+        pengerjaan.nilai_ai = recalculated.nilai_ai;
+        pengerjaan.nilai_final = recalculated.nilai_final;
+      }
+    } catch (eRecalc) {}
+
     const rawJawabanList = db.prepare(`
       SELECT 
         j.id as jawaban_id,
@@ -426,16 +440,50 @@ const reviewService = {
   // Hitung ulang nilai total siswa (AI & Final) dengan normalisasi max 100 (FR-05 & FR-23)
   recalculatePengerjaanTotal(pengerjaanId) {
     const jawabanItems = db.prepare(`
-      SELECT j.skor_rekomendasi, s.bobot, rg.skor_final
+      SELECT j.id as jawaban_id, j.status_penilaian, j.skor_rekomendasi, j.skor_maksimum,
+             s.bobot, rg.id as rg_id, rg.skor_final
       FROM jawaban j
       JOIN soal s ON j.soal_id = s.id
       LEFT JOIN review_guru rg ON j.id = rg.jawaban_id
       WHERE j.pengerjaan_id = ?
     `).all(pengerjaanId);
 
+    if (!jawabanItems || jawabanItems.length === 0) {
+      return { nilai_ai: 0, nilai_final: 0 };
+    }
+
+    // Auto-heal & synchronize jika bobot soal di tabel soal berbeda dari skor_maksimum saat penilaian
+    let hasHealed = false;
+    for (const item of jawabanItems) {
+      const curBobot = Number(item.bobot) || 1;
+      const oldMax = Number(item.skor_maksimum) || curBobot;
+
+      if (item.status_penilaian === 'selesai' && oldMax > 0 && Math.abs(oldMax - curBobot) > 0.001) {
+        const aiRatio = Math.max(0, Math.min(1, Number(item.skor_rekomendasi ?? 0) / oldMax));
+        const newSkorAi = Math.min(curBobot, Math.max(0, Math.round(aiRatio * curBobot * 100) / 100));
+
+        db.prepare('UPDATE jawaban SET skor_rekomendasi = ?, skor_maksimum = ? WHERE id = ?').run(newSkorAi, curBobot, item.jawaban_id);
+        item.skor_rekomendasi = newSkorAi;
+        item.skor_maksimum = curBobot;
+
+        if (item.rg_id && item.skor_final !== null && item.skor_final !== undefined) {
+          const guruRatio = Math.max(0, Math.min(1, Number(item.skor_final) / oldMax));
+          const newSkorFinal = Math.min(curBobot, Math.max(0, Math.round(guruRatio * curBobot * 100) / 100));
+          db.prepare('UPDATE review_guru SET skor_ai = ?, skor_final = ? WHERE id = ?').run(newSkorAi, newSkorFinal, item.rg_id);
+          item.skor_final = newSkorFinal;
+        }
+        hasHealed = true;
+      } else if (item.status_penilaian !== 'selesai' && Math.abs(oldMax - curBobot) > 0.001) {
+        db.prepare('UPDATE jawaban SET skor_maksimum = ? WHERE id = ?').run(curBobot, item.jawaban_id);
+        item.skor_maksimum = curBobot;
+        hasHealed = true;
+      }
+    }
+
     // Hitung total rekomendasi AI
     const aiItems = jawabanItems.map(item => ({
       bobot: item.bobot,
+      skor_maksimum: item.skor_maksimum,
       skor_final: item.skor_rekomendasi ?? 0
     }));
     const totalAiScore = examService.calculateNormalizedScore(aiItems);
@@ -443,6 +491,7 @@ const reviewService = {
     // Hitung total nilai final guru (jika belum direview, gunakan skor AI sebagai default)
     const finalItems = jawabanItems.map(item => ({
       bobot: item.bobot,
+      skor_maksimum: item.skor_maksimum,
       skor_final: item.skor_final ?? item.skor_rekomendasi ?? 0
     }));
     const totalFinalScore = examService.calculateNormalizedScore(finalItems);
@@ -452,6 +501,10 @@ const reviewService = {
       SET nilai_ai = ?, nilai_final = ? 
       WHERE id = ?
     `).run(totalAiScore, totalFinalScore, pengerjaanId);
+
+    if (hasHealed && typeof db.syncCloud === 'function') {
+      db.syncCloud(true);
+    }
 
     return {
       nilai_ai: totalAiScore,
