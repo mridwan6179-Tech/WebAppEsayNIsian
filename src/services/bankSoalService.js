@@ -206,6 +206,15 @@ const bankSoalService = {
 
     const kategori = customCategory || row.kategori || row.mata_pelajaran || 'Umum';
 
+    // Anti-duplikasi: Cek apakah soal dengan pertanyaan yang sama persis sudah ada di Bank Soal pada kategori ini
+    const existingBank = db.prepare(`
+      SELECT * FROM bank_soal 
+      WHERE guru_id = ? AND TRIM(LOWER(kategori)) = TRIM(LOWER(?)) AND TRIM(LOWER(pertanyaan)) = TRIM(LOWER(?))
+    `).get(guruId, kategori, row.pertanyaan);
+    if (existingBank) {
+      return existingBank; // Hindari duplikasi di Bank Soal
+    }
+
     return this.create(guruId, {
       kategori,
       sub_topik: null,
@@ -247,11 +256,27 @@ const bankSoalService = {
       throw new Error('Tidak ada butir soal valid yang ditemukan untuk disalin');
     }
 
+    // Anti-duplikasi: Ambil semua soal yang sudah ada di Bank Soal milik guru ini
+    const existingBank = db.prepare('SELECT * FROM bank_soal WHERE guru_id = ?').all(guruId);
+    const existingBankMap = new Map(existingBank.map(b => [
+      `${(b.kategori || 'Umum').trim().toLowerCase()}:::${b.pertanyaan.trim().toLowerCase()}`,
+      b
+    ]));
+
     const createdList = [];
     for (const row of rows) {
       const kategori = (customCategory && customCategory.trim())
         ? customCategory.trim()
         : (row.kategori || ulangan.mata_pelajaran || 'Umum');
+
+      const cleanQ = row.pertanyaan.trim().toLowerCase();
+      const mapKey = `${kategori.trim().toLowerCase()}:::${cleanQ}`;
+
+      // Jika butir soal ini sudah ada di Bank Soal pada kategori ini, gunakan yang sudah ada (anti-duplikasi)
+      if (existingBankMap.has(mapKey)) {
+        createdList.push(existingBankMap.get(mapKey));
+        continue;
+      }
 
       const created = this.create(guruId, {
         kategori,
@@ -271,6 +296,7 @@ const bankSoalService = {
         bahasa: row.bahasa,
         tampilkan_teks_listening: row.tampilkan_teks_listening
       });
+      existingBankMap.set(mapKey, created);
       createdList.push(created);
     }
 
@@ -298,8 +324,19 @@ const bankSoalService = {
       throw new Error('Tidak ada soal valid yang ditemukan di Bank Soal');
     }
 
+    // Anti-duplikasi: Ambil semua pertanyaan yang sudah ada di paket ulangan target
+    const existingExamSoal = db.prepare('SELECT pertanyaan FROM soal WHERE ulangan_id = ?').all(ulanganId);
+    const existingExamSet = new Set(existingExamSoal.map(s => s.pertanyaan.trim().toLowerCase()));
+
     const createdSoalList = [];
     for (const bSoal of bankItems) {
+      const cleanQ = bSoal.pertanyaan.trim().toLowerCase();
+      // Lewati jika butir soal sudah ada di dalam ulangan (anti-duplikasi)
+      if (existingExamSet.has(cleanQ)) {
+        continue;
+      }
+      existingExamSet.add(cleanQ);
+
       const newSoal = examService.createSoal(ulanganId, {
         pertanyaan: bSoal.pertanyaan,
         jenis: bSoal.jenis,

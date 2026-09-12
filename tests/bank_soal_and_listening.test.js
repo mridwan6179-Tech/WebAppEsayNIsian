@@ -26,6 +26,9 @@ test('=== SUITE: BANK SOAL, LISTENING, AUDIO & EKSPOR EXCEL ===', async (t) => {
   guruId = loginRes.guru.id;
   tokenGuru = loginRes.token;
 
+  // Bersihkan bank_soal untuk akun guru pengujian sebelum suite berjalan
+  db.prepare('DELETE FROM bank_soal WHERE guru_id = ?').run(guruId);
+
   // Buat 1 ulangan pengujian
   const testUlangan = examService.createUlangan(guruId, {
     judul: 'Ulangan Pengujian Fitur Baru',
@@ -147,6 +150,25 @@ test('=== SUITE: BANK SOAL, LISTENING, AUDIO & EKSPOR EXCEL ===', async (t) => {
     assert.equal(batchCopied[1].kategori, 'Biologi - Pembelahan Sel');
     assert.equal(batchCopied[0].pertanyaan, 'Sebutkan 3 macam pembelahan sel!');
     assert.equal(batchCopied[1].pertanyaan, 'Jelaskan perbedaan sitokinesis pada sel hewan dan tumbuhan!');
+
+    // 2.5 Verifikasi Anti-Duplikasi: Salin ulang soal yang sama ke kategori yang sama
+    const countBefore = db.prepare('SELECT COUNT(*) as c FROM bank_soal WHERE guru_id = ?').get(guruId).c;
+    const reCopied = bankSoalService.copyBatchFromExam(
+      testUlanganId,
+      [soalTambahan1.id, soalTambahan2.id],
+      guruId,
+      'Biologi - Pembelahan Sel'
+    );
+    const countAfter = db.prepare('SELECT COUNT(*) as c FROM bank_soal WHERE guru_id = ?').get(guruId).c;
+    assert.equal(countAfter, countBefore, 'Jumlah baris bank_soal tidak boleh bertambah (anti-duplikasi aktif)');
+    assert.equal(reCopied.length, 2, 'Mengembalikan referensi bank_soal yang sudah ada');
+
+    // 2.6 Verifikasi Anti-Duplikasi: Impor ulang soal yang sudah ada di paket ulangan target
+    const examCountBefore = db.prepare('SELECT COUNT(*) as c FROM soal WHERE ulangan_id = ?').get(ulanganTarget.id).c;
+    const reImported = bankSoalService.importToExam(ulanganTarget.id, guruId, [copiedToBank.id]);
+    const examCountAfter = db.prepare('SELECT COUNT(*) as c FROM soal WHERE ulangan_id = ?').get(ulanganTarget.id).c;
+    assert.equal(examCountAfter, examCountBefore, 'Soal duplikat tidak boleh masuk ke ulangan');
+    assert.equal(reImported.length, 0, 'Soal yang sudah ada dilewati (skipped)');
   });
 
   await t.test('3. AI Cerdas Pemilih Soal dari Bank Soal (Smart Pick)', async () => {

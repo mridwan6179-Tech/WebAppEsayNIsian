@@ -6170,6 +6170,10 @@
 
     function renderImportFromBankUI() {
       const filtered = getFilteredBankSoal();
+      const existingExamQuestions = new Set(
+        (activeUlanganData && activeUlanganData.soal ? activeUlanganData.soal : [])
+          .map(q => q.pertanyaan.trim().toLowerCase())
+      );
 
       // Kelompokkan soal berdasarkan kategori
       const groups = {};
@@ -6249,6 +6253,8 @@
                 <div class="p-2.5 sm:p-3 space-y-2.5 ${isCollapsed ? 'hidden' : ''}">
                   ${items.map(s => {
                     const isChecked = importSelectedSoalIds.has(s.id);
+                    const isAlreadyInExam = existingExamQuestions.has(s.pertanyaan.trim().toLowerCase());
+
                     return `
                       <div class="p-3 rounded-xl border transition text-xs space-y-2 ${isChecked ? 'bg-purple-50/60 border-purple-300 ring-1 ring-purple-200' : 'bg-slate-50/70 border-slate-200 hover:bg-slate-50'}">
                         <div class="flex items-start justify-between gap-2">
@@ -6260,6 +6266,7 @@
                                 <span class="text-[10px] text-slate-400 font-medium">Bobot: <strong>${s.bobot_standar || 10}</strong></span>
                                 ${s.tingkat_kesulitan ? `<span class="text-[9px] font-semibold px-1.5 py-0.2 rounded ${s.tingkat_kesulitan === 'sulit' ? 'bg-red-100 text-red-700' : (s.tingkat_kesulitan === 'mudah' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}">${s.tingkat_kesulitan}</span>` : ''}
                                 ${s.is_listening ? `<span class="bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.2 rounded">🎧 Listening</span>` : ''}
+                                ${isAlreadyInExam ? `<span class="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[9px] font-bold px-1.5 py-0.2 rounded flex items-center space-x-1"><span>✓ Sudah Ada di Ulangan Ini</span></span>` : ''}
                               </div>
                               <p class="font-medium text-slate-800 leading-relaxed" dir="auto">${escapeHtml(s.pertanyaan)}</p>
                               ${s.kunci_jawaban ? `<p class="text-slate-500 text-[11px]"><strong class="text-slate-600">Kunci:</strong> ${escapeHtml(s.kunci_jawaban)}</p>` : ''}
@@ -6338,9 +6345,17 @@
         const filtered = getFilteredBankSoal();
         const items = filtered.filter(s => (s.kategori || 'Umum') === cat);
 
+        const existingExamQuestions = new Set(
+          (activeUlanganData && activeUlanganData.soal ? activeUlanganData.soal : [])
+            .map(q => q.pertanyaan.trim().toLowerCase())
+        );
+
         items.forEach(s => {
           if (isChecked) {
-            importSelectedSoalIds.add(s.id);
+            // Anti-duplikasi cerdas: jangan centang otomatis soal yang sudah ada di ulangan
+            if (!existingExamQuestions.has(s.pertanyaan.trim().toLowerCase())) {
+              importSelectedSoalIds.add(s.id);
+            }
           } else {
             importSelectedSoalIds.delete(s.id);
           }
@@ -6364,7 +6379,17 @@
     if (btnImportCheckAllCats) {
       btnImportCheckAllCats.addEventListener('click', () => {
         const filtered = getFilteredBankSoal();
-        filtered.forEach(s => importSelectedSoalIds.add(s.id));
+        const existingExamQuestions = new Set(
+          (activeUlanganData && activeUlanganData.soal ? activeUlanganData.soal : [])
+            .map(q => q.pertanyaan.trim().toLowerCase())
+        );
+
+        filtered.forEach(s => {
+          // Anti-duplikasi: hanya centang soal yang belum ada di ulangan
+          if (!existingExamQuestions.has(s.pertanyaan.trim().toLowerCase())) {
+            importSelectedSoalIds.add(s.id);
+          }
+        });
         renderImportFromBankUI();
       });
     }
