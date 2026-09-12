@@ -1070,6 +1070,90 @@ const studentService = {
 
     db.prepare('UPDATE pengerjaan SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?').run(pengerjaanId);
     return { success: true, status: 'active' };
+  },
+
+  // Ambil log tanda terima jawaban siswa yang sudah terkirim (tanpa menampilkan nilai)
+  getSubmissionLogByExamCode(kodeUjian, page = 1, limit = 10) {
+    if (!kodeUjian || !kodeUjian.trim()) {
+      return { success: false, message: 'Kode ujian wajib diisi' };
+    }
+    const cleanKode = kodeUjian.trim();
+    const ulangan = db.prepare('SELECT id, judul, zona_waktu FROM ulangan WHERE LOWER(kode_ujian) = LOWER(?)').get(cleanKode);
+    if (!ulangan) {
+      return { success: false, message: 'Ulangan tidak ditemukan' };
+    }
+
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const l = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
+    const offset = (p - 1) * l;
+
+    const totalRow = db.prepare(`
+      SELECT COUNT(*) as total
+      FROM pengerjaan p
+      WHERE p.ulangan_id = ? AND p.status = 'submitted'
+    `).get(ulangan.id);
+    const total = totalRow ? totalRow.total : 0;
+
+    const rows = db.prepare(`
+      SELECT 
+        p.id as pengerjaan_id,
+        pes.nama as nama_siswa,
+        pes.kelas as kelas_siswa,
+        p.submitted_at
+      FROM pengerjaan p
+      JOIN peserta pes ON p.peserta_id = pes.id
+      WHERE p.ulangan_id = ? AND p.status = 'submitted'
+      ORDER BY p.submitted_at DESC
+      LIMIT ? OFFSET ?
+    `).all(ulangan.id, l, offset);
+
+    const tzMap = {
+      'WIB': 'Asia/Jakarta',
+      'WITA': 'Asia/Makassar',
+      'WIT': 'Asia/Jayapura'
+    };
+    const timeZone = tzMap[ulangan.zona_waktu] || 'Asia/Makassar';
+
+    const items = rows.map((r, idx) => {
+      let waktuFormatted = '-';
+      if (r.submitted_at) {
+        try {
+          const raw = r.submitted_at;
+          const dt = new Date(raw.includes('T') ? raw : raw.replace(' ', 'T') + 'Z');
+          waktuFormatted = new Intl.DateTimeFormat('id-ID', {
+            timeZone,
+            day: '2-digit',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          }).format(dt) + ` ${ulangan.zona_waktu || 'WITA'}`;
+        } catch (e) {
+          waktuFormatted = r.submitted_at;
+        }
+      }
+      return {
+        no: offset + idx + 1,
+        nama: r.nama_siswa,
+        kelas: r.kelas_siswa,
+        waktu: waktuFormatted,
+        status: 'Diterima'
+      };
+    });
+
+    return {
+      success: true,
+      data: {
+        total,
+        page: p,
+        totalPages: Math.max(1, Math.ceil(total / l)),
+        limit: l,
+        items,
+        judul_ulangan: ulangan.judul,
+        zona_waktu: ulangan.zona_waktu || 'WITA'
+      }
+    };
   }
 };
 

@@ -94,4 +94,22 @@ test('T-03: Alur Siswa Masuk sampai Submit (FR-06 - FR-08, NFR-01)', async (t) =
     assert.strictEqual(reStart.alreadySubmitted, true);
     assert.ok(reStart.submittedAt);
   });
+
+  await t.test('FR-09: Log tanda terima pengumpulan jawaban (tanpa membocorkan nilai)', () => {
+    const log = studentService.getSubmissionLogByExamCode(ulangan.kode_ujian, 1, 10);
+    assert.strictEqual(log.success, true);
+    assert.ok(log.data.total >= 1);
+    assert.strictEqual(log.data.page, 1);
+    assert.strictEqual(log.data.limit, 10);
+
+    const firstItem = log.data.items[0];
+    assert.strictEqual(firstItem.nama, 'Ahmad Fadhil');
+    assert.strictEqual(firstItem.kelas, 'X MIPA 1');
+    assert.strictEqual(firstItem.status, 'Diterima');
+    assert.ok(firstItem.waktu);
+    // Pastikan tidak ada nilai_final atau skor di log publik
+    assert.strictEqual(firstItem.nilai, undefined);
+    assert.strictEqual(firstItem.nilai_final, undefined);
+  });
 });
+

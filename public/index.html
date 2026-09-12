@@ -130,17 +130,77 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
         </button>
 
-        <!-- Peringatan Aturan Terputus (DC) & Batas Waktu Ujian -->
-        <div class="mt-4 p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-left text-xs text-amber-900 space-y-1.5 shadow-2xs">
+        <!-- Peringatan Aturan Terputus (DC), Pengisian Penuh & Batas Waktu Ujian -->
+        <div class="mt-4 p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-left text-xs text-amber-900 space-y-2 shadow-2xs">
           <div class="flex items-center space-x-2 font-bold text-amber-950 text-xs">
             <span class="text-base">⚠️</span>
-            <span>Aturan Koneksi & Batas Terputus (DC):</span>
+            <span>Aturan Penting Pengisian & Batas Terputus (DC):</span>
           </div>
-          <p class="text-[11.5px] text-amber-900 leading-relaxed">
-            Batas maksimal terputus (DC) adalah <strong>1 jam</strong> atau <strong>sampai waktu ulangan habis</strong>. Jika Anda keluar atau terputus melebihi batas tersebut dan belum mengumpulkan ujian, seluruh jawaban Anda akan <strong>dihapus otomatis oleh sistem</strong> dan Anda harus <strong>mengulang ujian dari awal</strong>. Pastikan jaringan internet stabil dan jangan menutup ujian terlalu lama!
-          </p>
+          <ul class="text-[11.5px] text-amber-900 leading-relaxed list-disc list-inside space-y-1">
+            <li><strong>Wajib Terisi Penuh:</strong> Seluruh butir soal harus terisi penuh (100%) terlebih dahulu agar ujian dapat dianggap sah dan diterima, baik saat dikumpulkan langsung maupun jika terjadi kendala terputus (DC).</li>
+            <li><strong>Batas Toleransi DC:</strong> Batas maksimal terputus (DC) adalah <strong>1 jam</strong> atau <strong>sampai waktu ulangan habis</strong>.</li>
+            <li><strong>Konsekuensi:</strong> Jika Anda terputus melebihi batas 1 jam dan jawaban belum lengkap terkumpul, seluruh pengerjaan akan <strong>dihapus otomatis oleh sistem</strong> dan Anda harus <strong>mengulang ujian dari awal</strong>.</li>
+          </ul>
         </div>
       </form>
+    </section>
+
+    <!-- LOG TANDA TERIMA PENGUMPULAN JAWABAN SISWA (Tampil Setelah Kode Dimasukkan) -->
+    <section id="section-submission-log" class="hidden mt-6 bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200/80">
+      <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 flex-wrap gap-2">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm">
+            📋
+          </div>
+          <div>
+            <h3 class="font-bold text-sm sm:text-base text-slate-900">Daftar Jawaban Siswa Diterima</h3>
+            <p class="text-[11px] text-slate-500">Bukti resmi jawaban yang telah berhasil terkirim dan diterima server</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span id="log-total-badge" class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+            0 Siswa Diterima
+          </span>
+          <button type="button" id="btn-refresh-log" class="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 text-xs transition cursor-pointer" title="Perbarui Log">
+            🔄
+          </button>
+        </div>
+      </div>
+
+      <!-- Tabel Responsif Log -->
+      <div class="overflow-x-auto rounded-xl border border-slate-200/70">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200/70">
+            <tr>
+              <th class="py-2.5 px-3 w-12 text-center">No</th>
+              <th class="py-2.5 px-3">Nama Siswa</th>
+              <th class="py-2.5 px-3 w-20">Kelas</th>
+              <th class="py-2.5 px-3">Waktu Diterima</th>
+              <th class="py-2.5 px-3 text-center w-28">Status</th>
+            </tr>
+          </thead>
+          <tbody id="log-table-body" class="divide-y divide-slate-100 text-slate-700">
+            <tr>
+              <td colspan="5" class="py-6 text-center text-slate-400 text-xs">
+                Memuat daftar siswa...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Navigasi Halaman (Pagination) -->
+      <div id="log-pagination" class="flex items-center justify-between pt-3 mt-1 text-xs text-slate-500 flex-wrap gap-2">
+        <span id="log-page-info">Halaman 1 dari 1</span>
+        <div class="flex items-center space-x-1.5">
+          <button type="button" id="btn-log-prev" class="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+            &larr; Sebelumnya
+          </button>
+          <button type="button" id="btn-log-next" class="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+            Berikutnya &rarr;
+          </button>
+        </div>
+      </div>
     </section>
 
     <!-- STEP WAITING ROOM: Antrean Ruang Tunggu Ujian (Maksimal 20 Siswa Bersamaan) -->
@@ -618,6 +678,7 @@
         examFoundInfo.classList.add('hidden');
         document.getElementById('kisi-kisi-container')?.classList.add('hidden');
         inputKelas.innerHTML = '<option value="">-- Ketik kode ulangan di atas terlebih dahulu --</option>';
+        hideSubmissionLog();
       }
     });
 
@@ -667,16 +728,149 @@
             opt.textContent = data.ulangan.tingkat_kelas || 'Umum';
             inputKelas.appendChild(opt);
           }
+
+          // Muat daftar log tanda terima siswa yang sudah masuk
+          loadSubmissionLog(kode, 1);
         } else {
           examFoundInfo.classList.add('hidden');
           document.getElementById('kisi-kisi-container')?.classList.add('hidden');
           inputKelas.innerHTML = '<option value="">-- Kode tidak valid --</option>';
+          hideSubmissionLog();
           if (data.message) showAlert(data.message);
         }
       } catch (err) {
         console.error(err);
       }
     }
+
+    // LOG TANDA TERIMA JAWABAN SISWA (PUBLIK / BUKTI DITERIMA)
+    let currentLogKode = null;
+    let currentLogPage = 1;
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    async function loadSubmissionLog(kode, page = 1, isSilent = false) {
+      if (!kode || !kode.trim()) {
+        hideSubmissionLog();
+        return;
+      }
+      currentLogKode = kode.trim().toUpperCase();
+      currentLogPage = page;
+
+      const section = document.getElementById('section-submission-log');
+      const tbody = document.getElementById('log-table-body');
+      const totalBadge = document.getElementById('log-total-badge');
+      const pageInfo = document.getElementById('log-page-info');
+      const btnPrev = document.getElementById('btn-log-prev');
+      const btnNext = document.getElementById('btn-log-next');
+
+      if (section && stepAuth && !stepAuth.classList.contains('hidden')) {
+        section.classList.remove('hidden');
+      }
+
+      if (!isSilent && tbody) {
+        tbody.innerHTML = `<tr><td colspan="5" class="py-5 text-center text-slate-400 text-xs animate-pulse">Memuat daftar siswa diterima...</td></tr>`;
+      }
+
+      try {
+        const res = await fetch(`/api/siswa/log-pengumpulan/${encodeURIComponent(currentLogKode)}?page=${page}&limit=10`);
+        const result = await res.json();
+
+        if (!res.ok || !result.success || !result.data) {
+          if (!isSilent && tbody) {
+            tbody.innerHTML = `<tr><td colspan="5" class="py-5 text-center text-slate-400 text-xs">Belum dapat memuat log pengumpulan</td></tr>`;
+          }
+          return;
+        }
+
+        const { total, totalPages, items } = result.data;
+
+        if (totalBadge) {
+          totalBadge.textContent = `${total} Siswa Diterima`;
+        }
+
+        if (pageInfo) {
+          pageInfo.textContent = `Halaman ${page} dari ${totalPages} (${total} Total)`;
+        }
+
+        if (btnPrev) btnPrev.disabled = (page <= 1);
+        if (btnNext) btnNext.disabled = (page >= totalPages);
+
+        if (!items || items.length === 0) {
+          if (tbody) {
+            tbody.innerHTML = `
+              <tr>
+                <td colspan="5" class="py-8 text-center text-slate-400">
+                  <span class="text-xl block mb-1">📭</span>
+                  Belum ada siswa yang mengumpulkan jawaban untuk ulangan ini.
+                </td>
+              </tr>
+            `;
+          }
+          return;
+        }
+
+        if (tbody) {
+          tbody.innerHTML = items.map(item => `
+            <tr class="hover:bg-slate-50/80 transition duration-75">
+              <td class="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">${item.no}</td>
+              <td class="py-2.5 px-3 font-semibold text-slate-900">${escapeHtml(item.nama)}</td>
+              <td class="py-2.5 px-3 font-medium text-slate-600">${escapeHtml(item.kelas)}</td>
+              <td class="py-2.5 px-3 text-slate-500 font-mono text-[11px]">${escapeHtml(item.waktu)}</td>
+              <td class="py-2.5 px-3 text-center">
+                <span class="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] sm:text-[11px] font-bold">
+                  <span>✓</span>
+                  <span>Diterima</span>
+                </span>
+              </td>
+            </tr>
+          `).join('');
+        }
+      } catch (e) {
+        if (!isSilent && tbody) {
+          tbody.innerHTML = `<tr><td colspan="5" class="py-5 text-center text-slate-400 text-xs">Kendala jaringan saat memuat log</td></tr>`;
+        }
+      }
+    }
+
+    function hideSubmissionLog() {
+      currentLogKode = null;
+      const section = document.getElementById('section-submission-log');
+      if (section) section.classList.add('hidden');
+    }
+
+    document.getElementById('btn-log-prev')?.addEventListener('click', () => {
+      if (currentLogKode && currentLogPage > 1) {
+        loadSubmissionLog(currentLogKode, currentLogPage - 1);
+      }
+    });
+
+    document.getElementById('btn-log-next')?.addEventListener('click', () => {
+      if (currentLogKode) {
+        loadSubmissionLog(currentLogKode, currentLogPage + 1);
+      }
+    });
+
+    document.getElementById('btn-refresh-log')?.addEventListener('click', () => {
+      if (currentLogKode) {
+        loadSubmissionLog(currentLogKode, currentLogPage);
+      }
+    });
+
+    // Auto-refresh log tiap 15 detik selama siswa berada di layar awal (stepAuth)
+    setInterval(() => {
+      if (currentLogKode && stepAuth && !stepAuth.classList.contains('hidden')) {
+        loadSubmissionLog(currentLogKode, currentLogPage, true);
+      }
+    }, 15000);
 
     // Deteksi parameter link WhatsApp: ?kode=KODE atau ?token=KODE
     const directKode = urlParams.get('kode') || urlParams.get('token');
