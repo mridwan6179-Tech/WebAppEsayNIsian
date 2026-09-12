@@ -443,6 +443,7 @@ app.post('/api/guru/generate-soal', requireGuru, async (req, res) => {
       jenjang_kelas,
       jumlah_soal,
       tipe_soal,
+      bentuk_soal,
       tingkat_kesulitan,
       target_total_bobot,
       jumlah_isian,
@@ -518,12 +519,16 @@ app.post('/api/guru/generate-soal', requireGuru, async (req, res) => {
       }
     }
 
-    // Bersihkan, pangkas panjang teks (maks 95 karakter per butir), dan batasi maksimal 12 butir soal
+    // Bersihkan & format ringkas butir soal terdahulu (mendukung konteks soal cerita hingga 220 karakter)
     const uniqueExistingQuestions = Array.from(new Set(
       collectedExistingQuestions
         .map(q => String(q || '').trim())
         .filter(Boolean)
-        .map(q => (q.length > 95 ? q.substring(0, 92).trim() + '...' : q))
+        .map(q => {
+          if (q.length <= 220) return q;
+          // Untuk soal cerita panjang, pertahankan konteks narasi awal dan kalimat tanya penutupnya
+          return q.substring(0, 140).trim() + ' ... [Tanya]: ' + q.substring(q.length - 70).trim();
+        })
     )).slice(0, 12);
 
     const result = await geminiService.generateQuestions({
@@ -532,6 +537,7 @@ app.post('/api/guru/generate-soal', requireGuru, async (req, res) => {
       jenjang_kelas,
       jumlah_soal,
       tipe_soal,
+      bentuk_soal,
       tingkat_kesulitan,
       target_total_bobot,
       jumlah_isian,

@@ -799,6 +799,27 @@ Total paket terdiri dari ${jumlah_soal} butir soal:
       }
     }
 
+    const bentukSoal = options.bentuk_soal || 'otomatis';
+    let bentukSoalInstruction = '';
+    if (bentukSoal === 'soal_cerita') {
+      bentukSoalInstruction = `
+*** GAYA PENYAJIAN SOAL: WAJIB SOAL CERITA / STUDI KASUS KONTEKSTUAL ***
+- Seluruh butir soal WAJIB disajikan dalam bentuk SOAL CERITA, studi kasus kontekstual, narasi pemecahan masalah, atau skenario kehidupan sehari-hari (literasi & numerasi).
+- Panjang pertanyaan SANGAT FLEKSIBEL DAN BEBAS PANJANG: sertakan narasi pengantar cerita, latar situasi peristiwa, atau deskripsi skenario sebelum kalimat pertanyaan diajukan.
+`;
+    } else if (bentukSoal === 'konseptual') {
+      bentukSoalInstruction = `
+*** GAYA PENYAJIAN SOAL: KONSEPTUAL LANGSUNG ***
+- Butir soal disajikan langsung pada inti konsep, definisi, terminologi, atau pemecahan rumus materi tanpa narasi cerita panjang.
+`;
+    } else {
+      bentukSoalInstruction = `
+*** FLEKSIBILITAS BENTUK PERTANYAAN (SOAL CERITA / KASUS / LANGSUNG) ***
+- Bentuk pertanyaan SANGAT FLEKSIBEL: dapat berupa pertanyaan konsep langsung, maupun SOAL CERITA / STUDI KASUS kontekstual (literasi, numerasi, fenomena nyata, narasi skenario kehidupan).
+- Pertanyaan BOLEH PANJANG dan deskriptif jika berbentuk soal cerita atau memerlukan narasi pengantar konteks sebelum kalimat tanya penutup.
+`;
+    }
+
     return `
 Anda adalah konsultan kurikulum dan pembuat soal ujian profesional yang bertugas membantu guru membuat paket soal ulangan beserta kunci jawaban acuan, rubrik/pembahasan konsep, dan pembobotan.
 
@@ -808,6 +829,7 @@ PARAMETER PEMBUATAN SOAL:
 3. Tipe Soal: ${tipeDeskripsi}
 4. Tingkat Kesulitan: ${tingkat_kesulitan}
 5. Target Total Akumulasi Bobot: ${target_total_bobot} (Distribusikan bobot ke setiap soal secara adil dan bulat, misalnya soal essay berbobot lebih tinggi, sehingga total seluruh soal tepat = ${target_total_bobot}).
+${bentukSoalInstruction}
 ${listeningInstructions}
 ${sumberDeskripsi}
 ${antiDuplikasiInstructions}
@@ -815,7 +837,7 @@ ${antiDuplikasiInstructions}
 KOMPONEN WAJIB TIAP BUTIR SOAL:
 - "kategori": Kategori pokok atau nama bab/mata pelajaran dari butir soal ini (WAJIB diisi ringkas, spesifik & presisi sesuai materi/topik, misal: "Bahasa Inggris - Tenses", "Biologi - Fotosintesis", "Matematika - Aljabar", "Fisika - Termodinamika", "Listening Comprehension", dll. Jangan gunakan kata umum "Umum").
 - "sub_topik": Sub-topik materi spesifik yang dibahas dalam butir soal ini (misal: "Present Perfect", "Reaksi Terang", "Persamaan Linier").
-- "pertanyaan": Kalimat tanya yang jelas, terarah, akademis, dan tidak ambigu. Jika berkaitan dengan rumus matematika, gunakan notasi LaTeX (misal: $x^2 - 4x + 4 = 0$).
+- "pertanyaan": Kalimat soal yang jelas, akademis, dan kontekstual. Pertanyaan dapat berupa pertanyaan langsung maupun SOAL CERITA / STUDI KASUS naratif yang panjang dan kaya konteks sesuai materi. Tidak ada batasan pendek jika soal memerlukan narasi cerita pengantar. Jika berkaitan dengan rumus matematika, gunakan notasi LaTeX (misal: $x^2 - 4x + 4 = 0$).
 - "jenis": Tuliskan "isian" atau "essay"${isCustomBreakdown ? ` (Wajib tepat menghasilkan ${jumlah_isian} butir "isian" dan ${jumlah_essay} butir "essay")` : ''}.
   * "isian" untuk soal yang menanyakan istilah spesifik, angka/nilai akhir, konsep ringkas 1-3 kata.
   * "essay" untuk soal yang meminta penjelasan konsep, tahapan penyelesaian, perbandingan, atau uraian mendalam.

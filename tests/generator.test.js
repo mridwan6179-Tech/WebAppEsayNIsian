@@ -210,4 +210,28 @@ test('T-10: Fitur AI Soal Generator (Pembuat Soal, Kunci Jawaban, Rubrik & Bobot
     assert.strictEqual(prompt.includes('13. "Soal nomor ke-13"'), false, 'Tidak boleh melebihi 12 butir pembanding agar hemat token');
   });
 
+  await t.test('8. Dukungan Bentuk Soal Cerita / Studi Kasus Panjang', () => {
+    // Mode Soal Cerita eksplisit
+    const promptCerita = geminiService.buildGenerateQuestionsPrompt({
+      mode: 'topik',
+      input_sumber: 'Pecahan dan Perbandingan',
+      jenjang_kelas: 'Kelas 5 SD',
+      jumlah_soal: 3,
+      bentuk_soal: 'soal_cerita'
+    });
+
+    assert.ok(promptCerita.includes('GAYA PENYAJIAN SOAL: WAJIB SOAL CERITA / STUDI KASUS KONTEKSTUAL'));
+    assert.ok(promptCerita.includes('SOAL CERITA, studi kasus kontekstual'));
+    assert.ok(promptCerita.includes('Panjang pertanyaan SANGAT FLEKSIBEL DAN BEBAS PANJANG'));
+
+    // Mode Otomatis / Fleksibel
+    const promptDefault = geminiService.buildGenerateQuestionsPrompt({
+      mode: 'topik',
+      input_sumber: 'Fisika',
+      jumlah_soal: 3
+    });
+    assert.ok(promptDefault.includes('FLEKSIBILITAS BENTUK PERTANYAAN (SOAL CERITA / KASUS / LANGSUNG)'));
+    assert.ok(promptDefault.includes('Pertanyaan BOLEH PANJANG dan deskriptif jika berbentuk soal cerita'));
+  });
+
 });
