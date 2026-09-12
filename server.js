@@ -961,6 +961,15 @@ if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`[Sistem Ulangan AI] Server berjalan di http://localhost:${PORT}`);
     console.log(`[Google Sites Embed Ready] Header CSP frame-ancestors aktif.`);
+
+    // Jadwal periodik pembersihan sesi DC kosong (>1 jam atau lewat durasi) & auto-finalize
+    setInterval(() => {
+      try {
+        studentService.cleanAbandonedSessions();
+      } catch (e) {
+        console.error('[CRON CLEANUP ERROR]', e.message);
+      }
+    }, 2 * 60 * 1000);
   });
 }
 

@@ -633,6 +633,97 @@ const studentService = {
     };
   },
 
+  // Pembersihan Otomatis Sesi Terputus (DC) / Sesi Kedaluwarsa
+  cleanAbandonedSessions(ulanganId = null) {
+    try {
+      const candidates = db.prepare(`
+        SELECT 
+          p.id as pengerjaan_id,
+          p.peserta_id,
+          p.ulangan_id,
+          p.started_at,
+          p.last_active_at,
+          u.durasi_menit,
+          pes.nama as nama_siswa,
+          pes.kelas as kelas_siswa,
+          COUNT(j.id) as total_jawaban,
+          SUM(CASE WHEN j.jawaban_siswa IS NOT NULL AND TRIM(j.jawaban_siswa) != '' THEN 1 ELSE 0 END) as total_terisi,
+          CAST(ROUND((julianday('now') - julianday(COALESCE(p.last_active_at, p.started_at))) * 86400) AS INTEGER) as detik_inaktif,
+          CAST(ROUND((julianday('now') - julianday(p.started_at)) * 1440) AS INTEGER) as menit_berjalan
+        FROM pengerjaan p
+        JOIN ulangan u ON p.ulangan_id = u.id
+        JOIN peserta pes ON p.peserta_id = pes.id
+        LEFT JOIN jawaban j ON p.id = j.pengerjaan_id
+        WHERE p.status = 'mengerjakan'
+          AND (? IS NULL OR p.ulangan_id = ?)
+        GROUP BY p.id
+      `).all(ulanganId, ulanganId);
+
+      const deletedSessions = [];
+      const autoSubmittedSessions = [];
+
+      for (const row of candidates) {
+        const totalTerisi = Number(row.total_terisi || 0);
+        const detikInaktif = Number(row.detik_inaktif || 0);
+        const menitBerjalan = Number(row.menit_berjalan || 0);
+        const durasiMenit = Number(row.durasi_menit || 0);
+
+        // Sesi DC > 1 jam: pengerjaan harus sudah dimulai minimal 60 menit lalu DAN (offline atau inaktif > 3600 detik)
+        const isDcOver1Hour = (menitBerjalan >= 60) && (
+          (row.last_active_at && String(row.last_active_at).startsWith('2000-01-01')) || detikInaktif >= 3600
+        );
+        const isPastDuration = (durasiMenit > 0 && menitBerjalan > durasiMenit); // Melewati durasi pengerjaan ulangan
+
+        // KASUS 1: Jawabannya KOSONG (0 terisi) DAN (DC > 1 jam ATAU waktu durasi pengerjaan telah habis)
+        // -> HAPUS pengerjaan dan peserta, jangan disimpan sebagai sampah data
+        if (totalTerisi === 0 && (isDcOver1Hour || isPastDuration)) {
+          const deleteTx = db.transaction(() => {
+            db.prepare('DELETE FROM jawaban WHERE pengerjaan_id = ?').run(row.pengerjaan_id);
+            db.prepare('DELETE FROM pengerjaan WHERE id = ?').run(row.pengerjaan_id);
+            const otherCount = db.prepare('SELECT COUNT(*) as cnt FROM pengerjaan WHERE peserta_id = ?').get(row.peserta_id);
+            if (!otherCount || otherCount.cnt === 0) {
+              db.prepare('DELETE FROM peserta WHERE id = ?').run(row.peserta_id);
+            }
+          });
+          deleteTx();
+          deletedSessions.push({
+            pengerjaan_id: row.pengerjaan_id,
+            nama: row.nama_siswa,
+            kelas: row.kelas_siswa,
+            alasan: isDcOver1Hour ? 'DC > 1 jam tanpa jawaban' : 'Waktu habis tanpa jawaban'
+          });
+          console.log(`[CLEANUP] Menghapus pengerjaan kosong ID ${row.pengerjaan_id} (${row.nama_siswa} - ${row.kelas_siswa}) karena ${isDcOver1Hour ? 'DC > 1 jam' : 'durasi habis'} dengan 0 jawaban.`);
+        }
+        // KASUS 2: Jawabannya SUDAH ADA YANG TERISI, namun waktu ujian telah habis atau DC > 1 jam
+        // -> Otomatis finalisasi / submit agar siswa tidak menggantung di DC mengerjakan
+        else if (totalTerisi > 0 && (isPastDuration || isDcOver1Hour)) {
+          const nowIso = new Date().toISOString();
+          db.prepare(`
+            UPDATE pengerjaan
+            SET status = 'submitted', submitted_at = ?, auto_submitted = 1
+            WHERE id = ?
+          `).run(nowIso, row.pengerjaan_id);
+          autoSubmittedSessions.push({
+            pengerjaan_id: row.pengerjaan_id,
+            nama: row.nama_siswa,
+            kelas: row.kelas_siswa,
+            terisi: totalTerisi
+          });
+          console.log(`[AUTO-FINALIZE] Memfinalisasi submit otomatis ID ${row.pengerjaan_id} (${row.nama_siswa} - ${row.kelas_siswa}) dengan ${totalTerisi} jawaban terisi.`);
+        }
+      }
+
+      return {
+        success: true,
+        deleted: deletedSessions,
+        autoSubmitted: autoSubmittedSessions
+      };
+    } catch (err) {
+      console.error('[CLEANUP ERROR] Gagal membersihkan sesi kedaluwarsa:', err.message);
+      return { success: false, error: err.message };
+    }
+  },
+
   // Finalisasi pengerjaan siswa terputus (DC) oleh guru (Force Submit)
   forceSubmitByGuru(pengerjaanId, guruId) {
     if (!pengerjaanId) throw new Error('ID pengerjaan tidak valid');

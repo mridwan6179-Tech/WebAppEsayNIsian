@@ -247,15 +247,24 @@
       </div>
 
       <!-- Modal Konfirmasi Selesai Ujian -->
-      <div id="modal-confirm-submit" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div id="modal-confirm-submit" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 sm:p-6 space-y-4 border border-slate-100 transform transition-all animate-in fade-in zoom-in-95 duration-150">
           <div class="flex items-start space-x-3">
-            <div class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 text-2xl font-bold shadow-2xs">
-              ✓
+            <div class="w-11 h-11 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 text-xl font-bold shadow-2xs">
+              📤
             </div>
             <div>
-              <h3 class="text-base sm:text-lg font-bold text-slate-900 leading-snug">Konfirmasi Penyelesaian Ujian</h3>
-              <p class="text-xs text-slate-500 mt-0.5">Apakah Anda yakin ingin menyelesaikan dan mengumpulkan ujian ini sekarang?</p>
+              <h3 class="text-base sm:text-lg font-bold text-slate-900 leading-snug">Kumpulkan Lembar Ujian?</h3>
+              <p class="text-xs text-slate-500 mt-0.5">Pastikan semua soal telah Anda periksa sebelum dikirimkan ke guru.</p>
+            </div>
+          </div>
+
+          <!-- Peringatan Tegas: Belum Terkirim -->
+          <div class="bg-amber-50 border border-amber-200 text-amber-900 p-3 rounded-xl text-xs flex items-start space-x-2.5">
+            <span class="text-base shrink-0">⚠️</span>
+            <div>
+              <strong class="block font-bold text-amber-950">Langkah Terakhir: Jawaban Belum Terkirim!</strong>
+              <span class="text-amber-800 text-[11px] leading-relaxed block mt-0.5">Tekan tombol hijau <strong>"Ya, Kirim Jawaban Sekarang"</strong> di bawah untuk menyerahkan lembar ujian Anda secara resmi ke guru.</span>
             </div>
           </div>
 
@@ -282,16 +291,16 @@
           </div>
 
           <p class="text-[11px] text-slate-400 italic leading-relaxed">
-            Catatan: Setelah dikumpulkan, lembar ujian akan dikunci dan seluruh jawaban Anda diserahkan secara permanen ke guru.
+            Catatan: Setelah dikumpulkan, lembar ujian akan dikunci dan seluruh jawaban diserahkan secara permanen.
           </p>
 
-          <div class="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2 border-t border-slate-100">
-            <button type="button" id="btn-cancel-confirm-submit" class="w-full sm:w-auto px-4 py-2.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer text-center">
-              Periksa Kembali
+          <div class="flex flex-col gap-2 pt-2 border-t border-slate-100">
+            <button type="button" id="btn-proceed-confirm-submit" class="w-full py-3 px-5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer flex items-center justify-center space-x-2">
+              <span>🚀</span>
+              <span>Ya, Kirim Jawaban Sekarang</span>
             </button>
-            <button type="button" id="btn-proceed-confirm-submit" class="w-full sm:w-auto px-5 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer flex items-center justify-center space-x-1.5">
-              <span>Ya, Kumpulkan Ujian</span>
-              <span>→</span>
+            <button type="button" id="btn-cancel-confirm-submit" class="w-full py-2.5 px-4 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer text-center">
+              ← Kembali Periksa Jawaban
             </button>
           </div>
         </div>
@@ -1529,7 +1538,7 @@
         const card = document.createElement('div');
         card.className = 'bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm border border-slate-200 space-y-2.5';
         card.dataset.nomorSoal = idx + 1;
-        card.dataset.soalId = s.id;
+        card.dataset.cardSoalId = s.id;
 
         const isEssay = s.jenis === 'essay';
         const canShowListeningText = (s.tampilkan_teks_listening !== null && s.tampilkan_teks_listening !== undefined)
@@ -1708,7 +1717,7 @@
         }
       } catch (e) {}
 
-      container.querySelectorAll('[data-soal-id]').forEach(input => {
+      container.querySelectorAll('input[data-soal-id], textarea[data-soal-id]').forEach(input => {
         const sId = input.dataset.soalId;
         // Cek dari server data soal
         const soalItem = data.soal.find(s => String(s.id) === String(sId));
@@ -1726,11 +1735,11 @@
       const syncDraftToServer = () => {
         if (!currentPengerjaanId || isSubmitting) return;
         const answersPayload = [];
-        container.querySelectorAll('[data-soal-id]').forEach(input => {
+        container.querySelectorAll('input[data-soal-id], textarea[data-soal-id]').forEach(input => {
           const sId = Number(input.dataset.soalId);
           answersPayload.push({
             soal_id: sId,
-            jawaban_siswa: input.value,
+            jawaban_siswa: input.value || '',
             paste_count: pasteDetailsMap[sId] || 0
           });
         });
@@ -1749,8 +1758,8 @@
       const saveDraft = () => {
         if (!currentPengerjaanId) return;
         const drafts = {};
-        container.querySelectorAll('[data-soal-id]').forEach(input => {
-          drafts[input.dataset.soalId] = input.value;
+        container.querySelectorAll('input[data-soal-id], textarea[data-soal-id]').forEach(input => {
+          drafts[input.dataset.soalId] = input.value || '';
         });
         try {
           localStorage.setItem(draftKey, JSON.stringify(drafts));
@@ -1804,13 +1813,18 @@
         if (savedDraftStr) savedDraftObj = JSON.parse(savedDraftStr);
       } catch (e) {}
 
-      const inputs = document.querySelectorAll('#questions-container [data-soal-id]');
-      const total = inputs.length;
+      const inputs = document.querySelectorAll('#questions-container input[data-soal-id], #questions-container textarea[data-soal-id]');
+      const seenIds = new Set();
+      let total = 0;
       let filled = 0;
 
       inputs.forEach(input => {
         const sId = Number(input.dataset.soalId);
-        const textVal = (input.value || '').trim() || (savedDraftObj[sId] ? String(savedDraftObj[sId]).trim() : '');
+        if (!sId || seenIds.has(sId)) return;
+        seenIds.add(sId);
+        total++;
+        const rawVal = (input.value !== undefined && input.value !== null) ? String(input.value) : '';
+        const textVal = rawVal.trim() || (savedDraftObj[sId] ? String(savedDraftObj[sId]).trim() : '');
         if (textVal !== '') filled++;
       });
 
@@ -1850,98 +1864,97 @@
       closeConfirmSubmitModal();
       doSubmit(false);
     });
-    document.getElementById('modal-confirm-submit')?.addEventListener('click', (e) => {
-      if (e.target.id === 'modal-confirm-submit') closeConfirmSubmitModal();
-    });
 
     async function doSubmit(isAutoSubmit = false) {
       if (isSubmitting && !isAutoSubmit) return;
       isSubmitting = true;
 
-      closeConfirmSubmitModal();
-
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-      document.querySelectorAll('audio').forEach(a => { if (!a.paused) a.pause(); });
-      clearTimeout(syncServerTimer);
-      stopHeartbeat();
-
-      if (countdownInterval) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-      }
-
-      const overlay = document.getElementById('submit-loading-overlay');
-      if (overlay) {
-        if (!isAutoSubmit) {
-          const titleEl = document.getElementById('submit-overlay-title');
-          const descEl = document.getElementById('submit-overlay-desc');
-          if (titleEl) titleEl.textContent = 'Mengumpulkan Jawaban...';
-          if (descEl) descEl.textContent = 'Menyimpan seluruh jawaban Anda ke server secara aman. Mohon tunggu sebentar...';
-        }
-        overlay.classList.remove('hidden');
-      }
-
-      const btn = document.getElementById('btn-submit');
-      if (btn) {
-        btn.disabled = true;
-        btn.textContent = isAutoSubmit ? 'Mengumpulkan Otomatis...' : 'Mengumpulkan...';
-      }
-
-      // Kumpulkan draft dari localStorage sebagai fallback proteksi jawaban kosong
-      const draftKey = `ulangan_draft_${currentPengerjaanId}`;
-      let savedDraftObj = {};
       try {
-        const savedDraftStr = localStorage.getItem(draftKey);
-        if (savedDraftStr) savedDraftObj = JSON.parse(savedDraftStr);
-      } catch (e) {}
+        closeConfirmSubmitModal();
 
-      const inputs = document.querySelectorAll('[data-soal-id]');
-      const jawaban = [];
-      const collectedIds = new Set();
-
-      inputs.forEach(input => {
-        const sId = Number(input.dataset.soalId);
-        collectedIds.add(sId);
-        const textVal = input.value.trim() || (savedDraftObj[sId] ? String(savedDraftObj[sId]).trim() : '');
-        jawaban.push({
-          soal_id: sId,
-          jawaban_siswa: textVal,
-          paste_count: pasteDetailsMap[sId] || 0
-        });
-      });
-
-      // Fallback darurat: jika DOM inputs kosong saat auto-submit dipanggil cepat, ambil langsung dari savedDraftObj
-      if (jawaban.length === 0 && savedDraftObj && Object.keys(savedDraftObj).length > 0) {
-        for (const [sId, text] of Object.entries(savedDraftObj)) {
-          const numId = Number(sId);
-          jawaban.push({
-            soal_id: numId,
-            jawaban_siswa: String(text || '').trim(),
-            paste_count: pasteDetailsMap[numId] || 0
-          });
+        if (window.speechSynthesis) {
+          window.speechSynthesis.cancel();
         }
-      }
+        document.querySelectorAll('audio').forEach(a => { if (!a.paused) a.pause(); });
+        clearTimeout(syncServerTimer);
+        stopHeartbeat();
 
-      // Guard Frontend: Jika submit manual dan semua jawaban masih kosong, batalkan tanpa kirim ke server
-      if (!isAutoSubmit) {
-        const hasAnyFilled = jawaban.some(j => j.jawaban_siswa && j.jawaban_siswa.trim() !== '');
-        if (!hasAnyFilled) {
-          if (overlay) overlay.classList.add('hidden');
-          alert('⚠️ Kamu belum mengisi jawaban apapun.\n\nSilakan isi jawaban terlebih dahulu sebelum mengumpulkan.\nJika ingin keluar, tutup saja tab ini — ulangan kamu tidak akan dikirim.');
-          if (btn) {
-            btn.disabled = false;
-            btn.textContent = 'Kumpulkan Jawaban';
+        if (countdownInterval) {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
+        }
+
+        const overlay = document.getElementById('submit-loading-overlay');
+        if (overlay) {
+          if (!isAutoSubmit) {
+            const titleEl = document.getElementById('submit-overlay-title');
+            const descEl = document.getElementById('submit-overlay-desc');
+            if (titleEl) titleEl.textContent = 'Mengumpulkan Jawaban...';
+            if (descEl) descEl.textContent = 'Menyimpan seluruh jawaban Anda ke server secara aman. Mohon tunggu sebentar...';
           }
-          isSubmitting = false;
-          return;
+          overlay.classList.remove('hidden');
         }
-      }
 
-      try {
+        const btn = document.getElementById('btn-submit');
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = isAutoSubmit ? 'Mengumpulkan Otomatis...' : 'Mengumpulkan...';
+        }
+
+        // Kumpulkan draft dari localStorage sebagai fallback proteksi jawaban kosong
+        const draftKey = `ulangan_draft_${currentPengerjaanId}`;
+        let savedDraftObj = {};
+        try {
+          const savedDraftStr = localStorage.getItem(draftKey);
+          if (savedDraftStr) savedDraftObj = JSON.parse(savedDraftStr);
+        } catch (e) {}
+
+        const inputs = document.querySelectorAll('#questions-container input[data-soal-id], #questions-container textarea[data-soal-id], input[data-soal-id], textarea[data-soal-id]');
+        const jawaban = [];
+        const collectedIds = new Set();
+
+        inputs.forEach(input => {
+          const sId = Number(input.dataset.soalId);
+          if (!sId || collectedIds.has(sId)) return;
+          collectedIds.add(sId);
+          const rawVal = (input.value !== undefined && input.value !== null) ? String(input.value) : '';
+          const textVal = rawVal.trim() || (savedDraftObj[sId] ? String(savedDraftObj[sId]).trim() : '');
+          jawaban.push({
+            soal_id: sId,
+            jawaban_siswa: textVal,
+            paste_count: pasteDetailsMap[sId] || 0
+          });
+        });
+
+        // Fallback darurat: jika DOM inputs kosong saat auto-submit dipanggil cepat, ambil langsung dari savedDraftObj
+        if (jawaban.length === 0 && savedDraftObj && Object.keys(savedDraftObj).length > 0) {
+          for (const [sId, text] of Object.entries(savedDraftObj)) {
+            const numId = Number(sId);
+            jawaban.push({
+              soal_id: numId,
+              jawaban_siswa: String(text || '').trim(),
+              paste_count: pasteDetailsMap[numId] || 0
+            });
+          }
+        }
+
+        // Guard Frontend: Jika submit manual dan semua jawaban masih kosong, batalkan tanpa kirim ke server
+        if (!isAutoSubmit) {
+          const hasAnyFilled = jawaban.some(j => j.jawaban_siswa && j.jawaban_siswa.trim() !== '');
+          if (!hasAnyFilled) {
+            if (overlay) overlay.classList.add('hidden');
+            alert('⚠️ Kamu belum mengisi jawaban apapun.\n\nSilakan isi jawaban terlebih dahulu sebelum mengumpulkan.\nJika ingin keluar, tutup saja tab ini — ulangan kamu tidak akan dikirim.');
+            if (btn) {
+              btn.disabled = false;
+              btn.textContent = 'Kumpulkan Jawaban';
+            }
+            isSubmitting = false;
+            return;
+          }
+        }
+
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout guard
+        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout guard
 
         const res = await fetch('/api/siswa/submit', {
           method: 'POST',
@@ -1998,11 +2011,13 @@
         // Ambil rincian hasil penilaian di latar belakang secara asinkron (dengan retry aman tanpa lempar balik ke soal)
         checkResultStatusWithRetry(currentPengerjaanId, 0);
       } catch (err) {
+        const overlay = document.getElementById('submit-loading-overlay');
         if (overlay) overlay.classList.add('hidden');
         const errMsg = err.name === 'AbortError'
           ? 'Koneksi pengumpulan ke server melebihi batas waktu (timeout). Silakan periksa jaringan internet Anda dan coba tekan tombol Kumpulkan Jawaban lagi.'
           : (err.message || 'Gagal mengumpulkan');
         alert('⚠️ Gagal mengumpulkan: ' + errMsg);
+        const btn = document.getElementById('btn-submit');
         if (btn) {
           btn.disabled = false;
           btn.textContent = 'Kumpulkan Jawaban';

@@ -1,11 +1,19 @@
 const db = require('../config/database');
 const examService = require('./examService');
+const studentService = require('./studentService');
 
 const reviewService = {
   // Ambil daftar seluruh siswa/pengerjaan pada suatu ulangan
   getPengerjaanListByUlangan(ulanganId, guruId) {
     const ulangan = db.prepare('SELECT id, zona_waktu FROM ulangan WHERE id = ? AND guru_id = ?').get(ulanganId, guruId);
     if (!ulangan) throw new Error('Ulangan tidak ditemukan atau bukan milik guru ini');
+
+    // Bersihkan sesi DC kosong (>1 jam atau lewat durasi) dan auto-submit sesi terisi yang kedaluwarsa
+    try {
+      studentService.cleanAbandonedSessions(ulanganId);
+    } catch (cleanErr) {
+      console.warn('[CLEANUP WARN]', cleanErr.message);
+    }
 
     const rows = db.prepare(`
       SELECT 
