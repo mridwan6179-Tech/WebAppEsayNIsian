@@ -72,7 +72,7 @@ const reviewService = {
 
     const zona_waktu = ulangan.zona_waktu || 'WIB';
 
-    return rows.map(r => {
+    const result = rows.map(r => {
       // Pastikan total_jawaban mencerminkan kuota soal unik pengerjaan siswa
       let total_jawaban = r.total_jawaban || 0;
       let parsedSoalIds = [];
@@ -235,6 +235,32 @@ const reviewService = {
         ai_alert_soal_nomor,
         ai_alert_summary
       };
+    });
+
+    // Urutan prioritas tampilan dashboard guru:
+    // 1. Sedang aktif mengerjakan (teratas)
+    // 2. Terputus koneksi / DC
+    // 3. Sudah submit tapi belum dinilai / belum direview
+    // 4. Sudah dinilai namun belum dirilis
+    // 5. Sudah dirilis (terbawah)
+    return result.sort((a, b) => {
+      const getRank = (item) => {
+        if (item.status !== 'submitted') {
+          return item.status_kehadiran === 'aktif' ? 1 : 2;
+        }
+        if (item.released_at) return 5;
+        const isReviewed = (item.total_dinilai >= item.total_jawaban) && (item.nilai_final !== null && item.nilai_final !== undefined);
+        return isReviewed ? 4 : 3;
+      };
+
+      const rankA = getRank(a);
+      const rankB = getRank(b);
+      if (rankA !== rankB) return rankA - rankB;
+
+      const kelasComp = (a.kelas_siswa || '').localeCompare(b.kelas_siswa || '', 'id', { sensitivity: 'base' });
+      if (kelasComp !== 0) return kelasComp;
+
+      return (a.nama_siswa || '').localeCompare(b.nama_siswa || '', 'id', { sensitivity: 'base' });
     });
   },
 

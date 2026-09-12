@@ -701,7 +701,8 @@
                 <div class="flex items-center space-x-1.5 flex-1 sm:flex-initial">
                   <label for="sort-peserta" class="text-[11px] font-semibold text-slate-600 shrink-0">Urutkan:</label>
                   <select id="sort-peserta" class="w-full sm:w-auto px-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white font-medium text-slate-700 focus:ring-1 focus:ring-blue-500">
-                    <option value="nama_asc" selected>Nama Siswa (A-Z Teratas)</option>
+                    <option value="status_prioritas" selected>Status Prioritas (Aktif &rarr; DC &rarr; Belum Review &rarr; Rilis)</option>
+                    <option value="nama_asc">Nama Siswa (A-Z Teratas)</option>
                     <option value="nama_desc">Nama Siswa (Z-A)</option>
                     <option value="nilai_desc">Nilai Final (Tertinggi)</option>
                     <option value="nilai_asc">Nilai Final (Terendah)</option>
@@ -4063,8 +4064,30 @@
       });
 
       // Sorting
-      const sortType = sortPesertaEl?.value || 'nama_asc';
+      const sortType = sortPesertaEl?.value || 'status_prioritas';
       filtered.sort((a, b) => {
+        if (sortType === 'status_prioritas') {
+          const getRank = (item) => {
+            // Rank 1: Sedang Aktif mengerjakan
+            if (item.status !== 'submitted') {
+              return item.status_kehadiran === 'aktif' ? 1 : 2;
+            }
+            // Rank 5: Sudah dirilis (terbawah)
+            if (item.released_at) return 5;
+            // Rank 3 vs 4: Belum direview vs sudah dinilai tapi belum dirilis
+            const isReviewed = (item.total_dinilai >= item.total_jawaban) && (item.nilai_final !== null && item.nilai_final !== undefined);
+            return isReviewed ? 4 : 3;
+          };
+
+          const rankA = getRank(a);
+          const rankB = getRank(b);
+          if (rankA !== rankB) return rankA - rankB;
+
+          const kelasComp = (a.kelas_siswa || '').localeCompare(b.kelas_siswa || '', 'id', { sensitivity: 'base' });
+          if (kelasComp !== 0) return kelasComp;
+
+          return (a.nama_siswa || '').localeCompare(b.nama_siswa || '', 'id', { sensitivity: 'base' });
+        }
         if (sortType === 'nama_asc') {
           return (a.nama_siswa || '').localeCompare(b.nama_siswa || '', 'id', { sensitivity: 'base' });
         }

@@ -285,6 +285,70 @@ test('Deteksi Status Kehadiran Siswa (Aktif vs DC) & Review AI Perorangan', asyn
     const pFinal = db.prepare('SELECT status FROM pengerjaan WHERE id = ?').get(sDraft.pengerjaanId);
     assert.strictEqual(pFinal.status, 'submitted', 'Status pengerjaan harus otomatis beralih ke submitted');
   });
+
+  await t.test('14. Prioritas Urutan Siswa di Dashboard Guru: Aktif -> DC -> Belum Review -> Belum Rilis -> Sudah Rilis', async () => {
+    // Buat ulangan khusus untuk verifikasi urutan
+    const uOrder = examService.createUlangan(guru.id, {
+      judul: 'Ulangan Urutan Prioritas',
+      mata_pelajaran: 'Informatika',
+      durasi_menit: 60
+    });
+    examService.updateUlangan(uOrder.id, guru.id, { status: 'dibuka' });
+    const sSoal = examService.createSoal(uOrder.id, {
+      pertanyaan: 'Soal urutan 1',
+      jenis: 'essay',
+      kunci_jawaban: 'Jawaban benar',
+      bobot: 10
+    });
+
+    // 1. Siswa Sudah Rilis (Urutan Rank 5 - terbawah)
+    const sRilis = studentService.startExam(uOrder.kode_ujian, 'Zulfa Sudah Rilis', '9A');
+    studentService.submitExam(sRilis.pengerjaanId, [{ soal_id: sSoal.id, jawaban_siswa: 'Kumpul' }]);
+    db.prepare("UPDATE pengerjaan SET nilai_ai = 100, nilai_final = 100, released_at = datetime('now') WHERE id = ?").run(sRilis.pengerjaanId);
+    db.prepare("UPDATE jawaban SET status_penilaian = 'selesai' WHERE pengerjaan_id = ?").run(sRilis.pengerjaanId);
+
+    // 2. Siswa Belum Rilis tapi Sudah Review (Urutan Rank 4)
+    const sBelumRilis = studentService.startExam(uOrder.kode_ujian, 'Yanto Sudah Dinilai Belum Rilis', '9A');
+    studentService.submitExam(sBelumRilis.pengerjaanId, [{ soal_id: sSoal.id, jawaban_siswa: 'Kumpul' }]);
+    db.prepare("UPDATE pengerjaan SET nilai_ai = 80, nilai_final = 80, released_at = NULL WHERE id = ?").run(sBelumRilis.pengerjaanId);
+    db.prepare("UPDATE jawaban SET status_penilaian = 'selesai' WHERE pengerjaan_id = ?").run(sBelumRilis.pengerjaanId);
+
+    // 3. Siswa Belum di-Review / Belum Dinilai (Urutan Rank 3)
+    const sBelumReview = studentService.startExam(uOrder.kode_ujian, 'Xavier Belum Dinilai', '9A');
+    studentService.submitExam(sBelumReview.pengerjaanId, [{ soal_id: sSoal.id, jawaban_siswa: 'Kumpul' }]);
+    db.prepare("UPDATE pengerjaan SET nilai_ai = NULL, nilai_final = NULL, released_at = NULL WHERE id = ?").run(sBelumReview.pengerjaanId);
+
+    // 4. Siswa DC / Terputus (Urutan Rank 2)
+    const sDc = studentService.startExam(uOrder.kode_ujian, 'Wawan Terputus DC', '9A');
+    db.prepare("UPDATE pengerjaan SET last_active_at = datetime('now', '-10 minutes') WHERE id = ?").run(sDc.pengerjaanId);
+
+    // 5. Siswa Aktif Mengerjakan (Urutan Rank 1 - teratas)
+    const sAktif = studentService.startExam(uOrder.kode_ujian, 'Anton Aktif Mengerjakan', '9A');
+    studentService.recordPing(sAktif.pengerjaanId, 'active');
+
+    // Ambil daftar peserta dari reviewService
+    const list = reviewService.getPengerjaanListByUlangan(uOrder.id, guru.id);
+    assert.strictEqual(list.length, 5, 'Harus ada 5 peserta terdaftar');
+
+    // Cek urutan pengerjaan ID sesuai prioritas
+    assert.strictEqual(list[0].pengerjaan_id, sAktif.pengerjaanId, 'Rank 1: Siswa Aktif harus berada di urutan teratas (indeks 0)');
+    assert.strictEqual(list[0].status_kehadiran, 'aktif');
+
+    assert.strictEqual(list[1].pengerjaan_id, sDc.pengerjaanId, 'Rank 2: Siswa DC harus berada di urutan kedua (indeks 1)');
+    assert.strictEqual(list[1].status_kehadiran, 'dc');
+
+    assert.strictEqual(list[2].pengerjaan_id, sBelumReview.pengerjaanId, 'Rank 3: Siswa Belum Dinilai/Review harus di urutan ketiga (indeks 2)');
+    assert.strictEqual(list[2].status, 'submitted');
+    assert.strictEqual(list[2].released_at, null);
+
+    assert.strictEqual(list[3].pengerjaan_id, sBelumRilis.pengerjaanId, 'Rank 4: Siswa Dinilai Belum Dirilis harus di urutan keempat (indeks 3)');
+    assert.strictEqual(list[3].status, 'submitted');
+    assert.strictEqual(list[3].released_at, null);
+
+    assert.strictEqual(list[4].pengerjaan_id, sRilis.pengerjaanId, 'Rank 5: Siswa Sudah Dirilis harus berada di urutan terbawah (indeks 4)');
+    assert.ok(list[4].released_at !== null, 'Siswa kelima sudah dirilis');
+  });
 });
+
 
 
