@@ -56,6 +56,39 @@ test('T-10: Fitur AI Soal Generator (Pembuat Soal, Kunci Jawaban, Rubrik & Bobot
     assert.ok(normalized.every(q => q.pertanyaan && q.kunci_jawaban && q.rubrik));
   });
 
+  await t.test('2.2 Normalisasi Kategori Guru vs Sub-Topik AI Generator', () => {
+    const rawQuestions = [
+      {
+        kategori: 'Koding dan AI - Perintah Salin dan Pindah Data (Copy, Cut, Paste)',
+        sub_topik: 'Analisis Kasus Penggunaan Copy vs Cut',
+        pertanyaan: 'Jelaskan perbedaan mendasar fungsi Copy dan Cut!',
+        jenis: 'essay',
+        bobot: 15
+      },
+      {
+        kategori: 'Koding dan AI - Tombol Shortcut Keyboard',
+        pertanyaan: 'Sebutkan kombinasi tombol untuk Paste!',
+        jenis: 'isian',
+        bobot: 10
+      }
+    ];
+
+    // Guru memilih kategori 'Koding Dan AI Pertemuan 1-4'
+    const normalizedWithTeacherCat = geminiService.normalizeGeneratedQuestions(rawQuestions, 25, {
+      kategori: 'Koding Dan AI Pertemuan 1-4'
+    });
+
+    assert.strictEqual(normalizedWithTeacherCat.length, 2);
+    // Seluruh soal harus berinduk ke kategori yang dipilih guru
+    assert.strictEqual(normalizedWithTeacherCat[0].kategori, 'Koding Dan AI Pertemuan 1-4');
+    assert.strictEqual(normalizedWithTeacherCat[1].kategori, 'Koding Dan AI Pertemuan 1-4');
+
+    // Sub-topik spesifik AI tetap terjaga rapi
+    assert.strictEqual(normalizedWithTeacherCat[0].sub_topik, 'Analisis Kasus Penggunaan Copy vs Cut');
+    // Jika sub_topik kosong tapi AI membuat kategori spesifik, dialihkan ke sub_topik
+    assert.strictEqual(normalizedWithTeacherCat[1].sub_topik, 'Koding dan AI - Tombol Shortcut Keyboard');
+  });
+
   await t.test('3. Generator Fallback Offline Menghasilkan Paket Soal Lengkap', async () => {
     const result = await geminiService.generateQuestions({
       mode: 'topik',

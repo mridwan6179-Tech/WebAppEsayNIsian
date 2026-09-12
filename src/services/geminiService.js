@@ -820,6 +820,10 @@ Total paket terdiri dari ${jumlah_soal} butir soal:
 `;
     }
 
+    const masterCategoryInstruction = (options.kategori && typeof options.kategori === 'string' && options.kategori.trim())
+      ? `\n6. Kategori Pokok / Bab Acuan: "${options.kategori.trim()}". Seluruh butir soal WAJIB berinduk pada kategori pokok ini pada field "kategori". Jika ada bahasan lebih spesifik, tuliskan pada field "sub_topik".`
+      : '';
+
     return `
 Anda adalah konsultan kurikulum dan pembuat soal ujian profesional yang bertugas membantu guru membuat paket soal ulangan beserta kunci jawaban acuan, rubrik/pembahasan konsep, dan pembobotan.
 
@@ -828,14 +832,14 @@ PARAMETER PEMBUATAN SOAL:
 2. Jumlah Soal: Tepat ${jumlah_soal} butir soal.
 3. Tipe Soal: ${tipeDeskripsi}
 4. Tingkat Kesulitan: ${tingkat_kesulitan}
-5. Target Total Akumulasi Bobot: ${target_total_bobot} (Distribusikan bobot ke setiap soal secara adil dan bulat, misalnya soal essay berbobot lebih tinggi, sehingga total seluruh soal tepat = ${target_total_bobot}).
+5. Target Total Akumulasi Bobot: ${target_total_bobot} (Distribusikan bobot ke setiap soal secara adil dan bulat, misalnya soal essay berbobot lebih tinggi, sehingga total seluruh soal tepat = ${target_total_bobot}).${masterCategoryInstruction}
 ${bentukSoalInstruction}
 ${listeningInstructions}
 ${sumberDeskripsi}
 ${antiDuplikasiInstructions}
 
 KOMPONEN WAJIB TIAP BUTIR SOAL:
-- "kategori": Kategori pokok atau nama bab/mata pelajaran dari butir soal ini (WAJIB diisi ringkas, spesifik & presisi sesuai materi/topik, misal: "Bahasa Inggris - Tenses", "Biologi - Fotosintesis", "Matematika - Aljabar", "Fisika - Termodinamika", "Listening Comprehension", dll. Jangan gunakan kata umum "Umum").
+- "kategori": ${(options.kategori && typeof options.kategori === 'string' && options.kategori.trim()) ? `Wajib gunakan nama kategori acuan guru: "${options.kategori.trim()}".` : 'Kategori pokok atau nama bab/mata pelajaran dari butir soal ini (WAJIB diisi ringkas, spesifik & presisi sesuai materi/topik, misal: "Bahasa Inggris - Tenses", "Biologi - Fotosintesis", "Matematika - Aljabar", "Fisika - Termodinamika", "Listening Comprehension", dll. Jangan gunakan kata umum "Umum").'}
 - "sub_topik": Sub-topik materi spesifik yang dibahas dalam butir soal ini (misal: "Present Perfect", "Reaksi Terang", "Persamaan Linier").
 - "pertanyaan": Kalimat soal yang jelas, akademis, dan kontekstual. Pertanyaan dapat berupa pertanyaan langsung maupun SOAL CERITA / STUDI KASUS naratif yang panjang dan kaya konteks sesuai materi. Tidak ada batasan pendek jika soal memerlukan narasi cerita pengantar. Jika berkaitan dengan rumus matematika, gunakan notasi LaTeX (misal: $x^2 - 4x + 4 = 0$).
 - "jenis": Tuliskan "isian" atau "essay"${isCustomBreakdown ? ` (Wajib tepat menghasilkan ${jumlah_isian} butir "isian" dan ${jumlah_essay} butir "essay")` : ''}.
@@ -878,20 +882,39 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
 
     const defaultListening = options.is_listening ? 1 : 0;
     const defaultBahasa = options.bahasa || (defaultListening ? 'Bahasa Inggris' : null);
+    const teacherCategory = (options.kategori && typeof options.kategori === 'string' && options.kategori.trim())
+      ? options.kategori.trim()
+      : null;
     const rawTopic = options.input_sumber && typeof options.input_sumber === 'string'
       ? options.input_sumber.split('\n')[0].replace(/[^a-zA-Z0-9\s-]/g, '').trim()
       : '';
-    const defaultKategori = rawTopic
+    const fallbackKategori = rawTopic
       ? (rawTopic.length > 35 ? rawTopic.substring(0, 32) + '...' : rawTopic)
       : (defaultListening ? 'Listening Comprehension' : 'Materi Pembelajaran');
+    const defaultKategori = teacherCategory || fallbackKategori;
 
     let sanitized = questions.map((q, idx) => {
       const itemIsListening = (q.is_listening !== undefined) ? (q.is_listening ? 1 : 0) : defaultListening;
+
+      // Jika guru sudah menentukan kategori induk (options.kategori), prioritaskan kategori pilihan guru tersebut.
+      // Topik/sub-topik spesifik dari AI dialihkan ke sub_topik agar Bank Soal guru tetap rapi dan tidak terpecah-pecah.
+      let itemKategori = defaultKategori;
+      let itemSubTopik = (q.sub_topik && String(q.sub_topik).trim()) ? String(q.sub_topik).trim() : null;
+
+      if (teacherCategory) {
+        itemKategori = teacherCategory;
+        if (q.kategori && String(q.kategori).trim() && String(q.kategori).trim().toLowerCase() !== teacherCategory.toLowerCase()) {
+          if (!itemSubTopik) {
+            itemSubTopik = String(q.kategori).trim();
+          }
+        }
+      } else if (q.kategori && String(q.kategori).trim() && String(q.kategori).trim().toLowerCase() !== 'umum') {
+        itemKategori = String(q.kategori).trim();
+      }
+
       return {
-        kategori: (q.kategori && String(q.kategori).trim() && String(q.kategori).trim().toLowerCase() !== 'umum') 
-          ? String(q.kategori).trim() 
-          : defaultKategori,
-        sub_topik: (q.sub_topik && String(q.sub_topik).trim()) ? String(q.sub_topik).trim() : null,
+        kategori: itemKategori,
+        sub_topik: itemSubTopik,
         pertanyaan: q.pertanyaan || `Soal nomor ${idx + 1}`,
         jenis: (q.jenis || '').toLowerCase().includes('isian') ? 'isian' : 'essay',
         bobot: Math.max(1, Math.round(Number(q.bobot) || 10)),
