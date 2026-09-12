@@ -471,7 +471,16 @@ const reviewService = {
     const cleanKelas = (kelasFilter && String(kelasFilter).trim() !== '') ? String(kelasFilter).trim() : null;
 
     if (isReleased) {
+      const nowIso = new Date().toISOString();
       if (cleanKelas) {
+        db.prepare(`
+          UPDATE pengerjaan 
+          SET status = 'submitted', submitted_at = COALESCE(submitted_at, ?), auto_submitted = 1
+          WHERE ulangan_id = ? AND status = 'mengerjakan'
+            AND id IN (SELECT DISTINCT pengerjaan_id FROM jawaban WHERE TRIM(COALESCE(jawaban_siswa, '')) != '')
+            AND peserta_id IN (SELECT id FROM peserta WHERE LOWER(kelas) = LOWER(?))
+        `).run(nowIso, ulanganId, cleanKelas);
+
         db.prepare(`
           UPDATE pengerjaan 
           SET released_at = CURRENT_TIMESTAMP 
@@ -479,6 +488,13 @@ const reviewService = {
             AND peserta_id IN (SELECT id FROM peserta WHERE LOWER(kelas) = LOWER(?))
         `).run(ulanganId, cleanKelas);
       } else {
+        db.prepare(`
+          UPDATE pengerjaan 
+          SET status = 'submitted', submitted_at = COALESCE(submitted_at, ?), auto_submitted = 1
+          WHERE ulangan_id = ? AND status = 'mengerjakan'
+            AND id IN (SELECT DISTINCT pengerjaan_id FROM jawaban WHERE TRIM(COALESCE(jawaban_siswa, '')) != '')
+        `).run(nowIso, ulanganId);
+
         db.prepare(`
           UPDATE pengerjaan 
           SET released_at = CURRENT_TIMESTAMP 
@@ -519,12 +535,21 @@ const reviewService = {
 
     if (isReleased) {
       if (pengerjaan.status !== 'submitted') {
-        throw new Error(`Nilai siswa ${pengerjaan.nama_siswa} belum dapat dirilis karena ujian belum dikumpulkan`);
+        const countJawaban = db.prepare("SELECT COUNT(*) as count FROM jawaban WHERE pengerjaan_id = ? AND TRIM(COALESCE(jawaban_siswa, '')) != ''").get(pengerjaanId)?.count || 0;
+        if (countJawaban === 0) {
+          throw new Error(`Nilai siswa ${pengerjaan.nama_siswa} belum dapat dirilis karena ujian belum dikumpulkan`);
+        }
+        const nowIso = new Date().toISOString();
+        db.prepare(`
+          UPDATE pengerjaan 
+          SET status = 'submitted', submitted_at = COALESCE(submitted_at, ?), auto_submitted = 1
+          WHERE id = ?
+        `).run(nowIso, pengerjaanId);
       }
       db.prepare(`
         UPDATE pengerjaan 
         SET released_at = CURRENT_TIMESTAMP 
-        WHERE id = ? AND status = 'submitted'
+        WHERE id = ?
       `).run(pengerjaanId);
     } else {
       db.prepare(`

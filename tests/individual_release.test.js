@@ -98,4 +98,27 @@ test('Individual Student Release Test Suite', async (t) => {
       reviewService.toggleReleaseSinglePengerjaan(sB.pengerjaanId, invalidGuruId, false);
     }, /Data pengerjaan tidak ditemukan atau bukan milik guru ini/);
   });
+
+  // ── T-07: Siswa draft yang ada jawaban otomatis difinalisasi saat dirilis guru ──
+  await t.test('T-07: Otomatis finalisasi status pengerjaan draft saat guru merilis nilai', () => {
+    // Siswa D: simpan draft jawaban tapi tidak sempat klik submit (DC)
+    const sD = studentService.startExam(uDetail.kode_ujian, "Putri rif'ah", '11 IPS 1');
+    studentService.saveDraft(sD.pengerjaanId, [{ soal_id: soal.id, jawaban_siswa: 'Jawaban Draf' }]);
+
+    const pBefore = db.prepare('SELECT status, released_at FROM pengerjaan WHERE id = ?').get(sD.pengerjaanId);
+    assert.equal(pBefore.status, 'mengerjakan');
+    assert.equal(pBefore.released_at, null);
+
+    // Guru merilis nilai Siswa D
+    const res = reviewService.toggleReleaseSinglePengerjaan(sD.pengerjaanId, guru.id, true);
+    assert.equal(res.success, true);
+    assert.equal(res.isReleased, true);
+    assert.ok(res.released_at !== null);
+
+    const pAfter = db.prepare('SELECT status, released_at, auto_submitted FROM pengerjaan WHERE id = ?').get(sD.pengerjaanId);
+    assert.equal(pAfter.status, 'submitted', 'Status harus otomatis difinalisasi menjadi submitted');
+    assert.equal(pAfter.auto_submitted, 1);
+    assert.ok(pAfter.released_at !== null);
+  });
 });
+

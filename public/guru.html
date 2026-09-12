@@ -4202,12 +4202,12 @@
                      </div>`
                 )
               : (st.released_at 
-                  ? `<button type="button" onclick="toggleReleaseSingleStudent(${st.pengerjaan_id}, false, '${escapeHtml(st.nama_siswa).replace(/'/g, "\\'")}')" class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 hover:bg-rose-100 text-emerald-800 hover:text-rose-700 border border-emerald-300 hover:border-rose-300 shadow-xs transition group cursor-pointer" title="Nilai sudah dapat dilihat siswa. Klik untuk MENARIK rilis nilai siswa ini.">
+                  ? `<button type="button" onclick="toggleReleaseSingleStudent(${st.pengerjaan_id}, false)" class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 hover:bg-rose-100 text-emerald-800 hover:text-rose-700 border border-emerald-300 hover:border-rose-300 shadow-xs transition group cursor-pointer" title="Nilai sudah dapat dilihat siswa. Klik untuk MENARIK rilis nilai siswa ini.">
                       <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:bg-rose-500 mr-1.5 animate-pulse"></span>
                       <span class="group-hover:hidden">🟢 Dirilis</span>
                       <span class="hidden group-hover:inline">🔒 Tarik Rilis</span>
                      </button>`
-                  : `<button type="button" onclick="toggleReleaseSingleStudent(${st.pengerjaan_id}, true, '${escapeHtml(st.nama_siswa).replace(/'/g, "\\'")}')" class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-800 border border-slate-200 hover:border-emerald-300 transition group cursor-pointer" title="Nilai belum dirilis. Klik untuk MERILIS nilai siswa ini secara perorangan.">
+                  : `<button type="button" onclick="toggleReleaseSingleStudent(${st.pengerjaan_id}, true)" class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-800 border border-slate-200 hover:border-emerald-300 transition group cursor-pointer" title="Nilai belum dirilis. Klik untuk MERILIS nilai siswa ini secara perorangan.">
                       <span class="w-1.5 h-1.5 rounded-full bg-slate-400 group-hover:bg-emerald-500 mr-1.5"></span>
                       <span class="group-hover:hidden">🔒 Belum Dirilis</span>
                       <span class="hidden group-hover:inline">📢 Rilis Nilai</span>
@@ -4222,10 +4222,10 @@
                   <span>✨ Nilai AI</span>
                 </button>
               ` : (st.total_terisi > 0 ? `
-                <button type="button" onclick="forceSubmitAndGradeSingle(${st.pengerjaan_id}, this, '${escapeHtml(st.nama_siswa).replace(/'/g, "\\'")}', ${st.draft_lengkap ? 'true' : 'false'})" class="text-xs ${st.draft_lengkap ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold' : 'bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-semibold'} px-2 py-1 rounded transition flex items-center space-x-1 cursor-pointer" title="Kumpulkan draft jawaban siswa & langsung nilai dengan AI">
+                <button type="button" onclick="forceSubmitAndGradeSingle(${st.pengerjaan_id}, this, ${st.draft_lengkap ? 'true' : 'false'})" class="text-xs ${st.draft_lengkap ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold' : 'bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-semibold'} px-2 py-1 rounded transition flex items-center space-x-1 cursor-pointer" title="Kumpulkan draft jawaban siswa & langsung nilai dengan AI">
                   <span>✨ Nilai AI</span>
                 </button>
-                <button type="button" onclick="forceSubmitSingleStudent(${st.pengerjaan_id}, this, '${escapeHtml(st.nama_siswa).replace(/'/g, "\\'")}')" class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold px-2 py-1 rounded transition cursor-pointer" title="Kumpulkan pengerjaan draft siswa ini (Finalisasi oleh Guru)">
+                <button type="button" onclick="forceSubmitSingleStudent(${st.pengerjaan_id}, this)" class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold px-2 py-1 rounded transition cursor-pointer" title="Kumpulkan pengerjaan draft siswa ini (Finalisasi oleh Guru)">
                   <span>📥 Kumpul</span>
                 </button>
               ` : '')}
@@ -4657,7 +4657,9 @@
     };
 
     // Guru memfinalisasi pengerjaan draft siswa secara manual (Force Submit)
-    window.forceSubmitSingleStudent = async (pengerjaanId, btnEl, namaSiswa) => {
+    window.forceSubmitSingleStudent = async (pengerjaanId, btnEl, namaSiswaParam) => {
+      const found = (window.currentStudentsList || []).find(s => s.pengerjaan_id === pengerjaanId);
+      const namaSiswa = namaSiswaParam || found?.nama_siswa || 'siswa ini';
       if (!confirm(`Kumpulkan pengerjaan draft untuk "${namaSiswa}" secara resmi sekarang?`)) return;
       const originalHtml = btnEl ? btnEl.innerHTML : '';
       if (btnEl) {
@@ -4690,7 +4692,19 @@
     };
 
     // Kumpulkan draft & langsung nilai perorangan dengan AI
-    window.forceSubmitAndGradeSingle = async (pengerjaanId, btnEl, namaSiswa, isLengkap) => {
+    window.forceSubmitAndGradeSingle = async (pengerjaanId, btnEl, arg3, arg4) => {
+      const found = (window.currentStudentsList || []).find(s => s.pengerjaan_id === pengerjaanId);
+      let isLengkap = false;
+      let namaSiswa = found?.nama_siswa || 'siswa ini';
+      if (typeof arg3 === 'boolean') {
+        isLengkap = arg3;
+        if (typeof arg4 === 'string') namaSiswa = arg4;
+      } else if (typeof arg3 === 'string') {
+        namaSiswa = arg3;
+        if (typeof arg4 === 'boolean') isLengkap = arg4;
+      } else {
+        isLengkap = Boolean(found?.draft_lengkap);
+      }
       const promptText = isLengkap
         ? `Seluruh jawaban "${namaSiswa}" sudah lengkap di server. Kumpulkan dan langsung nilai dengan AI sekarang?`
         : `Jawaban "${namaSiswa}" masih berstatus draf. Kumpulkan jawaban yang ada dan nilai dengan AI sekarang?`;
@@ -4837,11 +4851,13 @@
     };
 
     // Rilis / Tarik Rilis Nilai Perorangan Siswa
-    window.toggleReleaseSingleStudent = async (pengerjaanId, shouldRelease, namaSiswa = 'siswa ini') => {
+    window.toggleReleaseSingleStudent = async (pengerjaanId, shouldRelease, namaSiswaParam) => {
+      const found = (window.currentStudentsList || []).find(s => s.pengerjaan_id === pengerjaanId);
+      const namaSiswa = namaSiswaParam || found?.nama_siswa || 'siswa ini';
       const actionText = shouldRelease ? 'MERILIS nilai' : 'MENARIK KEMBALI rilis nilai';
       const promptMsg = shouldRelease
-        ? `Apakah Anda yakin ingin ${actionText} untuk ${namaSiswa}?\n\nSiswa akan langsung dapat melihat skor dan pembahasannya.`
-        : `Apakah Anda yakin ingin ${actionText} untuk ${namaSiswa}?\n\nSiswa tidak dapat melihat hasil nilainya sampai dirilis kembali.`;
+        ? `Apakah Anda yakin ingin ${actionText} untuk "${namaSiswa}"?\n\nSiswa akan langsung dapat melihat skor dan pembahasannya.`
+        : `Apakah Anda yakin ingin ${actionText} untuk "${namaSiswa}"?\n\nSiswa tidak dapat melihat hasil nilainya sampai dirilis kembali.`;
 
       if (!confirm(promptMsg)) return;
 
@@ -4855,7 +4871,7 @@
         if (!res.ok || !data.success) {
           throw new Error(data.message || 'Gagal mengubah status rilis');
         }
-        alert(shouldRelease ? `Nilai untuk ${namaSiswa} berhasil dirilis ke siswa!` : `Rilis nilai untuk ${namaSiswa} berhasil ditarik!`);
+        alert(shouldRelease ? `Nilai untuk "${namaSiswa}" berhasil dirilis ke siswa!` : `Rilis nilai untuk "${namaSiswa}" berhasil ditarik!`);
         if (activeUlanganId) {
           await loadPesertaList(activeUlanganId);
         }
