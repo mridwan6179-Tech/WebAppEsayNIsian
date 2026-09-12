@@ -963,7 +963,16 @@ KOMPONEN WAJIB TIAP BUTIR SOAL:
   * "sedang" untuk soal pemahaman konsep, perhitungan standar, penerapan aturan/rumus, atau prosedur bertahap.
   * "sulit" untuk soal analisis mendalam, studi kasus kompleks, komparasi kritis, atau soal berpikir tingkat tinggi (HOTS).
   ${tingkat_kesulitan !== 'bervariasi' && tingkat_kesulitan !== 'campuran' ? `(Target utama tingkat kesulitan paket ini adalah "${tingkat_kesulitan}", sesuaikan setiap butir dengan tingkat kesulitan tersebut).` : '(Karena guru memilih tingkat kesulitan bervariasi/campuran, variasikan secara proporsional antara mudah, sedang, dan sulit sesuai kompleksitas materi).' }
-- "bobot": Angka bobot soal (bilangan bulat positif > 0). Pedoman proporsi bobot: Soal essay berbobot sekitar 2x lipat lebih tinggi dari isian, dan butir yang sulit berbobot lebih tinggi dari butir mudah/sedang (kisaran rata-rata isian: 6–12 poin, essay: 16–35 poin). Pastikan total akumulasi seluruh butir soal tepat = ${target_total_bobot}.
+- "bobot": Angka bobot butir soal (bilangan bulat positif > 0). AI WAJIB MENGIKUTI ATURAN RENTANG BOBOT BAKU BERIKUT:
+  * SOAL ISIAN SINGKAT:
+    - Mudah: rentang 6 – 9 poin (acuan ideal: ~8 poin)
+    - Sedang: rentang 9 – 12 poin (acuan ideal: ~10 poin)
+    - Sulit: rentang 11 – 15 poin (acuan ideal: ~12 poin)
+  * SOAL ESSAY / URAIAN:
+    - Mudah: rentang 14 – 18 poin (acuan ideal: ~16 poin)
+    - Sedang: rentang 18 – 24 poin (acuan ideal: ~20 poin)
+    - Sulit: rentang 25 – 35 poin (acuan ideal: ~30 poin)
+  * KEBEBASAN DISTRIBUSI AI: AI bebas menentukan nilai eksak bobot masing-masing butir soal di dalam rentang tersebut berdasarkan kedalaman materi, jumlah kata jawaban, atau kompleksitas penalaran, asalkan butir Sulit > Sedang > Mudah dan Essay selalu berbobot sekitar 2x lipat dibanding Isian. Total akumulasi seluruh butir soal diusahakan tepat/mendekati = ${target_total_bobot}.
 - "gambar_url": (Opsional) Jika soal memerlukan diagram/ilustrasi, sertakan link atau SVG data-uri yang valid. Jika tidak perlu gambar, isi null.
 - "kunci_jawaban": Kunci acuan jawaban guru yang ideal, jelas, dan akurat.
 - "rubrik": Panduan rubrik kualitatif penilaian (Skor Penuh vs Skor Parsial).
@@ -1040,13 +1049,24 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
         itemKategori = String(q.kategori).trim();
       }
 
-      return {
-        kategori: itemKategori,
-        sub_topik: itemSubTopik,
-        pertanyaan: q.pertanyaan || `Soal nomor ${idx + 1}`,
-        jenis: (q.jenis || '').toLowerCase().includes('isian') ? 'isian' : 'essay',
-        tingkat_kesulitan: cleanKesulitan,
-        bobot: Math.max(1, Math.round(Number(q.bobot) || 10)),
+        const isItemEssay = (q.jenis || '').toLowerCase().includes('essay');
+        const defaultBenchmarkWeight = !isItemEssay
+          ? (cleanKesulitan === 'mudah' ? 8 : (cleanKesulitan === 'sulit' ? 12 : 10))
+          : (cleanKesulitan === 'mudah' ? 16 : (cleanKesulitan === 'sulit' ? 30 : 20));
+        let itemBobot = Number(q.bobot);
+        if (isNaN(itemBobot) || itemBobot <= 0) {
+          itemBobot = defaultBenchmarkWeight;
+        } else {
+          itemBobot = Math.max(1, Math.round(itemBobot));
+        }
+
+        return {
+          kategori: itemKategori,
+          sub_topik: itemSubTopik,
+          pertanyaan: q.pertanyaan || `Soal nomor ${idx + 1}`,
+          jenis: isItemEssay ? 'essay' : 'isian',
+          tingkat_kesulitan: cleanKesulitan,
+          bobot: itemBobot,
         gambar_url: (q.gambar_url && typeof q.gambar_url === 'string' && q.gambar_url.trim() !== '') ? q.gambar_url.trim() : null,
         kunci_jawaban: q.kunci_jawaban || '',
         rubrik: q.rubrik || '',
@@ -1215,7 +1235,7 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
             : `Sebutkan istilah atau komponen penting terkait ${topik} (Isian #${actualIdx})!`,
           jenis: 'isian',
           tingkat_kesulitan: diff,
-          bobot: 10,
+          bobot: diff === 'mudah' ? 8 : (diff === 'sulit' ? 12 : 10),
           gambar_url: null,
           kunci_jawaban: `Kunci acuan istilah untuk ${topik} bagian ${actualIdx}`,
           rubrik: 'Menyebutkan istilah yang tepat sesuai konsep acuan',
@@ -1240,7 +1260,7 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
             : `Jelaskan secara mendalam konsep dan mekanisme utama dari ${topik} (Essay #${actualIdx})!`,
           jenis: 'essay',
           tingkat_kesulitan: diff,
-          bobot: 20,
+          bobot: diff === 'mudah' ? 16 : (diff === 'sulit' ? 30 : 20),
           gambar_url: null,
           kunci_jawaban: `Kunci uraian konsep mendalam untuk ${topik} bagian ${actualIdx}`,
           rubrik: 'Menjelaskan konsep lengkap dan runtut (skor penuh), menjelaskan sebagian (skor 50%), salah (skor 0)',
@@ -1268,7 +1288,7 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
             : (itemIsListening ? `Berdasarkan audio, sebutkan istilah penting terkait ${topik} (Nomor ${actualIdx})!` : `Sebutkan istilah atau komponen penting terkait ${topik} (Nomor ${actualIdx})!`),
           jenis: isEssay ? 'essay' : 'isian',
           tingkat_kesulitan: diff,
-          bobot: isEssay ? 20 : 10,
+          bobot: isEssay ? (diff === 'mudah' ? 16 : (diff === 'sulit' ? 30 : 20)) : (diff === 'mudah' ? 8 : (diff === 'sulit' ? 12 : 10)),
           gambar_url: null,
           kunci_jawaban: `Kunci acuan konsep untuk ${topik} bagian ${actualIdx}`,
           rubrik: isEssay
