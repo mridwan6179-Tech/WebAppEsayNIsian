@@ -455,6 +455,7 @@ app.post('/api/guru/generate-soal', requireGuru, async (req, res) => {
       deskripsi_audio,
       target_context,
       ulangan_id,
+      kategori,
       existing_questions
     } = req.body;
 
@@ -462,16 +463,32 @@ app.post('/api/guru/generate-soal', requireGuru, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Topik atau teks materi wajib diisi' });
     }
 
-    // Kumpulkan butir pertanyaan yang sudah ada sebelumnya agar AI menghasilkan variasi baru & tidak duplikat
+    // Tentukan kategori / bab / buku pokok untuk pencocokan yang akurat & hemat token
+    const rawCat = (kategori && typeof kategori === 'string' && kategori.trim()) 
+      ? kategori.trim() 
+      : (mode === 'topik' ? input_sumber.trim().split('\n')[0].substring(0, 35) : '');
+
+    // Kumpulkan butir pertanyaan terdahulu HANYA dari kategori / bab / buku yang sama
     const collectedExistingQuestions = [];
     if (Array.isArray(existing_questions)) {
       collectedExistingQuestions.push(...existing_questions);
     }
 
-    // 1. Jika dalam konteks ulangan atau memiliki ulangan_id, ambil semua butir pertanyaan yang sudah ada di ulangan tersebut
+    // 1. Jika dalam konteks ulangan aktif, ambil butir soal terdahulu pada ulangan ini
     if (ulangan_id) {
       try {
-        const rowsUlangan = db.prepare('SELECT pertanyaan FROM soal WHERE ulangan_id = ? ORDER BY id ASC').all(ulangan_id);
+        let rowsUlangan = [];
+        if (rawCat) {
+          rowsUlangan = db.prepare(`
+            SELECT pertanyaan FROM soal 
+            WHERE ulangan_id = ? 
+              AND (kategori LIKE ? OR LOWER(?) LIKE '%' || LOWER(COALESCE(kategori, '')) || '%')
+            ORDER BY id DESC LIMIT 12
+          `).all(ulangan_id, `%${rawCat}%`, rawCat);
+        }
+        if (rowsUlangan.length === 0) {
+          rowsUlangan = db.prepare('SELECT pertanyaan FROM soal WHERE ulangan_id = ? ORDER BY id DESC LIMIT 12').all(ulangan_id);
+        }
         if (rowsUlangan && rowsUlangan.length > 0) {
           collectedExistingQuestions.push(...rowsUlangan.map(r => r.pertanyaan));
         }
@@ -480,37 +497,34 @@ app.post('/api/guru/generate-soal', requireGuru, async (req, res) => {
       }
     }
 
-    // 2. Jika dalam konteks bank_soal atau untuk memperkaya variasi guru, ambil butir pertanyaan relevan dari Bank Soal milik guru
+    // 2. Jika dalam konteks bank_soal, HANYA ambil soal dari kategori yang sama persis / relevan
     const guruId = req.guru?.guruId;
-    if (guruId) {
+    if (guruId && (target_context === 'bank_soal' || !ulangan_id)) {
       try {
-        const topicKeyword = (input_sumber || '').trim().substring(0, 35);
-        if (topicKeyword) {
+        if (rawCat) {
           const bankMatches = db.prepare(`
             SELECT pertanyaan FROM bank_soal 
             WHERE guru_id = ? 
-              AND (kategori LIKE ? OR sub_topik LIKE ? OR pertanyaan LIKE ?)
-            ORDER BY id DESC LIMIT 30
-          `).all(guruId, `%${topicKeyword}%`, `%${topicKeyword}%`, `%${topicKeyword}%`);
+              AND (LOWER(kategori) = LOWER(?) OR LOWER(kategori) LIKE ? OR LOWER(sub_topik) LIKE ?)
+            ORDER BY id DESC LIMIT 12
+          `).all(guruId, rawCat, `%${rawCat}%`, `%${rawCat}%`);
           if (bankMatches && bankMatches.length > 0) {
             collectedExistingQuestions.push(...bankMatches.map(r => r.pertanyaan));
           }
         }
-        if (target_context === 'bank_soal' || collectedExistingQuestions.length < 5) {
-          const recentBank = db.prepare('SELECT pertanyaan FROM bank_soal WHERE guru_id = ? ORDER BY id DESC LIMIT 25').all(guruId);
-          if (recentBank && recentBank.length > 0) {
-            collectedExistingQuestions.push(...recentBank.map(r => r.pertanyaan));
-          }
-        }
+        // HEMAT TOKEN: Jangan ambil soal acak/topik lain jika belum ada kategori yang cocok!
       } catch (errB) {
         console.warn('Gagal membaca soal bank_soal untuk anti-duplikasi:', errB.message);
       }
     }
 
-    // Bersihkan & deduplikasi daftar butir soal terdahulu
+    // Bersihkan, pangkas panjang teks (maks 95 karakter per butir), dan batasi maksimal 12 butir soal
     const uniqueExistingQuestions = Array.from(new Set(
-      collectedExistingQuestions.map(q => String(q || '').trim()).filter(Boolean)
-    ));
+      collectedExistingQuestions
+        .map(q => String(q || '').trim())
+        .filter(Boolean)
+        .map(q => (q.length > 95 ? q.substring(0, 92).trim() + '...' : q))
+    )).slice(0, 12);
 
     const result = await geminiService.generateQuestions({
       mode,
@@ -528,6 +542,7 @@ app.post('/api/guru/generate-soal', requireGuru, async (req, res) => {
       jumlah_essay_listening,
       bahasa,
       deskripsi_audio,
+      kategori: rawCat,
       existing_questions: uniqueExistingQuestions
     });
 

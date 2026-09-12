@@ -705,11 +705,6 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
     const essayTeks = Math.max(0, nEssay - essayListening);
     const jumlahNonListening = isListening ? Math.max(0, jumlah_soal - jumlahListening) : jumlah_soal;
 
-    const rawExisting = Array.isArray(options.existing_questions)
-      ? options.existing_questions
-      : (options.existingQuestions && Array.isArray(options.existingQuestions) ? options.existingQuestions : []);
-    const existingQuestions = Array.from(new Set(rawExisting.map(q => String(q || '').trim()).filter(Boolean)));
-
     let sumberDeskripsi = '';
     if (mode === 'teks_materi') {
       sumberDeskripsi = `
@@ -724,19 +719,26 @@ TOPIK / TEMA PEMBELAJARAN: "${input_sumber}"
 INSTRUKSI KHUSUS SUMBER: Buatlah paket soal yang relevan, berbobot ilmiah, dan sesuai dengan topik serta jenjang kurikulum ${jenjang_kelas}.`;
     }
 
+    const rawExisting = Array.isArray(options.existing_questions)
+      ? options.existing_questions
+      : (options.existingQuestions && Array.isArray(options.existingQuestions) ? options.existingQuestions : []);
+    const existingQuestions = Array.from(new Set(rawExisting.map(q => String(q || '').trim()).filter(Boolean)));
+    const kategoriRef = (options.kategori || options.kategori_referensi || '').trim();
+
     let antiDuplikasiInstructions = '';
     if (existingQuestions.length > 0) {
-      const cuplikan = existingQuestions.slice(0, 40).map((q, idx) => `${idx + 1}. "${q}"`).join('\n');
+      // Format ringkas & hemat token (maksimal 12 butir soal esensial terpotong)
+      const cuplikan = existingQuestions.slice(0, 12).map((q, idx) => `${idx + 1}. "${q}"`).join('\n');
       antiDuplikasiInstructions = `
-*** ATURAN MUTLAK ANTI-DUPLIKASI (SOAL BARU WAJIB BERBEDA DARI SUMBER SEBELUMNYA) ***
-Sistem mendeteksi bahwa guru sudah memiliki ${existingQuestions.length} butir soal sebelumnya untuk topik/materi ini:
+[PANDUAN ANTI-DUPLIKASI (HEMAT TOKEN)]:
+Kategori/Buku Acuan: "${kategoriRef || input_sumber.substring(0, 30)}".
+Daftar butir pertanyaan terdahulu pada kategori/buku ini:
 ${cuplikan}
 
 KETENTUAN WAJIB SOAL BARU:
-- DILARANG KERAS membuat pertanyaan yang serupa, identik, atau sekadar parafrase kata dari daftar butir soal yang sudah ada di atas!
+- DILARANG KERAS membuat pertanyaan yang serupa atau mengulang inti konsep dari daftar butir soal di atas!
 - Buatlah butir pertanyaan BARU dengan mengeksplorasi sudut pandang berbeda, studi kasus baru, variabel/parameter lain, atau sub-topik lanjutan yang belum tercakup pada soal di atas.
-- Jika materi bacaannya sama, tanyakan aspek, data kalimat, argumen, atau kesimpulan lain yang BELUM disentuh sama sekali oleh soal-soal terdahulu.
-- Pastikan seluruh ${jumlah_soal} butir soal baru ini benar-benar unik, segar, dan memperluas variasi khazanah evaluasi belajar siswa.
+- Pastikan seluruh ${jumlah_soal} butir soal baru ini benar-benar unik, segar, dan memperluas variasi khazanah evaluasi belajar.
 `;
     }
 

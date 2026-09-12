@@ -137,22 +137,24 @@ test('T-10: Fitur AI Soal Generator (Pembuat Soal, Kunci Jawaban, Rubrik & Bobot
       'Sebutkan rumus gaya aksi reaksi Hukum 3 Newton!'
     ];
 
-    // Tanpa existing questions
+    // Tanpa existing questions (Zero-token overhead)
     const promptPolos = geminiService.buildGenerateQuestionsPrompt({
       mode: 'topik',
       input_sumber: 'Hukum Newton',
       jumlah_soal: 3
     });
-    assert.strictEqual(promptPolos.includes('ATURAN MUTLAK ANTI-DUPLIKASI'), false);
+    assert.strictEqual(promptPolos.includes('PANDUAN ANTI-DUPLIKASI'), false);
 
-    // Dengan existing questions
+    // Dengan existing questions & kategori
     const promptAntiDuplikasi = geminiService.buildGenerateQuestionsPrompt({
       mode: 'topik',
       input_sumber: 'Hukum Newton',
+      kategori: 'Fisika Dasar',
       jumlah_soal: 3,
       existing_questions: existingSoal
     });
-    assert.ok(promptAntiDuplikasi.includes('*** ATURAN MUTLAK ANTI-DUPLIKASI (SOAL BARU WAJIB BERBEDA DARI SUMBER SEBELUMNYA) ***'));
+    assert.ok(promptAntiDuplikasi.includes('[PANDUAN ANTI-DUPLIKASI (HEMAT TOKEN)]:'));
+    assert.ok(promptAntiDuplikasi.includes('Kategori/Buku Acuan: "Fisika Dasar"'));
     assert.ok(promptAntiDuplikasi.includes('Jelaskan bunyi Hukum 1 Newton!'));
     assert.ok(promptAntiDuplikasi.includes('Sebutkan rumus gaya aksi reaksi Hukum 3 Newton!'));
     assert.ok(promptAntiDuplikasi.includes('DILARANG KERAS membuat pertanyaan yang serupa'));
@@ -184,6 +186,28 @@ test('T-10: Fitur AI Soal Generator (Pembuat Soal, Kunci Jawaban, Rubrik & Bobot
     for (const q2 of batch2.soal) {
       assert.strictEqual(soalTeksBatch1.includes(q2.pertanyaan), false, `Soal duplikat terdeteksi: ${q2.pertanyaan}`);
     }
+  });
+
+  await t.test('7. Optimasi Hemat Token: Truncating Soal Panjang & Limit Jumlah Pembanding', () => {
+    // Buat pertanyaan sangat panjang (>100 karakter)
+    const longQuestion = 'Sebuah mobil bergerak dengan kecepatan awal tertentu dan melakukan percepatan konstan hingga mencapai kecepatan akhir yang jauh lebih tinggi dalam interval waktu yang ditentukan, hitung percepatannya!';
+    const truncatedList = [longQuestion]
+      .map(q => (q.length > 95 ? q.substring(0, 92).trim() + '...' : q));
+
+    assert.ok(truncatedList[0].length <= 95);
+    assert.ok(truncatedList[0].endsWith('...'));
+
+    // Pastikan prompt compact membatasi maksimal 12 butir
+    const manyQuestions = Array.from({ length: 25 }, (_, i) => `Soal nomor ke-${i + 1}`);
+    const prompt = geminiService.buildGenerateQuestionsPrompt({
+      mode: 'topik',
+      input_sumber: 'Matematika',
+      kategori: 'Aljabar',
+      existing_questions: manyQuestions
+    });
+
+    assert.ok(prompt.includes('12. "Soal nomor ke-12"'));
+    assert.strictEqual(prompt.includes('13. "Soal nomor ke-13"'), false, 'Tidak boleh melebihi 12 butir pembanding agar hemat token');
   });
 
 });
