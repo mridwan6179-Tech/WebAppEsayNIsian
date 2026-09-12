@@ -647,6 +647,20 @@ app.post('/api/guru/bank-soal/copy-from-exam/:soalId', requireGuru, (req, res) =
   }
 });
 
+// Salin banyak butir soal sekaligus dari ulangan aktif ke Bank Soal
+app.post('/api/guru/bank-soal/copy-batch-from-exam', requireGuru, (req, res) => {
+  try {
+    const { ulangan_id, soal_ids, kategori } = req.body;
+    if (!ulangan_id || !Array.isArray(soal_ids) || soal_ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'ID ulangan dan daftar ID soal wajib disertakan' });
+    }
+    const copiedList = bankSoalService.copyBatchFromExam(ulangan_id, soal_ids, req.guru.guruId, kategori);
+    res.json({ success: true, data: copiedList, message: `${copiedList.length} butir soal berhasil disimpan ke Bank Soal` });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 // Impor sekumpulan soal dari Bank Soal ke Ulangan aktif
 app.post('/api/guru/bank-soal/import-to-exam', requireGuru, (req, res) => {
   try {

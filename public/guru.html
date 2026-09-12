@@ -521,7 +521,10 @@
           <div id="tab-content-questions" class="space-y-4">
             <div class="flex justify-between items-center flex-wrap gap-2">
               <p class="text-xs text-slate-500">Kunci jawaban & rubrik menjadi acuan utama penilaian semantik AI.</p>
-              <div class="flex items-center space-x-2">
+              <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                <button id="btn-open-import-from-bank" type="button" class="text-xs bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold px-3 py-1.5 rounded-lg border border-purple-200 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Ambil dan masukkan soal dari Bank Soal Mandiri">
+                  <span>📂 Ambil dari Bank Soal</span>
+                </button>
                 <button id="btn-open-ai-generator" type="button" class="text-xs bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1.5">
                   <span>✨ AI Generator Soal</span>
                 </button>
@@ -644,6 +647,24 @@
                 <button type="submit" class="px-3 py-1 bg-blue-600 text-white font-semibold rounded-lg">Simpan Soal</button>
               </div>
             </form>
+
+            <!-- Bar Aksi Massal Soal Ulangan (Pilih Semua & Salin ke Bank Soal) -->
+            <div id="exam-soal-bulk-bar" class="hidden p-2.5 bg-purple-50/80 border border-purple-200 rounded-xl flex items-center justify-between flex-wrap gap-2 text-xs">
+              <div class="flex items-center space-x-2.5">
+                <label class="flex items-center space-x-1.5 cursor-pointer font-bold text-purple-950 select-none">
+                  <input type="checkbox" id="chk-select-all-exam-soal" class="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer">
+                  <span>Pilih Semua (<span id="exam-soal-selected-count">0</span>/<span id="exam-soal-total-count">0</span>)</span>
+                </label>
+                <span class="text-slate-400 text-xs hidden sm:inline">&bull;</span>
+                <span class="text-[11px] text-purple-700 hidden sm:inline">Centang soal yang ingin dimasukkan ke Bank Soal</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <button type="button" id="btn-open-bulk-copy-modal" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow-sm transition flex items-center space-x-1.5 cursor-pointer" disabled>
+                  <span>📥 Masukkan ke Bank Soal</span>
+                  <span id="badge-bulk-copy-count" class="bg-purple-800/80 text-white px-1.5 py-0.2 rounded-full text-[10px] font-bold">0</span>
+                </button>
+              </div>
+            </div>
 
             <!-- List Soal -->
             <div id="questions-list" class="space-y-3"></div>
@@ -1739,6 +1760,122 @@
       <div class="flex justify-end space-x-2 pt-2">
         <button type="button" id="btn-cancel-quick-import" class="px-3 py-1.5 text-slate-600 font-semibold">Batal</button>
         <button type="button" id="btn-confirm-quick-import" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow">Tambahkan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SALIN MASSAL SOAL ULANGAN KE BANK SOAL -->
+  <div id="modal-bulk-copy-bank" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 space-y-4 text-xs">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
+        <div class="flex items-center space-x-2">
+          <span class="text-xl">📥</span>
+          <div>
+            <h4 class="font-bold text-slate-900 text-sm">Masukkan ke Bank Soal</h4>
+            <p class="text-[11px] text-slate-500">Salin butir soal terpilih ke koleksi Bank Soal Mandiri</p>
+          </div>
+        </div>
+        <button id="btn-close-bulk-copy-bank" class="text-slate-400 hover:text-slate-600 text-xl font-bold cursor-pointer">&times;</button>
+      </div>
+
+      <div class="p-3 bg-purple-50 rounded-xl border border-purple-200 text-purple-900">
+        <p class="font-bold text-xs" id="bulk-copy-bank-summary">Menyalin 0 butir soal terpilih.</p>
+        <p class="text-[11px] text-purple-700 mt-0.5">Semua atribut soal (jenis, kunci acuan, rubrik, pembahasan konsep, bobot &amp; audio) akan tersimpan rapi.</p>
+      </div>
+
+      <div>
+        <label class="block font-bold text-slate-800 text-xs mb-1">
+          Kategori Bank Soal <span class="text-red-500">*</span>
+        </label>
+        <input type="text" id="bulk-copy-kategori-input" list="bank-kategori-datalist" placeholder="Ketik kategori baru atau pilih dari daftar..." class="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white">
+        <p class="text-[10px] text-slate-500 mt-1">
+          💡 Anda bisa memilih kategori yang sudah ada dari opsi atau langsung mengetik nama kategori baru.
+        </p>
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+        <button type="button" id="btn-cancel-bulk-copy-bank" class="px-3.5 py-2 text-slate-600 hover:bg-slate-100 font-semibold rounded-xl cursor-pointer">Batal</button>
+        <button type="button" id="btn-confirm-bulk-copy-bank" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-sm flex items-center space-x-1.5 transition cursor-pointer">
+          <span>💾 Simpan ke Bank Soal</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: AMBIL SOAL DARI BANK SOAL KE ULANGAN (FLEKSIBEL PER KATEGORI & SATUAN) -->
+  <div id="modal-import-from-bank" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-3xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden text-xs">
+      <!-- Modal Header -->
+      <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-gradient-to-r from-purple-50 to-indigo-50">
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm sm:text-base flex items-center space-x-2">
+            <span>📂</span>
+            <span>Ambil Soal dari Bank Soal ke Ulangan</span>
+          </h3>
+          <p class="text-[11px] text-slate-500 mt-0.5">Pilih satu atau lebih kategori sekaligus, atau centang/cabut butir soal secara fleksibel</p>
+        </div>
+        <button id="btn-close-modal-import-bank" class="text-slate-400 hover:text-slate-600 p-1.5 text-lg font-bold cursor-pointer">&times;</button>
+      </div>
+
+      <!-- Filter & Search Bar -->
+      <div class="p-3 bg-slate-50/80 border-b border-slate-200 space-y-2.5">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div class="sm:col-span-2 relative">
+            <input type="text" id="import-bank-search" placeholder="🔍 Cari teks pertanyaan, topik, materi, atau pembahasan..." class="w-full pl-3 pr-3 py-1.5 text-xs rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-purple-500">
+          </div>
+          <div class="flex items-center space-x-2">
+            <select id="import-bank-filter-jenis" class="w-full px-2 py-1.5 text-xs rounded-lg border border-slate-300 bg-white font-medium">
+              <option value="all">Semua Tipe</option>
+              <option value="isian">Isian Singkat</option>
+              <option value="essay">Essay (Uraian)</option>
+            </select>
+            <select id="import-bank-filter-listening" class="w-full px-2 py-1.5 text-xs rounded-lg border border-slate-300 bg-white font-medium">
+              <option value="all">Semua Format</option>
+              <option value="1">🎧 Listening</option>
+              <option value="0">📖 Non-Listening</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Section 1: PILIH CEPAT KATEGORI (Multi-Category Selector) -->
+        <div class="p-2.5 bg-white rounded-xl border border-purple-100 shadow-2xs space-y-1.5">
+          <div class="flex items-center justify-between flex-wrap gap-1">
+            <label class="font-bold text-purple-950 text-[11px] flex items-center space-x-1">
+              <span>🏷️</span>
+              <span>Pilih Kategori (Centang kategori untuk otomatis memilih semua soal di dalamnya):</span>
+            </label>
+            <div class="flex items-center space-x-2 text-[10px]">
+              <button type="button" id="btn-import-bank-check-all-cats" class="text-purple-700 hover:text-purple-900 font-bold underline cursor-pointer">Pilih Semua Kategori</button>
+              <span class="text-slate-300">|</span>
+              <button type="button" id="btn-import-bank-uncheck-all-cats" class="text-slate-500 hover:text-slate-700 font-medium underline cursor-pointer">Lepas Semua</button>
+            </div>
+          </div>
+          <div id="import-bank-categories-chips" class="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1.5 bg-purple-50/40 rounded-lg">
+            <!-- Render kategori pill chips dinamis -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: DAFTAR BUTIR SOAL TERKELOMPOK PER KATEGORI -->
+      <div id="import-bank-soal-container" class="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3.5">
+        <!-- Render butir-butir soal dikelompokkan per kategori -->
+        <p class="text-center text-slate-400 py-10">Memuat koleksi Bank Soal...</p>
+      </div>
+
+      <!-- Modal Sticky Footer (Ringkasan & Aksi) -->
+      <div class="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between flex-wrap gap-2">
+        <div class="flex items-center space-x-2">
+          <span class="font-bold text-slate-800 text-xs">
+            Terpilih: <span id="import-bank-total-selected" class="text-purple-700 font-black text-sm">0</span> butir soal
+          </span>
+          <span id="import-bank-cats-summary" class="text-[11px] text-slate-500">(dari 0 kategori)</span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button type="button" id="btn-cancel-modal-import-bank" class="px-3.5 py-2 text-slate-600 hover:bg-slate-200 font-semibold rounded-xl cursor-pointer">Batal</button>
+          <button type="button" id="btn-do-import-from-bank" class="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-md transition flex items-center space-x-2 cursor-pointer" disabled>
+            <span>📥 Tambahkan Soal ke Ulangan Ini</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -2966,14 +3103,82 @@
       }
     }
 
+    window.updateExamSoalBulkBar = function() {
+      const checkboxes = Array.from(document.querySelectorAll('.chk-exam-soal'));
+      const checked = checkboxes.filter(cb => cb.checked);
+      const total = checkboxes.length;
+
+      const bulkBar = document.getElementById('exam-soal-bulk-bar');
+      const chkSelectAll = document.getElementById('chk-select-all-exam-soal');
+      const countEl = document.getElementById('exam-soal-selected-count');
+      const totalEl = document.getElementById('exam-soal-total-count');
+      const btnBulk = document.getElementById('btn-open-bulk-copy-modal');
+      const badgeCount = document.getElementById('badge-bulk-copy-count');
+
+      if (total === 0) {
+        if (bulkBar) bulkBar.classList.add('hidden');
+        return;
+      }
+      if (bulkBar) bulkBar.classList.remove('hidden');
+
+      if (countEl) countEl.textContent = checked.length;
+      if (totalEl) totalEl.textContent = total;
+      if (badgeCount) badgeCount.textContent = checked.length;
+
+      if (chkSelectAll) {
+        chkSelectAll.checked = (total > 0 && checked.length === total);
+        chkSelectAll.indeterminate = (checked.length > 0 && checked.length < total);
+      }
+
+      if (btnBulk) {
+        btnBulk.disabled = (checked.length === 0);
+      }
+    };
+
+    const chkSelectAllExamSoal = document.getElementById('chk-select-all-exam-soal');
+    if (chkSelectAllExamSoal) {
+      chkSelectAllExamSoal.addEventListener('change', (e) => {
+        const isChecked = e.target.checked;
+        document.querySelectorAll('.chk-exam-soal').forEach(cb => {
+          cb.checked = isChecked;
+        });
+        updateExamSoalBulkBar();
+      });
+    }
+
     function renderSoalList(soalList) {
       const container = document.getElementById('questions-list');
       container.innerHTML = '';
 
-      if (soalList.length === 0) {
-        container.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">Belum ada soal. Klik "+ Tambah Manual", "📂 Ambil dari Bank Soal", atau "✨ AI Generator Soal" di atas.</p>';
+      const bulkBar = document.getElementById('exam-soal-bulk-bar');
+      const chkSelectAll = document.getElementById('chk-select-all-exam-soal');
+      if (chkSelectAll) {
+        chkSelectAll.checked = false;
+        chkSelectAll.indeterminate = false;
+      }
+
+      if (!soalList || soalList.length === 0) {
+        if (bulkBar) bulkBar.classList.add('hidden');
+        container.innerHTML = `
+          <div class="p-8 bg-slate-50/70 rounded-2xl border-2 border-dashed border-slate-200 text-center space-y-3">
+            <p class="text-xs text-slate-500 font-medium">Belum ada butir soal dalam ulangan ini.</p>
+            <div class="flex items-center justify-center space-x-2 flex-wrap gap-y-2">
+              <button onclick="document.getElementById('btn-open-import-from-bank')?.click()" type="button" class="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold rounded-lg border border-purple-200 transition cursor-pointer">
+                📂 Ambil dari Bank Soal
+              </button>
+              <button onclick="document.getElementById('btn-open-ai-generator')?.click()" type="button" class="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-bold rounded-lg shadow-sm transition cursor-pointer">
+                ✨ AI Generator Soal
+              </button>
+              <button onclick="document.getElementById('btn-show-add-soal')?.click()" type="button" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition cursor-pointer">
+                + Tambah Manual
+              </button>
+            </div>
+          </div>
+        `;
         return;
       }
+
+      if (bulkBar) bulkBar.classList.remove('hidden');
 
       soalList.forEach((s, idx) => {
         const item = document.createElement('div');
@@ -2981,6 +3186,7 @@
         item.innerHTML = `
           <div class="flex justify-between items-start gap-2">
             <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+              <input type="checkbox" value="${s.id}" class="chk-exam-soal w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer" onchange="updateExamSoalBulkBar()">
               <span class="font-bold text-slate-700">#${idx + 1}</span>
               <span class="uppercase text-[10px] font-semibold px-2 py-0.5 rounded ${s.jenis === 'essay' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">${s.jenis}</span>
               <span class="text-slate-400 font-medium">Bobot: <strong>${s.bobot}</strong></span>
@@ -3029,6 +3235,7 @@
         container.appendChild(item);
       });
       renderMath(container);
+      updateExamSoalBulkBar();
     }
 
     // Toggle Form Tambah Soal & Image Handlers
@@ -5781,6 +5988,441 @@
         }
       });
     }
+
+    // --- FITUR 1: SALIN MASSAL DARI ULANGAN KE BANK SOAL ---
+    const modalBulkCopyBank = document.getElementById('modal-bulk-copy-bank');
+    const btnOpenBulkCopyModal = document.getElementById('btn-open-bulk-copy-modal');
+    const btnCloseBulkCopyBank = document.getElementById('btn-close-bulk-copy-bank');
+    const btnCancelBulkCopyBank = document.getElementById('btn-cancel-bulk-copy-bank');
+    const btnConfirmBulkCopyBank = document.getElementById('btn-confirm-bulk-copy-bank');
+    const inputBulkCopyKategori = document.getElementById('bulk-copy-kategori-input');
+    const lblBulkCopySummary = document.getElementById('bulk-copy-bank-summary');
+
+    function openBulkCopyModal() {
+      const checkedBoxes = Array.from(document.querySelectorAll('.chk-exam-soal:checked'));
+      if (checkedBoxes.length === 0) {
+        alert('Pilih sekurang-kurangnya 1 butir soal dengan mencentang kotak pada soal.');
+        return;
+      }
+
+      if (lblBulkCopySummary) {
+        lblBulkCopySummary.textContent = `Menyalin ${checkedBoxes.length} butir soal terpilih ke Bank Soal.`;
+      }
+
+      // Pre-fill kategori dari ulangan aktif jika kosong
+      if (inputBulkCopyKategori) {
+        if (!inputBulkCopyKategori.value && activeUlanganData && activeUlanganData.mata_pelajaran) {
+          inputBulkCopyKategori.value = activeUlanganData.mata_pelajaran;
+        }
+      }
+
+      loadBankCategories();
+      if (modalBulkCopyBank) modalBulkCopyBank.classList.remove('hidden');
+    }
+
+    function closeBulkCopyModal() {
+      if (modalBulkCopyBank) modalBulkCopyBank.classList.add('hidden');
+    }
+
+    if (btnOpenBulkCopyModal) btnOpenBulkCopyModal.addEventListener('click', openBulkCopyModal);
+    if (btnCloseBulkCopyBank) btnCloseBulkCopyBank.addEventListener('click', closeBulkCopyModal);
+    if (btnCancelBulkCopyBank) btnCancelBulkCopyBank.addEventListener('click', closeBulkCopyModal);
+
+    if (btnConfirmBulkCopyBank) {
+      btnConfirmBulkCopyBank.addEventListener('click', async () => {
+        const checkedBoxes = Array.from(document.querySelectorAll('.chk-exam-soal:checked'));
+        if (checkedBoxes.length === 0) {
+          alert('Pilih sekurang-kurangnya 1 butir soal!');
+          return;
+        }
+
+        const kategori = inputBulkCopyKategori ? inputBulkCopyKategori.value.trim() : '';
+        if (!kategori) {
+          alert('Silakan tentukan atau pilih Kategori Bank Soal!');
+          inputBulkCopyKategori?.focus();
+          return;
+        }
+
+        const soalIds = checkedBoxes.map(cb => Number(cb.value));
+        const originalText = btnConfirmBulkCopyBank.innerHTML;
+        btnConfirmBulkCopyBank.disabled = true;
+        btnConfirmBulkCopyBank.innerHTML = '<span>Menyimpan...</span>';
+
+        try {
+          const res = await guruFetch('/api/guru/bank-soal/copy-batch-from-exam', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ulangan_id: activeUlanganId,
+              soal_ids: soalIds,
+              kategori: kategori
+            })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.message || 'Gagal menyalin soal ke Bank Soal');
+          }
+
+          alert(`✅ Sukses! ${data.data?.length || soalIds.length} butir soal berhasil disimpan ke Bank Soal (Kategori: "${kategori}")!`);
+          closeBulkCopyModal();
+
+          // Reset centang soal ulangan
+          document.querySelectorAll('.chk-exam-soal').forEach(cb => cb.checked = false);
+          const chkAll = document.getElementById('chk-select-all-exam-soal');
+          if (chkAll) { chkAll.checked = false; chkAll.indeterminate = false; }
+          updateExamSoalBulkBar();
+
+          // Update datalist kategori & badge Bank Soal
+          await loadBankCategories();
+          if (badgeBankSoalCount) {
+            const cur = parseInt(badgeBankSoalCount.textContent, 10) || 0;
+            badgeBankSoalCount.textContent = cur + soalIds.length;
+          }
+        } catch (err) {
+          alert('Error: ' + err.message);
+        } finally {
+          btnConfirmBulkCopyBank.disabled = false;
+          btnConfirmBulkCopyBank.innerHTML = originalText;
+        }
+      });
+    }
+
+    // --- FITUR 2: AMBIL SOAL DARI BANK SOAL KE ULANGAN (BERBASIS KATEGORI & SATUAN FLEKSIBEL) ---
+    const modalImportFromBank = document.getElementById('modal-import-from-bank');
+    const btnOpenImportFromBank = document.getElementById('btn-open-import-from-bank');
+    const btnCloseModalImportBank = document.getElementById('btn-close-modal-import-bank');
+    const btnCancelModalImportBank = document.getElementById('btn-cancel-modal-import-bank');
+    const btnDoImportFromBank = document.getElementById('btn-do-import-from-bank');
+    const importBankSearch = document.getElementById('import-bank-search');
+    const importBankFilterJenis = document.getElementById('import-bank-filter-jenis');
+    const importBankFilterListening = document.getElementById('import-bank-filter-listening');
+    const importBankCatsChipsContainer = document.getElementById('import-bank-categories-chips');
+    const importBankSoalContainer = document.getElementById('import-bank-soal-container');
+    const importBankTotalSelectedEl = document.getElementById('import-bank-total-selected');
+    const importBankCatsSummaryEl = document.getElementById('import-bank-cats-summary');
+    const btnImportCheckAllCats = document.getElementById('btn-import-bank-check-all-cats');
+    const btnImportUncheckAllCats = document.getElementById('btn-import-bank-uncheck-all-cats');
+
+    let importBankRawSoal = [];
+    let importSelectedSoalIds = new Set();
+    let importCollapsedCats = new Set();
+
+    async function openImportFromBankModal() {
+      if (!activeUlanganId) {
+        alert('Pilih paket ulangan terlebih dahulu!');
+        return;
+      }
+
+      importSelectedSoalIds.clear();
+      importCollapsedCats.clear();
+      if (importBankSearch) importBankSearch.value = '';
+      if (importBankFilterJenis) importBankFilterJenis.value = 'all';
+      if (importBankFilterListening) importBankFilterListening.value = 'all';
+      if (modalImportFromBank) modalImportFromBank.classList.remove('hidden');
+
+      if (importBankCatsChipsContainer) {
+        importBankCatsChipsContainer.innerHTML = '<span class="text-xs text-slate-400 py-1">Memuat kategori...</span>';
+      }
+      if (importBankSoalContainer) {
+        importBankSoalContainer.innerHTML = '<div class="text-center py-10 text-slate-400 space-y-2"><div class="inline-block animate-spin rounded-full h-6 w-6 border-2 border-purple-300 border-t-purple-600"></div><p class="text-xs">Memuat koleksi Bank Soal...</p></div>';
+      }
+
+      try {
+        const res = await guruFetch('/api/guru/bank-soal');
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Gagal memuat Bank Soal');
+
+        importBankRawSoal = data.data || [];
+        renderImportFromBankUI();
+      } catch (err) {
+        if (importBankSoalContainer) {
+          importBankSoalContainer.innerHTML = `<div class="p-4 bg-red-50 text-red-700 rounded-xl text-center">Gagal memuat: ${escapeHtml(err.message)}</div>`;
+        }
+      }
+    }
+
+    function closeImportFromBankModal() {
+      if (modalImportFromBank) modalImportFromBank.classList.add('hidden');
+    }
+
+    function getFilteredBankSoal() {
+      const q = (importBankSearch?.value || '').toLowerCase().trim();
+      const jenis = importBankFilterJenis?.value || 'all';
+      const listening = importBankFilterListening?.value || 'all';
+
+      return importBankRawSoal.filter(item => {
+        if (jenis !== 'all' && item.jenis !== jenis) return false;
+        if (listening !== 'all') {
+          const isL = Number(listening) === 1;
+          if (!!item.is_listening !== isL) return false;
+        }
+        if (q) {
+          const matchQ = (item.pertanyaan && item.pertanyaan.toLowerCase().includes(q)) ||
+                         (item.kunci_jawaban && item.kunci_jawaban.toLowerCase().includes(q)) ||
+                         (item.kategori && item.kategori.toLowerCase().includes(q)) ||
+                         (item.sub_topik && item.sub_topik.toLowerCase().includes(q)) ||
+                         (item.pembahasan && item.pembahasan.toLowerCase().includes(q));
+          if (!matchQ) return false;
+        }
+        return true;
+      });
+    }
+
+    function renderImportFromBankUI() {
+      const filtered = getFilteredBankSoal();
+
+      // Kelompokkan soal berdasarkan kategori
+      const groups = {};
+      filtered.forEach(s => {
+        const cat = s.kategori || 'Umum';
+        if (!groups[cat]) groups[cat] = [];
+        groups[cat].push(s);
+      });
+
+      const categories = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+
+      // 1. Render Kategori Chips di panel atas
+      if (importBankCatsChipsContainer) {
+        if (categories.length === 0) {
+          importBankCatsChipsContainer.innerHTML = '<span class="text-xs text-slate-400 py-1">Tidak ada kategori yang sesuai.</span>';
+        } else {
+          importBankCatsChipsContainer.innerHTML = categories.map(cat => {
+            const items = groups[cat];
+            const checkedCount = items.filter(s => importSelectedSoalIds.has(s.id)).length;
+            const isAll = checkedCount === items.length && items.length > 0;
+            const isPartial = checkedCount > 0 && checkedCount < items.length;
+
+            return `
+              <label class="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border text-xs cursor-pointer select-none transition ${isAll ? 'bg-purple-600 text-white border-purple-700 shadow-xs' : (isPartial ? 'bg-purple-100 text-purple-900 border-purple-300' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100')}">
+                <input type="checkbox" class="chk-import-cat w-3.5 h-3.5 rounded text-purple-600 cursor-pointer" data-category="${escapeHtml(cat)}" ${isAll ? 'checked' : ''}>
+                <span class="font-bold">${escapeHtml(cat)}</span>
+                <span class="text-[10px] ${isAll ? 'text-purple-200' : 'text-slate-400'} font-semibold">(${checkedCount}/${items.length})</span>
+              </label>
+            `;
+          }).join('');
+
+          // Set indeterminate property pada chip partial
+          categories.forEach(cat => {
+            const items = groups[cat];
+            const checkedCount = items.filter(s => importSelectedSoalIds.has(s.id)).length;
+            const isPartial = checkedCount > 0 && checkedCount < items.length;
+            const cb = importBankCatsChipsContainer.querySelector(`.chk-import-cat[data-category="${CSS.escape(cat)}"]`);
+            if (cb && isPartial) cb.indeterminate = true;
+          });
+        }
+      }
+
+      // 2. Render Kartu Soal Terkelompok di kontainer utama
+      if (importBankSoalContainer) {
+        if (categories.length === 0) {
+          importBankSoalContainer.innerHTML = `
+            <div class="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+              <p class="text-sm font-bold text-slate-600">Tidak ada butir soal ditemukan</p>
+              <p class="text-xs text-slate-400">Bank Soal Anda belum memiliki soal yang sesuai dengan kriteria filter.</p>
+            </div>
+          `;
+        } else {
+          importBankSoalContainer.innerHTML = categories.map(cat => {
+            const items = groups[cat];
+            const checkedCount = items.filter(s => importSelectedSoalIds.has(s.id)).length;
+            const isCollapsed = importCollapsedCats.has(cat);
+
+            return `
+              <div class="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden" data-group-cat="${escapeHtml(cat)}">
+                <!-- Group Header -->
+                <div class="p-2.5 sm:p-3 bg-gradient-to-r from-purple-50/70 to-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+                  <div class="flex items-center space-x-2">
+                    <label class="flex items-center space-x-1.5 cursor-pointer select-none">
+                      <input type="checkbox" class="chk-group-header w-4 h-4 rounded text-purple-600 cursor-pointer" data-category="${escapeHtml(cat)}" ${checkedCount === items.length && items.length > 0 ? 'checked' : ''}>
+                      <span class="font-bold text-purple-950 text-xs sm:text-sm">${escapeHtml(cat)}</span>
+                    </label>
+                    <span class="text-[11px] font-semibold text-purple-700 bg-purple-100/80 px-2 py-0.5 rounded-full">
+                      ${checkedCount} / ${items.length} dipilih
+                    </span>
+                  </div>
+                  <button type="button" class="text-xs text-slate-500 hover:text-slate-800 font-medium flex items-center space-x-1 cursor-pointer" onclick="toggleImportGroup('${escapeHtml(cat)}')">
+                    <span>${isCollapsed ? 'Tampilkan Soal ▾' : 'Sembunyikan ▴'}</span>
+                  </button>
+                </div>
+
+                <!-- Group Items List -->
+                <div class="p-2.5 sm:p-3 space-y-2.5 ${isCollapsed ? 'hidden' : ''}">
+                  ${items.map(s => {
+                    const isChecked = importSelectedSoalIds.has(s.id);
+                    return `
+                      <div class="p-3 rounded-xl border transition text-xs space-y-2 ${isChecked ? 'bg-purple-50/60 border-purple-300 ring-1 ring-purple-200' : 'bg-slate-50/70 border-slate-200 hover:bg-slate-50'}">
+                        <div class="flex items-start justify-between gap-2">
+                          <label class="flex items-start space-x-2.5 cursor-pointer flex-1 select-none">
+                            <input type="checkbox" class="chk-import-soal mt-0.5 w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer shrink-0" data-id="${s.id}" data-category="${escapeHtml(cat)}" ${isChecked ? 'checked' : ''}>
+                            <div class="space-y-1 flex-1 min-w-0">
+                              <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
+                                <span class="uppercase text-[9px] font-bold px-1.5 py-0.2 rounded ${s.jenis === 'essay' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">${s.jenis}</span>
+                                <span class="text-[10px] text-slate-400 font-medium">Bobot: <strong>${s.bobot_standar || 10}</strong></span>
+                                ${s.tingkat_kesulitan ? `<span class="text-[9px] font-semibold px-1.5 py-0.2 rounded ${s.tingkat_kesulitan === 'sulit' ? 'bg-red-100 text-red-700' : (s.tingkat_kesulitan === 'mudah' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}">${s.tingkat_kesulitan}</span>` : ''}
+                                ${s.is_listening ? `<span class="bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.2 rounded">🎧 Listening</span>` : ''}
+                              </div>
+                              <p class="font-medium text-slate-800 leading-relaxed" dir="auto">${escapeHtml(s.pertanyaan)}</p>
+                              ${s.kunci_jawaban ? `<p class="text-slate-500 text-[11px]"><strong class="text-slate-600">Kunci:</strong> ${escapeHtml(s.kunci_jawaban)}</p>` : ''}
+                              ${s.pembahasan ? `<div class="bg-emerald-50/70 p-1.5 rounded text-[10px] text-emerald-900 leading-tight"><strong>💡 Pembahasan:</strong> ${escapeHtml(s.pembahasan)}</div>` : ''}
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `;
+          }).join('');
+
+          // Set indeterminate property pada header kategori
+          categories.forEach(cat => {
+            const items = groups[cat];
+            const checkedCount = items.filter(s => importSelectedSoalIds.has(s.id)).length;
+            const isPartial = checkedCount > 0 && checkedCount < items.length;
+            const cb = importBankSoalContainer.querySelector(`.chk-group-header[data-category="${CSS.escape(cat)}"]`);
+            if (cb && isPartial) cb.indeterminate = true;
+          });
+
+          renderMath(importBankSoalContainer);
+        }
+      }
+
+      updateImportSummary();
+    }
+
+    function updateImportSummary() {
+      const total = importSelectedSoalIds.size;
+      if (importBankTotalSelectedEl) importBankTotalSelectedEl.textContent = total;
+
+      // Hitung berapa kategori unik terpilih
+      const selectedCats = new Set();
+      importBankRawSoal.forEach(s => {
+        if (importSelectedSoalIds.has(s.id)) {
+          selectedCats.add(s.kategori || 'Umum');
+        }
+      });
+
+      if (importBankCatsSummaryEl) {
+        importBankCatsSummaryEl.textContent = `(dari ${selectedCats.size} kategori)`;
+      }
+
+      if (btnDoImportFromBank) {
+        btnDoImportFromBank.disabled = (total === 0);
+        btnDoImportFromBank.innerHTML = total > 0 
+          ? `<span>📥 Tambahkan ${total} Soal ke Ulangan Ini</span>`
+          : `<span>📥 Tambahkan Soal ke Ulangan Ini</span>`;
+      }
+    }
+
+    window.toggleImportGroup = function(cat) {
+      if (importCollapsedCats.has(cat)) {
+        importCollapsedCats.delete(cat);
+      } else {
+        importCollapsedCats.add(cat);
+      }
+      renderImportFromBankUI();
+    };
+
+    // Event Filter & Search untuk Import Modal
+    if (importBankSearch) importBankSearch.addEventListener('input', () => renderImportFromBankUI());
+    if (importBankFilterJenis) importBankFilterJenis.addEventListener('change', () => renderImportFromBankUI());
+    if (importBankFilterListening) importBankFilterListening.addEventListener('change', () => renderImportFromBankUI());
+
+    // Event Delegasi untuk Checkbox Kategori Chips & Header
+    document.addEventListener('change', (e) => {
+      // 1. Klik pada Kategori Chip di panel atas ATAU Checkbox Header Grup
+      if (e.target.classList.contains('chk-import-cat') || e.target.classList.contains('chk-group-header')) {
+        const cat = e.target.getAttribute('data-category');
+        const isChecked = e.target.checked;
+        const filtered = getFilteredBankSoal();
+        const items = filtered.filter(s => (s.kategori || 'Umum') === cat);
+
+        items.forEach(s => {
+          if (isChecked) {
+            importSelectedSoalIds.add(s.id);
+          } else {
+            importSelectedSoalIds.delete(s.id);
+          }
+        });
+        renderImportFromBankUI();
+      }
+
+      // 2. Klik pada Checkbox Butir Soal Satuan (Bisa Centang atau Cabut per-soal)
+      if (e.target.classList.contains('chk-import-soal')) {
+        const id = Number(e.target.getAttribute('data-id'));
+        if (e.target.checked) {
+          importSelectedSoalIds.add(id);
+        } else {
+          importSelectedSoalIds.delete(id);
+        }
+        renderImportFromBankUI();
+      }
+    });
+
+    // Helper "Pilih Semua Kategori"
+    if (btnImportCheckAllCats) {
+      btnImportCheckAllCats.addEventListener('click', () => {
+        const filtered = getFilteredBankSoal();
+        filtered.forEach(s => importSelectedSoalIds.add(s.id));
+        renderImportFromBankUI();
+      });
+    }
+
+    // Helper "Lepas Semua"
+    if (btnImportUncheckAllCats) {
+      btnImportUncheckAllCats.addEventListener('click', () => {
+        importSelectedSoalIds.clear();
+        renderImportFromBankUI();
+      });
+    }
+
+    // Eksekusi Tombol Tambahkan Soal ke Ulangan Ini
+    if (btnDoImportFromBank) {
+      btnDoImportFromBank.addEventListener('click', async () => {
+        if (importSelectedSoalIds.size === 0) {
+          alert('Pilih sekurang-kurangnya 1 butir soal!');
+          return;
+        }
+
+        const selectedIds = Array.from(importSelectedSoalIds);
+        const originalText = btnDoImportFromBank.innerHTML;
+        btnDoImportFromBank.disabled = true;
+        btnDoImportFromBank.innerHTML = '<span>Menambahkan...</span>';
+
+        try {
+          const res = await guruFetch('/api/guru/bank-soal/import-to-exam', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ulangan_id: activeUlanganId,
+              bank_soal_ids: selectedIds
+            })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.message || 'Gagal menambahkan soal ke ulangan');
+          }
+
+          alert(`✅ Berhasil menambahkan ${selectedIds.length} butir soal dari Bank Soal ke paket ulangan ini!`);
+          closeImportFromBankModal();
+
+          // Refresh ulangan aktif agar soal langsung tampil
+          if (activeUlanganId) {
+            selectUlangan(activeUlanganId);
+          }
+        } catch (err) {
+          alert('Error: ' + err.message);
+        } finally {
+          btnDoImportFromBank.disabled = false;
+          btnDoImportFromBank.innerHTML = originalText;
+        }
+      });
+    }
+
+    if (btnOpenImportFromBank) btnOpenImportFromBank.addEventListener('click', openImportFromBankModal);
+    if (btnCloseModalImportBank) btnCloseModalImportBank.addEventListener('click', closeImportFromBankModal);
+    if (btnCancelModalImportBank) btnCancelModalImportBank.addEventListener('click', closeImportFromBankModal);
 
     // --- 5. AI Smart Pick dari Bank Soal ---
     const modalAiSmartPick = document.getElementById('modal-ai-smart-pick');

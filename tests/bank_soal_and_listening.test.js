@@ -119,6 +119,34 @@ test('=== SUITE: BANK SOAL, LISTENING, AUDIO & EKSPOR EXCEL ===', async (t) => {
     assert.equal(importedList[0].is_listening, 1);
     assert.equal(importedList[0].bahasa, 'Bahasa Inggris');
     assert.equal(importedList[0].pertanyaan, testSoal.pertanyaan);
+
+    // 2.4 Salin Massal (copyBatchFromExam) dari Ulangan ke Bank Soal
+    const soalTambahan1 = examService.createSoal(testUlanganId, {
+      pertanyaan: 'Sebutkan 3 macam pembelahan sel!',
+      jenis: 'isian',
+      bobot: 15,
+      kunci_jawaban: 'Amitosis, mitosis, meiosis',
+      pembahasan: 'Tiga macam pembelahan sel pada makhluk hidup adalah amitosis, mitosis, dan meiosis.'
+    });
+    const soalTambahan2 = examService.createSoal(testUlanganId, {
+      pertanyaan: 'Jelaskan perbedaan sitokinesis pada sel hewan dan tumbuhan!',
+      jenis: 'essay',
+      bobot: 25,
+      kunci_jawaban: 'Sel hewan membentuk cleavage furrow, sedangkan sel tumbuhan membentuk cell plate.',
+      pembahasan: 'Dinding sel tumbuhan yang kaku menghalangi pembentukan alur pembelahan, sehingga terbentuk pelat sel baru.'
+    });
+
+    const batchCopied = bankSoalService.copyBatchFromExam(
+      testUlanganId,
+      [soalTambahan1.id, soalTambahan2.id],
+      guruId,
+      'Biologi - Pembelahan Sel'
+    );
+    assert.equal(batchCopied.length, 2);
+    assert.equal(batchCopied[0].kategori, 'Biologi - Pembelahan Sel');
+    assert.equal(batchCopied[1].kategori, 'Biologi - Pembelahan Sel');
+    assert.equal(batchCopied[0].pertanyaan, 'Sebutkan 3 macam pembelahan sel!');
+    assert.equal(batchCopied[1].pertanyaan, 'Jelaskan perbedaan sitokinesis pada sel hewan dan tumbuhan!');
   });
 
   await t.test('3. AI Cerdas Pemilih Soal dari Bank Soal (Smart Pick)', async () => {
@@ -389,6 +417,30 @@ test('=== SUITE: BANK SOAL, LISTENING, AUDIO & EKSPOR EXCEL ===', async (t) => {
 
     // Bersihkan data bulk
     for (const b of dataBulk.data) {
+      await fetch(`${baseUrl}/api/guru/bank-soal/${b.id}`, { method: 'DELETE', headers: authHeaders });
+    }
+
+    // 7.6 POST /api/guru/bank-soal/copy-batch-from-exam (Salin Massal dari Ulangan Aktif)
+    const resCopyBatch = await fetch(`${baseUrl}/api/guru/bank-soal/copy-batch-from-exam`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders
+      },
+      body: JSON.stringify({
+        ulangan_id: testUlanganId,
+        soal_ids: [testSoalId],
+        kategori: 'Bahasa Inggris - Ulangan Harian'
+      })
+    });
+    const dataCopyBatch = await resCopyBatch.json();
+    assert.equal(resCopyBatch.status, 200);
+    assert.equal(dataCopyBatch.success, true);
+    assert.equal(dataCopyBatch.data.length, 1);
+    assert.equal(dataCopyBatch.data[0].kategori, 'Bahasa Inggris - Ulangan Harian');
+
+    // Bersihkan data hasil copy batch
+    for (const b of dataCopyBatch.data) {
       await fetch(`${baseUrl}/api/guru/bank-soal/${b.id}`, { method: 'DELETE', headers: authHeaders });
     }
 

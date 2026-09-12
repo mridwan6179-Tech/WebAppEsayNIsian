@@ -226,6 +226,57 @@ const bankSoalService = {
     });
   },
 
+  // Salin banyak butir soal sekaligus dari ulangan aktif ke Bank Soal
+  copyBatchFromExam(ulanganId, soalIds, guruId, customCategory = null) {
+    if (!Array.isArray(soalIds) || soalIds.length === 0) {
+      throw new Error('Pilih minimal satu butir soal untuk dimasukkan ke Bank Soal');
+    }
+
+    const ulangan = db.prepare('SELECT id, guru_id, mata_pelajaran, tingkat_kelas FROM ulangan WHERE id = ?').get(ulanganId);
+    if (!ulangan || ulangan.guru_id !== guruId) {
+      throw new Error('Ulangan tidak ditemukan atau bukan milik Anda');
+    }
+
+    const placeholders = soalIds.map(() => '?').join(',');
+    const rows = db.prepare(`
+      SELECT * FROM soal 
+      WHERE id IN (${placeholders}) AND ulangan_id = ?
+    `).all(...soalIds, ulanganId);
+
+    if (rows.length === 0) {
+      throw new Error('Tidak ada butir soal valid yang ditemukan untuk disalin');
+    }
+
+    const createdList = [];
+    for (const row of rows) {
+      const kategori = (customCategory && customCategory.trim())
+        ? customCategory.trim()
+        : (row.kategori || ulangan.mata_pelajaran || 'Umum');
+
+      const created = this.create(guruId, {
+        kategori,
+        sub_topik: null,
+        tingkat_kelas: row.tingkat_kelas || ulangan.tingkat_kelas,
+        jenis: row.jenis,
+        pertanyaan: row.pertanyaan,
+        kunci_jawaban: row.kunci_jawaban,
+        rubrik: row.rubrik,
+        pembahasan: row.pembahasan || null,
+        tingkat_kesulitan: row.tingkat_kesulitan || 'sedang',
+        bobot_standar: row.bobot || 10,
+        gambar_url: row.gambar_url,
+        audio_url: row.audio_url,
+        audio_script: row.audio_script,
+        is_listening: row.is_listening,
+        bahasa: row.bahasa,
+        tampilkan_teks_listening: row.tampilkan_teks_listening
+      });
+      createdList.push(created);
+    }
+
+    return createdList;
+  },
+
   // Impor sekumpulan butir Bank Soal ke dalam ulangan aktif
   importToExam(ulanganId, guruId, bankSoalIds) {
     if (!Array.isArray(bankSoalIds) || bankSoalIds.length === 0) {
