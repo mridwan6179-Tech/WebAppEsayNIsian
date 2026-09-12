@@ -528,18 +528,24 @@ const queueService = {
           else normalizedStatus = 'perlu_review';
         }
 
+        const maxBobot = Number(queueItem.bobot) || 1;
+        const rawSkor = Number(result.skor_rekomendasi ?? 0);
+        const clampedScore = Math.max(0, Math.min(maxBobot, Math.round(rawSkor * 100) / 100));
+
         db.transaction(() => {
           db.prepare(`
             UPDATE jawaban
             SET status_penilaian = 'selesai',
                 skor_rekomendasi = ?,
+                skor_maksimum = ?,
                 status_jawaban = ?,
                 alasan_ai = ?,
                 model_ai = ?,
                 reviewed_at = CURRENT_TIMESTAMP
             WHERE id = ?
           `).run(
-            result.skor_rekomendasi,
+            clampedScore,
+            maxBobot,
             normalizedStatus,
             result.alasan_ai,
             result.model_ai || 'gemini',
