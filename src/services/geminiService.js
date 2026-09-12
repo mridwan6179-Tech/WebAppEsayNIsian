@@ -705,6 +705,11 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
     const essayTeks = Math.max(0, nEssay - essayListening);
     const jumlahNonListening = isListening ? Math.max(0, jumlah_soal - jumlahListening) : jumlah_soal;
 
+    const rawExisting = Array.isArray(options.existing_questions)
+      ? options.existing_questions
+      : (options.existingQuestions && Array.isArray(options.existingQuestions) ? options.existingQuestions : []);
+    const existingQuestions = Array.from(new Set(rawExisting.map(q => String(q || '').trim()).filter(Boolean)));
+
     let sumberDeskripsi = '';
     if (mode === 'teks_materi') {
       sumberDeskripsi = `
@@ -717,6 +722,22 @@ INSTRUKSI KHUSUS SUMBER: Buat butir-butir pertanyaan HANYA berdasarkan materi ba
       sumberDeskripsi = `
 TOPIK / TEMA PEMBELAJARAN: "${input_sumber}"
 INSTRUKSI KHUSUS SUMBER: Buatlah paket soal yang relevan, berbobot ilmiah, dan sesuai dengan topik serta jenjang kurikulum ${jenjang_kelas}.`;
+    }
+
+    let antiDuplikasiInstructions = '';
+    if (existingQuestions.length > 0) {
+      const cuplikan = existingQuestions.slice(0, 40).map((q, idx) => `${idx + 1}. "${q}"`).join('\n');
+      antiDuplikasiInstructions = `
+*** ATURAN MUTLAK ANTI-DUPLIKASI (SOAL BARU WAJIB BERBEDA DARI SUMBER SEBELUMNYA) ***
+Sistem mendeteksi bahwa guru sudah memiliki ${existingQuestions.length} butir soal sebelumnya untuk topik/materi ini:
+${cuplikan}
+
+KETENTUAN WAJIB SOAL BARU:
+- DILARANG KERAS membuat pertanyaan yang serupa, identik, atau sekadar parafrase kata dari daftar butir soal yang sudah ada di atas!
+- Buatlah butir pertanyaan BARU dengan mengeksplorasi sudut pandang berbeda, studi kasus baru, variabel/parameter lain, atau sub-topik lanjutan yang belum tercakup pada soal di atas.
+- Jika materi bacaannya sama, tanyakan aspek, data kalimat, argumen, atau kesimpulan lain yang BELUM disentuh sama sekali oleh soal-soal terdahulu.
+- Pastikan seluruh ${jumlah_soal} butir soal baru ini benar-benar unik, segar, dan memperluas variasi khazanah evaluasi belajar siswa.
+`;
     }
 
     let tipeDeskripsi = '';
@@ -787,6 +808,7 @@ PARAMETER PEMBUATAN SOAL:
 5. Target Total Akumulasi Bobot: ${target_total_bobot} (Distribusikan bobot ke setiap soal secara adil dan bulat, misalnya soal essay berbobot lebih tinggi, sehingga total seluruh soal tepat = ${target_total_bobot}).
 ${listeningInstructions}
 ${sumberDeskripsi}
+${antiDuplikasiInstructions}
 
 KOMPONEN WAJIB TIAP BUTIR SOAL:
 - "kategori": Kategori pokok atau nama bab/mata pelajaran dari butir soal ini (WAJIB diisi ringkas, spesifik & presisi sesuai materi/topik, misal: "Bahasa Inggris - Tenses", "Biologi - Fotosintesis", "Matematika - Aljabar", "Fisika - Termodinamika", "Listening Comprehension", dll. Jangan gunakan kata umum "Umum").
@@ -949,6 +971,11 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
     const isListening = Boolean(options.is_listening);
     const bahasa = options.bahasa || (isListening ? 'Bahasa Inggris' : 'Bahasa Indonesia');
 
+    const rawExisting = Array.isArray(options.existing_questions)
+      ? options.existing_questions
+      : (options.existingQuestions && Array.isArray(options.existingQuestions) ? options.existingQuestions : []);
+    const offset = rawExisting.length;
+
     const hasSpecificIsian = options.jumlah_isian !== undefined && options.jumlah_isian !== null && options.jumlah_isian !== '';
     const hasSpecificEssay = options.jumlah_essay !== undefined && options.jumlah_essay !== null && options.jumlah_essay !== '';
 
@@ -977,18 +1004,19 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
 
       for (let i = 1; i <= nIsian; i++) {
         const itemIsListening = isListening && (i <= targetIsianListening);
+        const actualIdx = offset + i;
         sampleSoal.push({
           kategori: itemIsListening ? 'Listening Comprehension' : topik,
-          sub_topik: `Bagian ${i}`,
+          sub_topik: offset > 0 ? `Lanjutan Bagian ${actualIdx}` : `Bagian ${i}`,
           pertanyaan: itemIsListening
-            ? `Berdasarkan rekaman percakapan di atas, sebutkan informasi penting terkait ${topik} (Isian #${i})!`
-            : `Sebutkan istilah atau komponen penting terkait ${topik} (Isian #${i})!`,
+            ? `Berdasarkan rekaman percakapan di atas, sebutkan informasi penting terkait ${topik} (Isian #${actualIdx})!`
+            : `Sebutkan istilah atau komponen penting terkait ${topik} (Isian #${actualIdx})!`,
           jenis: 'isian',
           bobot: 10,
           gambar_url: null,
-          kunci_jawaban: `Kunci acuan istilah untuk ${topik} bagian ${i}`,
+          kunci_jawaban: `Kunci acuan istilah untuk ${topik} bagian ${actualIdx}`,
           rubrik: 'Menyebutkan istilah yang tepat sesuai konsep acuan',
-          pembahasan: `Pembahasan rinci untuk konsep materi ${topik} bagian ${i}. Istilah ini mengacu pada standar kurikulum.`,
+          pembahasan: `Pembahasan rinci untuk konsep materi ${topik} bagian ${actualIdx}. Istilah ini mengacu pada standar kurikulum.`,
           is_listening: itemIsListening ? 1 : 0,
           bahasa: itemIsListening ? bahasa : null,
           audio_script: itemIsListening ? (options.deskripsi_audio || `Speaker A: Hello, can you explain ${topik}? Speaker B: Yes, it is an important topic.`) : null
@@ -997,18 +1025,19 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
 
       for (let j = 1; j <= nEssay; j++) {
         const itemIsListening = isListening && (j <= targetEssayListening);
+        const actualIdx = offset + j;
         sampleSoal.push({
           kategori: itemIsListening ? 'Listening Comprehension' : topik,
-          sub_topik: `Uraian ${j}`,
+          sub_topik: offset > 0 ? `Lanjutan Uraian ${actualIdx}` : `Uraian ${j}`,
           pertanyaan: itemIsListening
-            ? `Berdasarkan rekaman percakapan, jelaskan secara mendalam konsep dan kesimpulan dari ${topik} (Essay #${j})!`
-            : `Jelaskan secara mendalam konsep dan mekanisme utama dari ${topik} (Essay #${j})!`,
+            ? `Berdasarkan rekaman percakapan, jelaskan secara mendalam konsep dan kesimpulan dari ${topik} (Essay #${actualIdx})!`
+            : `Jelaskan secara mendalam konsep dan mekanisme utama dari ${topik} (Essay #${actualIdx})!`,
           jenis: 'essay',
           bobot: 20,
           gambar_url: null,
-          kunci_jawaban: `Kunci uraian konsep mendalam untuk ${topik} bagian ${j}`,
+          kunci_jawaban: `Kunci uraian konsep mendalam untuk ${topik} bagian ${actualIdx}`,
           rubrik: 'Menjelaskan konsep lengkap dan runtut (skor penuh), menjelaskan sebagian (skor 50%), salah (skor 0)',
-          pembahasan: `Pembahasan lengkap konsep ${topik} bagian ${j}. Menjelaskan esensi dan keterkaitan komponen secara sistematis.`,
+          pembahasan: `Pembahasan lengkap konsep ${topik} bagian ${actualIdx}. Menjelaskan esensi dan keterkaitan komponen secara sistematis.`,
           is_listening: itemIsListening ? 1 : 0,
           bahasa: itemIsListening ? bahasa : null,
           audio_script: itemIsListening ? (options.deskripsi_audio || `Speaker A: Welcome to the lecture about ${topik}. Speaker B: Let us analyze the primary functions.`) : null
@@ -1020,20 +1049,21 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
       for (let i = 1; i <= n; i++) {
         const itemIsListening = isListening && (i <= targetSingleListening);
         const isEssay = options.tipe_soal === 'essay' || (options.tipe_soal === 'campuran' && i % 2 === 0);
+        const actualIdx = offset + i;
         sampleSoal.push({
           kategori: itemIsListening ? 'Listening Comprehension' : topik,
-          sub_topik: `Topik ${i}`,
+          sub_topik: offset > 0 ? `Lanjutan Topik ${actualIdx}` : `Topik ${i}`,
           pertanyaan: isEssay
-            ? (itemIsListening ? `Berdasarkan audio percakapan, jelaskan konsep utama ${topik} (Nomor ${i})!` : `Jelaskan secara mendalam konsep dan fungsi utama dari ${topik} (Bagian ${i})!`)
-            : (itemIsListening ? `Berdasarkan audio, sebutkan istilah penting terkait ${topik} (Nomor ${i})!` : `Sebutkan istilah atau komponen penting terkait ${topik} (Nomor ${i})!`),
+            ? (itemIsListening ? `Berdasarkan audio percakapan, jelaskan konsep utama ${topik} (Nomor ${actualIdx})!` : `Jelaskan secara mendalam konsep dan fungsi utama dari ${topik} (Bagian ${actualIdx})!`)
+            : (itemIsListening ? `Berdasarkan audio, sebutkan istilah penting terkait ${topik} (Nomor ${actualIdx})!` : `Sebutkan istilah atau komponen penting terkait ${topik} (Nomor ${actualIdx})!`),
           jenis: isEssay ? 'essay' : 'isian',
           bobot: isEssay ? 20 : 10,
           gambar_url: null,
-          kunci_jawaban: `Kunci acuan konsep untuk ${topik} bagian ${i}`,
+          kunci_jawaban: `Kunci acuan konsep untuk ${topik} bagian ${actualIdx}`,
           rubrik: isEssay
             ? 'Menjelaskan konsep lengkap dan runtut (skor penuh), menjelaskan sebagian (skor 50%), salah (skor 0)'
             : 'Menyebutkan istilah yang tepat sesuai konsep acuan',
-          pembahasan: `Pembahasan komprehensif materi ${topik} nomor ${i} berdasarkan rujukan ilmiah terpercaya.`,
+          pembahasan: `Pembahasan komprehensif materi ${topik} nomor ${actualIdx} berdasarkan rujukan ilmiah terpercaya.`,
           is_listening: itemIsListening ? 1 : 0,
           bahasa: itemIsListening ? bahasa : null,
           audio_script: itemIsListening ? (options.deskripsi_audio || `Speaker: In this dialogue about ${topik}, we discuss key principles.`) : null
@@ -1116,7 +1146,16 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
             throw new Error('Output AI tidak memuat butir soal yang valid');
           }
 
-          const normalized = this.normalizeGeneratedQuestions(rawList, targetBobot, options);
+          let usableList = rawList;
+          if (Array.isArray(options.existing_questions) && options.existing_questions.length > 0) {
+            const existingSet = new Set(options.existing_questions.map(q => String(q || '').trim().toLowerCase()));
+            const nonDuplicates = rawList.filter(q => !existingSet.has(String(q.pertanyaan || '').trim().toLowerCase()));
+            if (nonDuplicates.length > 0) {
+              usableList = nonDuplicates;
+            }
+          }
+
+          const normalized = this.normalizeGeneratedQuestions(usableList, targetBobot, options);
           modelCooldownMap.delete(model);
 
           return {

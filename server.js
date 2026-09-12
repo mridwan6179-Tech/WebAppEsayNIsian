@@ -40,6 +40,14 @@ app.use((req, res, next) => {
 // Static Files
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Header Anti-Cache untuk seluruh endpoint /api agar respons browser selalu segar (mencegah bug revert rilis nilai)
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
 // Endpoint Health Check untuk monitoring platform hosting (Render/Vercel/Uptime)
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
@@ -426,7 +434,7 @@ app.delete('/api/guru/soal/:id', requireGuru, (req, res) => {
   }
 });
 
-// AI Soal Generator
+// AI Soal Generator (Dilengkapi Anti-Duplikasi dari Ulangan & Bank Soal)
 app.post('/api/guru/generate-soal', requireGuru, async (req, res) => {
   try {
     const {
@@ -444,12 +452,65 @@ app.post('/api/guru/generate-soal', requireGuru, async (req, res) => {
       jumlah_isian_listening,
       jumlah_essay_listening,
       bahasa,
-      deskripsi_audio
+      deskripsi_audio,
+      target_context,
+      ulangan_id,
+      existing_questions
     } = req.body;
 
     if (!input_sumber || input_sumber.trim() === '') {
       return res.status(400).json({ success: false, message: 'Topik atau teks materi wajib diisi' });
     }
+
+    // Kumpulkan butir pertanyaan yang sudah ada sebelumnya agar AI menghasilkan variasi baru & tidak duplikat
+    const collectedExistingQuestions = [];
+    if (Array.isArray(existing_questions)) {
+      collectedExistingQuestions.push(...existing_questions);
+    }
+
+    // 1. Jika dalam konteks ulangan atau memiliki ulangan_id, ambil semua butir pertanyaan yang sudah ada di ulangan tersebut
+    if (ulangan_id) {
+      try {
+        const rowsUlangan = db.prepare('SELECT pertanyaan FROM soal WHERE ulangan_id = ? ORDER BY id ASC').all(ulangan_id);
+        if (rowsUlangan && rowsUlangan.length > 0) {
+          collectedExistingQuestions.push(...rowsUlangan.map(r => r.pertanyaan));
+        }
+      } catch (errU) {
+        console.warn('Gagal membaca soal ulangan untuk anti-duplikasi:', errU.message);
+      }
+    }
+
+    // 2. Jika dalam konteks bank_soal atau untuk memperkaya variasi guru, ambil butir pertanyaan relevan dari Bank Soal milik guru
+    const guruId = req.guru?.guruId;
+    if (guruId) {
+      try {
+        const topicKeyword = (input_sumber || '').trim().substring(0, 35);
+        if (topicKeyword) {
+          const bankMatches = db.prepare(`
+            SELECT pertanyaan FROM bank_soal 
+            WHERE guru_id = ? 
+              AND (kategori LIKE ? OR sub_topik LIKE ? OR pertanyaan LIKE ?)
+            ORDER BY id DESC LIMIT 30
+          `).all(guruId, `%${topicKeyword}%`, `%${topicKeyword}%`, `%${topicKeyword}%`);
+          if (bankMatches && bankMatches.length > 0) {
+            collectedExistingQuestions.push(...bankMatches.map(r => r.pertanyaan));
+          }
+        }
+        if (target_context === 'bank_soal' || collectedExistingQuestions.length < 5) {
+          const recentBank = db.prepare('SELECT pertanyaan FROM bank_soal WHERE guru_id = ? ORDER BY id DESC LIMIT 25').all(guruId);
+          if (recentBank && recentBank.length > 0) {
+            collectedExistingQuestions.push(...recentBank.map(r => r.pertanyaan));
+          }
+        }
+      } catch (errB) {
+        console.warn('Gagal membaca soal bank_soal untuk anti-duplikasi:', errB.message);
+      }
+    }
+
+    // Bersihkan & deduplikasi daftar butir soal terdahulu
+    const uniqueExistingQuestions = Array.from(new Set(
+      collectedExistingQuestions.map(q => String(q || '').trim()).filter(Boolean)
+    ));
 
     const result = await geminiService.generateQuestions({
       mode,
@@ -466,7 +527,8 @@ app.post('/api/guru/generate-soal', requireGuru, async (req, res) => {
       jumlah_isian_listening,
       jumlah_essay_listening,
       bahasa,
-      deskripsi_audio
+      deskripsi_audio,
+      existing_questions: uniqueExistingQuestions
     });
 
     res.json(result);

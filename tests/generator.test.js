@@ -121,12 +121,68 @@ test('T-10: Fitur AI Soal Generator (Pembuat Soal, Kunci Jawaban, Rubrik & Bobot
       });
 
       assert.strictEqual(resOk.status, 200);
+      assert.strictEqual(resOk.headers.get('cache-control')?.includes('no-store'), true, 'Header Cache-Control harus no-store');
       const data = await resOk.json();
       assert.strictEqual(data.success, true);
       assert.ok(Array.isArray(data.soal));
       assert.strictEqual(data.soal.length, 3);
     } finally {
       await new Promise(r => server.close(r));
+    }
+  });
+
+  await t.test('5. Fitur Anti-Duplikasi Prompt AI (Injeksi Instruksi Khusus Soal Terdahulu)', () => {
+    const existingSoal = [
+      'Jelaskan bunyi Hukum 1 Newton!',
+      'Sebutkan rumus gaya aksi reaksi Hukum 3 Newton!'
+    ];
+
+    // Tanpa existing questions
+    const promptPolos = geminiService.buildGenerateQuestionsPrompt({
+      mode: 'topik',
+      input_sumber: 'Hukum Newton',
+      jumlah_soal: 3
+    });
+    assert.strictEqual(promptPolos.includes('ATURAN MUTLAK ANTI-DUPLIKASI'), false);
+
+    // Dengan existing questions
+    const promptAntiDuplikasi = geminiService.buildGenerateQuestionsPrompt({
+      mode: 'topik',
+      input_sumber: 'Hukum Newton',
+      jumlah_soal: 3,
+      existing_questions: existingSoal
+    });
+    assert.ok(promptAntiDuplikasi.includes('*** ATURAN MUTLAK ANTI-DUPLIKASI (SOAL BARU WAJIB BERBEDA DARI SUMBER SEBELUMNYA) ***'));
+    assert.ok(promptAntiDuplikasi.includes('Jelaskan bunyi Hukum 1 Newton!'));
+    assert.ok(promptAntiDuplikasi.includes('Sebutkan rumus gaya aksi reaksi Hukum 3 Newton!'));
+    assert.ok(promptAntiDuplikasi.includes('DILARANG KERAS membuat pertanyaan yang serupa'));
+  });
+
+  await t.test('6. Generator Fallback Offline Menghasilkan Soal Berbeda dengan Offset', async () => {
+    const batch1 = await geminiService.generateQuestions({
+      mode: 'topik',
+      input_sumber: 'Fotosintesis',
+      jumlah_soal: 3,
+      tipe_soal: 'campuran'
+    }, '');
+
+    const soalTeksBatch1 = batch1.soal.map(s => s.pertanyaan);
+
+    // Request batch 2 dengan menyertakan batch 1 sebagai existing_questions
+    const batch2 = await geminiService.generateQuestions({
+      mode: 'topik',
+      input_sumber: 'Fotosintesis',
+      jumlah_soal: 3,
+      tipe_soal: 'campuran',
+      existing_questions: soalTeksBatch1
+    }, '');
+
+    assert.strictEqual(batch2.success, true);
+    assert.strictEqual(batch2.soal.length, 3);
+
+    // Pastikan tidak ada satupun soal batch 2 yang sama persis dengan batch 1
+    for (const q2 of batch2.soal) {
+      assert.strictEqual(soalTeksBatch1.includes(q2.pertanyaan), false, `Soal duplikat terdeteksi: ${q2.pertanyaan}`);
     }
   });
 

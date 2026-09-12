@@ -1203,9 +1203,14 @@
             <span>AI Soal Generator (Gemini Flash)</span>
           </h3>
           <p class="text-xs text-slate-500">Buat soal, kunci jawaban acuan, rubrik konsep, dan bobot otomatis</p>
-          <div id="gen-target-badge" class="mt-1.5 inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-200">
-            <span>🎯 Target Penyimpanan:</span>
-            <span id="gen-target-label">Paket Ulangan</span>
+          <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
+            <div id="gen-target-badge" class="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-200">
+              <span>🎯 Target:</span>
+              <span id="gen-target-label">Paket Ulangan</span>
+            </div>
+            <div class="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs" title="AI otomatis mendeteksi soal-soal sebelumnya agar tidak menduplikasi dan membuat sudut pandang baru">
+              <span>🛡️ Anti-Duplikasi Aktif</span>
+            </div>
           </div>
         </div>
         <button id="btn-close-ai-generator" class="text-slate-400 hover:text-slate-600 p-1.5 text-lg font-bold">
@@ -1832,10 +1837,11 @@
     let serverTimeOffset = 0;
     let serverClockInterval = null;
 
-    // Helper fetch dengan dukungan Cookie dan Authorization Header (Bearer token fallback)
+    // Helper fetch dengan dukungan Cookie dan Authorization Header (Bearer token fallback) serta anti-cache
     function guruFetch(url, options = {}) {
       const token = sessionStorage.getItem('guru_token') || localStorage.getItem('guru_token');
       options.headers = options.headers || {};
+      options.cache = options.cache || 'no-store';
       if (token) {
         if (options.headers instanceof Headers) {
           if (!options.headers.has('Authorization')) {
@@ -3673,7 +3679,10 @@
         jumlah_isian_listening: jumlahIsianListeningGen,
         jumlah_essay_listening: jumlahEssayListeningGen,
         bahasa: bahasaGen,
-        deskripsi_audio: deskripsiAudioGen
+        deskripsi_audio: deskripsiAudioGen,
+        target_context: generatorTargetMode,
+        ulangan_id: generatorTargetMode === 'ulangan' ? (activeUlanganId || null) : null,
+        existing_questions: (generatedQuestionsBuffer || []).map(q => q.pertanyaan).filter(Boolean)
       };
 
       document.getElementById('gen-form-step').classList.add('hidden');
@@ -4828,6 +4837,17 @@
           body: JSON.stringify({ isReleased: shouldRelease, kelas: targetKelas })
         });
         const data = await res.json();
+        
+        // Optimistic update pada currentStudentsList agar UI berubah seketika tanpa jeda/revert
+        if (Array.isArray(window.currentStudentsList)) {
+          window.currentStudentsList.forEach(s => {
+            if (s.status === 'submitted' && (s.kelas_siswa || '').trim().toLowerCase() === className.toLowerCase()) {
+              s.released_at = shouldRelease ? (data.released_at || new Date().toISOString()) : null;
+            }
+          });
+          if (typeof renderStudentsTable === 'function') renderStudentsTable();
+        }
+
         alert(shouldRelease ? `Nilai untuk kelas ${className} berhasil dirilis ke siswa!` : `Rilis nilai kelas ${className} berhasil ditarik kembali.`);
         loadPesertaList(activeUlanganId);
         return;
@@ -4841,11 +4861,23 @@
       
       if (!confirm(msg)) return;
 
-      await guruFetch(`/api/guru/ulangan/${activeUlanganId}/release`, {
+      const resAll = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/release`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isReleased: shouldRelease })
       });
+      const dataAll = await resAll.json();
+
+      // Optimistic update seluruh peserta
+      if (Array.isArray(window.currentStudentsList)) {
+        window.currentStudentsList.forEach(s => {
+          if (s.status === 'submitted') {
+            s.released_at = shouldRelease ? (dataAll.released_at || new Date().toISOString()) : null;
+          }
+        });
+        if (typeof renderStudentsTable === 'function') renderStudentsTable();
+      }
+
       alert(shouldRelease ? 'Seluruh nilai resmi dirilis ke siswa!' : 'Rilis nilai untuk seluruh siswa ditarik kembali.');
       loadPesertaList(activeUlanganId);
     };
@@ -4871,6 +4903,18 @@
         if (!res.ok || !data.success) {
           throw new Error(data.message || 'Gagal mengubah status rilis');
         }
+
+        // Optimistic update langsung ke data lokal agar tombol dan status seketika berubah tanpa berkedip / revert
+        if (Array.isArray(window.currentStudentsList)) {
+          const item = window.currentStudentsList.find(s => s.pengerjaan_id === pengerjaanId);
+          if (item) {
+            item.released_at = shouldRelease ? (data.released_at || new Date().toISOString()) : null;
+            if (typeof renderStudentsTable === 'function') {
+              renderStudentsTable();
+            }
+          }
+        }
+
         alert(shouldRelease ? `Nilai untuk "${namaSiswa}" berhasil dirilis ke siswa!` : `Rilis nilai untuk "${namaSiswa}" berhasil ditarik!`);
         if (activeUlanganId) {
           await loadPesertaList(activeUlanganId);
