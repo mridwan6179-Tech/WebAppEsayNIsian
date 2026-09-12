@@ -963,7 +963,7 @@ KOMPONEN WAJIB TIAP BUTIR SOAL:
   * "sedang" untuk soal pemahaman konsep, perhitungan standar, penerapan aturan/rumus, atau prosedur bertahap.
   * "sulit" untuk soal analisis mendalam, studi kasus kompleks, komparasi kritis, atau soal berpikir tingkat tinggi (HOTS).
   ${tingkat_kesulitan !== 'bervariasi' && tingkat_kesulitan !== 'campuran' ? `(Target utama tingkat kesulitan paket ini adalah "${tingkat_kesulitan}", sesuaikan setiap butir dengan tingkat kesulitan tersebut).` : '(Karena guru memilih tingkat kesulitan bervariasi/campuran, variasikan secara proporsional antara mudah, sedang, dan sulit sesuai kompleksitas materi).' }
-- "bobot": Angka bobot soal (bilangan bulat positif > 0).
+- "bobot": Angka bobot soal (bilangan bulat positif > 0). Pedoman proporsi bobot: Soal essay berbobot sekitar 2x lipat lebih tinggi dari isian, dan butir yang sulit berbobot lebih tinggi dari butir mudah/sedang (kisaran rata-rata isian: 6–12 poin, essay: 16–35 poin). Pastikan total akumulasi seluruh butir soal tepat = ${target_total_bobot}.
 - "gambar_url": (Opsional) Jika soal memerlukan diagram/ilustrasi, sertakan link atau SVG data-uri yang valid. Jika tidak perlu gambar, isi null.
 - "kunci_jawaban": Kunci acuan jawaban guru yang ideal, jelas, dan akurat.
 - "rubrik": Panduan rubrik kualitatif penilaian (Skor Penuh vs Skor Parsial).

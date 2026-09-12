@@ -1563,8 +1563,9 @@
 
             <div>
               <label class="block font-semibold text-slate-700 mb-1">Target Total Akumulasi Bobot</label>
-              <input type="number" id="gen-target-bobot" min="10" max="1000" value="100" class="w-full max-w-xs px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs">
-              <p class="text-[11px] text-slate-400 mt-0.5">Bobot tiap butir soal otomatis dinormalisasi mendekati atau tepat sama dengan target ini (misal soal essay berbobot lebih tinggi).</p>
+              <input type="number" id="gen-target-bobot" min="10" max="1000" value="100" class="w-full max-w-xs px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-bold text-purple-950">
+              <p id="gen-target-bobot-hint" class="text-[11px] text-purple-700 font-medium mt-1"></p>
+              <p class="text-[11px] text-slate-400 mt-0.5">Bobot tiap butir soal otomatis dinormalisasi proporsional (soal essay &amp; sulit berbobot lebih tinggi). Nilai akhir siswa tetap dikonversi ke skala 100.</p>
             </div>
           </div>
 
@@ -3824,11 +3825,35 @@
       });
     }
 
+    const selSoalJenis = document.getElementById('soal-jenis');
+    const selSoalKesulitan = document.getElementById('soal-kesulitan');
+    const inpSoalBobot = document.getElementById('soal-bobot');
+
+    function syncManualSoalBobot() {
+      if (!inpSoalBobot || inpSoalBobot.dataset.userModified) return;
+      const j = selSoalJenis?.value || 'isian';
+      const k = selSoalKesulitan?.value || 'sedang';
+      if (j === 'isian') {
+        inpSoalBobot.value = k === 'mudah' ? 8 : (k === 'sulit' ? 12 : 10);
+      } else {
+        inpSoalBobot.value = k === 'mudah' ? 16 : (k === 'sulit' ? 30 : 20);
+      }
+    }
+
+    if (selSoalJenis) selSoalJenis.addEventListener('change', () => { delete inpSoalBobot?.dataset.userModified; syncManualSoalBobot(); });
+    if (selSoalKesulitan) selSoalKesulitan.addEventListener('change', () => { delete inpSoalBobot?.dataset.userModified; syncManualSoalBobot(); });
+    if (inpSoalBobot) inpSoalBobot.addEventListener('input', () => { inpSoalBobot.dataset.userModified = '1'; });
+
     document.getElementById('btn-show-add-soal').onclick = () => {
       formAddSoal.classList.toggle('hidden');
+      if (!formAddSoal.classList.contains('hidden')) {
+        delete inpSoalBobot?.dataset.userModified;
+        syncManualSoalBobot();
+      }
     };
     document.getElementById('btn-cancel-add-soal').onclick = () => {
       formAddSoal.classList.add('hidden');
+      delete inpSoalBobot?.dataset.userModified;
       resetGambarForm();
     };
 
@@ -3858,6 +3883,7 @@
       });
       if (res.ok) {
         formAddSoal.reset();
+        delete inpSoalBobot?.dataset.userModified;
         resetGambarForm();
         if (document.getElementById('soal-tampilkan-teks-listening')) document.getElementById('soal-tampilkan-teks-listening').checked = false;
         if (wrapperSoalListening) wrapperSoalListening.classList.add('hidden');
@@ -4181,6 +4207,9 @@
       document.getElementById('gen-form-step').classList.remove('hidden');
       document.getElementById('gen-loading-state').classList.add('hidden');
       document.getElementById('gen-preview-step').classList.add('hidden');
+      const inputTargetBobot = document.getElementById('gen-target-bobot');
+      if (inputTargetBobot) delete inputTargetBobot.dataset.userModified;
+      if (typeof syncGeneratorCounts === 'function') syncGeneratorCounts();
     }
 
     // Ekstraksi File Dokumen Materi (PDF, DOCX, XLSX, CSV, TXT)
@@ -4332,6 +4361,9 @@
 
     // Interaktivitas Sinkronisasi Tipe & Jumlah Soal Generator AI
     const genTipeSelect = document.getElementById('gen-tipe');
+    const genKesulitanSelect = document.getElementById('gen-kesulitan');
+    const inputTargetBobot = document.getElementById('gen-target-bobot');
+    const lblTargetBobotHint = document.getElementById('gen-target-bobot-hint');
     const wrapperGenKustom = document.getElementById('wrapper-gen-kustom');
     const wrapperGenSingle = document.getElementById('wrapper-gen-single');
     const inputGenIsian = document.getElementById('gen-jumlah-isian');
@@ -4365,13 +4397,16 @@
         else wrapperListeningOptions.classList.add('hidden');
       }
 
+      let nIsian = 0;
+      let nEssay = 0;
+
       if (tipe === 'kustom') {
         if (wrapperGenKustom) wrapperGenKustom.classList.remove('hidden');
         if (wrapperGenSingle) wrapperGenSingle.classList.add('hidden');
 
-        const isian = Math.max(0, parseInt(inputGenIsian?.value, 10) || 0);
-        const essay = Math.max(0, parseInt(inputGenEssay?.value, 10) || 0);
-        const total = isian + essay;
+        nIsian = Math.max(0, parseInt(inputGenIsian?.value, 10) || 0);
+        nEssay = Math.max(0, parseInt(inputGenEssay?.value, 10) || 0);
+        const total = nIsian + nEssay;
         if (lblTotalCount) lblTotalCount.textContent = total;
 
         if (isListening) {
@@ -4381,23 +4416,23 @@
 
           // Sync Isian listening
           if (inputIsianListening) {
-            inputIsianListening.max = isian;
+            inputIsianListening.max = nIsian;
             let valIsian = parseInt(inputIsianListening.value, 10);
             if (isNaN(valIsian) || valIsian < 0) valIsian = 0;
-            if (valIsian > isian) valIsian = isian;
+            if (valIsian > nIsian) valIsian = nIsian;
             inputIsianListening.value = valIsian;
-            const teksIsian = Math.max(0, isian - valIsian);
+            const teksIsian = Math.max(0, nIsian - valIsian);
             if (lblSubIsianInfo) lblSubIsianInfo.textContent = `(${teksIsian} teks biasa)`;
           }
 
           // Sync Essay listening
           if (inputEssayListening) {
-            inputEssayListening.max = essay;
+            inputEssayListening.max = nEssay;
             let valEssay = parseInt(inputEssayListening.value, 10);
             if (isNaN(valEssay) || valEssay < 0) valEssay = 0;
-            if (valEssay > essay) valEssay = essay;
+            if (valEssay > nEssay) valEssay = nEssay;
             inputEssayListening.value = valEssay;
-            const teksEssay = Math.max(0, essay - valEssay);
+            const teksEssay = Math.max(0, nEssay - valEssay);
             if (lblSubEssayInfo) lblSubEssayInfo.textContent = `(${teksEssay} teks biasa)`;
           }
 
@@ -4406,13 +4441,13 @@
           const totalAudio = valIsian + valEssay;
           const totalTeks = Math.max(0, total - totalAudio);
           if (lblTotalDetail) {
-            lblTotalDetail.innerHTML = `<span>${isian} Isian (${valIsian} audio, ${isian - valIsian} teks) + ${essay} Essay (${valEssay} audio, ${essay - valEssay} teks) • <strong class="text-amber-800">🎧 ${totalAudio} Listening (${totalTeks} Teks)</strong></span>`;
+            lblTotalDetail.innerHTML = `<span>${nIsian} Isian (${valIsian} audio, ${nIsian - valIsian} teks) + ${nEssay} Essay (${valEssay} audio, ${nEssay - valEssay} teks) • <strong class="text-amber-800">🎧 ${totalAudio} Listening (${totalTeks} Teks)</strong></span>`;
           }
         } else {
           subKuotaIsianListening?.classList.add('hidden');
           subKuotaEssayListening?.classList.add('hidden');
           subKuotaSingleListening?.classList.add('hidden');
-          if (lblTotalDetail) lblTotalDetail.textContent = `(${isian} Isian + ${essay} Essay)`;
+          if (lblTotalDetail) lblTotalDetail.textContent = `(${nIsian} Isian + ${nEssay} Essay)`;
         }
       } else {
         if (wrapperGenKustom) wrapperGenKustom.classList.add('hidden');
@@ -4425,14 +4460,20 @@
 
         let tipeLabel = 'Campuran';
         if (tipe === 'isian') {
+          nIsian = count;
+          nEssay = 0;
           tipeLabel = 'Isian Singkat';
           if (lblSingleTitle) lblSingleTitle.textContent = 'Jumlah Soal Isian Singkat';
           if (lblSingleDesc) lblSingleDesc.textContent = 'Semua butir soal akan bertipe isian singkat';
         } else if (tipe === 'essay') {
+          nIsian = 0;
+          nEssay = count;
           tipeLabel = 'Essay (Uraian)';
           if (lblSingleTitle) lblSingleTitle.textContent = 'Jumlah Soal Essay (Uraian)';
           if (lblSingleDesc) lblSingleDesc.textContent = 'Semua butir soal akan bertipe essay uraian';
         } else {
+          nEssay = Math.floor(count / 2);
+          nIsian = count - nEssay;
           if (lblSingleTitle) lblSingleTitle.textContent = 'Jumlah Soal Campuran';
           if (lblSingleDesc) lblSingleDesc.textContent = 'Kombinasi seimbang antara isian & essay';
         }
@@ -4461,10 +4502,62 @@
           } else if (tipe === 'essay') {
             if (lblTotalDetail) lblTotalDetail.textContent = `(${count} Butir Essay Uraian)`;
           } else {
-            const nEssay = Math.floor(count / 2);
-            const nIsian = count - nEssay;
             if (lblTotalDetail) lblTotalDetail.textContent = `(~${nIsian} Isian + ~${nEssay} Essay)`;
           }
+        }
+      }
+
+      // Hitung rekomendasi bobot standar acuan (Proactive Smart Benchmark)
+      const diff = genKesulitanSelect?.value || 'sedang';
+      let wIsian = 10;
+      let wEssay = 20;
+
+      if (diff === 'mudah') {
+        wIsian = 8;
+        wEssay = 16;
+      } else if (diff === 'sulit') {
+        wIsian = 12;
+        wEssay = 30;
+      } else if (diff === 'bervariasi') {
+        wIsian = 10;
+        wEssay = 22;
+      } else { // 'sedang'
+        wIsian = 10;
+        wEssay = 20;
+      }
+
+      const autoTarget = Math.max(10, (nIsian * wIsian) + (nEssay * wEssay));
+
+      if (inputTargetBobot) {
+        if (!inputTargetBobot.dataset.userModified) {
+          inputTargetBobot.value = autoTarget;
+        }
+      }
+
+      if (lblTargetBobotHint) {
+        const isCustomUser = Boolean(inputTargetBobot?.dataset?.userModified);
+        const diffLabel = diff === 'mudah' ? 'Mudah' : (diff === 'sulit' ? 'Sulit' : (diff === 'bervariasi' ? 'Bervariasi' : 'Sedang'));
+
+        let hintDetail = '';
+        if (nIsian > 0 && nEssay > 0) {
+          hintDetail = `${nIsian} isian (~${wIsian} poin) + ${nEssay} essay (~${wEssay} poin)`;
+        } else if (nIsian > 0) {
+          hintDetail = `${nIsian} isian (~${wIsian} poin/butir)`;
+        } else if (nEssay > 0) {
+          hintDetail = `${nEssay} essay (~${wEssay} poin/butir)`;
+        }
+
+        lblTargetBobotHint.innerHTML = `💡 Saran Standar AI (${diffLabel}): <strong>${autoTarget} poin</strong> (${hintDetail}). ${isCustomUser ? `<button type="button" id="btn-reset-target-bobot" class="text-purple-600 hover:text-purple-800 underline font-semibold ml-1 cursor-pointer">Reset ke Rekomendasi (${autoTarget})</button>` : '<span class="text-slate-500 font-normal">Bobot akan seimbang otomatis saat menambah soal baru.</span>'}`;
+
+        const btnResetBobot = document.getElementById('btn-reset-target-bobot');
+        if (btnResetBobot) {
+          btnResetBobot.onclick = () => {
+            if (inputTargetBobot) {
+              delete inputTargetBobot.dataset.userModified;
+              inputTargetBobot.value = autoTarget;
+              syncGeneratorCounts();
+            }
+          };
         }
       }
     }
@@ -4474,10 +4567,32 @@
     if (inputEssayListening) inputEssayListening.addEventListener('input', syncGeneratorCounts);
     if (inputSingleListening) inputSingleListening.addEventListener('input', syncGeneratorCounts);
 
-    if (genTipeSelect) genTipeSelect.addEventListener('change', syncGeneratorCounts);
-    if (inputGenIsian) inputGenIsian.addEventListener('input', syncGeneratorCounts);
-    if (inputGenEssay) inputGenEssay.addEventListener('input', syncGeneratorCounts);
-    if (inputGenSingle) inputGenSingle.addEventListener('input', syncGeneratorCounts);
+    if (genTipeSelect) genTipeSelect.addEventListener('change', () => {
+      delete inputTargetBobot?.dataset.userModified;
+      syncGeneratorCounts();
+    });
+    if (genKesulitanSelect) genKesulitanSelect.addEventListener('change', () => {
+      delete inputTargetBobot?.dataset.userModified;
+      syncGeneratorCounts();
+    });
+    if (inputGenIsian) inputGenIsian.addEventListener('input', () => {
+      delete inputTargetBobot?.dataset.userModified;
+      syncGeneratorCounts();
+    });
+    if (inputGenEssay) inputGenEssay.addEventListener('input', () => {
+      delete inputTargetBobot?.dataset.userModified;
+      syncGeneratorCounts();
+    });
+    if (inputGenSingle) inputGenSingle.addEventListener('input', () => {
+      delete inputTargetBobot?.dataset.userModified;
+      syncGeneratorCounts();
+    });
+    if (inputTargetBobot) {
+      inputTargetBobot.addEventListener('input', () => {
+        inputTargetBobot.dataset.userModified = '1';
+        syncGeneratorCounts();
+      });
+    }
     syncGeneratorCounts();
 
     // Tombol Eksekusi Generate Soal
