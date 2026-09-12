@@ -3507,7 +3507,7 @@
     const modalAiGenerator = document.getElementById('modal-ai-generator');
 
     // Buka AI Generator dari Paket Ulangan
-    document.getElementById('btn-open-ai-generator').onclick = () => {
+    document.getElementById('btn-open-ai-generator').onclick = async () => {
       if (!activeUlanganId) {
         alert('Pilih ulangan terlebih dahulu sebelum menggunakan AI Generator Soal.');
         return;
