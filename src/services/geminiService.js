@@ -651,7 +651,21 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
     } = options;
 
     const isListening = Boolean(options.is_listening);
-    const bahasaPelajaran = options.bahasa ? String(options.bahasa).trim() : (isListening ? 'Bahasa Inggris' : 'Bahasa Indonesia');
+    const rawBahasa = options.bahasa ? String(options.bahasa).trim() : '';
+    const topicCombined = `${options.input_sumber || ''} ${options.kategori || ''}`.toLowerCase();
+    const isExplicitEnglish = rawBahasa.toLowerCase() === 'bahasa inggris' || topicCombined.includes('bahasa inggris') || topicCombined.includes('english');
+    const isExplicitArabic = rawBahasa.toLowerCase() === 'bahasa arab' || topicCombined.includes('bahasa arab');
+
+    // Jika bukan soal listening DAN bukan pelajaran bahasa inggris/arab secara eksplisit, bahasa pengantar WAJIB Bahasa Indonesia!
+    let bahasaPelajaran = 'Bahasa Indonesia';
+    if (isExplicitArabic) {
+      bahasaPelajaran = 'Bahasa Arab';
+    } else if (isExplicitEnglish && (isListening || topicCombined.includes('bahasa inggris') || topicCombined.includes('english'))) {
+      bahasaPelajaran = 'Bahasa Inggris';
+    } else if (isListening && rawBahasa) {
+      bahasaPelajaran = rawBahasa;
+    }
+
     const deskripsiAudio = options.deskripsi_audio ? String(options.deskripsi_audio).trim() : '';
 
     const hasSpecificIsian = options.jumlah_isian !== undefined && options.jumlah_isian !== null && options.jumlah_isian !== '';
@@ -820,6 +834,28 @@ Total paket terdiri dari ${jumlah_soal} butir soal:
 `;
     }
 
+    let bahasaInstruction = '';
+    if (bahasaPelajaran === 'Bahasa Inggris') {
+      bahasaInstruction = `
+*** KETENTUAN BAHASA PENGANTAR (MAPEL BAHASA INGGRIS) ***
+- Karena ini adalah mata pelajaran Bahasa Inggris, butir soal, naskah listening (jika ada), dan kunci acuan disajikan dalam Bahasa Inggris.
+`;
+    } else if (bahasaPelajaran === 'Bahasa Arab') {
+      bahasaInstruction = `
+*** KETENTUAN BAHASA PENGANTAR (MAPEL BAHASA ARAB) ***
+- Karena ini adalah mata pelajaran Bahasa Arab, teks materi dan butir soal disajikan dalam Bahasa Arab berharakat.
+`;
+    } else {
+      bahasaInstruction = `
+*** KETENTUAN MUTLAK BAHASA PENGANTAR: WAJIB BAHASA INDONESIA ***
+- SELURUH BUTIR PERTANYAAN, kalimat studi kasus/soal cerita, kunci jawaban acuan guru, rubrik penilaian, dan pembahasan konsep WAJIB DITULIS LENGKAP DALAM BAHASA INDONESIA YANG BAIK, BAKU, DAN SESUAI KAIDAH PUEBI.
+- DILARANG KERAS menyajikan kalimat pertanyaan atau narasi soal dalam Bahasa Inggris! (Kecuali istilah teknologi/komputer umum seperti 'shortcut', 'copy-paste', 'file', 'undo/redo' yang disematkan secara alami dalam kalimat Bahasa Indonesia).
+- Contoh pertanyaan yang BENAR: "Jika Anda sedang bekerja pada dokumen dan tidak sengaja menghapus sebuah paragraf, kombinasi tombol shortcut apa yang harus ditekan untuk membatalkan tindakan tersebut?"
+- Contoh pertanyaan yang SALAH (DILARANG): "If you are working on a document and accidentally delete a paragraph, which keyboard shortcut combination should you press to reverse your last action?"
+- Pastikan kalimat pertanyaan disajikan 100% dalam Bahasa Indonesia agar mudah dipahami oleh siswa!
+`;
+    }
+
     const masterCategoryInstruction = (options.kategori && typeof options.kategori === 'string' && options.kategori.trim())
       ? `\n6. Kategori Pokok / Bab Acuan: "${options.kategori.trim()}". Seluruh butir soal WAJIB berinduk pada kategori pokok ini pada field "kategori". Jika ada bahasan lebih spesifik, tuliskan pada field "sub_topik".`
       : '';
@@ -833,6 +869,8 @@ PARAMETER PEMBUATAN SOAL:
 3. Tipe Soal: ${tipeDeskripsi}
 4. Tingkat Kesulitan: ${tingkat_kesulitan}
 5. Target Total Akumulasi Bobot: ${target_total_bobot} (Distribusikan bobot ke setiap soal secara adil dan bulat, misalnya soal essay berbobot lebih tinggi, sehingga total seluruh soal tepat = ${target_total_bobot}).${masterCategoryInstruction}
+6. Bahasa Pengantar Soal: ${bahasaPelajaran} (Wajib ditaati sepenuhnya).
+${bahasaInstruction}
 ${bentukSoalInstruction}
 ${listeningInstructions}
 ${sumberDeskripsi}
@@ -841,7 +879,7 @@ ${antiDuplikasiInstructions}
 KOMPONEN WAJIB TIAP BUTIR SOAL:
 - "kategori": ${(options.kategori && typeof options.kategori === 'string' && options.kategori.trim()) ? `Wajib gunakan nama kategori acuan guru: "${options.kategori.trim()}".` : 'Kategori pokok atau nama bab/mata pelajaran dari butir soal ini (WAJIB diisi ringkas, spesifik & presisi sesuai materi/topik, misal: "Bahasa Inggris - Tenses", "Biologi - Fotosintesis", "Matematika - Aljabar", "Fisika - Termodinamika", "Listening Comprehension", dll. Jangan gunakan kata umum "Umum").'}
 - "sub_topik": Sub-topik materi spesifik yang dibahas dalam butir soal ini (misal: "Present Perfect", "Reaksi Terang", "Persamaan Linier").
-- "pertanyaan": Kalimat soal yang jelas, akademis, dan kontekstual. Pertanyaan dapat berupa pertanyaan langsung maupun SOAL CERITA / STUDI KASUS naratif yang panjang dan kaya konteks sesuai materi. Tidak ada batasan pendek jika soal memerlukan narasi cerita pengantar. Jika berkaitan dengan rumus matematika, gunakan notasi LaTeX (misal: $x^2 - 4x + 4 = 0$).
+- "pertanyaan": ${bahasaPelajaran === 'Bahasa Inggris' ? 'Kalimat soal dalam Bahasa Inggris.' : 'Kalimat soal yang jelas, akademis, dan kontekstual WAJIB DALAM BAHASA INDONESIA. Pertanyaan dapat berupa pertanyaan langsung maupun SOAL CERITA / STUDI KASUS naratif yang panjang dan kaya konteks sesuai materi. DILARANG menggunakan kalimat pertanyaan bahasa Inggris.'} Jika berkaitan dengan rumus matematika, gunakan notasi LaTeX (misal: $x^2 - 4x + 4 = 0$).
 - "jenis": Tuliskan "isian" atau "essay"${isCustomBreakdown ? ` (Wajib tepat menghasilkan ${jumlah_isian} butir "isian" dan ${jumlah_essay} butir "essay")` : ''}.
   * "isian" untuk soal yang menanyakan istilah spesifik, angka/nilai akhir, konsep ringkas 1-3 kata.
   * "essay" untuk soal yang meminta penjelasan konsep, tahapan penyelesaian, perbandingan, atau uraian mendalam.

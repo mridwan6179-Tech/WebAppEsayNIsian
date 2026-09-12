@@ -40,6 +40,23 @@ test('T-10: Fitur AI Soal Generator (Pembuat Soal, Kunci Jawaban, Rubrik & Bobot
     assert.match(promptTeks, /Target Total Akumulasi Bobot: 60/);
   });
 
+  await t.test('1.2 Ketentuan Bahasa Pengantar: Wajib Bahasa Indonesia untuk Mapel Non-Bahasa Inggris', () => {
+    const promptKoding = geminiService.buildGenerateQuestionsPrompt({
+      mode: 'topik',
+      input_sumber: 'Koding dan AI: Perintah Salin dan Pindah Data',
+      kategori: 'Koding Dan AI Pertemuan 1-4',
+      jenjang_kelas: 'Kelas 8 SMP',
+      jumlah_soal: 5,
+      tipe_soal: 'campuran',
+      is_listening: 0,
+      bahasa: 'Bahasa Inggris' // Unintentional / dropdown leak
+    });
+
+    // Harus mewajibkan Bahasa Indonesia dan melarang bahasa Inggris
+    assert.match(promptKoding, /WAJIB DITULIS LENGKAP DALAM BAHASA INDONESIA/);
+    assert.match(promptKoding, /DILARANG KERAS menyajikan kalimat pertanyaan atau narasi soal dalam Bahasa Inggris/);
+  });
+
   await t.test('2. Normalisasi Bobot Soal Menuju Target Bobot (misal: 100)', () => {
     const rawQuestions = [
       { pertanyaan: 'Soal 1', jenis: 'isian', bobot: 10, kunci_jawaban: 'kunci 1', rubrik: 'rubrik 1' },

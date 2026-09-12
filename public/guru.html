@@ -4082,7 +4082,7 @@
       }
 
       const isListeningGen = document.getElementById('gen-is-listening')?.checked ? 1 : 0;
-      const bahasaGen = document.getElementById('gen-bahasa')?.value || 'Bahasa Indonesia';
+      const bahasaGen = isListeningGen ? (document.getElementById('gen-bahasa')?.value || 'Bahasa Inggris') : 'Bahasa Indonesia';
       const deskripsiAudioGen = document.getElementById('gen-deskripsi-audio')?.value?.trim() || '';
 
       let jumlahListeningGen = 0;

@@ -546,7 +546,7 @@ app.post('/api/guru/generate-soal', requireGuru, async (req, res) => {
       jumlah_listening,
       jumlah_isian_listening,
       jumlah_essay_listening,
-      bahasa,
+      bahasa: is_listening ? (bahasa || 'Bahasa Inggris') : 'Bahasa Indonesia',
       deskripsi_audio,
       kategori: rawCat,
       existing_questions: uniqueExistingQuestions
