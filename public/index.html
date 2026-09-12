@@ -1398,6 +1398,7 @@
 
     let countdownInterval = null;
     let isSubmitting = false;
+    let syncServerTimer = null;
 
     function startCountdownTimer(deadlineIso, serverTimeIso) {
       if (countdownInterval) clearInterval(countdownInterval);
@@ -1731,7 +1732,7 @@
       });
 
       // Sinkronisasi Ganda (localStorage seketika + Server DB Debounced)
-      let syncServerTimer = null;
+      syncServerTimer = null;
       const syncDraftToServer = () => {
         if (!currentPengerjaanId || isSubmitting) return;
         const answersPayload = [];
@@ -1876,7 +1877,10 @@
           window.speechSynthesis.cancel();
         }
         document.querySelectorAll('audio').forEach(a => { if (!a.paused) a.pause(); });
-        clearTimeout(syncServerTimer);
+        if (typeof syncServerTimer !== 'undefined' && syncServerTimer) {
+          clearTimeout(syncServerTimer);
+          syncServerTimer = null;
+        }
         stopHeartbeat();
 
         if (countdownInterval) {
