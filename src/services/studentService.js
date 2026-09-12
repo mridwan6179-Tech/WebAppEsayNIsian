@@ -194,6 +194,13 @@ const studentService = {
       };
     }
 
+    // Jika siswa masuk kembali setelah sempat terputus / DC,
+    // perbarui last_active_at ke waktu saat ini agar batas toleransi DC di-reset kembali ke 1 jam penuh
+    if (pengerjaan && pengerjaan.status === 'mengerjakan') {
+      db.prepare('UPDATE pengerjaan SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?').run(pengerjaan.id);
+      pengerjaan.last_active_at = new Date().toISOString();
+    }
+
     // Periksa apakah siswa sudah memiliki paket soal yang telah ditetapkan sebelumnya
     let assignedQuestionIds = null;
     if (pengerjaan && pengerjaan.soal_ids) {
@@ -661,10 +668,12 @@ const studentService = {
           p.ulangan_id,
           p.started_at,
           p.last_active_at,
+          p.soal_ids,
           u.durasi_menit,
+          u.tanggal_selesai,
           pes.nama as nama_siswa,
           pes.kelas as kelas_siswa,
-          COUNT(j.id) as total_jawaban,
+          COUNT(j.id) as count_jawaban,
           SUM(CASE WHEN j.jawaban_siswa IS NOT NULL AND TRIM(j.jawaban_siswa) != '' THEN 1 ELSE 0 END) as total_terisi,
           CAST(ROUND((julianday('now') - julianday(COALESCE(p.last_active_at, p.started_at))) * 86400) AS INTEGER) as detik_inaktif,
           CAST(ROUND((julianday('now') - julianday(p.started_at)) * 1440) AS INTEGER) as menit_berjalan
@@ -682,36 +691,82 @@ const studentService = {
 
       for (const row of candidates) {
         const totalTerisi = Number(row.total_terisi || 0);
-        const detikInaktif = Number(row.detik_inaktif || 0);
-        const menitBerjalan = Number(row.menit_berjalan || 0);
+        const detikInaktif = Math.max(0, Number(row.detik_inaktif || 0));
+        const menitBerjalan = Math.max(0, Number(row.menit_berjalan || 0));
         const durasiMenit = Number(row.durasi_menit || 0);
 
-        // Sesi DC > 1 jam: pengerjaan harus sudah dimulai minimal 60 menit lalu DAN (offline atau inaktif > 3600 detik)
-        const isDcOver1Hour = (menitBerjalan >= 60) && (
-          (row.last_active_at && String(row.last_active_at).startsWith('2000-01-01')) || detikInaktif >= 3600
-        );
-        const isPastDuration = (durasiMenit > 0 && menitBerjalan > durasiMenit); // Melewati durasi pengerjaan ulangan
+        // Hitung kuota total soal sah untuk pengerjaan ini
+        let totalJawaban = 0;
+        if (row.soal_ids) {
+          try {
+            const parsed = JSON.parse(row.soal_ids);
+            if (Array.isArray(parsed) && parsed.length > 0) totalJawaban = parsed.length;
+          } catch (e) {}
+        }
+        if (!totalJawaban) {
+          const cRow = db.prepare('SELECT COUNT(*) as cnt FROM soal WHERE ulangan_id = ?').get(row.ulangan_id);
+          totalJawaban = cRow ? Number(cRow.cnt || 0) : 0;
+        }
 
-        // Kebijakan: Jika siswa terputus (DC) > 1 jam ATAU waktu ulangan telah habis saat masih berstatus 'mengerjakan'
-        // -> HAPUS seluruh jawaban dan pengerjaan (reset) agar siswa dapat mengulang dari awal secara bersih
-        if (isDcOver1Hour || isPastDuration) {
-          const deleteTx = db.transaction(() => {
-            db.prepare('DELETE FROM jawaban WHERE pengerjaan_id = ?').run(row.pengerjaan_id);
-            db.prepare('DELETE FROM pengerjaan WHERE id = ?').run(row.pengerjaan_id);
-            const otherCount = db.prepare('SELECT COUNT(*) as cnt FROM pengerjaan WHERE peserta_id = ?').get(row.peserta_id);
-            if (!otherCount || otherCount.cnt === 0) {
-              db.prepare('DELETE FROM peserta WHERE id = ?').run(row.peserta_id);
-            }
-          });
-          deleteTx();
-          deletedSessions.push({
-            pengerjaan_id: row.pengerjaan_id,
-            nama: row.nama_siswa,
-            kelas: row.kelas_siswa,
-            alasan: isDcOver1Hour ? 'DC > 1 jam (reset untuk ulang)' : 'Waktu habis tanpa submit (reset untuk ulang)',
-            terisi: totalTerisi
-          });
-          console.log(`[CLEANUP RESET] Menghapus pengerjaan ID ${row.pengerjaan_id} (${row.nama_siswa} - ${row.kelas_siswa}, terisi: ${totalTerisi}) karena ${isDcOver1Hour ? 'DC > 1 jam' : 'durasi habis'}. Siswa dapat mengulang dari awal.`);
+        const draftLengkap = (totalJawaban > 0 && totalTerisi >= totalJawaban);
+
+        // Sesi DC > 1 jam: inaktif terus-menerus tanpa jeda >= 3600 detik (1 jam) dan sesi sudah berjalan minimal 60 menit
+        const isDcOver1Hour = (detikInaktif >= 3600 && menitBerjalan >= 60);
+        // Melewati durasi pengerjaan ulangan
+        const isPastDuration = (durasiMenit > 0 && menitBerjalan > durasiMenit);
+
+        // Melewati batas tanggal selesai ulangan jika ada
+        let isPastEndDate = false;
+        if (row.tanggal_selesai) {
+          const endDate = new Date(row.tanggal_selesai);
+          if (!isNaN(endDate.getTime()) && Date.now() > endDate.getTime()) {
+            isPastEndDate = true;
+          }
+        }
+
+        const isTimeExpired = isDcOver1Hour || isPastDuration || isPastEndDate;
+
+        if (isTimeExpired) {
+          if (draftLengkap) {
+            // KASUS A: Jawaban sudah lengkap -> Auto-Submit (terkirim otomatis, aman tidak dihapus)
+            const nowIso = new Date().toISOString();
+            db.prepare(`
+              UPDATE pengerjaan
+              SET status = 'submitted', submitted_at = ?, auto_submitted = 1
+              WHERE id = ?
+            `).run(nowIso, row.pengerjaan_id);
+
+            autoSubmittedSessions.push({
+              pengerjaan_id: row.pengerjaan_id,
+              nama: row.nama_siswa,
+              kelas: row.kelas_siswa,
+              alasan: isDcOver1Hour ? 'Jawaban lengkap, DC > 1 jam (auto-submit otomatis)' : 'Jawaban lengkap, durasi ulangan habis (auto-submit otomatis)',
+              terisi: totalTerisi,
+              total_jawaban: totalJawaban
+            });
+            console.log(`[CLEANUP AUTO-SUBMIT] Mengirimkan otomatis pengerjaan ID ${row.pengerjaan_id} (${row.nama_siswa} - ${row.kelas_siswa}, jawaban lengkap ${totalTerisi}/${totalJawaban}) karena ${isDcOver1Hour ? 'DC > 1 jam' : 'durasi habis'}.`);
+          } else {
+            // KASUS B: Jawaban belum lengkap / kosong -> Hapus & Reset agar siswa dapat mengulang dari awal
+            const deleteTx = db.transaction(() => {
+              db.prepare('DELETE FROM jawaban WHERE pengerjaan_id = ?').run(row.pengerjaan_id);
+              db.prepare('DELETE FROM pengerjaan WHERE id = ?').run(row.pengerjaan_id);
+              const otherCount = db.prepare('SELECT COUNT(*) as cnt FROM pengerjaan WHERE peserta_id = ?').get(row.peserta_id);
+              if (!otherCount || otherCount.cnt === 0) {
+                db.prepare('DELETE FROM peserta WHERE id = ?').run(row.peserta_id);
+              }
+            });
+            deleteTx();
+
+            deletedSessions.push({
+              pengerjaan_id: row.pengerjaan_id,
+              nama: row.nama_siswa,
+              kelas: row.kelas_siswa,
+              alasan: isDcOver1Hour ? 'Jawaban belum lengkap, DC > 1 jam (reset untuk ulang)' : 'Jawaban belum lengkap, durasi habis tanpa submit (reset untuk ulang)',
+              terisi: totalTerisi,
+              total_jawaban: totalJawaban
+            });
+            console.log(`[CLEANUP RESET] Menghapus pengerjaan ID ${row.pengerjaan_id} (${row.nama_siswa} - ${row.kelas_siswa}, terisi: ${totalTerisi}/${totalJawaban}) karena belum lengkap dan ${isDcOver1Hour ? 'DC > 1 jam' : 'durasi habis'}. Siswa dapat mengulang dari awal.`);
+          }
         }
       }
 
@@ -1191,52 +1246,66 @@ const studentService = {
       return { success: false, message: 'Ulangan tidak ditemukan' };
     }
 
+    // Jalankan pembersihan sesi kedaluwarsa terlebih dahulu agar auto-submit untuk jawaban lengkap atau reset tereksekusi
+    this.cleanAbandonedSessions(ulangan.id);
+
+    const countSoalUlangan = db.prepare('SELECT COUNT(*) as cnt FROM soal WHERE ulangan_id = ?').get(ulangan.id)?.cnt || 0;
+
     const p = Math.max(1, parseInt(page, 10) || 1);
     const l = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
     const offset = (p - 1) * l;
 
-    // Total count pengerjaan yang status = 'mengerjakan'
-    const totalRow = db.prepare(`
-      SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN CAST(ROUND((julianday('now') - julianday(COALESCE(p.last_active_at, p.started_at))) * 86400) AS INTEGER) <= 45 THEN 1 ELSE 0 END) as total_aktif,
-        SUM(CASE WHEN CAST(ROUND((julianday('now') - julianday(COALESCE(p.last_active_at, p.started_at))) * 86400) AS INTEGER) > 45 THEN 1 ELSE 0 END) as total_dc
-      FROM pengerjaan p
-      WHERE p.ulangan_id = ? AND p.status = 'mengerjakan'
-    `).get(ulangan.id);
-
-    const total = totalRow ? (Number(totalRow.total) || 0) : 0;
-    const totalAktif = totalRow ? (Number(totalRow.total_aktif) || 0) : 0;
-    const totalDc = totalRow ? (Number(totalRow.total_dc) || 0) : 0;
-
-    const rows = db.prepare(`
+    const allRows = db.prepare(`
       SELECT 
         p.id as pengerjaan_id,
         pes.nama as nama_siswa,
         pes.kelas as kelas_siswa,
         p.started_at,
         p.last_active_at,
+        p.soal_ids,
+        COUNT(j.id) as count_jawaban,
+        SUM(CASE WHEN j.jawaban_siswa IS NOT NULL AND TRIM(j.jawaban_siswa) != '' THEN 1 ELSE 0 END) as total_terisi,
         CAST(ROUND((julianday('now') - julianday(COALESCE(p.last_active_at, p.started_at))) * 86400) AS INTEGER) as detik_inaktif,
         CAST(ROUND((julianday('now') - julianday(p.started_at)) * 86400) AS INTEGER) as detik_berjalan
       FROM pengerjaan p
       JOIN peserta pes ON p.peserta_id = pes.id
+      LEFT JOIN jawaban j ON p.id = j.pengerjaan_id
       WHERE p.ulangan_id = ? AND p.status = 'mengerjakan'
-      ORDER BY 
-        CASE WHEN CAST(ROUND((julianday('now') - julianday(COALESCE(p.last_active_at, p.started_at))) * 86400) AS INTEGER) <= 45 THEN 0 ELSE 1 END ASC,
-        p.last_active_at DESC,
-        p.started_at DESC
-      LIMIT ? OFFSET ?
-    `).all(ulangan.id, l, offset);
+      GROUP BY p.id
+    `).all(ulangan.id);
 
     const durasiMenit = Number(ulangan.durasi_menit || 0);
 
-    const items = rows.map((r, idx) => {
+    const processedList = allRows.map(r => {
       const detikInaktif = Math.max(0, Number(r.detik_inaktif || 0));
       const detikBerjalan = Math.max(0, Number(r.detik_berjalan || 0));
       const isAktif = (detikInaktif <= 45);
 
+      let totalJawaban = 0;
+      if (r.soal_ids) {
+        try {
+          const parsed = JSON.parse(r.soal_ids);
+          if (Array.isArray(parsed) && parsed.length > 0) totalJawaban = parsed.length;
+        } catch (e) {}
+      }
+      if (!totalJawaban) totalJawaban = countSoalUlangan;
+
+      const totalTerisi = Number(r.total_terisi || 0);
+      const draftLengkap = (totalJawaban > 0 && totalTerisi >= totalJawaban);
+
+      let status = 'dc';
+      let statusLabel = 'Terputus (DC)';
+      if (isAktif) {
+        status = 'aktif';
+        statusLabel = 'Aktif';
+      } else if (draftLengkap) {
+        // Jawaban sudah lengkap, walau DC tidak dihitung sebagai DC yang terancam reset/hangus
+        status = 'lengkap';
+        statusLabel = '🟢 Jawaban Lengkap';
+      }
+
       // Hitung toleransi DC:
-      // Maksimal toleransi DC = 3600 detik (1 jam) sejak inaktif
+      // Maksimal toleransi DC = 3600 detik (1 jam) sejak inaktif terus-menerus tanpa jeda
       // Sisa waktu ulangan (jika ada durasi): (durasiMenit * 60) - detikBerjalan
       const maxDcTolerance = 3600;
       const sisaDcDetik = Math.max(0, maxDcTolerance - detikInaktif);
@@ -1248,23 +1317,65 @@ const studentService = {
       }
 
       return {
-        no: offset + idx + 1,
         pengerjaan_id: r.pengerjaan_id,
         nama: r.nama_siswa,
         nama_sensor: maskStudentName(r.nama_siswa),
         kelas: r.kelas_siswa,
-        status: isAktif ? 'aktif' : 'dc',
-        status_label: isAktif ? 'Aktif' : 'Terputus (DC)',
+        started_at: r.started_at,
+        last_active_at: r.last_active_at,
+        is_aktif: isAktif,
+        draft_lengkap: draftLengkap,
+        total_terisi: totalTerisi,
+        total_jawaban: totalJawaban,
+        status,
+        status_label: statusLabel,
         detik_inaktif: detikInaktif,
         sisa_toleransi_detik: isAktif ? null : sisaToleransiDetik
       };
     });
+
+    const total = processedList.length;
+    const totalAktif = processedList.filter(item => item.is_aktif).length;
+    const totalLengkap = processedList.filter(item => !item.is_aktif && item.draft_lengkap).length;
+    // Siswa dengan jawaban lengkap tidak dihitung sebagai DC yang terancam hangus
+    const totalDc = processedList.filter(item => !item.is_aktif && !item.draft_lengkap).length;
+
+    // Sorting: 1. Aktif, 2. Lengkap (Aman), 3. DC (Belum Lengkap)
+    processedList.sort((a, b) => {
+      const rank = (item) => {
+        if (item.is_aktif) return 1;
+        if (item.draft_lengkap) return 2;
+        return 3;
+      };
+      const rA = rank(a);
+      const rB = rank(b);
+      if (rA !== rB) return rA - rB;
+
+      return new Date(b.last_active_at || b.started_at || 0) - new Date(a.last_active_at || a.started_at || 0);
+    });
+
+    const paged = processedList.slice(offset, offset + l);
+    const items = paged.map((r, idx) => ({
+      no: offset + idx + 1,
+      pengerjaan_id: r.pengerjaan_id,
+      nama: r.nama,
+      nama_sensor: r.nama_sensor,
+      kelas: r.kelas,
+      status: r.status,
+      status_label: r.status_label,
+      draft_lengkap: r.draft_lengkap,
+      total_terisi: r.total_terisi,
+      total_jawaban: r.total_jawaban,
+      detik_inaktif: r.detik_inaktif,
+      sisa_toleransi_detik: r.sisa_toleransi_detik
+    }));
 
     return {
       success: true,
       data: {
         total,
         total_aktif: totalAktif,
+        total_lengkap: totalLengkap,
         total_dc: totalDc,
         page: p,
         totalPages: Math.max(1, Math.ceil(total / l)),

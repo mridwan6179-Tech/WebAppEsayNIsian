@@ -148,5 +148,83 @@ test('T-03: Alur Siswa Masuk sampai Submit (FR-06 - FR-08, NFR-01)', async (t) =
     assert.ok(dcItem.sisa_toleransi_detik > 0);
     assert.ok(dcItem.sisa_toleransi_detik <= 3010);
   });
+
+  await t.test('FR-11: Masuk kembali me-reset batas toleransi DC ke 1 jam penuh', () => {
+    // Siswa Budi Santoso yang sebelumnya DC masuk kembali ke lembar ujian
+    const reEntry = studentService.startExam(ulangan.kode_ujian, 'Budi Santoso', 'X MIPA 2');
+    assert.strictEqual(reEntry.alreadySubmitted, false);
+
+    // Ambil monitor siswa aktif lagi
+    const monitor = studentService.getActiveStudentsByExamCode(ulangan.kode_ujian, 1, 10);
+    const item = monitor.data.items.find(i => i.pengerjaan_id === reEntry.pengerjaanId);
+    assert.ok(item);
+    // Batas DC harus kembali aktif (detik_inaktif <= 5 detik)
+    assert.strictEqual(item.status, 'aktif');
+    assert.strictEqual(item.status_label, 'Aktif');
+    assert.ok(item.detik_inaktif <= 5);
+    assert.strictEqual(item.sisa_toleransi_detik, null);
+  });
+
+  await t.test('FR-12: Jawaban lengkap tidak dihitung sebagai DC terancam hangus, dan auto-submit saat DC > 1 jam', () => {
+    // Buat siswa baru dengan jawaban terisi lengkap
+    const sLengkap = studentService.startExam(ulangan.kode_ujian, 'Citra Lestari', 'X MIPA 3');
+    studentService.saveDraft(sLengkap.pengerjaanId, [
+      { soal_id: soal1.id, jawaban_siswa: 'Newton' },
+      { soal_id: soal2.id, jawaban_siswa: 'Jawaban lengkap soal 2' }
+    ]);
+
+    // Simulasikan terputus koneksi (10 menit lalu)
+    db.prepare(`UPDATE pengerjaan SET last_active_at = datetime('now', '-600 seconds') WHERE id = ?`).run(sLengkap.pengerjaanId);
+
+    let monitor = studentService.getActiveStudentsByExamCode(ulangan.kode_ujian, 1, 10);
+    const itemLengkap = monitor.data.items.find(i => i.pengerjaan_id === sLengkap.pengerjaanId);
+    assert.ok(itemLengkap);
+    // Karena jawaban sudah lengkap, status bukan DC yang terancam hangus
+    assert.strictEqual(itemLengkap.status, 'lengkap');
+    assert.strictEqual(itemLengkap.status_label, '🟢 Jawaban Lengkap');
+    assert.strictEqual(itemLengkap.draft_lengkap, true);
+    assert.ok(itemLengkap.sisa_toleransi_detik > 0);
+
+    // Simulasikan DC melebihi 1 jam penuh (sesi dimulai 70 menit lalu, inaktif 62 menit lalu)
+    db.prepare(`UPDATE pengerjaan SET started_at = datetime('now', '-4200 seconds'), last_active_at = datetime('now', '-3700 seconds') WHERE id = ?`).run(sLengkap.pengerjaanId);
+
+    // Jalankan cleanAbandonedSessions
+    const cleanRes = studentService.cleanAbandonedSessions(ulangan.id);
+    assert.strictEqual(cleanRes.success, true);
+    const autoSub = cleanRes.autoSubmitted.find(s => s.pengerjaan_id === sLengkap.pengerjaanId);
+    assert.ok(autoSub, 'Pengerjaan berjawaban lengkap harus masuk daftar autoSubmitted');
+
+    // Cek di database: status harus 'submitted' dan auto_submitted = 1, TIDAK dihapus
+    const pDb = db.prepare('SELECT status, auto_submitted, submitted_at FROM pengerjaan WHERE id = ?').get(sLengkap.pengerjaanId);
+    assert.ok(pDb, 'Pengerjaan jawaban lengkap tidak boleh dihapus');
+    assert.strictEqual(pDb.status, 'submitted');
+    assert.strictEqual(pDb.auto_submitted, 1);
+    assert.ok(pDb.submitted_at);
+  });
+
+  await t.test('FR-13: Jawaban belum lengkap yang DC > 1 jam dihapus otomatis (reset) agar bisa mengulang', () => {
+    // Buat siswa baru tanpa mengisi jawaban (jawaban kosong / belum lengkap)
+    const sKosong = studentService.startExam(ulangan.kode_ujian, 'Deni Kosong', 'X MIPA 3');
+    assert.ok(sKosong.pengerjaanId);
+
+    // Simulasikan DC melebihi 1 jam (sesi dimulai 70 menit lalu, inaktif 62 menit lalu)
+    db.prepare(`UPDATE pengerjaan SET started_at = datetime('now', '-4200 seconds'), last_active_at = datetime('now', '-3700 seconds') WHERE id = ?`).run(sKosong.pengerjaanId);
+
+    // Jalankan cleanAbandonedSessions
+    const cleanRes = studentService.cleanAbandonedSessions(ulangan.id);
+    assert.strictEqual(cleanRes.success, true);
+    const deleted = cleanRes.deleted.find(s => s.pengerjaan_id === sKosong.pengerjaanId);
+    assert.ok(deleted, 'Pengerjaan yang belum lengkap harus dihapus/direset');
+
+    // Cek di database: data pengerjaan harus sudah bersih/dihapus
+    const pDb = db.prepare('SELECT id FROM pengerjaan WHERE id = ?').get(sKosong.pengerjaanId);
+    assert.strictEqual(pDb, undefined, 'Pengerjaan harus sudah terhapus dari database');
+
+    // Siswa Deni Kosong dapat login kembali dan memulai ujian dari awal
+    const reStart = studentService.startExam(ulangan.kode_ujian, 'Deni Kosong', 'X MIPA 3');
+    assert.strictEqual(reStart.alreadySubmitted, false);
+    assert.ok(reStart.pengerjaanId);
+  });
 });
+
 

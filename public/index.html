@@ -138,8 +138,13 @@
           </div>
           <ul class="text-[11.5px] text-amber-900 leading-relaxed list-disc list-inside space-y-1">
             <li><strong>Wajib Terisi Penuh:</strong> Seluruh butir soal harus terisi penuh (100%) terlebih dahulu agar ujian dapat dianggap sah dan diterima, baik saat dikumpulkan langsung maupun jika terjadi kendala terputus (DC).</li>
-            <li><strong>Batas Toleransi DC:</strong> Batas maksimal terputus (DC) adalah <strong>1 jam</strong> atau <strong>sampai waktu ulangan habis</strong>.</li>
-            <li><strong>Konsekuensi:</strong> Jika Anda terputus melebihi batas 1 jam dan jawaban belum lengkap terkumpul, seluruh pengerjaan akan <strong>dihapus otomatis oleh sistem</strong> dan Anda harus <strong>mengulang ujian dari awal</strong>.</li>
+            <li><strong>Batas Toleransi DC:</strong> Batas maksimal terputus (DC) adalah <strong>1 jam</strong> terus-menerus tanpa jeda atau <strong>sampai waktu ulangan habis</strong>. Jika Anda masuk kembali dan melanjutkan mengerjakan, batas toleransi DC akan di-reset kembali ke 1 jam.</li>
+            <li><strong>Ketentuan Jawaban Lengkap vs Belum Lengkap:</strong>
+              <div class="mt-1 pl-4 space-y-0.5">
+                <p>✅ <strong>Jawaban Lengkap:</strong> Jika Anda terputus namun seluruh butir soal sudah terisi lengkap di server, status Anda aman (tidak dihitung sebagai DC yang terancam reset). Jika tidak masuk lagi sampai batas 1 jam atau waktu ujian habis, sistem akan <strong>mengirimkan jawaban Anda secara otomatis</strong>.</p>
+                <p>⚠️ <strong>Jawaban Belum Lengkap:</strong> Jika Anda terputus melebihi batas 1 jam terus-menerus dan jawaban belum lengkap terisi, seluruh draft pengerjaan akan <strong>dihapus otomatis oleh sistem</strong> dan Anda harus <strong>mengulang ujian dari awal</strong>.</p>
+              </div>
+            </li>
           </ul>
         </div>
       </form>
@@ -901,7 +906,7 @@
       return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }
 
-    // Ticking Countdown Timer Real-Time untuk Siswa Terputus (DC)
+    // Ticking Countdown Timer Real-Time untuk Siswa Terputus (DC) & Jawaban Lengkap
     function tickDcCountdowns() {
       const now = Date.now();
       document.querySelectorAll('.countdown-dc-timer').forEach(el => {
@@ -913,9 +918,12 @@
         const remaining = Math.max(0, initialSisa - elapsed);
 
         if (remaining <= 0) {
-          el.textContent = '00:00 (Hangus)';
+          const isLengkap = (el.dataset.status === 'lengkap');
+          el.textContent = isLengkap ? '00:00 (Terkirim Otomatis)' : '00:00 (Hangus)';
           if (el.parentElement) {
-            el.parentElement.className = 'inline-flex items-center space-x-1 font-mono font-bold text-slate-500 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-md text-xs';
+            el.parentElement.className = isLengkap
+              ? 'inline-flex items-center space-x-1.5 font-mono font-bold text-blue-700 bg-blue-100 border border-blue-300 px-2 py-0.5 rounded-md text-xs shadow-2xs'
+              : 'inline-flex items-center space-x-1 font-mono font-bold text-slate-500 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-md text-xs';
           }
         } else {
           el.textContent = formatSecondsToCountdown(remaining);
@@ -959,11 +967,17 @@
           return;
         }
 
-        const { total, total_aktif, total_dc, totalPages, items } = result.data;
+        const { total, total_aktif, total_lengkap, total_dc, totalPages, items } = result.data;
 
         if (badgeTotalTab) badgeTotalTab.textContent = total;
         if (activeCountText) activeCountText.textContent = `${total_aktif} Aktif`;
-        if (dcCountText) dcCountText.textContent = `${total_dc} Terputus (DC)`;
+        if (dcCountText) {
+          if (total_lengkap > 0) {
+            dcCountText.textContent = `${total_lengkap} Lengkap · ${total_dc} Terputus (DC)`;
+          } else {
+            dcCountText.textContent = `${total_dc} Terputus (DC)`;
+          }
+        }
 
         if (pageInfo) {
           pageInfo.textContent = `Halaman ${page} dari ${totalPages} (${total} Total)`;
@@ -990,6 +1004,7 @@
         if (tbody) {
           tbody.innerHTML = items.map(item => {
             const isAktif = (item.status === 'aktif');
+            const isLengkap = (item.status === 'lengkap');
             const displayName = escapeHtml(item.nama_sensor || item.nama);
             const displayKelas = escapeHtml(item.kelas);
 
@@ -1009,6 +1024,25 @@
                   <span>Sedang di lembar ujian</span>
                 </span>
               `;
+            } else if (isLengkap) {
+              statusHtml = `
+                <span class="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold" title="Seluruh butir soal telah terisi lengkap di server. Jawaban aman dan tidak akan dihapus.">
+                  <span class="w-1.5 h-1.5 rounded-full bg-blue-500 mr-0.5"></span>
+                  <span>🟢 Jawaban Lengkap</span>
+                </span>
+              `;
+              const sisa = item.sisa_toleransi_detik !== null ? item.sisa_toleransi_detik : 3600;
+              toleransiHtml = `
+                <div class="space-y-0.5">
+                  <div class="inline-flex items-center space-x-1.5 font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md text-xs shadow-2xs">
+                    <span class="animate-pulse">⏳</span>
+                    <span class="countdown-dc-timer" data-pengerjaan-id="${item.pengerjaan_id}" data-status="lengkap" data-sisa="${sisa}" data-loaded-at="${nowTs}">
+                      ${formatSecondsToCountdown(sisa)}
+                    </span>
+                  </div>
+                  <span class="text-[10px] text-blue-700 block font-medium">Terkirim otomatis saat waktu habis (Aman)</span>
+                </div>
+              `;
             } else {
               statusHtml = `
                 <span class="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 text-[11px] font-bold">
@@ -1021,7 +1055,7 @@
                 <div class="space-y-0.5">
                   <div class="inline-flex items-center space-x-1.5 font-mono font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md text-xs shadow-2xs">
                     <span class="animate-pulse">⏳</span>
-                    <span class="countdown-dc-timer" data-pengerjaan-id="${item.pengerjaan_id}" data-sisa="${sisa}" data-loaded-at="${nowTs}">
+                    <span class="countdown-dc-timer" data-pengerjaan-id="${item.pengerjaan_id}" data-status="dc" data-sisa="${sisa}" data-loaded-at="${nowTs}">
                       ${formatSecondsToCountdown(sisa)}
                     </span>
                   </div>
