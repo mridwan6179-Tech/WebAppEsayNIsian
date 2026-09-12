@@ -653,16 +653,32 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
     const isListening = Boolean(options.is_listening);
     const rawBahasa = options.bahasa ? String(options.bahasa).trim() : '';
     const topicCombined = `${options.input_sumber || ''} ${options.kategori || ''}`.toLowerCase();
-    const isExplicitEnglish = rawBahasa.toLowerCase() === 'bahasa inggris' || topicCombined.includes('bahasa inggris') || topicCombined.includes('english');
-    const isExplicitArabic = rawBahasa.toLowerCase() === 'bahasa arab' || topicCombined.includes('bahasa arab');
 
-    // Jika bukan soal listening DAN bukan pelajaran bahasa inggris/arab secara eksplisit, bahasa pengantar WAJIB Bahasa Indonesia!
+    // 1. Deteksi apakah mata pelajaran adalah Bahasa Asing (ikuti pelajarannya):
+    const isSubjectEnglish = topicCombined.includes('bahasa inggris') || 
+                             topicCombined.includes('english') || 
+                             topicCombined.includes('tenses');
+    const isSubjectArabic = topicCombined.includes('bahasa arab') || 
+                            topicCombined.includes('arabic') || 
+                            topicCombined.includes('nahwu') || 
+                            topicCombined.includes('shorof');
+    const isSubjectJapanese = topicCombined.includes('bahasa jepang') || 
+                              topicCombined.includes('japanese') || 
+                              topicCombined.includes('nihongo');
+
+    // 2. Tentukan bahasa pengantar:
+    // Prinsip: Jika guru lupa pilih bahasa, default PASTI Bahasa Indonesia, KECUALI mata pelajarannya bahasa asing (ikuti pelajarannya) atau guru eksplisit meminta bahasa lain.
     let bahasaPelajaran = 'Bahasa Indonesia';
-    if (isExplicitArabic) {
-      bahasaPelajaran = 'Bahasa Arab';
-    } else if (isExplicitEnglish && (isListening || topicCombined.includes('bahasa inggris') || topicCombined.includes('english'))) {
+    if (isSubjectEnglish) {
       bahasaPelajaran = 'Bahasa Inggris';
-    } else if (isListening && rawBahasa) {
+    } else if (isSubjectArabic) {
+      bahasaPelajaran = 'Bahasa Arab';
+    } else if (isSubjectJapanese) {
+      bahasaPelajaran = 'Bahasa Jepang';
+    } else if (isListening && rawBahasa && rawBahasa.toLowerCase() !== 'bahasa indonesia') {
+      bahasaPelajaran = rawBahasa;
+    } else if (options.bahasa_eksplisit && rawBahasa && rawBahasa.toLowerCase() !== 'bahasa indonesia' && rawBahasa.toLowerCase() !== 'umum' && rawBahasa.toLowerCase() !== 'default') {
+      // Guru secara manual memilih bahasa lain di formulir ("kecuali saya minta bahasa lain")
       bahasaPelajaran = rawBahasa;
     }
 

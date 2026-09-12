@@ -1480,9 +1480,9 @@
                 <div>
                   <label class="block font-semibold text-amber-950 text-[11px] mb-1">Pelajaran Bahasa / Pengantar</label>
                   <select id="gen-bahasa" class="w-full px-2.5 py-1.5 rounded-lg border border-amber-300 text-xs bg-white font-medium text-slate-800">
-                    <option value="Bahasa Inggris" selected>Bahasa Inggris (English)</option>
+                    <option value="Bahasa Indonesia" selected>Bahasa Indonesia (Standar)</option>
+                    <option value="Bahasa Inggris">Bahasa Inggris (English)</option>
                     <option value="Bahasa Arab">Bahasa Arab (العربية)</option>
-                    <option value="Bahasa Indonesia">Bahasa Indonesia</option>
                     <option value="Bahasa Jepang">Bahasa Jepang</option>
                     <option value="Bahasa Lainnya">Bahasa Lain / Umum</option>
                   </select>
@@ -3552,6 +3552,21 @@
           document.getElementById('gen-input-topik').value = currentMapel;
         }
         if (kelas) document.getElementById('gen-kelas').value = kelas;
+
+        // Cerdas sinkronkan bahasa pengantar mengikuti mata pelajaran (default: Bahasa Indonesia)
+        const mapelLower = currentMapel.toLowerCase();
+        const selectGenBahasa = document.getElementById('gen-bahasa');
+        if (selectGenBahasa) {
+          if (mapelLower.includes('inggris') || mapelLower.includes('english')) {
+            selectGenBahasa.value = 'Bahasa Inggris';
+          } else if (mapelLower.includes('arab')) {
+            selectGenBahasa.value = 'Bahasa Arab';
+          } else if (mapelLower.includes('jepang')) {
+            selectGenBahasa.value = 'Bahasa Jepang';
+          } else {
+            selectGenBahasa.value = 'Bahasa Indonesia';
+          }
+        }
       }
       resetGeneratorUI();
       await initAiGeneratorCategoryPicker(currentMapel, '');
@@ -3576,6 +3591,20 @@
 
         const filterCat = document.getElementById('bank-filter-kategori')?.value;
         const catToUse = (filterCat && filterCat !== 'all') ? filterCat : '';
+
+        const catLower = (catToUse || '').toLowerCase();
+        const selectGenBahasa = document.getElementById('gen-bahasa');
+        if (selectGenBahasa) {
+          if (catLower.includes('inggris') || catLower.includes('english')) {
+            selectGenBahasa.value = 'Bahasa Inggris';
+          } else if (catLower.includes('arab')) {
+            selectGenBahasa.value = 'Bahasa Arab';
+          } else if (catLower.includes('jepang')) {
+            selectGenBahasa.value = 'Bahasa Jepang';
+          } else {
+            selectGenBahasa.value = 'Bahasa Indonesia';
+          }
+        }
 
         resetGeneratorUI();
         await initAiGeneratorCategoryPicker('', catToUse);

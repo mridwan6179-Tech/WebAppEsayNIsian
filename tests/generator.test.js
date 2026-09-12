@@ -55,6 +55,24 @@ test('T-10: Fitur AI Soal Generator (Pembuat Soal, Kunci Jawaban, Rubrik & Bobot
     // Harus mewajibkan Bahasa Indonesia dan melarang bahasa Inggris
     assert.match(promptKoding, /WAJIB DITULIS LENGKAP DALAM BAHASA INDONESIA/);
     assert.match(promptKoding, /DILARANG KERAS menyajikan kalimat pertanyaan atau narasi soal dalam Bahasa Inggris/);
+
+    // Jika mapelnya Bahasa Inggris, ikuti pelajarannya (otomatis Bahasa Inggris)
+    const promptEnglish = geminiService.buildGenerateQuestionsPrompt({
+      mode: 'topik',
+      input_sumber: 'English - Simple Past Tense',
+      kategori: 'Bahasa Inggris Kelas 10',
+      jumlah_soal: 5
+    });
+    assert.match(promptEnglish, /MAPEL BAHASA INGGRIS/);
+
+    // Jika mapelnya Bahasa Arab, ikuti pelajarannya (otomatis Bahasa Arab)
+    const promptArabic = geminiService.buildGenerateQuestionsPrompt({
+      mode: 'topik',
+      input_sumber: 'Bahasa Arab: Kaidah Nahwu & Shorof',
+      kategori: 'Bahasa Arab Kelas 11',
+      jumlah_soal: 5
+    });
+    assert.match(promptArabic, /MAPEL BAHASA ARAB/);
   });
 
   await t.test('2. Normalisasi Bobot Soal Menuju Target Bobot (misal: 100)', () => {
