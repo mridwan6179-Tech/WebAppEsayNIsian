@@ -674,9 +674,9 @@ const studentService = {
         );
         const isPastDuration = (durasiMenit > 0 && menitBerjalan > durasiMenit); // Melewati durasi pengerjaan ulangan
 
-        // KASUS 1: Jawabannya KOSONG (0 terisi) DAN (DC > 1 jam ATAU waktu durasi pengerjaan telah habis)
-        // -> HAPUS pengerjaan dan peserta, jangan disimpan sebagai sampah data
-        if (totalTerisi === 0 && (isDcOver1Hour || isPastDuration)) {
+        // Kebijakan: Jika siswa terputus (DC) > 1 jam ATAU waktu ulangan telah habis saat masih berstatus 'mengerjakan'
+        // -> HAPUS seluruh jawaban dan pengerjaan (reset) agar siswa dapat mengulang dari awal secara bersih
+        if (isDcOver1Hour || isPastDuration) {
           const deleteTx = db.transaction(() => {
             db.prepare('DELETE FROM jawaban WHERE pengerjaan_id = ?').run(row.pengerjaan_id);
             db.prepare('DELETE FROM pengerjaan WHERE id = ?').run(row.pengerjaan_id);
@@ -690,26 +690,10 @@ const studentService = {
             pengerjaan_id: row.pengerjaan_id,
             nama: row.nama_siswa,
             kelas: row.kelas_siswa,
-            alasan: isDcOver1Hour ? 'DC > 1 jam tanpa jawaban' : 'Waktu habis tanpa jawaban'
-          });
-          console.log(`[CLEANUP] Menghapus pengerjaan kosong ID ${row.pengerjaan_id} (${row.nama_siswa} - ${row.kelas_siswa}) karena ${isDcOver1Hour ? 'DC > 1 jam' : 'durasi habis'} dengan 0 jawaban.`);
-        }
-        // KASUS 2: Jawabannya SUDAH ADA YANG TERISI, namun waktu ujian telah habis atau DC > 1 jam
-        // -> Otomatis finalisasi / submit agar siswa tidak menggantung di DC mengerjakan
-        else if (totalTerisi > 0 && (isPastDuration || isDcOver1Hour)) {
-          const nowIso = new Date().toISOString();
-          db.prepare(`
-            UPDATE pengerjaan
-            SET status = 'submitted', submitted_at = ?, auto_submitted = 1
-            WHERE id = ?
-          `).run(nowIso, row.pengerjaan_id);
-          autoSubmittedSessions.push({
-            pengerjaan_id: row.pengerjaan_id,
-            nama: row.nama_siswa,
-            kelas: row.kelas_siswa,
+            alasan: isDcOver1Hour ? 'DC > 1 jam (reset untuk ulang)' : 'Waktu habis tanpa submit (reset untuk ulang)',
             terisi: totalTerisi
           });
-          console.log(`[AUTO-FINALIZE] Memfinalisasi submit otomatis ID ${row.pengerjaan_id} (${row.nama_siswa} - ${row.kelas_siswa}) dengan ${totalTerisi} jawaban terisi.`);
+          console.log(`[CLEANUP RESET] Menghapus pengerjaan ID ${row.pengerjaan_id} (${row.nama_siswa} - ${row.kelas_siswa}, terisi: ${totalTerisi}) karena ${isDcOver1Hour ? 'DC > 1 jam' : 'durasi habis'}. Siswa dapat mengulang dari awal.`);
         }
       }
 
