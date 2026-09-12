@@ -166,6 +166,17 @@ const examService = {
     return rows;
   },
 
+  // Ambil daftar mata pelajaran unik yang pernah dibuat oleh guru
+  getMataPelajaranByGuru(guruId) {
+    const rows = db.prepare(`
+      SELECT DISTINCT mata_pelajaran
+      FROM ulangan
+      WHERE guru_id = ? AND mata_pelajaran IS NOT NULL AND TRIM(mata_pelajaran) != ''
+      ORDER BY mata_pelajaran ASC
+    `).all(guruId);
+    return rows.map(r => r.mata_pelajaran.trim()).filter(Boolean);
+  },
+
   // Ambil detail ulangan berdasarkan ID
   getUlanganById(id, guruId = null) {
     let query = 'SELECT * FROM ulangan WHERE id = ?';

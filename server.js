@@ -333,6 +333,15 @@ app.get('/api/guru/ulangan', requireGuru, (req, res) => {
   }
 });
 
+app.get('/api/guru/mata-pelajaran', requireGuru, (req, res) => {
+  try {
+    const list = examService.getMataPelajaranByGuru(req.guru.guruId);
+    res.json({ success: true, data: list });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 app.post('/api/guru/ulangan', requireGuru, (req, res) => {
   try {
     const created = examService.createUlangan(req.guru.guruId, req.body);

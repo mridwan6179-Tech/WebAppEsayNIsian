@@ -513,4 +513,30 @@ test('=== SUITE: BANK SOAL, LISTENING, AUDIO & EKSPOR EXCEL ===', async (t) => {
     });
     assert.equal(examDefault.tampilkan_simbol, 1, 'Default tampilkan_simbol harus bernilai 1');
   });
+
+  await t.test('9. Riwayat Mata Pelajaran Guru & Endpoint /api/guru/mata-pelajaran', async () => {
+    // 1. Cek langsung via examService
+    const mapelList = examService.getMataPelajaranByGuru(guruId);
+    assert.ok(Array.isArray(mapelList), 'Harus mengembalikan array');
+    assert.ok(mapelList.includes('Matematika'), 'Harus menyertakan Matematika yang baru dibuat');
+    assert.ok(mapelList.includes('Bahasa Inggris'), 'Harus menyertakan Bahasa Inggris');
+
+    // 2. Cek via endpoint HTTP GET /api/guru/mata-pelajaran
+    const srv = http.createServer(app);
+    await new Promise((resolve) => srv.listen(0, resolve));
+    const port = srv.address().port;
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/guru/mata-pelajaran`, {
+        headers: { 'Authorization': `Bearer ${tokenGuru}` }
+      });
+      assert.equal(res.status, 200);
+      const json = await res.json();
+      assert.equal(json.success, true);
+      assert.ok(Array.isArray(json.data));
+      assert.ok(json.data.includes('Matematika'));
+      assert.ok(json.data.includes('Bahasa Inggris'));
+    } finally {
+      await new Promise((resolve) => srv.close(resolve));
+    }
+  });
 });
