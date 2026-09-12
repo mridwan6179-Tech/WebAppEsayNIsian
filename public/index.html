@@ -258,6 +258,8 @@
           <div class="flex items-center space-x-1.5 flex-wrap">
             <span id="bar-exam-badge" class="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-blue-50 text-blue-700 truncate max-w-[130px]">Mata Pelajaran</span>
             <span id="bar-exam-title" class="font-bold text-xs sm:text-sm text-slate-900 truncate">Judul Ulangan</span>
+            <!-- Indikator Ringkas Progres Soal Terisi -->
+            <span id="bar-progress-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs">0/0 Terisi</span>
           </div>
           <p id="bar-student-info" class="text-[11px] text-slate-500 truncate mt-0.5">Nama Siswa &bull; Kelas</p>
         </div>
@@ -300,7 +302,10 @@
         <div id="questions-container" class="space-y-3 sm:space-y-4 font-exam-normal"></div>
 
         <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
-          <p class="text-xs text-slate-500">Pastikan seluruh jawaban telah Anda periksa sebelum dikumpulkan.</p>
+          <div>
+            <p id="exam-footer-progress" class="text-xs font-bold text-slate-800">Progres Pengerjaan: 0 dari 0 soal terisi (0%)</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">Pastikan seluruh jawaban telah Anda periksa dan terisi sebelum dikumpulkan.</p>
+          </div>
           <button type="submit" id="btn-submit"
             class="w-full sm:w-auto px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold rounded-xl shadow-md shadow-emerald-500/20 transition cursor-pointer">
             Kumpulkan Jawaban
@@ -321,21 +326,40 @@
       <div id="modal-confirm-submit" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 sm:p-6 space-y-4 border border-slate-100 transform transition-all animate-in fade-in zoom-in-95 duration-150">
           <div class="flex items-start space-x-3">
-            <div class="w-11 h-11 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 text-xl font-bold shadow-2xs">
+            <div id="confirm-modal-icon-box" class="w-11 h-11 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 text-xl font-bold shadow-2xs">
               📤
             </div>
             <div>
-              <h3 class="text-base sm:text-lg font-bold text-slate-900 leading-snug">Kumpulkan Lembar Ujian?</h3>
-              <p class="text-xs text-slate-500 mt-0.5">Pastikan semua soal telah Anda periksa sebelum dikirimkan ke guru.</p>
+              <h3 id="confirm-modal-title" class="text-base sm:text-lg font-bold text-slate-900 leading-snug">Kumpulkan Lembar Ujian?</h3>
+              <p id="confirm-modal-subtitle" class="text-xs text-slate-500 mt-0.5">Pastikan semua soal telah Anda periksa sebelum dikirimkan ke guru.</p>
             </div>
           </div>
 
-          <!-- Peringatan Tegas: Belum Terkirim -->
-          <div class="bg-amber-50 border border-amber-200 text-amber-900 p-3 rounded-xl text-xs flex items-start space-x-2.5">
-            <span class="text-base shrink-0">⚠️</span>
-            <div>
+          <!-- Peringatan Status Pengerjaan (Lengkap vs Belum Lengkap) -->
+          <div id="confirm-modal-banner" class="bg-amber-50 border border-amber-200 text-amber-900 p-3 rounded-xl text-xs flex items-start space-x-2.5">
+            <span id="confirm-modal-banner-icon" class="text-base shrink-0">⚠️</span>
+            <div id="confirm-modal-banner-content">
               <strong class="block font-bold text-amber-950">Langkah Terakhir: Jawaban Belum Terkirim!</strong>
-              <span class="text-amber-800 text-[11px] leading-relaxed block mt-0.5">Tekan tombol hijau <strong>"Ya, Kirim Jawaban Sekarang"</strong> di bawah untuk menyerahkan lembar ujian Anda secara resmi ke guru.</span>
+              <span class="text-amber-800 text-[11px] leading-relaxed block mt-0.5">Tekan tombol di bawah untuk menyerahkan lembar ujian Anda secara resmi ke guru.</span>
+            </div>
+          </div>
+
+          <!-- Daftar Soal yang Belum Terisi (Hanya Tampil Jika Ada yang Kosong) -->
+          <div id="confirm-unanswered-box" class="hidden bg-amber-50/80 border border-amber-300 rounded-xl p-3 space-y-2 text-xs">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-amber-950 flex items-center space-x-1.5">
+                <span>⚠️</span>
+                <span>Bagian Soal yang Belum Terisi:</span>
+              </span>
+              <span id="confirm-unanswered-count-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                0 Soal
+              </span>
+            </div>
+            <p class="text-[11px] text-amber-800 leading-tight">
+              Klik salah satu nomor soal di bawah untuk langsung menuju dan melengkapi jawaban:
+            </p>
+            <div id="confirm-unanswered-list" class="flex flex-wrap gap-1.5 pt-1 max-h-36 overflow-y-auto">
+              <!-- Render tombol nomor soal interaktif -->
             </div>
           </div>
 
@@ -356,20 +380,30 @@
               </span>
               <span id="confirm-kosong-soal" class="font-bold text-amber-600">0 Soal</span>
             </div>
-            <div id="confirm-kosong-warning" class="hidden text-[11px] text-amber-800 bg-amber-50 p-2.5 rounded-lg border border-amber-200 leading-relaxed font-medium">
-              ⚠️ <strong>Perhatian:</strong> Masih ada butir soal yang belum Anda jawab. Anda tetap dapat mengumpulkan, namun soal yang kosong akan bernilai 0.
-            </div>
           </div>
 
           <p class="text-[11px] text-slate-400 italic leading-relaxed">
             Catatan: Setelah dikumpulkan, lembar ujian akan dikunci dan seluruh jawaban diserahkan secara permanen.
           </p>
 
-          <div class="flex flex-col gap-2 pt-2 border-t border-slate-100">
+          <!-- Action Buttons -->
+          <div id="confirm-modal-actions" class="flex flex-col gap-2 pt-2 border-t border-slate-100">
+            <!-- Tombol jika ada soal belum terisi: Ajak lengkapi dulu -->
+            <button type="button" id="btn-complete-unanswered" class="hidden w-full py-3 px-5 text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.99] rounded-xl shadow-md shadow-blue-600/20 transition cursor-pointer flex items-center justify-center space-x-2">
+              <span>👉 Selesaikan Soal yang Belum Terisi</span>
+            </button>
+
+            <!-- Tombol jika seluruh soal sudah terisi 100% -->
             <button type="button" id="btn-proceed-confirm-submit" class="w-full py-3 px-5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer flex items-center justify-center space-x-2">
               <span>🚀</span>
               <span>Ya, Kirim Jawaban Sekarang</span>
             </button>
+
+            <!-- Opsi cadangan jika siswa memaksa kumpulkan dengan soal kosong -->
+            <button type="button" id="btn-proceed-force-empty" class="hidden w-full py-2 px-3 text-[11px] font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl transition cursor-pointer text-center">
+              Tetap Kumpulkan Sekarang (Resiko Soal Kosong Bernilai 0)
+            </button>
+
             <button type="button" id="btn-cancel-confirm-submit" class="w-full py-2.5 px-4 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer text-center">
               ← Kembali Periksa Jawaban
             </button>
@@ -1754,13 +1788,18 @@
         const cleanPertanyaan = rawText.replace(/\r/g, '').replace(/\n{3,}/g, '\n\n');
 
         card.innerHTML = `
-          <div class="flex items-start justify-between gap-3 mb-1.5 select-none">
-            <div class="flex items-center space-x-2">
+          <div class="flex items-center justify-between gap-2 mb-1.5 select-none flex-wrap">
+            <div class="flex items-center space-x-2 flex-wrap gap-y-1">
               <span class="w-6 h-6 rounded-md bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center">
                 ${idx + 1}
               </span>
               <span class="text-[11px] sm:text-xs uppercase tracking-wider font-semibold px-2 py-0.5 rounded ${isEssay ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}">
                 ${isEssay ? 'Essay' : 'Isian Singkat'}
+              </span>
+              <!-- Tanda Visual Status Terisi / Belum Terisi -->
+              <span id="badge-soal-status-${s.id}" class="inline-flex items-center space-x-1 text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 transition-all">
+                <span class="indicator-icon">⚠️</span>
+                <span class="indicator-text">Belum Terisi</span>
               </span>
             </div>
             <span class="text-xs text-slate-400 font-medium">Bobot: ${s.bobot}</span>
@@ -1936,6 +1975,9 @@
         }
       });
 
+      // Update status tanda visual seluruh butir soal & badge progres di awal render
+      updateQuestionStatusAndProgress();
+
       // Sinkronisasi Ganda (localStorage seketika + Server DB Debounced)
       syncServerTimer = null;
       const syncDraftToServer = () => {
@@ -1976,13 +2018,18 @@
       };
 
       container.querySelectorAll('input, textarea').forEach(field => {
-        field.addEventListener('input', saveDraft);
+        field.addEventListener('input', () => {
+          saveDraft();
+          updateQuestionStatusAndProgress();
+        });
         field.addEventListener('change', () => {
           saveDraft();
           syncDraftToServer();
+          updateQuestionStatusAndProgress();
         });
         field.addEventListener('blur', () => {
           syncDraftToServer();
+          updateQuestionStatusAndProgress();
         });
         field.addEventListener('paste', () => {
           const sId = Number(field.dataset.soalId);
@@ -1990,6 +2037,7 @@
           const noTampil = card ? card.dataset.nomorSoal : null;
           showPasteWarning(sId, noTampil);
           saveDraft();
+          updateQuestionStatusAndProgress();
         });
       });
 
@@ -2001,7 +2049,95 @@
       }
     }
 
-    // Modal Konfirmasi Selesai Ujian
+    // Pembaruan Real-time Penanda Status Soal & Progres Pengerjaan
+    function updateQuestionStatusAndProgress() {
+      const inputs = document.querySelectorAll('#questions-container input[data-soal-id], #questions-container textarea[data-soal-id]');
+      if (!inputs || inputs.length === 0) return;
+
+      const draftKey = `ulangan_draft_${currentPengerjaanId}`;
+      let savedDraftObj = {};
+      try {
+        const savedDraftStr = localStorage.getItem(draftKey);
+        if (savedDraftStr) savedDraftObj = JSON.parse(savedDraftStr);
+      } catch (e) {}
+
+      let total = 0;
+      let filled = 0;
+      const seenIds = new Set();
+
+      inputs.forEach(input => {
+        const sId = Number(input.dataset.soalId);
+        if (!sId || seenIds.has(sId)) return;
+        seenIds.add(sId);
+        total++;
+
+        const rawVal = (input.value !== undefined && input.value !== null) ? String(input.value) : '';
+        const textVal = rawVal.trim() || (savedDraftObj[sId] ? String(savedDraftObj[sId]).trim() : '');
+        const isFilled = textVal !== '';
+
+        if (isFilled) filled++;
+
+        const badge = document.getElementById(`badge-soal-status-${sId}`);
+        const card = input.closest('[data-nomor-soal]');
+
+        if (badge) {
+          if (isFilled) {
+            badge.className = 'inline-flex items-center space-x-1 text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 transition-all';
+            badge.innerHTML = '<span class="indicator-icon">✓</span><span class="indicator-text">Sudah Terisi</span>';
+            if (card) {
+              card.classList.remove('border-amber-400', 'ring-2', 'ring-amber-200/70', 'bg-amber-50/15');
+            }
+          } else {
+            badge.className = 'inline-flex items-center space-x-1 text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 transition-all';
+            badge.innerHTML = '<span class="indicator-icon">⚠️</span><span class="indicator-text">Belum Terisi</span>';
+          }
+        }
+      });
+
+      const barBadge = document.getElementById('bar-progress-badge');
+      if (barBadge) {
+        barBadge.textContent = `${filled}/${total} Terisi`;
+        if (total > 0 && filled === total) {
+          barBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs';
+        } else {
+          barBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs';
+        }
+      }
+
+      const footerProg = document.getElementById('exam-footer-progress');
+      if (footerProg) {
+        const percent = total > 0 ? Math.round((filled / total) * 100) : 0;
+        footerProg.textContent = `Progres Pengerjaan: ${filled} dari ${total} soal terisi (${percent}%)`;
+      }
+    }
+
+    // Melompat langsung ke soal yang belum terisi dan memfokuskan kursor
+    window.goToQuestion = function(soalId) {
+      closeConfirmSubmitModal();
+      const card = document.querySelector(`[data-card-soal-id="${soalId}"]`);
+      if (!card) return;
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      card.classList.add('ring-4', 'ring-amber-400', 'border-amber-500');
+      setTimeout(() => {
+        card.classList.remove('ring-4', 'ring-amber-400', 'border-amber-500');
+      }, 3000);
+
+      const field = card.querySelector('input[data-soal-id], textarea[data-soal-id]');
+      if (field) {
+        setTimeout(() => {
+          try {
+            field.focus();
+            if (field.setSelectionRange) {
+              const len = field.value.length;
+              field.setSelectionRange(len, len);
+            }
+          } catch (e) {}
+        }, 400);
+      }
+    };
+
+    // Modal Konfirmasi Selesai Ujian dengan Deteksi Soal Belum Terisi
     function openConfirmSubmitModal() {
       const modal = document.getElementById('modal-confirm-submit');
       if (!modal) {
@@ -2023,38 +2159,133 @@
       const seenIds = new Set();
       let total = 0;
       let filled = 0;
+      const emptyQuestions = [];
 
       inputs.forEach(input => {
         const sId = Number(input.dataset.soalId);
         if (!sId || seenIds.has(sId)) return;
         seenIds.add(sId);
         total++;
+
         const rawVal = (input.value !== undefined && input.value !== null) ? String(input.value) : '';
         const textVal = rawVal.trim() || (savedDraftObj[sId] ? String(savedDraftObj[sId]).trim() : '');
-        if (textVal !== '') filled++;
+        
+        const card = input.closest('[data-nomor-soal]');
+        const nomor = card ? Number(card.dataset.nomorSoal) : total;
+
+        if (textVal !== '') {
+          filled++;
+          if (card) {
+            card.classList.remove('border-amber-400', 'ring-2', 'ring-amber-200/70', 'bg-amber-50/15');
+          }
+        } else {
+          emptyQuestions.push({ nomor, soalId: sId });
+          // Tandai kartu soal yang belum terisi agar terlihat di lembar pengerjaan
+          if (card) {
+            card.classList.add('border-amber-400', 'ring-2', 'ring-amber-200/70', 'bg-amber-50/15');
+          }
+        }
       });
 
-      const empty = Math.max(0, total - filled);
+      const empty = emptyQuestions.length;
 
       const totalEl = document.getElementById('confirm-total-soal');
       const terisiEl = document.getElementById('confirm-terisi-soal');
       const kosongRow = document.getElementById('confirm-kosong-row');
       const kosongEl = document.getElementById('confirm-kosong-soal');
-      const kosongWarn = document.getElementById('confirm-kosong-warning');
 
       if (totalEl) totalEl.textContent = `${total} Soal`;
       if (terisiEl) terisiEl.textContent = `${filled} Soal`;
 
+      const iconBox = document.getElementById('confirm-modal-icon-box');
+      const titleEl = document.getElementById('confirm-modal-title');
+      const subtitleEl = document.getElementById('confirm-modal-subtitle');
+      const bannerEl = document.getElementById('confirm-modal-banner');
+      const bannerIcon = document.getElementById('confirm-modal-banner-icon');
+      const bannerContent = document.getElementById('confirm-modal-banner-content');
+      const unansweredBox = document.getElementById('confirm-unanswered-box');
+      const unansweredList = document.getElementById('confirm-unanswered-list');
+      const unansweredCountBadge = document.getElementById('confirm-unanswered-count-badge');
+      const btnComplete = document.getElementById('btn-complete-unanswered');
+      const btnProceed = document.getElementById('btn-proceed-confirm-submit');
+      const btnForceEmpty = document.getElementById('btn-proceed-force-empty');
+
       if (empty > 0) {
         if (kosongRow) kosongRow.classList.remove('hidden');
         if (kosongEl) kosongEl.textContent = `${empty} Soal`;
-        if (kosongWarn) {
-          kosongWarn.classList.remove('hidden');
-          kosongWarn.innerHTML = `⚠️ <strong>Perhatian:</strong> Masih ada <strong>${empty} butir soal</strong> yang belum Anda jawab. Anda tetap dapat mengumpulkan, namun soal kosong bernilai 0.`;
+
+        if (iconBox) {
+          iconBox.className = 'w-11 h-11 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 text-xl font-bold shadow-2xs';
+          iconBox.textContent = '⚠️';
         }
+        if (titleEl) titleEl.textContent = 'Ujian Belum Selesai Dikerjakan!';
+        if (subtitleEl) subtitleEl.textContent = `Masih ada ${empty} butir soal yang belum Anda jawab.`;
+
+        if (bannerEl) {
+          bannerEl.className = 'bg-amber-50 border border-amber-200 text-amber-900 p-3 rounded-xl text-xs flex items-start space-x-2.5';
+        }
+        if (bannerIcon) bannerIcon.textContent = '⚠️';
+        if (bannerContent) {
+          bannerContent.innerHTML = `
+            <strong class="block font-bold text-amber-950">Peringatan: Jawaban Belum Lengkap!</strong>
+            <span class="text-amber-800 text-[11px] leading-relaxed block mt-0.5">
+              Anda belum menyelesaikan seluruh butir soal. Silakan isi terlebih dahulu bagian soal yang belum terisi agar hasil ujian Anda maksimal.
+            </span>
+          `;
+        }
+
+        // Tampilkan daftar nomor soal yang belum dijawab
+        if (unansweredBox) unansweredBox.classList.remove('hidden');
+        if (unansweredCountBadge) unansweredCountBadge.textContent = `${empty} Belum Dijawab`;
+        if (unansweredList) {
+          unansweredList.innerHTML = emptyQuestions.map(q => `
+            <button type="button" onclick="goToQuestion(${q.soalId})" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 active:scale-95 shadow-2xs transition flex items-center space-x-1 cursor-pointer">
+              <span>⚠️ Soal No. ${q.nomor}</span>
+              <span class="text-amber-600">➔</span>
+            </button>
+          `).join('');
+        }
+
+        // Tombol ajakan menyelesaikan bagian yang belum terisi
+        if (btnComplete) {
+          btnComplete.classList.remove('hidden');
+          btnComplete.innerHTML = `<span>👉 Selesaikan Soal Belum Terisi (Mulai No. ${emptyQuestions[0].nomor})</span>`;
+          btnComplete.onclick = () => {
+            goToQuestion(emptyQuestions[0].soalId);
+          };
+        }
+
+        if (btnProceed) btnProceed.classList.add('hidden');
+        if (btnForceEmpty) btnForceEmpty.classList.remove('hidden');
+
       } else {
+        // Semua sudah terisi lengkap 100%
         if (kosongRow) kosongRow.classList.add('hidden');
-        if (kosongWarn) kosongWarn.classList.add('hidden');
+
+        if (iconBox) {
+          iconBox.className = 'w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 text-xl font-bold shadow-2xs';
+          iconBox.textContent = '✅';
+        }
+        if (titleEl) titleEl.textContent = 'Semua Soal Sudah Terisi Lengkap!';
+        if (subtitleEl) subtitleEl.textContent = `Seluruh ${total} butir soal telah Anda periksa dan jawab.`;
+
+        if (bannerEl) {
+          bannerEl.className = 'bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-xl text-xs flex items-start space-x-2.5';
+        }
+        if (bannerIcon) bannerIcon.textContent = '✓';
+        if (bannerContent) {
+          bannerContent.innerHTML = `
+            <strong class="block font-bold text-emerald-950">Jawaban 100% Lengkap & Siap Dikirim!</strong>
+            <span class="text-emerald-800 text-[11px] leading-relaxed block mt-0.5">
+              Tekan tombol hijau di bawah untuk menyerahkan lembar ujian Anda secara resmi ke guru.
+            </span>
+          `;
+        }
+
+        if (unansweredBox) unansweredBox.classList.add('hidden');
+        if (btnComplete) btnComplete.classList.add('hidden');
+        if (btnProceed) btnProceed.classList.remove('hidden');
+        if (btnForceEmpty) btnForceEmpty.classList.add('hidden');
       }
 
       modal.classList.remove('hidden');
@@ -2069,6 +2300,12 @@
     document.getElementById('btn-proceed-confirm-submit')?.addEventListener('click', () => {
       closeConfirmSubmitModal();
       doSubmit(false);
+    });
+    document.getElementById('btn-proceed-force-empty')?.addEventListener('click', () => {
+      if (confirm('Apakah Anda benar-benar yakin ingin mengumpulkan ujian sekarang?\n\nSoal-soal yang belum Anda jawab akan bernilai 0.')) {
+        closeConfirmSubmitModal();
+        doSubmit(false);
+      }
     });
 
     async function doSubmit(isAutoSubmit = false) {
