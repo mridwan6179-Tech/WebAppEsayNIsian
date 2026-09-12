@@ -651,7 +651,22 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
     } = options;
 
     const isListening = Boolean(options.is_listening);
-    const rawBahasa = options.bahasa ? String(options.bahasa).trim() : '';
+
+    // Normalisasi input bahasa (mendukung array multi-select atau string dipisah '+', ',', '&', atau 'dan')
+    let parsedBahasa = [];
+    if (Array.isArray(options.bahasa)) {
+      parsedBahasa = Array.from(new Set(options.bahasa.map(s => String(s || '').trim()).filter(Boolean)));
+    } else if (typeof options.bahasa === 'string' && options.bahasa.trim()) {
+      const trimmed = options.bahasa.trim();
+      if (/[+,&]|(?:\s+dan\s+)/i.test(trimmed)) {
+        parsedBahasa = Array.from(new Set(
+          trimmed.split(/[+,&]|(?:\s+dan\s+)/i).map(s => s.trim()).filter(Boolean)
+        ));
+      } else {
+        parsedBahasa = [trimmed];
+      }
+    }
+
     const topicCombined = `${options.input_sumber || ''} ${options.kategori || ''}`.toLowerCase();
 
     // 1. Deteksi apakah mata pelajaran adalah Bahasa Asing (ikuti pelajarannya):
@@ -666,20 +681,44 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
                               topicCombined.includes('japanese') || 
                               topicCombined.includes('nihongo');
 
-    // 2. Tentukan bahasa pengantar:
-    // Prinsip: Jika guru lupa pilih bahasa, default PASTI Bahasa Indonesia, KECUALI mata pelajarannya bahasa asing (ikuti pelajarannya) atau guru eksplisit meminta bahasa lain.
+    // 2. Tentukan bahasa pengantar (Mendukung Multi-Pilih / Kombinasi Bilingual):
+    let isKombinasi = false;
     let bahasaPelajaran = 'Bahasa Indonesia';
-    if (isSubjectEnglish) {
-      bahasaPelajaran = 'Bahasa Inggris';
-    } else if (isSubjectArabic) {
-      bahasaPelajaran = 'Bahasa Arab';
-    } else if (isSubjectJapanese) {
-      bahasaPelajaran = 'Bahasa Jepang';
-    } else if (isListening && rawBahasa && rawBahasa.toLowerCase() !== 'bahasa indonesia') {
-      bahasaPelajaran = rawBahasa;
-    } else if (options.bahasa_eksplisit && rawBahasa && rawBahasa.toLowerCase() !== 'bahasa indonesia' && rawBahasa.toLowerCase() !== 'umum' && rawBahasa.toLowerCase() !== 'default') {
-      // Guru secara manual memilih bahasa lain di formulir ("kecuali saya minta bahasa lain")
-      bahasaPelajaran = rawBahasa;
+
+    if (parsedBahasa.length > 1) {
+      // Guru memilih lebih dari 1 bahasa (Mode Kombinasi / Bilingual)
+      isKombinasi = true;
+      bahasaPelajaran = parsedBahasa.join(' + ');
+    } else if (parsedBahasa.length === 1) {
+      const single = parsedBahasa[0];
+      const singleLower = single.toLowerCase();
+      if (singleLower === 'bahasa indonesia') {
+        bahasaPelajaran = 'Bahasa Indonesia';
+      } else if (isSubjectEnglish) {
+        bahasaPelajaran = 'Bahasa Inggris';
+      } else if (isSubjectArabic) {
+        bahasaPelajaran = 'Bahasa Arab';
+      } else if (isSubjectJapanese) {
+        bahasaPelajaran = 'Bahasa Jepang';
+      } else if (isListening && singleLower !== 'umum' && singleLower !== 'default') {
+        bahasaPelajaran = single;
+      } else if (options.bahasa_eksplisit && singleLower !== 'umum' && singleLower !== 'default') {
+        bahasaPelajaran = single;
+      } else {
+        // Jika bukan mapel bahasa asing & bukan eksplisit, default Bahasa Indonesia
+        bahasaPelajaran = 'Bahasa Indonesia';
+      }
+    } else {
+      // Guru tidak memilih bahasa / kosong (ikuti pelajarannya, default Bahasa Indonesia)
+      if (isSubjectEnglish) {
+        bahasaPelajaran = 'Bahasa Inggris';
+      } else if (isSubjectArabic) {
+        bahasaPelajaran = 'Bahasa Arab';
+      } else if (isSubjectJapanese) {
+        bahasaPelajaran = 'Bahasa Jepang';
+      } else {
+        bahasaPelajaran = 'Bahasa Indonesia';
+      }
     }
 
     const deskripsiAudio = options.deskripsi_audio ? String(options.deskripsi_audio).trim() : '';
@@ -851,7 +890,22 @@ Total paket terdiri dari ${jumlah_soal} butir soal:
     }
 
     let bahasaInstruction = '';
-    if (bahasaPelajaran === 'Bahasa Inggris') {
+    if (isKombinasi) {
+      const foreignLangs = parsedBahasa.filter(b => !b.toLowerCase().includes('indonesia'));
+      const foreignLangsStr = foreignLangs.length > 0 ? foreignLangs.join(' & ') : 'Bahasa Asing Target';
+      bahasaInstruction = `
+*** KETENTUAN BAHASA PENGANTAR: KOMBINASI BILINGUAL (${bahasaPelajaran}) ***
+- Mode yang dipilih adalah KOMBINASI MULTI-BAHASA BILINGUAL (${bahasaPelajaran}).
+- Seluruh butir soal, pertanyaan, panduan rubrik, dan pembahasan WAJIB MENGGABUNGKAN bahasa-bahasa tersebut secara edukatif, harmonis, dan kontekstual!
+- Pola Kombinasi Bilingual yang Diwajibkan:
+  * Kalimat pertanyaan, instruksi tugas, dan narasi pengantar disajikan dalam Bahasa Indonesia yang lugas dan mudah dipahami siswa.
+  * Objek materi kajian, contoh kalimat, kosakata, kutipan teks, atau analisis tata bahasa disajikan dalam ${foreignLangsStr}.
+- CONTOH NYATA BENTUK SOAL KOMBINASI YANG DIINGINKAN:
+  * "Dalam tata bahasa Inggris, kapankah kata ganti 'he' dan 'she' digunakan? Jelaskan perbedaan fungsinya dan berikan masing-masing 1 contoh kalimat lengkap!"
+  * "Perhatikan kalimat rumpang berikut: 'Yesterday, Amanda ... (buy) a new book.' Tentukan bentuk kata kerja lampau yang tepat dan jelaskan alasan perubahannya dalam Bahasa Indonesia!"
+- Kunci jawaban dan pembahasan juga wajib memadukan penjelasan konsep dalam Bahasa Indonesia dengan contoh kalimat/kaidah dalam ${foreignLangsStr}.
+`;
+    } else if (bahasaPelajaran === 'Bahasa Inggris') {
       bahasaInstruction = `
 *** KETENTUAN BAHASA PENGANTAR (MAPEL BAHASA INGGRIS) ***
 - Karena ini adalah mata pelajaran Bahasa Inggris, butir soal, naskah listening (jika ada), dan kunci acuan disajikan dalam Bahasa Inggris.
@@ -860,6 +914,11 @@ Total paket terdiri dari ${jumlah_soal} butir soal:
       bahasaInstruction = `
 *** KETENTUAN BAHASA PENGANTAR (MAPEL BAHASA ARAB) ***
 - Karena ini adalah mata pelajaran Bahasa Arab, teks materi dan butir soal disajikan dalam Bahasa Arab berharakat.
+`;
+    } else if (bahasaPelajaran === 'Bahasa Jepang') {
+      bahasaInstruction = `
+*** KETENTUAN BAHASA PENGANTAR (MAPEL BAHASA JEPANG) ***
+- Teks materi dan butir soal disajikan dalam Bahasa Jepang (disertai romaji/kanji sesuai jenjang).
 `;
     } else {
       bahasaInstruction = `
@@ -895,7 +954,7 @@ ${antiDuplikasiInstructions}
 KOMPONEN WAJIB TIAP BUTIR SOAL:
 - "kategori": ${(options.kategori && typeof options.kategori === 'string' && options.kategori.trim()) ? `Wajib gunakan nama kategori acuan guru: "${options.kategori.trim()}".` : 'Kategori pokok atau nama bab/mata pelajaran dari butir soal ini (WAJIB diisi ringkas, spesifik & presisi sesuai materi/topik, misal: "Bahasa Inggris - Tenses", "Biologi - Fotosintesis", "Matematika - Aljabar", "Fisika - Termodinamika", "Listening Comprehension", dll. Jangan gunakan kata umum "Umum").'}
 - "sub_topik": Sub-topik materi spesifik yang dibahas dalam butir soal ini (misal: "Present Perfect", "Reaksi Terang", "Persamaan Linier").
-- "pertanyaan": ${bahasaPelajaran === 'Bahasa Inggris' ? 'Kalimat soal dalam Bahasa Inggris.' : 'Kalimat soal yang jelas, akademis, dan kontekstual WAJIB DALAM BAHASA INDONESIA. Pertanyaan dapat berupa pertanyaan langsung maupun SOAL CERITA / STUDI KASUS naratif yang panjang dan kaya konteks sesuai materi. DILARANG menggunakan kalimat pertanyaan bahasa Inggris.'} Jika berkaitan dengan rumus matematika, gunakan notasi LaTeX (misal: $x^2 - 4x + 4 = 0$).
+- "pertanyaan": ${isKombinasi ? `Kalimat soal kombinasi bilingual (${bahasaPelajaran}), memadukan instruksi pengantar dalam Bahasa Indonesia dengan objek materi/istilah dalam bahasa target (contoh: pemahaman kata he vs she).` : (bahasaPelajaran === 'Bahasa Inggris' ? 'Kalimat soal dalam Bahasa Inggris.' : 'Kalimat soal yang jelas, akademis, dan kontekstual WAJIB DALAM BAHASA INDONESIA. Pertanyaan dapat berupa pertanyaan langsung maupun SOAL CERITA / STUDI KASUS naratif yang panjang dan kaya konteks sesuai materi. DILARANG menggunakan kalimat pertanyaan bahasa Inggris.')} Jika berkaitan dengan rumus matematika, gunakan notasi LaTeX (misal: $x^2 - 4x + 4 = 0$).
 - "jenis": Tuliskan "isian" atau "essay"${isCustomBreakdown ? ` (Wajib tepat menghasilkan ${jumlah_isian} butir "isian" dan ${jumlah_essay} butir "essay")` : ''}.
   * "isian" untuk soal yang menanyakan istilah spesifik, angka/nilai akhir, konsep ringkas 1-3 kata.
   * "essay" untuk soal yang meminta penjelasan konsep, tahapan penyelesaian, perbandingan, atau uraian mendalam.
@@ -935,7 +994,8 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
     if (!questions || questions.length === 0) return [];
 
     const defaultListening = options.is_listening ? 1 : 0;
-    const defaultBahasa = options.bahasa || (defaultListening ? 'Bahasa Inggris' : null);
+    const rawBahasa = Array.isArray(options.bahasa) ? options.bahasa.join(' + ') : (options.bahasa ? String(options.bahasa).trim() : '');
+    const defaultBahasa = rawBahasa || (defaultListening ? 'Bahasa Inggris' : null);
     const teacherCategory = (options.kategori && typeof options.kategori === 'string' && options.kategori.trim())
       ? options.kategori.trim()
       : null;
@@ -977,7 +1037,7 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
         rubrik: q.rubrik || '',
         pembahasan: q.pembahasan || (q.rubrik ? `Pembahasan: ${q.rubrik}` : null),
         is_listening: itemIsListening,
-        bahasa: itemIsListening ? (q.bahasa || defaultBahasa) : null,
+        bahasa: q.bahasa || defaultBahasa || (itemIsListening ? 'Bahasa Inggris' : null),
         audio_script: itemIsListening ? (q.audio_script || options.deskripsi_audio || null) : null,
         audio_url: q.audio_url || null
       };
@@ -1070,7 +1130,8 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
     const targetBobot = Number(options.target_total_bobot) || 100;
     const topik = options.input_sumber || 'Materi Pembelajaran';
     const isListening = Boolean(options.is_listening);
-    const bahasa = options.bahasa || (isListening ? 'Bahasa Inggris' : 'Bahasa Indonesia');
+    const rawBahasa = Array.isArray(options.bahasa) ? options.bahasa.join(' + ') : (options.bahasa ? String(options.bahasa).trim() : '');
+    const bahasa = rawBahasa || (isListening ? 'Bahasa Inggris' : 'Bahasa Indonesia');
 
     const rawExisting = Array.isArray(options.existing_questions)
       ? options.existing_questions

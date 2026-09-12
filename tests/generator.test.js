@@ -75,6 +75,43 @@ test('T-10: Fitur AI Soal Generator (Pembuat Soal, Kunci Jawaban, Rubrik & Bobot
     assert.match(promptArabic, /MAPEL BAHASA ARAB/);
   });
 
+  await t.test('1.3 Pilihan Multi-Bahasa & Kombinasi Bilingual (Pengantar Bahasa Indonesia + Materi Bahasa Inggris/Arab)', () => {
+    // Kombinasi Bahasa Indonesia + Bahasa Inggris (Array)
+    const promptBilingualArray = geminiService.buildGenerateQuestionsPrompt({
+      mode: 'topik',
+      input_sumber: 'Penggunaan Pronoun He vs She dalam Kalimat Bahasa Inggris',
+      kategori: 'Bahasa Inggris Kelas 7',
+      jumlah_soal: 5,
+      bahasa: ['Bahasa Indonesia', 'Bahasa Inggris']
+    });
+
+    assert.match(promptBilingualArray, /KOMBINASI BILINGUAL/);
+    assert.match(promptBilingualArray, /Bahasa Indonesia \+ Bahasa Inggris/);
+    assert.match(promptBilingualArray, /he/i);
+    assert.match(promptBilingualArray, /she/i);
+
+    // Kombinasi Bahasa Indonesia + Bahasa Arab (String dipisah tanda '+')
+    const promptBilingualString = geminiService.buildGenerateQuestionsPrompt({
+      mode: 'topik',
+      input_sumber: 'Kaidah Mubtada dan Khobar',
+      kategori: 'Bahasa Arab Kelas 8',
+      jumlah_soal: 5,
+      bahasa: 'Bahasa Indonesia + Bahasa Arab'
+    });
+
+    assert.match(promptBilingualString, /KOMBINASI BILINGUAL/);
+    assert.match(promptBilingualString, /Bahasa Indonesia \+ Bahasa Arab/);
+
+    // Normalisasi menyimpan tag bahasa kombinasi dengan baik
+    const sampleQuestions = [
+      { pertanyaan: 'Kapan he dan she digunakan?', jenis: 'essay', bobot: 20 }
+    ];
+    const normalized = geminiService.normalizeGeneratedQuestions(sampleQuestions, 20, {
+      bahasa: ['Bahasa Indonesia', 'Bahasa Inggris']
+    });
+    assert.strictEqual(normalized[0].bahasa, 'Bahasa Indonesia + Bahasa Inggris');
+  });
+
   await t.test('2. Normalisasi Bobot Soal Menuju Target Bobot (misal: 100)', () => {
     const rawQuestions = [
       { pertanyaan: 'Soal 1', jenis: 'isian', bobot: 10, kunci_jawaban: 'kunci 1', rubrik: 'rubrik 1' },

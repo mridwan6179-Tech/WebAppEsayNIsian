@@ -1470,6 +1470,45 @@
               </div>
             </div>
 
+            <!-- Pilihan Bahasa Pengantar Soal (Multi-Pilih / Kombinasi Bilingual) -->
+            <div class="p-3.5 bg-sky-50/80 rounded-xl border border-sky-200 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <label class="font-bold text-sky-950 text-xs flex items-center space-x-1.5">
+                  <span>🌐</span>
+                  <span>Bahasa Pengantar Soal:</span>
+                </label>
+                <span class="text-[10px] text-sky-700 font-medium bg-sky-100/90 px-2 py-0.5 rounded-md border border-sky-200/60">Bisa pilih lebih dari 1 (kombinasi)</span>
+              </div>
+              <!-- Multi-select chips/checkboxes -->
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs" id="gen-bahasa-selector-group">
+                <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-sky-400 cursor-pointer transition select-none shadow-xs has-[:checked]:border-sky-500 has-[:checked]:bg-sky-100/50 has-[:checked]:ring-1 has-[:checked]:ring-sky-400">
+                  <input type="checkbox" name="gen-bahasa-opt" value="Bahasa Indonesia" checked class="w-4 h-4 rounded text-sky-600 focus:ring-sky-500">
+                  <span class="font-bold text-slate-800 text-[11px]">🇮🇩 Indonesia</span>
+                </label>
+                <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-sky-400 cursor-pointer transition select-none shadow-xs has-[:checked]:border-sky-500 has-[:checked]:bg-sky-100/50 has-[:checked]:ring-1 has-[:checked]:ring-sky-400">
+                  <input type="checkbox" name="gen-bahasa-opt" value="Bahasa Inggris" class="w-4 h-4 rounded text-sky-600 focus:ring-sky-500">
+                  <span class="font-bold text-slate-800 text-[11px]">🇬🇧 Inggris</span>
+                </label>
+                <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-sky-400 cursor-pointer transition select-none shadow-xs has-[:checked]:border-sky-500 has-[:checked]:bg-sky-100/50 has-[:checked]:ring-1 has-[:checked]:ring-sky-400">
+                  <input type="checkbox" name="gen-bahasa-opt" value="Bahasa Arab" class="w-4 h-4 rounded text-sky-600 focus:ring-sky-500">
+                  <span class="font-bold text-slate-800 text-[11px]">🇸🇦 Arab</span>
+                </label>
+                <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-sky-400 cursor-pointer transition select-none shadow-xs has-[:checked]:border-sky-500 has-[:checked]:bg-sky-100/50 has-[:checked]:ring-1 has-[:checked]:ring-sky-400">
+                  <input type="checkbox" name="gen-bahasa-opt" value="Bahasa Jepang" class="w-4 h-4 rounded text-sky-600 focus:ring-sky-500">
+                  <span class="font-bold text-slate-800 text-[11px]">🇯🇵 Jepang</span>
+                </label>
+              </div>
+              <!-- Hidden input for backwards compatibility -->
+              <input type="hidden" id="gen-bahasa" value="Bahasa Indonesia">
+              <!-- Live hint / explanation badge -->
+              <div id="gen-bahasa-hint" class="text-[11px] text-sky-900 bg-white/90 p-2 rounded-lg border border-sky-200/80 flex items-start space-x-2 shadow-xs">
+                <span class="text-sm mt-0.5">💡</span>
+                <div class="flex-1">
+                  <span id="gen-bahasa-hint-text" class="font-medium">Soal, pertanyaan, dan kunci jawaban akan disajikan 100% dalam Bahasa Indonesia baku (PUEBI).</span>
+                </div>
+              </div>
+            </div>
+
             <!-- Pilihan Soal Menyimak / Listening -->
             <div class="p-3.5 bg-amber-50/80 rounded-xl border border-amber-200 space-y-2.5">
               <label class="flex items-center space-x-2 cursor-pointer select-none">
@@ -1478,19 +1517,9 @@
               </label>
               <div id="wrapper-gen-listening-options" class="hidden space-y-2.5 pt-2 border-t border-amber-200/60">
                 <div>
-                  <label class="block font-semibold text-amber-950 text-[11px] mb-1">Pelajaran Bahasa / Pengantar</label>
-                  <select id="gen-bahasa" class="w-full px-2.5 py-1.5 rounded-lg border border-amber-300 text-xs bg-white font-medium text-slate-800">
-                    <option value="Bahasa Indonesia" selected>Bahasa Indonesia (Standar)</option>
-                    <option value="Bahasa Inggris">Bahasa Inggris (English)</option>
-                    <option value="Bahasa Arab">Bahasa Arab (العربية)</option>
-                    <option value="Bahasa Jepang">Bahasa Jepang</option>
-                    <option value="Bahasa Lainnya">Bahasa Lain / Umum</option>
-                  </select>
-                </div>
-                <div>
                   <label class="block font-semibold text-amber-950 text-[11px] mb-0.5">Deskripsi Skenario / Percakapan yang Ingin Dibuatkan Suaranya oleh AI (Opsional):</label>
                   <input type="text" id="gen-deskripsi-audio" placeholder="Contoh: Percakapan dua turis di stasiun menanyakan jadwal kereta ke Tokyo..." class="w-full px-2.5 py-1.5 rounded-lg border border-amber-300 text-xs bg-white">
-                  <p class="text-[10px] text-amber-800 font-semibold mt-1">💡 Alokasi butir listening vs teks biasa diatur langsung di panel atas pada masing-masing tipe soal (Isian & Essay).</p>
+                  <p class="text-[10px] text-amber-800 font-semibold mt-1">💡 Bahasa audio akan mengikuti bahasa pengantar di atas. Alokasi butir listening vs teks biasa diatur di panel tipe soal.</p>
                 </div>
               </div>
             </div>
@@ -3523,6 +3552,54 @@
 
     const modalAiGenerator = document.getElementById('modal-ai-generator');
 
+    // --- MANAJEMEN PILIHAN BAHASA PENGANTAR (MULTI-PILIH & BILINGUAL) ---
+    function getSelectedGenBahasa() {
+      const checkedBoxes = Array.from(document.querySelectorAll('input[name="gen-bahasa-opt"]:checked'));
+      const values = checkedBoxes.map(cb => cb.value.trim()).filter(Boolean);
+      return values.length > 0 ? values : ['Bahasa Indonesia'];
+    }
+
+    function setSelectedGenBahasa(languages = ['Bahasa Indonesia']) {
+      const langList = Array.isArray(languages) ? languages : [languages];
+      document.querySelectorAll('input[name="gen-bahasa-opt"]').forEach(cb => {
+        cb.checked = langList.some(l => l.toLowerCase() === cb.value.toLowerCase());
+      });
+      updateGenBahasaHint();
+    }
+
+    function updateGenBahasaHint() {
+      const selected = getSelectedGenBahasa();
+      const hintText = document.getElementById('gen-bahasa-hint-text');
+      const hiddenInput = document.getElementById('gen-bahasa');
+      if (hiddenInput) hiddenInput.value = selected.join(' + ');
+
+      if (!hintText) return;
+      const hasIndo = selected.some(s => s.toLowerCase().includes('indonesia'));
+      const foreigns = selected.filter(s => !s.toLowerCase().includes('indonesia'));
+
+      if (selected.length === 1 && selected[0] === 'Bahasa Indonesia') {
+        hintText.innerHTML = 'Soal, teks materi, dan kunci jawaban akan disajikan <strong>100% dalam Bahasa Indonesia baku (PUEBI)</strong>.';
+      } else if (hasIndo && foreigns.length > 0) {
+        hintText.innerHTML = `<strong>💡 Mode Kombinasi Bilingual (${selected.join(' + ')}):</strong> Kalimat pertanyaan/instruksi pengantar dalam Bahasa Indonesia yang membedah konsep & materi ${foreigns.join(' / ')} (contoh: <em>"Kapan kata 'he' dan 'she' digunakan? Jelaskan perbedaannya!"</em>).`;
+      } else if (!hasIndo && foreigns.length > 0) {
+        hintText.innerHTML = `<strong>🌐 Full Immersion (${foreigns.join(' + ')}):</strong> Seluruh butir soal, narasi studi kasus, dan kunci acuan disajikan penuh dalam ${foreigns.join(' & ')}.`;
+      } else {
+        hintText.innerHTML = 'Soal dan kunci jawaban akan disajikan dalam Bahasa Indonesia.';
+      }
+    }
+
+    // Pasang listener saat checkbox pilihan bahasa diklik
+    document.querySelectorAll('input[name="gen-bahasa-opt"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const anyChecked = document.querySelectorAll('input[name="gen-bahasa-opt"]:checked').length > 0;
+        if (!anyChecked) {
+          const indoCb = document.querySelector('input[name="gen-bahasa-opt"][value="Bahasa Indonesia"]');
+          if (indoCb) indoCb.checked = true;
+        }
+        updateGenBahasaHint();
+      });
+    });
+
     // Buka AI Generator dari Paket Ulangan
     document.getElementById('btn-open-ai-generator').onclick = async () => {
       if (!activeUlanganId) {
@@ -3555,17 +3632,14 @@
 
         // Cerdas sinkronkan bahasa pengantar mengikuti mata pelajaran (default: Bahasa Indonesia)
         const mapelLower = currentMapel.toLowerCase();
-        const selectGenBahasa = document.getElementById('gen-bahasa');
-        if (selectGenBahasa) {
-          if (mapelLower.includes('inggris') || mapelLower.includes('english')) {
-            selectGenBahasa.value = 'Bahasa Inggris';
-          } else if (mapelLower.includes('arab')) {
-            selectGenBahasa.value = 'Bahasa Arab';
-          } else if (mapelLower.includes('jepang')) {
-            selectGenBahasa.value = 'Bahasa Jepang';
-          } else {
-            selectGenBahasa.value = 'Bahasa Indonesia';
-          }
+        if (mapelLower.includes('inggris') || mapelLower.includes('english')) {
+          setSelectedGenBahasa(['Bahasa Inggris']);
+        } else if (mapelLower.includes('arab')) {
+          setSelectedGenBahasa(['Bahasa Arab']);
+        } else if (mapelLower.includes('jepang')) {
+          setSelectedGenBahasa(['Bahasa Jepang']);
+        } else {
+          setSelectedGenBahasa(['Bahasa Indonesia']);
         }
       }
       resetGeneratorUI();
@@ -3593,17 +3667,14 @@
         const catToUse = (filterCat && filterCat !== 'all') ? filterCat : '';
 
         const catLower = (catToUse || '').toLowerCase();
-        const selectGenBahasa = document.getElementById('gen-bahasa');
-        if (selectGenBahasa) {
-          if (catLower.includes('inggris') || catLower.includes('english')) {
-            selectGenBahasa.value = 'Bahasa Inggris';
-          } else if (catLower.includes('arab')) {
-            selectGenBahasa.value = 'Bahasa Arab';
-          } else if (catLower.includes('jepang')) {
-            selectGenBahasa.value = 'Bahasa Jepang';
-          } else {
-            selectGenBahasa.value = 'Bahasa Indonesia';
-          }
+        if (catLower.includes('inggris') || catLower.includes('english')) {
+          setSelectedGenBahasa(['Bahasa Inggris']);
+        } else if (catLower.includes('arab')) {
+          setSelectedGenBahasa(['Bahasa Arab']);
+        } else if (catLower.includes('jepang')) {
+          setSelectedGenBahasa(['Bahasa Jepang']);
+        } else {
+          setSelectedGenBahasa(['Bahasa Indonesia']);
         }
 
         resetGeneratorUI();
@@ -4110,8 +4181,9 @@
         jumlahSoal = Math.max(1, parseInt(inputGenSingle?.value, 10) || 5);
       }
 
+      const selectedBahasaList = getSelectedGenBahasa();
       const isListeningGen = document.getElementById('gen-is-listening')?.checked ? 1 : 0;
-      const bahasaGen = isListeningGen ? (document.getElementById('gen-bahasa')?.value || 'Bahasa Inggris') : 'Bahasa Indonesia';
+      const bahasaGen = selectedBahasaList.length > 1 ? selectedBahasaList.join(' + ') : (selectedBahasaList[0] || 'Bahasa Indonesia');
       const deskripsiAudioGen = document.getElementById('gen-deskripsi-audio')?.value?.trim() || '';
 
       let jumlahListeningGen = 0;
@@ -4156,6 +4228,8 @@
         jumlah_isian_listening: jumlahIsianListeningGen,
         jumlah_essay_listening: jumlahEssayListeningGen,
         bahasa: bahasaGen,
+        bahasa_list: selectedBahasaList,
+        bahasa_eksplisit: true,
         deskripsi_audio: deskripsiAudioGen,
         target_context: generatorTargetMode,
         ulangan_id: generatorTargetMode === 'ulangan' ? (activeUlanganId || null) : null,
