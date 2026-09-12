@@ -421,9 +421,9 @@
               <h2 id="detail-exam-title" class="text-lg sm:text-xl font-bold text-slate-900 leading-snug">Judul Ulangan</h2>
               <div class="mt-1.5 flex items-center space-x-3 text-xs flex-wrap gap-y-1">
                 <span class="text-slate-500">Kode Akses: <strong id="detail-exam-code" class="font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded font-bold">KODE</strong></span>
-                <span class="text-slate-400">Total Bobot: <strong id="detail-exam-bobot" class="text-slate-700 font-semibold">0</strong></span>
-                <button id="btn-quick-calibrate-bobot" type="button" class="hidden text-[10px] bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-2 py-0.5 rounded font-bold transition flex items-center space-x-1 cursor-pointer" title="Klik untuk menyeimbangkan total bobot kembali ke 100">
-                  <span>⚖️ Kalibrasi (≠ 100)</span>
+                <span class="text-slate-400">Total Bobot: <strong id="detail-exam-bobot" class="text-slate-700 font-bold">0</strong> <span class="text-[10px] text-slate-400 font-medium">(Skala Nilai: 0–100)</span></span>
+                <button id="btn-quick-calibrate-bobot" type="button" class="hidden text-[11px] bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-lg font-bold transition flex items-center space-x-1 cursor-pointer shadow-2xs" title="Sesuaikan atau seimbangkan bobot butir soal">
+                  <span>⚖️ Kalibrasi Bobot</span>
                 </button>
                 <span class="text-slate-500">KKM: <strong id="detail-exam-kkm" class="text-indigo-600 font-bold">75</strong></span>
                 <span id="detail-exam-random-info" class="hidden text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md font-medium border border-purple-200"></span>
@@ -2029,26 +2029,55 @@
 
       <div class="p-4 sm:p-5 space-y-4 text-xs">
         <!-- Info Status Saat Ini -->
-        <div class="p-3 bg-amber-50/80 border border-amber-200 rounded-xl space-y-1.5 text-amber-950">
-          <div class="flex justify-between items-center text-xs">
-            <span class="font-semibold text-slate-700">Jumlah Soal Saat Ini:</span>
-            <span id="calib-curr-soal-count" class="font-bold text-slate-900">0 butir</span>
+        <div class="p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2 text-amber-950">
+          <div class="flex justify-between items-start text-xs">
+            <span class="font-semibold text-slate-700">Komposisi Butir Soal:</span>
+            <div class="text-right">
+              <span id="calib-curr-soal-count" class="font-bold text-slate-900 block">0 butir soal</span>
+              <span id="calib-curr-soal-detail" class="text-[11px] text-amber-800 font-medium">(0 Isian, 0 Essay)</span>
+            </div>
           </div>
           <div class="flex justify-between items-center text-xs">
             <span class="font-semibold text-slate-700">Total Akumulasi Bobot Saat Ini:</span>
-            <span id="calib-curr-bobot-sum" class="font-bold text-amber-800 text-sm">0</span>
+            <span id="calib-curr-bobot-sum" class="font-bold text-amber-800 text-sm">0 poin</span>
+          </div>
+          <div class="flex justify-between items-start text-xs pt-1.5 border-t border-amber-200/80">
+            <span class="font-semibold text-slate-700">Saran Standar Ideal AI:</span>
+            <div class="text-right">
+              <span id="calib-ideal-bobot-sum" class="font-extrabold text-purple-700 text-sm">0 poin</span>
+              <span id="calib-ideal-bobot-detail" class="text-[11px] text-purple-800 block">(~10 poin/isian &amp; ~20 poin/essay)</span>
+            </div>
           </div>
           <p class="text-[11px] text-slate-500 pt-1 border-t border-amber-200/60 leading-relaxed">
-            💡 <em>Nilai akhir siswa tetap dikonversi ke skala 100, namun kalibrasi memastikan setiap butir soal memiliki bobot yang adil dan seimbang sesuai tingkat kesulitannya.</em>
+            💡 <em>Nilai akhir siswa tetap dikonversi otomatis ke skala 0–100. Kalibrasi bobot memastikan setiap butir dinilai secara adil dan seimbang sesuai tipe serta tingkat kesulitannya.</em>
           </p>
         </div>
 
         <!-- Target Total Bobot -->
-        <div>
-          <label class="block font-bold text-slate-700 mb-1">Target Total Bobot Baru:</label>
-          <div class="flex items-center space-x-2">
-            <input type="number" id="calib-target-bobot" min="10" max="1000" value="100" class="w-28 px-3 py-1.5 rounded-lg border border-slate-300 font-bold text-sm text-center focus:ring-2 focus:ring-amber-500">
-            <span class="text-slate-500 text-xs">(Standar rekomendasi: <strong>100</strong>)</span>
+        <div class="space-y-2">
+          <label class="block font-bold text-slate-700">Pilih Target Total Bobot Baru:</label>
+          
+          <!-- Tombol Pilihan Cepat (Presets) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button type="button" id="btn-preset-calib-ideal" class="p-2.5 bg-purple-50 hover:bg-purple-100 border-2 border-purple-300 rounded-xl text-left transition flex items-center space-x-2.5 cursor-pointer shadow-xs">
+              <span class="text-xl">✨</span>
+              <div class="leading-tight">
+                <span class="font-extrabold text-purple-950 text-xs block" id="lbl-preset-calib-ideal">Standar Ideal (0 poin)</span>
+                <span class="text-[10px] text-purple-700 font-medium">Bobot bulat per butir (8–30 poin)</span>
+              </div>
+            </button>
+            <button type="button" id="btn-preset-calib-100" class="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition flex items-center space-x-2.5 cursor-pointer shadow-xs">
+              <span class="text-xl">🎯</span>
+              <div class="leading-tight">
+                <span class="font-bold text-slate-900 text-xs block">Skala Genap 100</span>
+                <span class="text-[10px] text-slate-500 font-medium">Total pas 100 poin (terbagi desimal)</span>
+              </div>
+            </button>
+          </div>
+
+          <div class="flex items-center space-x-2 pt-1">
+            <input type="number" id="calib-target-bobot" min="10" max="1000" value="100" class="w-32 px-3 py-1.5 rounded-lg border border-slate-300 font-extrabold text-sm text-center text-purple-950 focus:ring-2 focus:ring-amber-500 bg-white">
+            <span id="calib-target-bobot-hint" class="text-slate-500 text-[11px] leading-tight font-medium"></span>
           </div>
         </div>
 
@@ -2059,8 +2088,8 @@
           <label class="flex items-start space-x-2.5 p-2.5 bg-slate-50 hover:bg-amber-50/60 border border-slate-200 hover:border-amber-300 rounded-xl cursor-pointer transition">
             <input type="radio" name="calib-mode" value="proportional" checked class="mt-0.5 text-amber-600 focus:ring-amber-500">
             <div class="space-y-0.5">
-              <span class="font-bold text-slate-900 block">🌟 Proporsional Cerdas (Tipe & Kesulitan) — <em>Rekomendasi</em></span>
-              <p class="text-slate-500 text-[11px] leading-tight">Soal Essay berbobot lebih tinggi dibanding Isian (2 : 1), dan soal Sulit &gt; Sedang &gt; Mudah (2.0x : 1.5x : 1.0x). Sangat adil bagi siswa.</p>
+              <span class="font-bold text-slate-900 block">🌟 Proporsional Cerdas (Tipe &amp; Kesulitan) — <em>Rekomendasi</em></span>
+              <p class="text-slate-500 text-[11px] leading-tight">Mengikuti acuan standar penilaian ideal (Isian: 8–12 poin, Essay: 16–30 poin). Jika target 100 dipilih, bobot otomatis diskalakan proporsional secara presisi.</p>
             </div>
           </label>
 
@@ -2869,7 +2898,7 @@
       document.getElementById('detail-exam-bobot').textContent = u.total_bobot;
       const btnQuickCalib = document.getElementById('btn-quick-calibrate-bobot');
       if (btnQuickCalib) {
-        if (u.soal && u.soal.length > 0 && Number(u.total_bobot) !== 100) {
+        if (u.soal && u.soal.length > 0) {
           btnQuickCalib.classList.remove('hidden');
           btnQuickCalib.classList.add('inline-flex');
         } else {
@@ -7639,25 +7668,130 @@
     const calibTargetBobot = document.getElementById('calib-target-bobot');
     const calibErrorMsg = document.getElementById('calib-error-msg');
 
+    let currentCalibIdealTarget = 100;
+
+    function calculateExamBenchmarkWeights(soalList) {
+      if (!Array.isArray(soalList) || soalList.length === 0) {
+        return { total: 100, nIsian: 0, nEssay: 0 };
+      }
+      let nIsian = 0;
+      let nEssay = 0;
+      let total = 0;
+
+      soalList.forEach(s => {
+        const isEssay = (s.jenis || '').toLowerCase().includes('essay');
+        const diff = (s.tingkat_kesulitan || 'sedang').toLowerCase().trim();
+        let w = 10;
+        if (!isEssay) {
+          nIsian++;
+          w = diff === 'mudah' ? 8 : (diff === 'sulit' ? 12 : 10);
+        } else {
+          nEssay++;
+          w = diff === 'mudah' ? 16 : (diff === 'sulit' ? 30 : 20);
+        }
+        total += w;
+      });
+
+      return { total: Math.max(10, total), nIsian, nEssay };
+    }
+
+    function updateCalibTargetHint(targetVal) {
+      const hint = document.getElementById('calib-target-bobot-hint');
+      const btnIdeal = document.getElementById('btn-preset-calib-ideal');
+      const btn100 = document.getElementById('btn-preset-calib-100');
+
+      if (btnIdeal && btn100) {
+        if (targetVal === currentCalibIdealTarget) {
+          btnIdeal.className = 'p-2.5 bg-purple-100 border-2 border-purple-500 rounded-xl text-left transition flex items-center space-x-2.5 cursor-pointer shadow-xs ring-1 ring-purple-400';
+          btn100.className = 'p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition flex items-center space-x-2.5 cursor-pointer shadow-xs';
+        } else if (targetVal === 100) {
+          btn100.className = 'p-2.5 bg-blue-100 border-2 border-blue-500 rounded-xl text-left transition flex items-center space-x-2.5 cursor-pointer shadow-xs ring-1 ring-blue-400';
+          btnIdeal.className = 'p-2.5 bg-purple-50 hover:bg-purple-100 border border-purple-300 rounded-xl text-left transition flex items-center space-x-2.5 cursor-pointer shadow-xs';
+        } else {
+          btnIdeal.className = 'p-2.5 bg-purple-50 hover:bg-purple-100 border border-purple-300 rounded-xl text-left transition flex items-center space-x-2.5 cursor-pointer shadow-xs';
+          btn100.className = 'p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition flex items-center space-x-2.5 cursor-pointer shadow-xs';
+        }
+      }
+
+      if (!hint) return;
+      if (targetVal === currentCalibIdealTarget) {
+        hint.innerHTML = `<span class="text-purple-700 font-bold">✓ Rekomendasi Standar Ideal</span> (bobot bulat 8–30 poin/butir)`;
+      } else if (targetVal === 100) {
+        hint.innerHTML = `<span class="text-blue-700 font-bold">🎯 Skala 100</span> (total pas 100 poin, proporsional)`;
+      } else {
+        hint.innerHTML = `Target kustom: <strong>${targetVal} poin</strong> (dikalibrasi proporsional)`;
+      }
+    }
+
     function openCalibrateModal() {
       if (!activeUlanganId) {
         alert('Pilih salah satu ulangan aktif terlebih dahulu!');
         return;
       }
-      const soalCount = activeUlanganData?.soal?.length || 0;
+      const soalList = activeUlanganData?.soal || [];
+      const soalCount = soalList.length;
       if (soalCount === 0) {
         alert('Ulangan ini belum memiliki butir soal untuk dikalibrasi.');
         return;
       }
-      const currentBobot = (activeUlanganData?.soal || []).reduce((sum, s) => sum + Number(s.bobot || 0), 0);
+
+      const currentBobot = soalList.reduce((sum, s) => sum + Number(s.bobot || 0), 0);
+      const bench = calculateExamBenchmarkWeights(soalList);
+      currentCalibIdealTarget = bench.total;
+
       if (calibCurrSoalCount) calibCurrSoalCount.textContent = `${soalCount} butir soal`;
+      const elDetail = document.getElementById('calib-curr-soal-detail');
+      if (elDetail) elDetail.textContent = `(${bench.nIsian} Isian Singkat, ${bench.nEssay} Essay)`;
+
       if (calibCurrBobotSum) calibCurrBobotSum.textContent = `${currentBobot} poin`;
-      if (calibTargetBobot) calibTargetBobot.value = 100;
+
+      const elIdealSum = document.getElementById('calib-ideal-bobot-sum');
+      if (elIdealSum) elIdealSum.textContent = `${bench.total} poin`;
+
+      const elIdealDetail = document.getElementById('calib-ideal-bobot-detail');
+      if (elIdealDetail) {
+        elIdealDetail.textContent = `(~${bench.nIsian > 0 ? '8–12' : '0'} poin/isian & ~${bench.nEssay > 0 ? '16–30' : '0'} poin/essay)`;
+      }
+
+      const elPresetIdealLbl = document.getElementById('lbl-preset-calib-ideal');
+      if (elPresetIdealLbl) elPresetIdealLbl.textContent = `Standar Ideal (${bench.total} poin)`;
+
+      if (calibTargetBobot) {
+        calibTargetBobot.value = bench.total;
+      }
+      updateCalibTargetHint(bench.total);
+
       if (calibErrorMsg) {
         calibErrorMsg.classList.add('hidden');
         calibErrorMsg.textContent = '';
       }
       modalCalibrateWeights.classList.remove('hidden');
+    }
+
+    const btnPresetIdeal = document.getElementById('btn-preset-calib-ideal');
+    if (btnPresetIdeal) {
+      btnPresetIdeal.onclick = () => {
+        if (calibTargetBobot) {
+          calibTargetBobot.value = currentCalibIdealTarget;
+          updateCalibTargetHint(currentCalibIdealTarget);
+        }
+      };
+    }
+
+    const btnPreset100 = document.getElementById('btn-preset-calib-100');
+    if (btnPreset100) {
+      btnPreset100.onclick = () => {
+        if (calibTargetBobot) {
+          calibTargetBobot.value = 100;
+          updateCalibTargetHint(100);
+        }
+      };
+    }
+
+    if (calibTargetBobot) {
+      calibTargetBobot.addEventListener('input', () => {
+        updateCalibTargetHint(Number(calibTargetBobot.value) || 100);
+      });
     }
 
     function closeCalibrateModal() {

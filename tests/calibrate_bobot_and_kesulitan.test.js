@@ -73,6 +73,18 @@ test('examService: calibrateQuestionWeights works correctly across modes', (t) =
   assert.ok(qProp[2].bobot > qProp[1].bobot, 'Q3 (Essay Sedang) > Q2 (Isian Sedang)');
   assert.ok(qProp[1].bobot > qProp[0].bobot, 'Q2 (Isian Sedang) > Q1 (Isian Mudah)');
 
+  // 1.b Mode Proportional ke target ideal benchmark (68: 8 + 10 + 20 + 30)
+  const calibIdeal = examService.calibrateQuestionWeights(newExam.id, guru.id, {
+    target_total_bobot: 68,
+    mode: 'proportional'
+  });
+  assert.equal(calibIdeal.success, true);
+  assert.equal(calibIdeal.total_bobot, 68);
+  assert.equal(calibIdeal.soal[0].bobot, 8, 'Isian Mudah tepat 8');
+  assert.equal(calibIdeal.soal[1].bobot, 10, 'Isian Sedang tepat 10');
+  assert.equal(calibIdeal.soal[2].bobot, 20, 'Essay Sedang tepat 20');
+  assert.equal(calibIdeal.soal[3].bobot, 30, 'Essay Sulit tepat 30');
+
   // 2. Mode Uniform ke target 100
   const calibUniform = examService.calibrateQuestionWeights(newExam.id, guru.id, {
     target_total_bobot: 100,

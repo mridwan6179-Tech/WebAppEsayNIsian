@@ -617,18 +617,21 @@ const examService = {
       } else {
         // 3. Mode Proporsional Cerdas (Default & Rekomendasi):
         // Mempertimbangkan jenis soal (Essay > Isian) dan tingkat kesulitan (Sulit > Sedang > Mudah)
-        // Pengali Tipe: Isian = 1.0, Essay = 2.0 (butuh elaborasi & penalaran mendalam)
-        // Pengali Kesulitan: Mudah = 1.0, Sedang = 1.5, Sulit = 2.0
+        // Mengikuti standar acuan penilaian kurikulum:
+        // Isian: Mudah = 8, Sedang = 10, Sulit = 12
+        // Essay: Mudah = 16, Sedang = 20, Sulit = 30
         rawWeights = soalList.map(s => {
           const isEssay = (s.jenis || '').toLowerCase().includes('essay');
-          const typeFactor = isEssay ? 2.0 : 1.0;
-
           const diff = (s.tingkat_kesulitan || 'sedang').toLowerCase().trim();
-          let diffFactor = 1.5;
-          if (diff === 'mudah') diffFactor = 1.0;
-          else if (diff === 'sulit') diffFactor = 2.0;
-
-          return typeFactor * diffFactor;
+          if (!isEssay) {
+            if (diff === 'mudah') return 8;
+            if (diff === 'sulit') return 12;
+            return 10; // sedang / default
+          } else {
+            if (diff === 'mudah') return 16;
+            if (diff === 'sulit') return 30;
+            return 20; // sedang / default
+          }
         });
       }
 
