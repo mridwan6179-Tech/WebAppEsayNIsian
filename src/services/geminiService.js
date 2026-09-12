@@ -1123,17 +1123,39 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
       }
     });
 
+    const n = sanitized.length;
     const currentTotal = sanitized.reduce((sum, q) => sum + q.bobot, 0);
-    if (currentTotal !== targetTotal && currentTotal > 0) {
-      let accumulated = 0;
-      sanitized = sanitized.map((q, idx) => {
-        if (idx === sanitized.length - 1) {
-          const finalWeight = Math.max(1, targetTotal - accumulated);
-          return { ...q, bobot: finalWeight };
+    if (currentTotal !== targetTotal && currentTotal > 0 && n > 0) {
+      const safeTarget = Math.max(n, targetTotal);
+      const quotas = sanitized.map(q => (q.bobot / currentTotal) * safeTarget);
+      const allocated = quotas.map(quota => Math.max(1, Math.floor(quota)));
+      let currentSum = allocated.reduce((a, b) => a + b, 0);
+      let remainder = safeTarget - currentSum;
+
+      if (remainder > 0) {
+        const fractionalParts = quotas.map((q, idx) => ({
+          idx,
+          frac: q - Math.floor(q)
+        })).sort((a, b) => b.frac - a.frac);
+
+        for (let i = 0; i < remainder; i++) {
+          allocated[fractionalParts[i % n].idx] += 1;
         }
-        const scaled = Math.max(1, Math.round((q.bobot / currentTotal) * targetTotal));
-        accumulated += scaled;
-        return { ...q, bobot: scaled };
+      } else if (remainder < 0) {
+        let toReduce = Math.abs(remainder);
+        const fractionalParts = quotas.map((q, idx) => ({
+          idx,
+          frac: q - Math.floor(q),
+          val: allocated[idx]
+        })).filter(x => x.val > 1).sort((a, b) => a.frac - b.frac);
+
+        for (let i = 0; i < toReduce && i < fractionalParts.length; i++) {
+          allocated[fractionalParts[i].idx] -= 1;
+        }
+      }
+
+      sanitized.forEach((q, idx) => {
+        q.bobot = allocated[idx];
       });
     }
 

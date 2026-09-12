@@ -591,14 +591,15 @@ const examService = {
       throw new Error('Belum ada butir soal dalam ulangan ini untuk dikalibrasi');
     }
 
-    const targetTotal = Math.max(10, Math.min(1000, Number(options.target_total_bobot) || 100));
+    const n = soalList.length;
+    // Pastikan target total minimal sama dengan jumlah butir soal agar setiap butir mendapat minimal 1 poin
+    const targetTotal = Math.max(n, Math.min(1000, Number(options.target_total_bobot) || 100));
     const mode = options.mode || 'proportional'; // 'proportional', 'scale_current', 'uniform'
 
     let updatedSoal = [];
 
     if (mode === 'uniform') {
       // 1. Mode Rata: Setiap soal mendapatkan bobot yang sama
-      const n = soalList.length;
       const baseWeight = Math.floor(targetTotal / n);
       const remainder = targetTotal - (baseWeight * n);
 
@@ -606,52 +607,67 @@ const examService = {
         const extra = idx < remainder ? 1 : 0;
         return { id: s.id, bobot: Math.max(1, baseWeight + extra) };
       });
-    } else if (mode === 'scale_current') {
-      // 2. Mode Skala Saat Ini: Menskalakan perbandingan bobot eksisting ke targetTotal
-      const currentSum = soalList.reduce((sum, s) => sum + Math.max(1, Number(s.bobot) || 1), 0);
-      let accumulated = 0;
-
-      updatedSoal = soalList.map((s, idx) => {
-        if (idx === soalList.length - 1) {
-          return { id: s.id, bobot: Math.max(1, targetTotal - accumulated) };
-        }
-        const currentWeight = Math.max(1, Number(s.bobot) || 1);
-        const scaled = Math.max(1, Math.round((currentWeight / currentSum) * targetTotal));
-        accumulated += scaled;
-        return { id: s.id, bobot: scaled };
-      });
     } else {
-      // 3. Mode Proporsional Cerdas (Default & Rekomendasi):
-      // Mempertimbangkan jenis soal (Essay > Isian) dan tingkat kesulitan (Sulit > Sedang > Mudah)
-      // Pengali Tipe: Isian = 1.0, Essay = 2.0 (butuh elaborasi & penalaran mendalam)
-      // Pengali Kesulitan: Mudah = 1.0, Sedang = 1.5, Sulit = 2.0
-      const relativeWeights = soalList.map(s => {
-        const isEssay = (s.jenis || '').toLowerCase().includes('essay');
-        const typeFactor = isEssay ? 2.0 : 1.0;
+      // Helper Largest Remainder Method (Hare-Niemeyer)
+      // Mencegah anjloknya butir terakhir ke angka 1 dengan mendistribusikan sisa ke butir-butir dengan sisa desimal terbesar
+      let rawWeights = [];
+      if (mode === 'scale_current') {
+        // 2. Mode Skala Saat Ini: Mengikuti perbandingan bobot eksisting
+        rawWeights = soalList.map(s => Math.max(1, Number(s.bobot) || 1));
+      } else {
+        // 3. Mode Proporsional Cerdas (Default & Rekomendasi):
+        // Mempertimbangkan jenis soal (Essay > Isian) dan tingkat kesulitan (Sulit > Sedang > Mudah)
+        // Pengali Tipe: Isian = 1.0, Essay = 2.0 (butuh elaborasi & penalaran mendalam)
+        // Pengali Kesulitan: Mudah = 1.0, Sedang = 1.5, Sulit = 2.0
+        rawWeights = soalList.map(s => {
+          const isEssay = (s.jenis || '').toLowerCase().includes('essay');
+          const typeFactor = isEssay ? 2.0 : 1.0;
 
-        const diff = (s.tingkat_kesulitan || 'sedang').toLowerCase().trim();
-        let diffFactor = 1.5;
-        if (diff === 'mudah') diffFactor = 1.0;
-        else if (diff === 'sulit') diffFactor = 2.0;
+          const diff = (s.tingkat_kesulitan || 'sedang').toLowerCase().trim();
+          let diffFactor = 1.5;
+          if (diff === 'mudah') diffFactor = 1.0;
+          else if (diff === 'sulit') diffFactor = 2.0;
 
-        return typeFactor * diffFactor;
-      });
+          return typeFactor * diffFactor;
+        });
+      }
 
-      const sumRelative = relativeWeights.reduce((sum, w) => sum + w, 0);
-      let accumulated = 0;
+      const sumRaw = rawWeights.reduce((a, b) => a + b, 0);
+      const quotas = rawWeights.map(w => (w / sumRaw) * targetTotal);
+      const allocated = quotas.map(q => Math.max(1, Math.floor(q)));
+      let currentSum = allocated.reduce((a, b) => a + b, 0);
+      let remainder = targetTotal - currentSum;
 
-      updatedSoal = soalList.map((s, idx) => {
-        if (idx === soalList.length - 1) {
-          return { id: s.id, bobot: Math.max(1, targetTotal - accumulated) };
+      if (remainder > 0) {
+        // Alokasikan +1 kepada butir-butir yang memiliki pecahan desimal terbesar
+        const fractionalParts = quotas.map((q, idx) => ({
+          idx,
+          frac: q - Math.floor(q)
+        })).sort((a, b) => b.frac - a.frac);
+
+        for (let i = 0; i < remainder; i++) {
+          allocated[fractionalParts[i % n].idx] += 1;
         }
-        const rel = relativeWeights[idx];
-        const scaled = Math.max(1, Math.round((rel / sumRelative) * targetTotal));
-        accumulated += scaled;
-        return { id: s.id, bobot: scaled };
-      });
+      } else if (remainder < 0) {
+        let toReduce = Math.abs(remainder);
+        const fractionalParts = quotas.map((q, idx) => ({
+          idx,
+          frac: q - Math.floor(q),
+          val: allocated[idx]
+        })).filter(x => x.val > 1).sort((a, b) => a.frac - b.frac);
+
+        for (let i = 0; i < toReduce && i < fractionalParts.length; i++) {
+          allocated[fractionalParts[i].idx] -= 1;
+        }
+      }
+
+      updatedSoal = soalList.map((s, idx) => ({
+        id: s.id,
+        bobot: allocated[idx]
+      }));
     }
 
-    // Pastikan jika ada butir yang selisih karena pembulatan, total tetap tepat = targetTotal
+    // Pastikan jika ada butir yang selisih karena pembulatan ekstrem, total tetap tepat = targetTotal
     const finalSum = updatedSoal.reduce((sum, item) => sum + item.bobot, 0);
     if (finalSum !== targetTotal && updatedSoal.length > 0) {
       const diff = targetTotal - finalSum;
