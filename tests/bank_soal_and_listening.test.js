@@ -521,7 +521,7 @@ test('=== SUITE: BANK SOAL, LISTENING, AUDIO & EKSPOR EXCEL ===', async (t) => {
     assert.ok(mapelList.includes('Matematika'), 'Harus menyertakan Matematika yang baru dibuat');
     assert.ok(mapelList.includes('Bahasa Inggris'), 'Harus menyertakan Bahasa Inggris');
 
-    // 2. Cek via endpoint HTTP GET /api/guru/mata-pelajaran
+    // 2. Cek via endpoint HTTP GET & PUT /api/guru/mata-pelajaran
     const srv = http.createServer(app);
     await new Promise((resolve) => srv.listen(0, resolve));
     const port = srv.address().port;
@@ -535,6 +535,31 @@ test('=== SUITE: BANK SOAL, LISTENING, AUDIO & EKSPOR EXCEL ===', async (t) => {
       assert.ok(Array.isArray(json.data));
       assert.ok(json.data.includes('Matematika'));
       assert.ok(json.data.includes('Bahasa Inggris'));
+
+      // 3. Test Rename Mata Pelajaran via API (misal perbaiki typo: Matematika -> Matematika Wajib)
+      const resRename = await fetch(`http://127.0.0.1:${port}/api/guru/mata-pelajaran/rename`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${tokenGuru}`
+        },
+        body: JSON.stringify({
+          oldName: 'Matematika',
+          newName: 'Matematika Wajib'
+        })
+      });
+      assert.equal(resRename.status, 200);
+      const jsonRename = await resRename.json();
+      assert.equal(jsonRename.success, true);
+      assert.ok(jsonRename.count >= 1);
+
+      // Verifikasi daftar mata pelajaran setelah rename
+      const resAfter = await fetch(`http://127.0.0.1:${port}/api/guru/mata-pelajaran`, {
+        headers: { 'Authorization': `Bearer ${tokenGuru}` }
+      });
+      const jsonAfter = await resAfter.json();
+      assert.ok(jsonAfter.data.includes('Matematika Wajib'));
+      assert.ok(!jsonAfter.data.includes('Matematika'));
     } finally {
       await new Promise((resolve) => srv.close(resolve));
     }

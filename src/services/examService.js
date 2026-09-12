@@ -177,6 +177,24 @@ const examService = {
     return rows.map(r => r.mata_pelajaran.trim()).filter(Boolean);
   },
 
+  // Ganti nama mata pelajaran di seluruh ulangan guru (berguna saat memperbaiki typo nama mapel)
+  renameMataPelajaran(guruId, oldName, newName) {
+    if (!oldName || !newName) {
+      throw new Error('Nama lama dan nama baru mata pelajaran wajib diisi');
+    }
+    const cleanOld = oldName.trim();
+    const cleanNew = newName.trim();
+    if (!cleanOld || !cleanNew) {
+      throw new Error('Nama mata pelajaran tidak boleh kosong');
+    }
+    const result = db.prepare(`
+      UPDATE ulangan
+      SET mata_pelajaran = ?
+      WHERE guru_id = ? AND LOWER(TRIM(mata_pelajaran)) = LOWER(TRIM(?))
+    `).run(cleanNew, guruId, cleanOld);
+    return { success: true, count: result.changes };
+  },
+
   // Ambil detail ulangan berdasarkan ID
   getUlanganById(id, guruId = null) {
     let query = 'SELECT * FROM ulangan WHERE id = ?';

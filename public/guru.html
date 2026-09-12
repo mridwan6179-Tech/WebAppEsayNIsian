@@ -201,24 +201,14 @@
               <input type="text" id="new-exam-title" required placeholder="Contoh: Ulangan Harian 1" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300">
             </div>
             <div>
-              <div class="flex items-center justify-between mb-1">
-                <label class="block font-semibold text-slate-800">Mata Pelajaran</label>
-                <button type="button" id="btn-toggle-new-subject" class="text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline flex items-center space-x-1">
-                  <span id="lbl-toggle-new-subject">➕ Ketik Baru</span>
-                </button>
-              </div>
+              <label class="block font-semibold text-slate-800 mb-1">Mata Pelajaran</label>
 
-              <!-- Pilihan Dropdown Mata Pelajaran -->
-              <div id="new-subject-select-wrapper">
-                <select id="new-exam-subject-select" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:ring-1 focus:ring-blue-500 focus:outline-none">
-                  <option value="">-- Pilih Mata Pelajaran --</option>
+              <!-- Input Mata Pelajaran yang Langsung Bisa Diketik/Diedit + Dropdown Pilihan Cepat -->
+              <div class="flex items-center gap-1.5">
+                <input type="text" id="new-exam-subject" autocomplete="off" required placeholder="Ketik atau pilih mata pelajaran (cth: Matematika)..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-800 focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white">
+                <select id="new-exam-subject-select" class="shrink-0 px-2 py-1.5 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500" title="Pilih dari daftar riwayat atau kurikulum">
+                  <option value="">📋 Pilih dari List ▾</option>
                 </select>
-              </div>
-
-              <!-- Input Ketik Baru (Manual) -->
-              <div id="new-subject-custom-wrapper" class="hidden mt-1.5">
-                <input type="text" id="new-exam-subject" autocomplete="off" placeholder="Ketik nama mata pelajaran baru (cth: Biologi)..." class="w-full px-2.5 py-1.5 rounded-lg border border-blue-400 bg-blue-50/40 text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500">
-                <p class="text-[10px] text-slate-500 mt-0.5">Ketik nama mata pelajaran yang belum ada di daftar.</p>
               </div>
 
               <!-- Quick Clickable Chips -->
@@ -1017,17 +1007,19 @@
           <div>
             <div class="flex items-center justify-between mb-1">
               <label class="block font-semibold text-slate-700">Mata Pelajaran</label>
-              <button type="button" id="btn-toggle-edit-subject" class="text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline flex items-center space-x-1">
-                <span id="lbl-toggle-edit-subject">➕ Ketik Baru</span>
-              </button>
+              <span class="text-[10px] text-slate-400">Bisa langsung diedit atau pilih dari list</span>
             </div>
-            <div id="edit-subject-select-wrapper">
-              <select id="edit-exam-subject-select" class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-800 focus:ring-1 focus:ring-blue-500 focus:outline-none">
-                <option value="">-- Pilih Mata Pelajaran --</option>
+            <div class="flex items-center gap-1.5">
+              <input type="text" id="edit-exam-subject" autocomplete="off" required placeholder="Ketik atau edit nama mata pelajaran..." class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium text-slate-800 focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white">
+              <select id="edit-exam-subject-select" class="shrink-0 px-2.5 py-2 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500" title="Pilih dari daftar riwayat atau standar kurikulum">
+                <option value="">📋 Pilih dari List ▾</option>
               </select>
             </div>
-            <div id="edit-subject-custom-wrapper" class="hidden mt-1.5">
-              <input type="text" id="edit-exam-subject" autocomplete="off" placeholder="Ketik nama mata pelajaran baru..." class="w-full px-3 py-2 rounded-xl border border-blue-400 bg-blue-50/40 text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <div id="edit-subject-rename-all-wrapper" class="hidden mt-1.5 p-2 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px]">
+              <label class="flex items-center space-x-1.5 cursor-pointer font-medium">
+                <input type="checkbox" id="edit-exam-rename-all" class="rounded border-amber-400 text-amber-600 focus:ring-amber-500">
+                <span>Perbarui nama ini ke semua ulangan lain yang bernama "<strong id="old-subject-name-label"></strong>"</span>
+              </label>
             </div>
             <div id="edit-subject-chips" class="flex flex-wrap gap-1 mt-1.5 max-h-20 overflow-y-auto"></div>
           </div>
@@ -2525,17 +2517,14 @@
       'Sejarah'
     ];
     let teacherSubjectsCache = [];
+    let originalEditExamSubject = '';
 
     async function loadTeacherSubjects() {
       try {
         const res = await guruFetch('/api/guru/mata-pelajaran');
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
-          json.data.forEach(sub => {
-            if (sub && !teacherSubjectsCache.some(s => s.toLowerCase() === sub.toLowerCase())) {
-              teacherSubjectsCache.push(sub);
-            }
-          });
+          teacherSubjectsCache = json.data;
         }
       } catch (err) {
         console.warn('Gagal memuat daftar mata pelajaran guru:', err.message);
@@ -2550,20 +2539,16 @@
 
     function renderSingleSubjectPicker(prefix) {
       const selectEl = document.getElementById(`${prefix}-exam-subject-select`);
-      const chipsEl = document.getElementById(`${prefix}-subject-chips`);
       const inputEl = document.getElementById(`${prefix}-exam-subject`);
-      if (!selectEl || !chipsEl) return;
-
-      const currentValue = (inputEl?.value || '').trim();
+      if (!selectEl || !inputEl) return;
 
       // 1. Render Dropdown Options
-      let optionsHtml = '<option value="">-- Pilih Mata Pelajaran --</option>';
+      let optionsHtml = '<option value="">📋 Pilih dari List ▾</option>';
 
       if (teacherSubjectsCache && teacherSubjectsCache.length > 0) {
         optionsHtml += `<optgroup label="📁 Pernah Ditambahkan Sebelumnya (${teacherSubjectsCache.length})">`;
         teacherSubjectsCache.forEach(sub => {
-          const isSel = currentValue && currentValue.toLowerCase() === sub.toLowerCase();
-          optionsHtml += `<option value="${escapeHtml(sub)}" ${isSel ? 'selected' : ''}>📁 ${escapeHtml(sub)}</option>`;
+          optionsHtml += `<option value="${escapeHtml(sub)}">📁 ${escapeHtml(sub)}</option>`;
         });
         optionsHtml += '</optgroup>';
       }
@@ -2575,26 +2560,24 @@
       if (otherStandard.length > 0) {
         optionsHtml += '<optgroup label="📚 Standar Kurikulum Nasional">';
         otherStandard.forEach(sub => {
-          const isSel = currentValue && currentValue.toLowerCase() === sub.toLowerCase();
-          optionsHtml += `<option value="${escapeHtml(sub)}" ${isSel ? 'selected' : ''}>${escapeHtml(sub)}</option>`;
+          optionsHtml += `<option value="${escapeHtml(sub)}">${escapeHtml(sub)}</option>`;
         });
         optionsHtml += '</optgroup>';
       }
 
-      optionsHtml += '<option value="__CUSTOM__">➕ Ketik Mata Pelajaran Baru...</option>';
       selectEl.innerHTML = optionsHtml;
-
-      // Sinkronkan value select jika matching
-      if (currentValue) {
-        const found = Array.from(selectEl.options).some(opt => opt.value.toLowerCase() === currentValue.toLowerCase());
-        if (found) {
-          selectEl.value = currentValue;
-        } else {
-          selectEl.value = '__CUSTOM__';
-        }
-      }
+      selectEl.value = '';
 
       // 2. Render Interactive Quick Chips
+      renderSubjectChips(prefix);
+    }
+
+    function renderSubjectChips(prefix) {
+      const chipsEl = document.getElementById(`${prefix}-subject-chips`);
+      const inputEl = document.getElementById(`${prefix}-exam-subject`);
+      if (!chipsEl || !inputEl) return;
+
+      const currentValue = (inputEl.value || '').trim();
       let chipsHtml = '';
       const chipsSource = teacherSubjectsCache.length > 0 ? teacherSubjectsCache : STANDARD_SUBJECTS.slice(0, 6);
       chipsSource.slice(0, 8).forEach(sub => {
@@ -2605,100 +2588,56 @@
           </button>
         `;
       });
-      chipsHtml += `
-        <button type="button" class="btn-sub-chip-new-${prefix} px-2 py-0.5 rounded-lg text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition cursor-pointer">
-          ➕ Ketik Baru
-        </button>
-      `;
       chipsEl.innerHTML = chipsHtml;
 
-      // Event listeners for chips
       chipsEl.querySelectorAll(`.btn-sub-chip-${prefix}`).forEach(btn => {
         btn.onclick = () => {
           const val = btn.dataset.subject;
-          setSubjectPickerValue(prefix, val);
+          inputEl.value = val;
+          renderSubjectChips(prefix);
+          if (prefix === 'edit') checkRenameAllVisibility();
+          inputEl.focus();
         };
       });
-      const btnNewChip = chipsEl.querySelector(`.btn-sub-chip-new-${prefix}`);
-      if (btnNewChip) {
-        btnNewChip.onclick = () => toggleSubjectCustomInput(prefix, true);
+    }
+
+    function checkRenameAllVisibility() {
+      const inputEl = document.getElementById('edit-exam-subject');
+      const wrapper = document.getElementById('edit-subject-rename-all-wrapper');
+      const label = document.getElementById('old-subject-name-label');
+      if (!inputEl || !wrapper || !label) return;
+
+      const currentVal = inputEl.value.trim();
+      if (originalEditExamSubject && currentVal && originalEditExamSubject.toLowerCase() !== currentVal.toLowerCase()) {
+        label.textContent = originalEditExamSubject;
+        wrapper.classList.remove('hidden');
+      } else {
+        wrapper.classList.add('hidden');
+        const cb = document.getElementById('edit-exam-rename-all');
+        if (cb) cb.checked = false;
       }
     }
 
-    function setSubjectPickerValue(prefix, val) {
+    // Pasang listener input & dropdown untuk kedua form (new & edit)
+    ['new', 'edit'].forEach(prefix => {
       const selectEl = document.getElementById(`${prefix}-exam-subject-select`);
       const inputEl = document.getElementById(`${prefix}-exam-subject`);
-      if (inputEl) inputEl.value = val;
-
-      if (selectEl) {
-        let matched = false;
-        Array.from(selectEl.options).forEach(opt => {
-          if (opt.value && val && opt.value.toLowerCase() === val.toLowerCase()) {
-            opt.selected = true;
-            matched = true;
+      if (selectEl && inputEl) {
+        selectEl.onchange = (e) => {
+          if (e.target.value) {
+            inputEl.value = e.target.value;
+            selectEl.value = '';
+            renderSubjectChips(prefix);
+            if (prefix === 'edit') checkRenameAllVisibility();
+            inputEl.focus();
           }
+        };
+        inputEl.addEventListener('input', () => {
+          renderSubjectChips(prefix);
+          if (prefix === 'edit') checkRenameAllVisibility();
         });
-        if (!matched) {
-          selectEl.value = val ? '__CUSTOM__' : '';
-        }
       }
-      toggleSubjectCustomInput(prefix, false);
-      renderSingleSubjectPicker(prefix);
-    }
-
-    function toggleSubjectCustomInput(prefix, forceCustom = null) {
-      const selectWrapper = document.getElementById(`${prefix}-subject-select-wrapper`);
-      const customWrapper = document.getElementById(`${prefix}-subject-custom-wrapper`);
-      const lblToggle = document.getElementById(`lbl-toggle-${prefix}-subject`);
-      const inputEl = document.getElementById(`${prefix}-exam-subject`);
-
-      if (!selectWrapper || !customWrapper) return;
-
-      const isCurrentlyCustom = !customWrapper.classList.contains('hidden');
-      const shouldBeCustom = forceCustom !== null ? forceCustom : !isCurrentlyCustom;
-
-      if (shouldBeCustom) {
-        selectWrapper.classList.add('hidden');
-        customWrapper.classList.remove('hidden');
-        if (lblToggle) lblToggle.textContent = '📋 Pilih dari Daftar';
-        if (inputEl) inputEl.focus();
-      } else {
-        selectWrapper.classList.remove('hidden');
-        customWrapper.classList.add('hidden');
-        if (lblToggle) lblToggle.textContent = '➕ Ketik Baru';
-      }
-    }
-
-    // Pasang listener tombol toggle & select change
-    const btnToggleNewSubject = document.getElementById('btn-toggle-new-subject');
-    if (btnToggleNewSubject) {
-      btnToggleNewSubject.onclick = () => toggleSubjectCustomInput('new');
-    }
-    const selectNewSubjectEl = document.getElementById('new-exam-subject-select');
-    if (selectNewSubjectEl) {
-      selectNewSubjectEl.onchange = (e) => {
-        if (e.target.value === '__CUSTOM__') {
-          toggleSubjectCustomInput('new', true);
-        } else if (e.target.value) {
-          setSubjectPickerValue('new', e.target.value);
-        }
-      };
-    }
-
-    const btnToggleEditSubject = document.getElementById('btn-toggle-edit-subject');
-    if (btnToggleEditSubject) {
-      btnToggleEditSubject.onclick = () => toggleSubjectCustomInput('edit');
-    }
-    const selectEditSubjectEl = document.getElementById('edit-exam-subject-select');
-    if (selectEditSubjectEl) {
-      selectEditSubjectEl.onchange = (e) => {
-        if (e.target.value === '__CUSTOM__') {
-          toggleSubjectCustomInput('edit', true);
-        } else if (e.target.value) {
-          setSubjectPickerValue('edit', e.target.value);
-        }
-      };
-    }
+    });
 
     // Toggle Form Buat Ulangan
     const formCreateExam = document.getElementById('form-create-exam');
@@ -2745,15 +2684,10 @@
       const toleransiTypo = document.getElementById('new-exam-toleransi-typo')?.checked ? 1 : 0;
       const instruksiKhusus = document.getElementById('new-exam-instruksi-khusus')?.value.trim() || null;
 
-      const isNewCustom = !document.getElementById('new-subject-custom-wrapper')?.classList.contains('hidden');
-      const selectNewSubject = document.getElementById('new-exam-subject-select')?.value?.trim();
-      const inputNewSubject = document.getElementById('new-exam-subject')?.value?.trim();
-      const finalSubject = (isNewCustom || !selectNewSubject || selectNewSubject === '__CUSTOM__')
-        ? inputNewSubject
-        : selectNewSubject;
+      const finalSubject = document.getElementById('new-exam-subject')?.value?.trim();
 
       if (!finalSubject) {
-        alert('Harap pilih atau ketik mata pelajaran!');
+        alert('Harap isi atau pilih mata pelajaran!');
         return;
       }
 
@@ -2792,12 +2726,7 @@
       const data = await res.json();
       if (res.ok && data.success) {
         formCreateExam.reset();
-        if (finalSubject && !teacherSubjectsCache.some(s => s.toLowerCase() === finalSubject.toLowerCase())) {
-          teacherSubjectsCache.unshift(finalSubject);
-          renderSubjectPickers();
-        }
-        setSubjectPickerValue('new', '');
-        toggleSubjectCustomInput('new', false);
+        await loadTeacherSubjects();
         document.getElementById('new-exam-kkm').value = '75';
         if (document.getElementById('new-exam-zona-waktu')) document.getElementById('new-exam-zona-waktu').value = 'WIB';
         if (document.getElementById('new-exam-toleransi-typo')) document.getElementById('new-exam-toleransi-typo').checked = true;
@@ -3237,9 +3166,10 @@
           document.getElementById('edit-exam-zona-waktu').value = zw;
         }
         document.getElementById('edit-exam-title').value = u.judul || '';
+        originalEditExamSubject = u.mata_pelajaran || '';
         document.getElementById('edit-exam-subject').value = u.mata_pelajaran || '';
         renderSingleSubjectPicker('edit');
-        setSubjectPickerValue('edit', u.mata_pelajaran || '');
+        checkRenameAllVisibility();
         document.getElementById('edit-exam-tingkat').value = u.tingkat_kelas || '';
         document.getElementById('edit-exam-desc').value = u.deskripsi || '';
         document.getElementById('edit-exam-start').value = toLocalIso(u.tanggal_mulai, zw);
@@ -3342,15 +3272,10 @@
       }
 
       const judul = document.getElementById('edit-exam-title').value.trim();
-      const isEditCustom = !document.getElementById('edit-subject-custom-wrapper')?.classList.contains('hidden');
-      const selectEditSubject = document.getElementById('edit-exam-subject-select')?.value?.trim();
-      const inputEditSubject = document.getElementById('edit-exam-subject')?.value?.trim();
-      const mata_pelajaran = (isEditCustom || !selectEditSubject || selectEditSubject === '__CUSTOM__')
-        ? inputEditSubject
-        : selectEditSubject;
+      const mata_pelajaran = document.getElementById('edit-exam-subject')?.value?.trim();
 
       if (!mata_pelajaran) {
-        alert('Harap pilih atau ketik mata pelajaran!');
+        alert('Harap isi atau pilih mata pelajaran!');
         return;
       }
 
@@ -3414,10 +3339,21 @@
           throw new Error(data.message || 'Gagal menyimpan perubahan');
         }
 
-        if (mata_pelajaran && !teacherSubjectsCache.some(s => s.toLowerCase() === mata_pelajaran.toLowerCase())) {
-          teacherSubjectsCache.unshift(mata_pelajaran);
-          renderSubjectPickers();
+        // Jika opsi perbarui ke semua ulangan lain dicentang dan nama berubah
+        const shouldRenameAll = document.getElementById('edit-exam-rename-all')?.checked;
+        if (shouldRenameAll && originalEditExamSubject && originalEditExamSubject.toLowerCase() !== mata_pelajaran.toLowerCase()) {
+          try {
+            await guruFetch('/api/guru/mata-pelajaran/rename', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ oldName: originalEditExamSubject, newName: mata_pelajaran })
+            });
+          } catch (e) {
+            console.warn('Gagal rename global mata pelajaran:', e);
+          }
         }
+
+        await loadTeacherSubjects();
 
         modalEditExam.classList.add('hidden');
         selectUlangan(activeUlanganId);

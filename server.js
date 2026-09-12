@@ -342,6 +342,16 @@ app.get('/api/guru/mata-pelajaran', requireGuru, (req, res) => {
   }
 });
 
+app.put('/api/guru/mata-pelajaran/rename', requireGuru, (req, res) => {
+  try {
+    const { oldName, newName } = req.body;
+    const result = examService.renameMataPelajaran(req.guru.guruId, oldName, newName);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 app.post('/api/guru/ulangan', requireGuru, (req, res) => {
   try {
     const created = examService.createUlangan(req.guru.guruId, req.body);
