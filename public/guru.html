@@ -1771,8 +1771,8 @@
         <div class="flex items-center space-x-2">
           <span class="text-xl">📥</span>
           <div>
-            <h4 class="font-bold text-slate-900 text-sm">Masukkan ke Bank Soal</h4>
-            <p class="text-[11px] text-slate-500">Salin butir soal terpilih ke koleksi Bank Soal Mandiri</p>
+            <h4 class="font-bold text-slate-900 text-sm" id="bulk-copy-modal-title">Masukkan ke Bank Soal</h4>
+            <p class="text-[11px] text-slate-500" id="bulk-copy-modal-subtitle">Salin butir soal terpilih ke koleksi Bank Soal Mandiri</p>
           </div>
         </div>
         <button id="btn-close-bulk-copy-bank" class="text-slate-400 hover:text-slate-600 text-xl font-bold cursor-pointer">&times;</button>
@@ -1783,14 +1783,39 @@
         <p class="text-[11px] text-purple-700 mt-0.5">Semua atribut soal (jenis, kunci acuan, rubrik, pembahasan konsep, bobot &amp; audio) akan tersimpan rapi.</p>
       </div>
 
-      <div>
-        <label class="block font-bold text-slate-800 text-xs mb-1">
-          Kategori Bank Soal <span class="text-red-500">*</span>
+      <div class="space-y-2">
+        <label class="block font-bold text-slate-800 text-xs">
+          Kategori Bank Soal Tujuan <span class="text-red-500">*</span>
         </label>
-        <input type="text" id="bulk-copy-kategori-input" list="bank-kategori-datalist" placeholder="Ketik kategori baru atau pilih dari daftar..." class="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white">
-        <p class="text-[10px] text-slate-500 mt-1">
-          💡 Anda bisa memilih kategori yang sudah ada dari opsi atau langsung mengetik nama kategori baru.
-        </p>
+
+        <!-- Dropdown Kategori Eksisting / Pilihan -->
+        <div>
+          <select id="bulk-copy-kategori-select" class="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white text-xs">
+            <option value="">-- Memuat Kategori Bank Soal... --</option>
+          </select>
+        </div>
+
+        <!-- Opsi Ketik Kategori Baru (Muncul jika pilih buat baru atau klik toggle) -->
+        <div id="bulk-copy-new-cat-box" class="hidden space-y-1 pt-1">
+          <div class="flex items-center justify-between">
+            <label class="font-bold text-purple-900 text-[11px]">Ketik Nama Kategori Baru:</label>
+            <span class="text-[10px] text-purple-600 font-medium">Bisa kategori materi / bab / pertemuan</span>
+          </div>
+          <input type="text" id="bulk-copy-kategori-input" placeholder="Contoh: Koding Dan AI Pertemuan 1-4, Bab 2 Aljabar..." class="w-full px-3 py-2 rounded-xl border border-purple-300 font-medium text-slate-800 focus:ring-2 focus:ring-purple-500 focus:outline-none bg-purple-50/40 text-xs">
+        </div>
+
+        <!-- Tombol Toggle Kategori Baru / Batal Buat Baru -->
+        <div class="flex items-center justify-between text-[11px] pt-1">
+          <span class="text-slate-500 font-medium" id="bulk-copy-chips-label">Atau klik cepat kategori:</span>
+          <button type="button" id="btn-toggle-new-cat" class="text-purple-600 hover:text-purple-800 font-bold underline transition cursor-pointer">
+            + Buat Kategori Baru
+          </button>
+        </div>
+
+        <!-- Chips Kategori Cepat -->
+        <div id="bulk-copy-cat-chips" class="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1.5 bg-slate-50 rounded-xl border border-slate-200">
+          <!-- Populated by JS -->
+        </div>
       </div>
 
       <div class="flex justify-end space-x-2 pt-2 border-t border-slate-100">
@@ -5899,29 +5924,9 @@
       }
     };
 
-    // Salin Butir Soal dari Paket Ulangan ke Bank Soal
-    window.copyExamSoalToBank = async (soalId) => {
-      const kategori = prompt('Simpan ke Kategori Bank Soal apa? (Kosongkan untuk otomatis menggunakan nama mapel):');
-      if (kategori === null) return; // Batal
-
-      try {
-        const res = await guruFetch(`/api/guru/bank-soal/copy-from-exam/${soalId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ kategori: kategori.trim() || undefined })
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.message || 'Gagal menyalin soal ke Bank Soal');
-
-        alert('✅ Soal berhasil disimpan ke Bank Soal Mandiri!');
-        // Update badge bank soal count
-        if (badgeBankSoalCount) {
-          const cur = parseInt(badgeBankSoalCount.textContent, 10) || 0;
-          badgeBankSoalCount.textContent = cur + 1;
-        }
-      } catch (err) {
-        alert('Error: ' + err.message);
-      }
+    // Salin Butir Soal dari Paket Ulangan ke Bank Soal (Satuan via Modal Modern)
+    window.copyExamSoalToBank = (soalId) => {
+      openBulkCopyModal([Number(soalId)]);
     };
 
     // --- 4. Modal Quick Import Soal Satuan ke Ulangan ---
@@ -5989,34 +5994,144 @@
       });
     }
 
-    // --- FITUR 1: SALIN MASSAL DARI ULANGAN KE BANK SOAL ---
+    // --- FITUR 1: SALIN SOAL DARI ULANGAN KE BANK SOAL (MASSAL & SATUAN) ---
     const modalBulkCopyBank = document.getElementById('modal-bulk-copy-bank');
     const btnOpenBulkCopyModal = document.getElementById('btn-open-bulk-copy-modal');
     const btnCloseBulkCopyBank = document.getElementById('btn-close-bulk-copy-bank');
     const btnCancelBulkCopyBank = document.getElementById('btn-cancel-bulk-copy-bank');
     const btnConfirmBulkCopyBank = document.getElementById('btn-confirm-bulk-copy-bank');
+    const selectBulkCopyKategori = document.getElementById('bulk-copy-kategori-select');
+    const boxBulkCopyNewCat = document.getElementById('bulk-copy-new-cat-box');
     const inputBulkCopyKategori = document.getElementById('bulk-copy-kategori-input');
+    const btnToggleNewCat = document.getElementById('btn-toggle-new-cat');
+    const chipsBulkCopyCat = document.getElementById('bulk-copy-cat-chips');
     const lblBulkCopySummary = document.getElementById('bulk-copy-bank-summary');
 
-    function openBulkCopyModal() {
-      const checkedBoxes = Array.from(document.querySelectorAll('.chk-exam-soal:checked'));
-      if (checkedBoxes.length === 0) {
-        alert('Pilih sekurang-kurangnya 1 butir soal dengan mencentang kotak pada soal.');
-        return;
+    let pendingBulkCopySoalIds = [];
+
+    function renderBulkCopyCategoryChips(activeCat, currentMapel) {
+      if (!chipsBulkCopyCat) return;
+
+      const chipList = [...(bankCategoriesCache || [])];
+      const hasMapelInCache = currentMapel && chipList.some(c => c.toLowerCase() === currentMapel.toLowerCase());
+
+      let html = '';
+      chipList.forEach(cat => {
+        const isSelected = activeCat && activeCat.toLowerCase() === cat.toLowerCase();
+        html += `
+          <button type="button" class="btn-copy-chip px-2.5 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer border ${isSelected ? 'bg-purple-600 text-white border-purple-600 shadow-sm font-bold' : 'bg-white text-slate-700 hover:bg-purple-50 hover:text-purple-800 border-slate-200'}" data-cat="${escapeHtml(cat)}">
+            📁 ${escapeHtml(cat)}
+          </button>
+        `;
+      });
+
+      if (currentMapel && !hasMapelInCache) {
+        const isSelected = activeCat && activeCat.toLowerCase() === currentMapel.toLowerCase();
+        html += `
+          <button type="button" class="btn-copy-chip px-2.5 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer border ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm font-bold' : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100 border-indigo-200'}" data-cat="${escapeHtml(currentMapel)}">
+            💡 ${escapeHtml(currentMapel)} (Mapel)
+          </button>
+        `;
+      }
+
+      if (chipList.length === 0 && (!currentMapel || hasMapelInCache)) {
+        html = '<span class="text-[11px] text-slate-400 italic py-0.5">Belum ada kategori tersimpan. Silakan ketik nama kategori baru di atas.</span>';
+      }
+
+      chipsBulkCopyCat.innerHTML = html;
+
+      chipsBulkCopyCat.querySelectorAll('.btn-copy-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const cat = btn.dataset.cat;
+          if (selectBulkCopyKategori) {
+            let foundOpt = Array.from(selectBulkCopyKategori.options).find(o => o.value.toLowerCase() === cat.toLowerCase());
+            if (!foundOpt) {
+              const newOpt = document.createElement('option');
+              newOpt.value = cat;
+              newOpt.textContent = `📁 ${cat}`;
+              selectBulkCopyKategori.insertBefore(newOpt, selectBulkCopyKategori.lastElementChild);
+            }
+            selectBulkCopyKategori.value = cat;
+          }
+          if (boxBulkCopyNewCat) boxBulkCopyNewCat.classList.add('hidden');
+          if (btnToggleNewCat) btnToggleNewCat.textContent = '+ Buat Kategori Baru';
+          renderBulkCopyCategoryChips(cat, currentMapel);
+        });
+      });
+    }
+
+    async function openBulkCopyModal(customSoalIds = null) {
+      if (Array.isArray(customSoalIds) && customSoalIds.length > 0) {
+        pendingBulkCopySoalIds = customSoalIds;
+      } else {
+        const checkedBoxes = Array.from(document.querySelectorAll('.chk-exam-soal:checked'));
+        if (checkedBoxes.length === 0) {
+          alert('Pilih sekurang-kurangnya 1 butir soal dengan mencentang kotak pada soal.');
+          return;
+        }
+        pendingBulkCopySoalIds = checkedBoxes.map(cb => Number(cb.value));
+      }
+
+      const lblBulkCopyTitle = document.getElementById('bulk-copy-modal-title');
+      const lblBulkCopySubtitle = document.getElementById('bulk-copy-modal-subtitle');
+      if (lblBulkCopyTitle) {
+        lblBulkCopyTitle.textContent = pendingBulkCopySoalIds.length === 1 ? 'Simpan Soal ke Bank Soal' : 'Masukkan ke Bank Soal';
+      }
+      if (lblBulkCopySubtitle) {
+        lblBulkCopySubtitle.textContent = pendingBulkCopySoalIds.length === 1 ? 'Salin butir soal ini ke koleksi Bank Soal Mandiri' : 'Salin butir soal terpilih ke koleksi Bank Soal Mandiri';
       }
 
       if (lblBulkCopySummary) {
-        lblBulkCopySummary.textContent = `Menyalin ${checkedBoxes.length} butir soal terpilih ke Bank Soal.`;
-      }
-
-      // Pre-fill kategori dari ulangan aktif jika kosong
-      if (inputBulkCopyKategori) {
-        if (!inputBulkCopyKategori.value && activeUlanganData && activeUlanganData.mata_pelajaran) {
-          inputBulkCopyKategori.value = activeUlanganData.mata_pelajaran;
+        if (pendingBulkCopySoalIds.length === 1) {
+          const foundSoal = (activeUlanganData && activeUlanganData.soal)
+            ? activeUlanganData.soal.find(s => s.id === pendingBulkCopySoalIds[0])
+            : null;
+          const nomorSoal = foundSoal ? (foundSoal.nomor || 1) : '';
+          lblBulkCopySummary.textContent = `Menyalin 1 butir soal ${nomorSoal ? '#' + nomorSoal : ''} ke Bank Soal Mandiri.`;
+        } else {
+          lblBulkCopySummary.textContent = `Menyalin ${pendingBulkCopySoalIds.length} butir soal terpilih ke Bank Soal Mandiri.`;
         }
       }
 
-      loadBankCategories();
+      // Ambil kategori Bank Soal terbaru dari server
+      await loadBankCategories();
+
+      const currentMapel = (activeUlanganData && activeUlanganData.mata_pelajaran) ? activeUlanganData.mata_pelajaran.trim() : '';
+
+      // Siapkan opsi dropdown
+      let optionsHtml = '';
+      if (bankCategoriesCache && bankCategoriesCache.length > 0) {
+        optionsHtml += '<option value="">-- Pilih Kategori Bank Soal yang Sudah Ada --</option>';
+        bankCategoriesCache.forEach(cat => {
+          optionsHtml += `<option value="${escapeHtml(cat)}">📁 ${escapeHtml(cat)}</option>`;
+        });
+        optionsHtml += '<option value="__NEW__">➕ + Buat Kategori Baru...</option>';
+      } else {
+        optionsHtml = '<option value="__NEW__">➕ + Buat Kategori Baru (Belum ada di Bank Soal)</option>';
+      }
+      if (selectBulkCopyKategori) {
+        selectBulkCopyKategori.innerHTML = optionsHtml;
+      }
+
+      // Tentukan kategori default yang dipilih
+      let defaultCat = '';
+      if (bankCategoriesCache && bankCategoriesCache.length > 0) {
+        const matched = bankCategoriesCache.find(c => c.toLowerCase() === currentMapel.toLowerCase())
+                     || bankCategoriesCache.find(c => c.toLowerCase().includes(currentMapel.toLowerCase()))
+                     || bankCategoriesCache[0];
+        defaultCat = matched || bankCategoriesCache[0];
+        if (selectBulkCopyKategori) selectBulkCopyKategori.value = defaultCat;
+        if (boxBulkCopyNewCat) boxBulkCopyNewCat.classList.add('hidden');
+        if (btnToggleNewCat) btnToggleNewCat.textContent = '+ Buat Kategori Baru';
+      } else {
+        if (selectBulkCopyKategori) selectBulkCopyKategori.value = '__NEW__';
+        if (boxBulkCopyNewCat) boxBulkCopyNewCat.classList.remove('hidden');
+        if (inputBulkCopyKategori) inputBulkCopyKategori.value = currentMapel || '';
+        if (btnToggleNewCat) btnToggleNewCat.textContent = 'Pilih Kategori Ada';
+      }
+
+      renderBulkCopyCategoryChips(defaultCat, currentMapel);
+
       if (modalBulkCopyBank) modalBulkCopyBank.classList.remove('hidden');
     }
 
@@ -6024,26 +6139,76 @@
       if (modalBulkCopyBank) modalBulkCopyBank.classList.add('hidden');
     }
 
-    if (btnOpenBulkCopyModal) btnOpenBulkCopyModal.addEventListener('click', openBulkCopyModal);
+    if (btnOpenBulkCopyModal) btnOpenBulkCopyModal.addEventListener('click', () => openBulkCopyModal());
     if (btnCloseBulkCopyBank) btnCloseBulkCopyBank.addEventListener('click', closeBulkCopyModal);
     if (btnCancelBulkCopyBank) btnCancelBulkCopyBank.addEventListener('click', closeBulkCopyModal);
 
+    if (selectBulkCopyKategori) {
+      selectBulkCopyKategori.addEventListener('change', () => {
+        const val = selectBulkCopyKategori.value;
+        const currentMapel = (activeUlanganData && activeUlanganData.mata_pelajaran) ? activeUlanganData.mata_pelajaran.trim() : '';
+        if (val === '__NEW__') {
+          if (boxBulkCopyNewCat) boxBulkCopyNewCat.classList.remove('hidden');
+          if (inputBulkCopyKategori) {
+            if (!inputBulkCopyKategori.value) inputBulkCopyKategori.value = currentMapel;
+            inputBulkCopyKategori.focus();
+          }
+          if (btnToggleNewCat) btnToggleNewCat.textContent = 'Pilih Kategori Ada';
+          renderBulkCopyCategoryChips(null, currentMapel);
+        } else {
+          if (boxBulkCopyNewCat) boxBulkCopyNewCat.classList.add('hidden');
+          if (btnToggleNewCat) btnToggleNewCat.textContent = '+ Buat Kategori Baru';
+          renderBulkCopyCategoryChips(val, currentMapel);
+        }
+      });
+    }
+
+    if (btnToggleNewCat) {
+      btnToggleNewCat.addEventListener('click', () => {
+        const isHidden = boxBulkCopyNewCat && boxBulkCopyNewCat.classList.contains('hidden');
+        const currentMapel = (activeUlanganData && activeUlanganData.mata_pelajaran) ? activeUlanganData.mata_pelajaran.trim() : '';
+        if (isHidden) {
+          if (boxBulkCopyNewCat) boxBulkCopyNewCat.classList.remove('hidden');
+          if (selectBulkCopyKategori) selectBulkCopyKategori.value = '__NEW__';
+          if (inputBulkCopyKategori) {
+            if (!inputBulkCopyKategori.value) inputBulkCopyKategori.value = currentMapel;
+            inputBulkCopyKategori.focus();
+          }
+          btnToggleNewCat.textContent = 'Pilih Kategori Ada';
+          renderBulkCopyCategoryChips(null, currentMapel);
+        } else {
+          if (boxBulkCopyNewCat) boxBulkCopyNewCat.classList.add('hidden');
+          if (selectBulkCopyKategori && bankCategoriesCache && bankCategoriesCache.length > 0) {
+            selectBulkCopyKategori.value = bankCategoriesCache[0];
+            renderBulkCopyCategoryChips(bankCategoriesCache[0], currentMapel);
+          }
+          btnToggleNewCat.textContent = '+ Buat Kategori Baru';
+        }
+      });
+    }
+
     if (btnConfirmBulkCopyBank) {
       btnConfirmBulkCopyBank.addEventListener('click', async () => {
-        const checkedBoxes = Array.from(document.querySelectorAll('.chk-exam-soal:checked'));
-        if (checkedBoxes.length === 0) {
+        if (!pendingBulkCopySoalIds || pendingBulkCopySoalIds.length === 0) {
           alert('Pilih sekurang-kurangnya 1 butir soal!');
           return;
         }
 
-        const kategori = inputBulkCopyKategori ? inputBulkCopyKategori.value.trim() : '';
+        let kategori = '';
+        const selectedMode = selectBulkCopyKategori ? selectBulkCopyKategori.value : '';
+        if (selectedMode === '__NEW__' || !selectedMode) {
+          kategori = inputBulkCopyKategori ? inputBulkCopyKategori.value.trim() : '';
+        } else {
+          kategori = selectedMode.trim();
+        }
+
         if (!kategori) {
-          alert('Silakan tentukan atau pilih Kategori Bank Soal!');
+          alert('Silakan pilih salah satu kategori yang ada, atau ketik nama kategori baru!');
+          if (boxBulkCopyNewCat) boxBulkCopyNewCat.classList.remove('hidden');
           inputBulkCopyKategori?.focus();
           return;
         }
 
-        const soalIds = checkedBoxes.map(cb => Number(cb.value));
         const originalText = btnConfirmBulkCopyBank.innerHTML;
         btnConfirmBulkCopyBank.disabled = true;
         btnConfirmBulkCopyBank.innerHTML = '<span>Menyimpan...</span>';
@@ -6054,7 +6219,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               ulangan_id: activeUlanganId,
-              soal_ids: soalIds,
+              soal_ids: pendingBulkCopySoalIds,
               kategori: kategori
             })
           });
@@ -6063,7 +6228,7 @@
             throw new Error(data.message || 'Gagal menyalin soal ke Bank Soal');
           }
 
-          alert(`✅ Sukses! ${data.data?.length || soalIds.length} butir soal berhasil disimpan ke Bank Soal (Kategori: "${kategori}")!`);
+          alert(`✅ Sukses! ${pendingBulkCopySoalIds.length} butir soal berhasil disimpan ke Bank Soal (Kategori: "${kategori}")!`);
           closeBulkCopyModal();
 
           // Reset centang soal ulangan
@@ -6076,7 +6241,7 @@
           await loadBankCategories();
           if (badgeBankSoalCount) {
             const cur = parseInt(badgeBankSoalCount.textContent, 10) || 0;
-            badgeBankSoalCount.textContent = cur + soalIds.length;
+            badgeBankSoalCount.textContent = cur + pendingBulkCopySoalIds.length;
           }
         } catch (err) {
           alert('Error: ' + err.message);
