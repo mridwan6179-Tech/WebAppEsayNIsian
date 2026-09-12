@@ -145,60 +145,133 @@
       </form>
     </section>
 
-    <!-- LOG TANDA TERIMA PENGUMPULAN JAWABAN SISWA (Tampil Setelah Kode Dimasukkan) -->
-    <section id="section-submission-log" class="hidden mt-6 bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200/80">
-      <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 flex-wrap gap-2">
+    <!-- MONITOR STATUS SISWA MENGERJAKAN, DC, & TANDA TERIMA PENGUMPULAN -->
+    <section id="section-submission-log" class="hidden mt-6 bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200/80 space-y-4">
+      <!-- Header dengan Tombol Refresh -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
         <div class="flex items-center space-x-2.5">
-          <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm">
-            📋
+          <div class="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">
+            📊
           </div>
           <div>
-            <h3 class="font-bold text-sm sm:text-base text-slate-900">Daftar Jawaban Siswa Diterima</h3>
-            <p class="text-[11px] text-slate-500">Bukti resmi jawaban yang telah berhasil terkirim dan diterima server</p>
+            <h3 class="font-bold text-sm sm:text-base text-slate-900">Status Pengerjaan & Kehadiran Siswa</h3>
+            <p class="text-[11px] text-slate-500">Monitor siswa aktif, terputus (DC), dan jawaban yang telah diterima server</p>
           </div>
         </div>
-        <div class="flex items-center space-x-2">
-          <span id="log-total-badge" class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-            0 Siswa Diterima
-          </span>
-          <button type="button" id="btn-refresh-log" class="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-500 text-xs transition cursor-pointer" title="Perbarui Log">
-            🔄
+        <div class="flex items-center space-x-2 shrink-0">
+          <button type="button" id="btn-refresh-portal-monitor" class="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold transition cursor-pointer flex items-center space-x-1.5 shadow-2xs" title="Segarkan Data">
+            <span>🔄</span>
+            <span>Segarkan</span>
           </button>
         </div>
       </div>
 
-      <!-- Tabel Responsif Log -->
-      <div class="overflow-x-auto rounded-xl border border-slate-200/70">
-        <table class="w-full text-left text-xs border-collapse">
-          <thead class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200/70">
-            <tr>
-              <th class="py-2.5 px-3 w-12 text-center">No</th>
-              <th class="py-2.5 px-3">Nama Siswa</th>
-              <th class="py-2.5 px-3 w-20">Kelas</th>
-              <th class="py-2.5 px-3">Waktu Diterima</th>
-              <th class="py-2.5 px-3 text-center w-28">Status</th>
-            </tr>
-          </thead>
-          <tbody id="log-table-body" class="divide-y divide-slate-100 text-slate-700">
-            <tr>
-              <td colspan="5" class="py-6 text-center text-slate-400 text-xs">
-                Memuat daftar siswa...
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- Tab Buttons: [ 🟢 Sedang Mengerjakan ] & [ 📋 Jawaban Diterima ] -->
+      <div class="flex items-center space-x-2 border-b border-slate-200 pb-2">
+        <button type="button" id="tab-btn-active" onclick="switchPortalTab('active')" class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs cursor-pointer">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>Sedang Mengerjakan</span>
+          <span id="tab-badge-active" class="px-1.5 py-0.2 rounded-full bg-blue-600 text-white text-[10px] font-mono">0</span>
+        </button>
+        <button type="button" id="tab-btn-submitted" onclick="switchPortalTab('submitted')" class="px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center space-x-2 text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-transparent cursor-pointer">
+          <span>📋</span>
+          <span>Jawaban Diterima</span>
+          <span id="tab-badge-submitted" class="px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700 text-[10px] font-mono">0</span>
+        </button>
       </div>
 
-      <!-- Navigasi Halaman (Pagination) -->
-      <div id="log-pagination" class="flex items-center justify-between pt-3 mt-1 text-xs text-slate-500 flex-wrap gap-2">
-        <span id="log-page-info">Halaman 1 dari 1</span>
-        <div class="flex items-center space-x-1.5">
-          <button type="button" id="btn-log-prev" class="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-            &larr; Sebelumnya
-          </button>
-          <button type="button" id="btn-log-next" class="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-            Berikutnya &rarr;
-          </button>
+      <!-- PANEL 1: Sedang Mengerjakan & DC Monitor -->
+      <div id="panel-active-students" class="space-y-3">
+        <div class="flex items-center justify-between text-xs text-slate-500 flex-wrap gap-2">
+          <div class="flex items-center space-x-2 flex-wrap gap-1">
+            <span id="active-count-badge" class="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
+              <span>🟢</span>
+              <span id="active-count-text">0 Aktif</span>
+            </span>
+            <span id="dc-count-badge" class="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 text-[11px] font-bold">
+              <span>🔴</span>
+              <span id="dc-count-text">0 Terputus (DC)</span>
+            </span>
+          </div>
+          <span class="text-[11px] text-slate-400 italic">Nama disensor demi privasi siswa</span>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl border border-slate-200/70">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200/70">
+              <tr>
+                <th class="py-2.5 px-3 w-12 text-center">No</th>
+                <th class="py-2.5 px-3">Nama Siswa</th>
+                <th class="py-2.5 px-3 w-24">Kelas</th>
+                <th class="py-2.5 px-3 w-32">Status Kehadiran</th>
+                <th class="py-2.5 px-3">Sisa Toleransi / Keterangan</th>
+              </tr>
+            </thead>
+            <tbody id="active-table-body" class="divide-y divide-slate-100 text-slate-700">
+              <tr>
+                <td colspan="5" class="py-6 text-center text-slate-400 text-xs">
+                  Memuat data siswa sedang mengerjakan...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination Active -->
+        <div id="active-pagination" class="flex items-center justify-between pt-1 text-xs text-slate-500 flex-wrap gap-2">
+          <span id="active-page-info">Halaman 1 dari 1</span>
+          <div class="flex items-center space-x-1.5">
+            <button type="button" id="btn-active-prev" class="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+              &larr; Sebelumnya
+            </button>
+            <button type="button" id="btn-active-next" class="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+              Berikutnya &rarr;
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL 2: Jawaban Diterima (Log Pengumpulan) -->
+      <div id="panel-submitted-students" class="hidden space-y-3">
+        <div class="flex items-center justify-between text-xs text-slate-500 flex-wrap gap-2">
+          <span id="log-total-badge" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+            0 Siswa Diterima
+          </span>
+          <span class="text-[11px] text-slate-400 italic">Bukti resmi jawaban telah diterima server</span>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl border border-slate-200/70">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200/70">
+              <tr>
+                <th class="py-2.5 px-3 w-12 text-center">No</th>
+                <th class="py-2.5 px-3">Nama Siswa</th>
+                <th class="py-2.5 px-3 w-24">Kelas</th>
+                <th class="py-2.5 px-3">Waktu Diterima</th>
+                <th class="py-2.5 px-3 text-center w-28">Status</th>
+              </tr>
+            </thead>
+            <tbody id="log-table-body" class="divide-y divide-slate-100 text-slate-700">
+              <tr>
+                <td colspan="5" class="py-6 text-center text-slate-400 text-xs">
+                  Memuat daftar siswa...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination Log -->
+        <div id="log-pagination" class="flex items-center justify-between pt-1 text-xs text-slate-500 flex-wrap gap-2">
+          <span id="log-page-info">Halaman 1 dari 1</span>
+          <div class="flex items-center space-x-1.5">
+            <button type="button" id="btn-log-prev" class="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+              &larr; Sebelumnya
+            </button>
+            <button type="button" id="btn-log-next" class="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+              Berikutnya &rarr;
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -763,13 +836,13 @@
             inputKelas.appendChild(opt);
           }
 
-          // Muat daftar log tanda terima siswa yang sudah masuk
-          loadSubmissionLog(kode, 1);
+          // Muat data monitor siswa (sedang mengerjakan, DC & jawaban diterima)
+          loadPortalData(kode, false);
         } else {
           examFoundInfo.classList.add('hidden');
           document.getElementById('kisi-kisi-container')?.classList.add('hidden');
           inputKelas.innerHTML = '<option value="">-- Kode tidak valid --</option>';
-          hideSubmissionLog();
+          hidePortalMonitor();
           if (data.message) showAlert(data.message);
         }
       } catch (err) {
@@ -777,9 +850,11 @@
       }
     }
 
-    // LOG TANDA TERIMA JAWABAN SISWA (PUBLIK / BUKTI DITERIMA)
-    let currentLogKode = null;
+    // MONITOR STATUS SISWA & LOG PENGUMPULAN (PUBLIK)
+    let currentPortalKode = null;
+    let currentActivePage = 1;
     let currentLogPage = 1;
+    let currentPortalTab = 'active';
 
     function escapeHtml(str) {
       if (!str) return '';
@@ -791,17 +866,198 @@
         .replace(/'/g, '&#039;');
     }
 
-    async function loadSubmissionLog(kode, page = 1, isSilent = false) {
-      if (!kode || !kode.trim()) {
-        hideSubmissionLog();
-        return;
+    window.switchPortalTab = function(tab) {
+      currentPortalTab = tab;
+      const tabBtnActive = document.getElementById('tab-btn-active');
+      const tabBtnSubmitted = document.getElementById('tab-btn-submitted');
+      const panelActive = document.getElementById('panel-active-students');
+      const panelSubmitted = document.getElementById('panel-submitted-students');
+
+      if (tab === 'active') {
+        if (tabBtnActive) {
+          tabBtnActive.className = 'px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs cursor-pointer';
+        }
+        if (tabBtnSubmitted) {
+          tabBtnSubmitted.className = 'px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center space-x-2 text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-transparent cursor-pointer';
+        }
+        if (panelActive) panelActive.classList.remove('hidden');
+        if (panelSubmitted) panelSubmitted.classList.add('hidden');
+      } else {
+        if (tabBtnActive) {
+          tabBtnActive.className = 'px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center space-x-2 text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-transparent cursor-pointer';
+        }
+        if (tabBtnSubmitted) {
+          tabBtnSubmitted.className = 'px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs cursor-pointer';
+        }
+        if (panelActive) panelActive.classList.add('hidden');
+        if (panelSubmitted) panelSubmitted.classList.remove('hidden');
       }
-      currentLogKode = kode.trim().toUpperCase();
+    };
+
+    function formatSecondsToCountdown(sec) {
+      if (sec <= 0) return '00:00';
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    // Ticking Countdown Timer Real-Time untuk Siswa Terputus (DC)
+    function tickDcCountdowns() {
+      const now = Date.now();
+      document.querySelectorAll('.countdown-dc-timer').forEach(el => {
+        const initialSisa = parseInt(el.dataset.sisa, 10);
+        const loadedAt = parseInt(el.dataset.loadedAt, 10);
+        if (isNaN(initialSisa) || isNaN(loadedAt)) return;
+
+        const elapsed = Math.floor((now - loadedAt) / 1000);
+        const remaining = Math.max(0, initialSisa - elapsed);
+
+        if (remaining <= 0) {
+          el.textContent = '00:00 (Hangus)';
+          if (el.parentElement) {
+            el.parentElement.className = 'inline-flex items-center space-x-1 font-mono font-bold text-slate-500 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-md text-xs';
+          }
+        } else {
+          el.textContent = formatSecondsToCountdown(remaining);
+        }
+      });
+    }
+    // Hitungan mundur real-time berdetik setiap detik
+    setInterval(tickDcCountdowns, 1000);
+
+    // Muat Daftar Siswa yang Sedang Mengerjakan & DC
+    async function loadActiveStudents(kode, page = 1, isSilent = false) {
+      if (!kode || !kode.trim()) return;
+      currentPortalKode = kode.trim().toUpperCase();
+      currentActivePage = page;
+
+      const section = document.getElementById('section-submission-log');
+      const tbody = document.getElementById('active-table-body');
+      const badgeTotalTab = document.getElementById('tab-badge-active');
+      const activeCountText = document.getElementById('active-count-text');
+      const dcCountText = document.getElementById('dc-count-text');
+      const pageInfo = document.getElementById('active-page-info');
+      const btnPrev = document.getElementById('btn-active-prev');
+      const btnNext = document.getElementById('btn-active-next');
+
+      if (section && stepAuth && !stepAuth.classList.contains('hidden')) {
+        section.classList.remove('hidden');
+      }
+
+      if (!isSilent && tbody) {
+        tbody.innerHTML = `<tr><td colspan="5" class="py-5 text-center text-slate-400 text-xs animate-pulse">Memuat data siswa sedang mengerjakan...</td></tr>`;
+      }
+
+      try {
+        const res = await fetch(`/api/siswa/sedang-mengerjakan/${encodeURIComponent(currentPortalKode)}?page=${page}&limit=10`);
+        const result = await res.json();
+
+        if (!res.ok || !result.success || !result.data) {
+          if (!isSilent && tbody) {
+            tbody.innerHTML = `<tr><td colspan="5" class="py-5 text-center text-slate-400 text-xs">Belum dapat memuat data siswa aktif</td></tr>`;
+          }
+          return;
+        }
+
+        const { total, total_aktif, total_dc, totalPages, items } = result.data;
+
+        if (badgeTotalTab) badgeTotalTab.textContent = total;
+        if (activeCountText) activeCountText.textContent = `${total_aktif} Aktif`;
+        if (dcCountText) dcCountText.textContent = `${total_dc} Terputus (DC)`;
+
+        if (pageInfo) {
+          pageInfo.textContent = `Halaman ${page} dari ${totalPages} (${total} Total)`;
+        }
+
+        if (btnPrev) btnPrev.disabled = (page <= 1);
+        if (btnNext) btnNext.disabled = (page >= totalPages);
+
+        if (!items || items.length === 0) {
+          if (tbody) {
+            tbody.innerHTML = `
+              <tr>
+                <td colspan="5" class="py-8 text-center text-slate-400">
+                  <span class="text-xl block mb-1">💤</span>
+                  Saat ini belum ada siswa yang sedang mengerjakan ulangan ini.
+                </td>
+              </tr>
+            `;
+          }
+          return;
+        }
+
+        const nowTs = Date.now();
+        if (tbody) {
+          tbody.innerHTML = items.map(item => {
+            const isAktif = (item.status === 'aktif');
+            const displayName = escapeHtml(item.nama_sensor || item.nama);
+            const displayKelas = escapeHtml(item.kelas);
+
+            let statusHtml = '';
+            let toleransiHtml = '';
+
+            if (isAktif) {
+              statusHtml = `
+                <span class="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse mr-0.5"></span>
+                  <span>Aktif</span>
+                </span>
+              `;
+              toleransiHtml = `
+                <span class="text-emerald-700 text-xs font-medium flex items-center space-x-1">
+                  <span>🟢</span>
+                  <span>Sedang di lembar ujian</span>
+                </span>
+              `;
+            } else {
+              statusHtml = `
+                <span class="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 text-[11px] font-bold">
+                  <span>🔴</span>
+                  <span>Terputus (DC)</span>
+                </span>
+              `;
+              const sisa = item.sisa_toleransi_detik !== null ? item.sisa_toleransi_detik : 3600;
+              toleransiHtml = `
+                <div class="space-y-0.5">
+                  <div class="inline-flex items-center space-x-1.5 font-mono font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md text-xs shadow-2xs">
+                    <span class="animate-pulse">⏳</span>
+                    <span class="countdown-dc-timer" data-pengerjaan-id="${item.pengerjaan_id}" data-sisa="${sisa}" data-loaded-at="${nowTs}">
+                      ${formatSecondsToCountdown(sisa)}
+                    </span>
+                  </div>
+                  <span class="text-[10px] text-amber-700 block font-medium">Batas toleransi sebelum pengerjaan di-reset</span>
+                </div>
+              `;
+            }
+
+            return `
+              <tr class="hover:bg-slate-50/80 transition duration-75">
+                <td class="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">${item.no}</td>
+                <td class="py-2.5 px-3 font-semibold text-slate-900">${displayName}</td>
+                <td class="py-2.5 px-3 font-medium text-slate-600">${displayKelas}</td>
+                <td class="py-2.5 px-3">${statusHtml}</td>
+                <td class="py-2.5 px-3">${toleransiHtml}</td>
+              </tr>
+            `;
+          }).join('');
+        }
+      } catch (e) {
+        if (!isSilent && tbody) {
+          tbody.innerHTML = `<tr><td colspan="5" class="py-5 text-center text-slate-400 text-xs">Kendala jaringan saat memuat data aktif</td></tr>`;
+        }
+      }
+    }
+
+    // Muat Daftar Jawaban Siswa yang Diterima (Log Pengumpulan)
+    async function loadSubmissionLog(kode, page = 1, isSilent = false) {
+      if (!kode || !kode.trim()) return;
+      currentPortalKode = kode.trim().toUpperCase();
       currentLogPage = page;
 
       const section = document.getElementById('section-submission-log');
       const tbody = document.getElementById('log-table-body');
       const totalBadge = document.getElementById('log-total-badge');
+      const tabBadgeSubmitted = document.getElementById('tab-badge-submitted');
       const pageInfo = document.getElementById('log-page-info');
       const btnPrev = document.getElementById('btn-log-prev');
       const btnNext = document.getElementById('btn-log-next');
@@ -815,7 +1071,7 @@
       }
 
       try {
-        const res = await fetch(`/api/siswa/log-pengumpulan/${encodeURIComponent(currentLogKode)}?page=${page}&limit=10`);
+        const res = await fetch(`/api/siswa/log-pengumpulan/${encodeURIComponent(currentPortalKode)}?page=${page}&limit=10`);
         const result = await res.json();
 
         if (!res.ok || !result.success || !result.data) {
@@ -827,9 +1083,8 @@
 
         const { total, totalPages, items } = result.data;
 
-        if (totalBadge) {
-          totalBadge.textContent = `${total} Siswa Diterima`;
-        }
+        if (totalBadge) totalBadge.textContent = `${total} Siswa Diterima`;
+        if (tabBadgeSubmitted) tabBadgeSubmitted.textContent = total;
 
         if (pageInfo) {
           pageInfo.textContent = `Halaman ${page} dari ${totalPages} (${total} Total)`;
@@ -856,7 +1111,7 @@
           tbody.innerHTML = items.map(item => `
             <tr class="hover:bg-slate-50/80 transition duration-75">
               <td class="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">${item.no}</td>
-              <td class="py-2.5 px-3 font-semibold text-slate-900">${escapeHtml(item.nama)}</td>
+              <td class="py-2.5 px-3 font-semibold text-slate-900">${escapeHtml(item.nama_sensor || item.nama)}</td>
               <td class="py-2.5 px-3 font-medium text-slate-600">${escapeHtml(item.kelas)}</td>
               <td class="py-2.5 px-3 text-slate-500 font-mono text-[11px]">${escapeHtml(item.waktu)}</td>
               <td class="py-2.5 px-3 text-center">
@@ -875,36 +1130,61 @@
       }
     }
 
-    function hideSubmissionLog() {
-      currentLogKode = null;
+    function loadPortalData(kode, isSilent = false) {
+      if (!kode || !kode.trim()) {
+        hidePortalMonitor();
+        return;
+      }
+      loadActiveStudents(kode, currentActivePage, isSilent);
+      loadSubmissionLog(kode, currentLogPage, isSilent);
+    }
+
+    function hidePortalMonitor() {
+      currentPortalKode = null;
       const section = document.getElementById('section-submission-log');
       if (section) section.classList.add('hidden');
     }
+    const hideSubmissionLog = hidePortalMonitor; // alias kompatibilitas
 
+    // Pagination Active Students
+    document.getElementById('btn-active-prev')?.addEventListener('click', () => {
+      if (currentPortalKode && currentActivePage > 1) {
+        loadActiveStudents(currentPortalKode, currentActivePage - 1);
+      }
+    });
+
+    document.getElementById('btn-active-next')?.addEventListener('click', () => {
+      if (currentPortalKode) {
+        loadActiveStudents(currentPortalKode, currentActivePage + 1);
+      }
+    });
+
+    // Pagination Submission Log
     document.getElementById('btn-log-prev')?.addEventListener('click', () => {
-      if (currentLogKode && currentLogPage > 1) {
-        loadSubmissionLog(currentLogKode, currentLogPage - 1);
+      if (currentPortalKode && currentLogPage > 1) {
+        loadSubmissionLog(currentPortalKode, currentLogPage - 1);
       }
     });
 
     document.getElementById('btn-log-next')?.addEventListener('click', () => {
-      if (currentLogKode) {
-        loadSubmissionLog(currentLogKode, currentLogPage + 1);
+      if (currentPortalKode) {
+        loadSubmissionLog(currentPortalKode, currentLogPage + 1);
       }
     });
 
-    document.getElementById('btn-refresh-log')?.addEventListener('click', () => {
-      if (currentLogKode) {
-        loadSubmissionLog(currentLogKode, currentLogPage);
+    // Tombol Refresh Portal Monitor (Aktif & Pengumpulan)
+    document.getElementById('btn-refresh-portal-monitor')?.addEventListener('click', () => {
+      if (currentPortalKode) {
+        loadPortalData(currentPortalKode, false);
       }
     });
 
-    // Auto-refresh log tiap 15 detik selama siswa berada di layar awal (stepAuth)
+    // Auto-refresh monitor tiap 12 detik selama siswa berada di layar awal (stepAuth)
     setInterval(() => {
-      if (currentLogKode && stepAuth && !stepAuth.classList.contains('hidden')) {
-        loadSubmissionLog(currentLogKode, currentLogPage, true);
+      if (currentPortalKode && stepAuth && !stepAuth.classList.contains('hidden')) {
+        loadPortalData(currentPortalKode, true);
       }
-    }, 15000);
+    }, 12000);
 
     // Deteksi parameter link WhatsApp: ?kode=KODE atau ?token=KODE
     const directKode = urlParams.get('kode') || urlParams.get('token');

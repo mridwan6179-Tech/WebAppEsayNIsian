@@ -104,12 +104,49 @@ test('T-03: Alur Siswa Masuk sampai Submit (FR-06 - FR-08, NFR-01)', async (t) =
 
     const firstItem = log.data.items[0];
     assert.strictEqual(firstItem.nama, 'Ahmad Fadhil');
+    assert.ok(firstItem.nama_sensor);
     assert.strictEqual(firstItem.kelas, 'X MIPA 1');
     assert.strictEqual(firstItem.status, 'Diterima');
     assert.ok(firstItem.waktu);
     // Pastikan tidak ada nilai_final atau skor di log publik
     assert.strictEqual(firstItem.nilai, undefined);
     assert.strictEqual(firstItem.nilai_final, undefined);
+  });
+
+  await t.test('FR-10: Monitor siswa sedang mengerjakan, sensor nama, dan hitungan mundur DC', () => {
+    // Verifikasi helper sensor nama
+    assert.strictEqual(studentService.maskStudentName('Budi Santoso'), 'Bu** San****');
+    assert.strictEqual(studentService.maskStudentName('Muhammad Ridwan'), 'Muh***** Rid***');
+
+    // Buat siswa aktif baru
+    const activeSession = studentService.startExam(ulangan.kode_ujian, 'Budi Santoso', 'X MIPA 2');
+    assert.ok(activeSession.pengerjaanId);
+
+    // Ambil monitor siswa aktif
+    let monitor = studentService.getActiveStudentsByExamCode(ulangan.kode_ujian, 1, 10);
+    assert.strictEqual(monitor.success, true);
+    assert.ok(monitor.data.total >= 1);
+    assert.ok(monitor.data.total_aktif >= 1);
+
+    const activeItem = monitor.data.items.find(i => i.pengerjaan_id === activeSession.pengerjaanId);
+    assert.ok(activeItem);
+    assert.strictEqual(activeItem.nama_sensor, 'Bu** San****');
+    assert.strictEqual(activeItem.kelas, 'X MIPA 2');
+    assert.strictEqual(activeItem.status, 'aktif');
+    assert.strictEqual(activeItem.sisa_toleransi_detik, null);
+
+    // Simulasikan siswa mengalami DC (terputus 10 menit lalu)
+    db.prepare(`UPDATE pengerjaan SET last_active_at = datetime('now', '-600 seconds') WHERE id = ?`).run(activeSession.pengerjaanId);
+
+    monitor = studentService.getActiveStudentsByExamCode(ulangan.kode_ujian, 1, 10);
+    const dcItem = monitor.data.items.find(i => i.pengerjaan_id === activeSession.pengerjaanId);
+    assert.ok(dcItem);
+    assert.strictEqual(dcItem.status, 'dc');
+    assert.strictEqual(dcItem.status_label, 'Terputus (DC)');
+    assert.ok(dcItem.detik_inaktif >= 590);
+    // Sisa toleransi harus berkurang sekitar 10 menit (3600 - 600 = ~3000 detik)
+    assert.ok(dcItem.sisa_toleransi_detik > 0);
+    assert.ok(dcItem.sisa_toleransi_detik <= 3010);
   });
 });
 

@@ -1,6 +1,24 @@
 const db = require('../config/database');
 const examService = require('./examService');
 
+function maskStudentName(name) {
+  if (!name || typeof name !== 'string') return '-';
+  const clean = name.trim();
+  if (!clean) return '-';
+  const words = clean.split(/\s+/);
+  return words.map(word => {
+    if (word.length <= 2) {
+      return word[0] + '*';
+    }
+    if (word.length === 3) {
+      return word.slice(0, 2) + '*';
+    }
+    const visibleCount = Math.min(3, Math.max(2, Math.floor(word.length / 2)));
+    const maskedCount = Math.max(2, word.length - visibleCount);
+    return word.slice(0, visibleCount) + '*'.repeat(maskedCount);
+  }).join(' ');
+}
+
 const studentService = {
   // FR-06: Validasi Kode Ulangan
   validateExamCode(kodeUjian) {
@@ -1072,6 +1090,11 @@ const studentService = {
     return { success: true, status: 'active' };
   },
 
+  // Sensor nama siswa untuk privasi (contoh: 'Ahmad Fadhil' -> 'Ah*** Fad***')
+  maskStudentName(name) {
+    return maskStudentName(name);
+  },
+
   // Ambil log tanda terima jawaban siswa yang sudah terkirim (tanpa menampilkan nilai)
   getSubmissionLogByExamCode(kodeUjian, page = 1, limit = 10) {
     if (!kodeUjian || !kodeUjian.trim()) {
@@ -1136,6 +1159,7 @@ const studentService = {
       return {
         no: offset + idx + 1,
         nama: r.nama_siswa,
+        nama_sensor: maskStudentName(r.nama_siswa),
         kelas: r.kelas_siswa,
         waktu: waktuFormatted,
         status: 'Diterima'
@@ -1146,6 +1170,102 @@ const studentService = {
       success: true,
       data: {
         total,
+        page: p,
+        totalPages: Math.max(1, Math.ceil(total / l)),
+        limit: l,
+        items,
+        judul_ulangan: ulangan.judul,
+        zona_waktu: ulangan.zona_waktu || 'WITA'
+      }
+    };
+  },
+
+  // Ambil daftar siswa yang sedang mengerjakan ujian (aktif vs DC dengan hitungan mundur sisa toleransi)
+  getActiveStudentsByExamCode(kodeUjian, page = 1, limit = 10) {
+    if (!kodeUjian || !kodeUjian.trim()) {
+      return { success: false, message: 'Kode ujian wajib diisi' };
+    }
+    const cleanKode = kodeUjian.trim();
+    const ulangan = db.prepare('SELECT id, judul, durasi_menit, zona_waktu FROM ulangan WHERE LOWER(kode_ujian) = LOWER(?)').get(cleanKode);
+    if (!ulangan) {
+      return { success: false, message: 'Ulangan tidak ditemukan' };
+    }
+
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const l = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
+    const offset = (p - 1) * l;
+
+    // Total count pengerjaan yang status = 'mengerjakan'
+    const totalRow = db.prepare(`
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN CAST(ROUND((julianday('now') - julianday(COALESCE(p.last_active_at, p.started_at))) * 86400) AS INTEGER) <= 45 THEN 1 ELSE 0 END) as total_aktif,
+        SUM(CASE WHEN CAST(ROUND((julianday('now') - julianday(COALESCE(p.last_active_at, p.started_at))) * 86400) AS INTEGER) > 45 THEN 1 ELSE 0 END) as total_dc
+      FROM pengerjaan p
+      WHERE p.ulangan_id = ? AND p.status = 'mengerjakan'
+    `).get(ulangan.id);
+
+    const total = totalRow ? (Number(totalRow.total) || 0) : 0;
+    const totalAktif = totalRow ? (Number(totalRow.total_aktif) || 0) : 0;
+    const totalDc = totalRow ? (Number(totalRow.total_dc) || 0) : 0;
+
+    const rows = db.prepare(`
+      SELECT 
+        p.id as pengerjaan_id,
+        pes.nama as nama_siswa,
+        pes.kelas as kelas_siswa,
+        p.started_at,
+        p.last_active_at,
+        CAST(ROUND((julianday('now') - julianday(COALESCE(p.last_active_at, p.started_at))) * 86400) AS INTEGER) as detik_inaktif,
+        CAST(ROUND((julianday('now') - julianday(p.started_at)) * 86400) AS INTEGER) as detik_berjalan
+      FROM pengerjaan p
+      JOIN peserta pes ON p.peserta_id = pes.id
+      WHERE p.ulangan_id = ? AND p.status = 'mengerjakan'
+      ORDER BY 
+        CASE WHEN CAST(ROUND((julianday('now') - julianday(COALESCE(p.last_active_at, p.started_at))) * 86400) AS INTEGER) <= 45 THEN 0 ELSE 1 END ASC,
+        p.last_active_at DESC,
+        p.started_at DESC
+      LIMIT ? OFFSET ?
+    `).all(ulangan.id, l, offset);
+
+    const durasiMenit = Number(ulangan.durasi_menit || 0);
+
+    const items = rows.map((r, idx) => {
+      const detikInaktif = Math.max(0, Number(r.detik_inaktif || 0));
+      const detikBerjalan = Math.max(0, Number(r.detik_berjalan || 0));
+      const isAktif = (detikInaktif <= 45);
+
+      // Hitung toleransi DC:
+      // Maksimal toleransi DC = 3600 detik (1 jam) sejak inaktif
+      // Sisa waktu ulangan (jika ada durasi): (durasiMenit * 60) - detikBerjalan
+      const maxDcTolerance = 3600;
+      const sisaDcDetik = Math.max(0, maxDcTolerance - detikInaktif);
+      
+      let sisaToleransiDetik = sisaDcDetik;
+      if (durasiMenit > 0) {
+        const sisaWaktuUlangan = Math.max(0, (durasiMenit * 60) - detikBerjalan);
+        sisaToleransiDetik = Math.min(sisaDcDetik, sisaWaktuUlangan);
+      }
+
+      return {
+        no: offset + idx + 1,
+        pengerjaan_id: r.pengerjaan_id,
+        nama: r.nama_siswa,
+        nama_sensor: maskStudentName(r.nama_siswa),
+        kelas: r.kelas_siswa,
+        status: isAktif ? 'aktif' : 'dc',
+        status_label: isAktif ? 'Aktif' : 'Terputus (DC)',
+        detik_inaktif: detikInaktif,
+        sisa_toleransi_detik: isAktif ? null : sisaToleransiDetik
+      };
+    });
+
+    return {
+      success: true,
+      data: {
+        total,
+        total_aktif: totalAktif,
+        total_dc: totalDc,
         page: p,
         totalPages: Math.max(1, Math.ceil(total / l)),
         limit: l,

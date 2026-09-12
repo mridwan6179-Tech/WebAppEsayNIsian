@@ -145,6 +145,21 @@ app.get('/api/siswa/log-pengumpulan/:kode', (req, res) => {
   }
 });
 
+// Monitor Siswa Sedang Mengerjakan & Terputus (DC) dengan Countdown Toleransi (Nama Ter-Sensor)
+app.get('/api/siswa/sedang-mengerjakan/:kode', (req, res) => {
+  try {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const result = studentService.getActiveStudentsByExamCode(req.params.kode, page, limit);
+    if (!result.success) {
+      return res.status(404).json(result);
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 app.post('/api/siswa/mulai', (req, res) => {
   try {
     const { kode_ujian, nama, kelas } = req.body;
