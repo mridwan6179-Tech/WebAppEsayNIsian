@@ -453,6 +453,16 @@ app.delete('/api/guru/soal/:id', requireGuru, (req, res) => {
   }
 });
 
+// Kalibrasi Bobot Seluruh Butir Soal dalam Ulangan
+app.post('/api/guru/ulangan/:id/kalibrasi-bobot', requireGuru, (req, res) => {
+  try {
+    const result = examService.calibrateQuestionWeights(req.params.id, req.guru.guruId, req.body);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 // AI Soal Generator (Dilengkapi Anti-Duplikasi dari Ulangan & Bank Soal)
 app.post('/api/guru/generate-soal', requireGuru, async (req, res) => {
   try {
@@ -565,7 +575,9 @@ app.post('/api/guru/generate-soal', requireGuru, async (req, res) => {
       jumlah_listening,
       jumlah_isian_listening,
       jumlah_essay_listening,
-      bahasa: is_listening ? (bahasa || 'Bahasa Inggris') : 'Bahasa Indonesia',
+      bahasa: req.body.bahasa || (is_listening ? 'Bahasa Inggris' : 'Bahasa Indonesia'),
+      bahasa_list: req.body.bahasa_list,
+      bahasa_eksplisit: req.body.bahasa_eksplisit,
       deskripsi_audio,
       kategori: rawCat,
       existing_questions: uniqueExistingQuestions

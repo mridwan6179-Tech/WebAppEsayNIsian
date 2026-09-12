@@ -958,6 +958,11 @@ KOMPONEN WAJIB TIAP BUTIR SOAL:
 - "jenis": Tuliskan "isian" atau "essay"${isCustomBreakdown ? ` (Wajib tepat menghasilkan ${jumlah_isian} butir "isian" dan ${jumlah_essay} butir "essay")` : ''}.
   * "isian" untuk soal yang menanyakan istilah spesifik, angka/nilai akhir, konsep ringkas 1-3 kata.
   * "essay" untuk soal yang meminta penjelasan konsep, tahapan penyelesaian, perbandingan, atau uraian mendalam.
+- "tingkat_kesulitan": Tentukan tingkat kesulitan butir soal ini: "mudah", "sedang", atau "sulit".
+  * "mudah" untuk soal konsep mendasar, definisi, terminologi, atau identifikasi langsung.
+  * "sedang" untuk soal pemahaman konsep, perhitungan standar, penerapan aturan/rumus, atau prosedur bertahap.
+  * "sulit" untuk soal analisis mendalam, studi kasus kompleks, komparasi kritis, atau soal berpikir tingkat tinggi (HOTS).
+  ${tingkat_kesulitan !== 'bervariasi' && tingkat_kesulitan !== 'campuran' ? `(Target utama tingkat kesulitan paket ini adalah "${tingkat_kesulitan}", sesuaikan setiap butir dengan tingkat kesulitan tersebut).` : '(Karena guru memilih tingkat kesulitan bervariasi/campuran, variasikan secara proporsional antara mudah, sedang, dan sulit sesuai kompleksitas materi).' }
 - "bobot": Angka bobot soal (bilangan bulat positif > 0).
 - "gambar_url": (Opsional) Jika soal memerlukan diagram/ilustrasi, sertakan link atau SVG data-uri yang valid. Jika tidak perlu gambar, isi null.
 - "kunci_jawaban": Kunci acuan jawaban guru yang ideal, jelas, dan akurat.
@@ -975,6 +980,7 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
       "sub_topik": "...",
       "pertanyaan": "...",
       "jenis": "isian / essay",
+      "tingkat_kesulitan": "mudah / sedang / sulit",
       "bobot": 20,
       "gambar_url": null,
       "kunci_jawaban": "...",
@@ -1007,8 +1013,16 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
       : (defaultListening ? 'Listening Comprehension' : 'Materi Pembelajaran');
     const defaultKategori = teacherCategory || fallbackKategori;
 
+    const validKesulitan = ['mudah', 'sedang', 'sulit'];
+    const optKesulitan = (options.tingkat_kesulitan || '').toLowerCase().trim();
+    const fallbackKesulitan = validKesulitan.includes(optKesulitan) ? optKesulitan : 'sedang';
+
     let sanitized = questions.map((q, idx) => {
       const itemIsListening = (q.is_listening !== undefined) ? (q.is_listening ? 1 : 0) : defaultListening;
+
+      // Sanitasi tingkat kesulitan
+      const rawKesulitan = (q.tingkat_kesulitan || '').toLowerCase().trim();
+      const cleanKesulitan = validKesulitan.includes(rawKesulitan) ? rawKesulitan : fallbackKesulitan;
 
       // Jika guru sudah menentukan kategori induk (options.kategori), prioritaskan kategori pilihan guru tersebut.
       // Topik/sub-topik spesifik dari AI dialihkan ke sub_topik agar Bank Soal guru tetap rapi dan tidak terpecah-pecah.
@@ -1031,6 +1045,7 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
         sub_topik: itemSubTopik,
         pertanyaan: q.pertanyaan || `Soal nomor ${idx + 1}`,
         jenis: (q.jenis || '').toLowerCase().includes('isian') ? 'isian' : 'essay',
+        tingkat_kesulitan: cleanKesulitan,
         bobot: Math.max(1, Math.round(Number(q.bobot) || 10)),
         gambar_url: (q.gambar_url && typeof q.gambar_url === 'string' && q.gambar_url.trim() !== '') ? q.gambar_url.trim() : null,
         kunci_jawaban: q.kunci_jawaban || '',
@@ -1167,6 +1182,9 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
       for (let i = 1; i <= nIsian; i++) {
         const itemIsListening = isListening && (i <= targetIsianListening);
         const actualIdx = offset + i;
+        const diff = options.tingkat_kesulitan === 'bervariasi' || options.tingkat_kesulitan === 'campuran'
+          ? (i % 3 === 1 ? 'mudah' : (i % 3 === 2 ? 'sedang' : 'sulit'))
+          : (options.tingkat_kesulitan || 'mudah');
         sampleSoal.push({
           kategori: itemIsListening ? 'Listening Comprehension' : topik,
           sub_topik: offset > 0 ? `Lanjutan Bagian ${actualIdx}` : `Bagian ${i}`,
@@ -1174,6 +1192,7 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
             ? `Berdasarkan rekaman percakapan di atas, sebutkan informasi penting terkait ${topik} (Isian #${actualIdx})!`
             : `Sebutkan istilah atau komponen penting terkait ${topik} (Isian #${actualIdx})!`,
           jenis: 'isian',
+          tingkat_kesulitan: diff,
           bobot: 10,
           gambar_url: null,
           kunci_jawaban: `Kunci acuan istilah untuk ${topik} bagian ${actualIdx}`,
@@ -1188,6 +1207,9 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
       for (let j = 1; j <= nEssay; j++) {
         const itemIsListening = isListening && (j <= targetEssayListening);
         const actualIdx = offset + j;
+        const diff = options.tingkat_kesulitan === 'bervariasi' || options.tingkat_kesulitan === 'campuran'
+          ? (j % 2 === 1 ? 'sedang' : 'sulit')
+          : (options.tingkat_kesulitan || 'sedang');
         sampleSoal.push({
           kategori: itemIsListening ? 'Listening Comprehension' : topik,
           sub_topik: offset > 0 ? `Lanjutan Uraian ${actualIdx}` : `Uraian ${j}`,
@@ -1195,6 +1217,7 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
             ? `Berdasarkan rekaman percakapan, jelaskan secara mendalam konsep dan kesimpulan dari ${topik} (Essay #${actualIdx})!`
             : `Jelaskan secara mendalam konsep dan mekanisme utama dari ${topik} (Essay #${actualIdx})!`,
           jenis: 'essay',
+          tingkat_kesulitan: diff,
           bobot: 20,
           gambar_url: null,
           kunci_jawaban: `Kunci uraian konsep mendalam untuk ${topik} bagian ${actualIdx}`,
@@ -1212,6 +1235,9 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
         const itemIsListening = isListening && (i <= targetSingleListening);
         const isEssay = options.tipe_soal === 'essay' || (options.tipe_soal === 'campuran' && i % 2 === 0);
         const actualIdx = offset + i;
+        const diff = options.tingkat_kesulitan === 'bervariasi' || options.tingkat_kesulitan === 'campuran'
+          ? (i % 3 === 1 ? 'mudah' : (i % 3 === 2 ? 'sedang' : 'sulit'))
+          : (options.tingkat_kesulitan || (isEssay ? 'sedang' : 'mudah'));
         sampleSoal.push({
           kategori: itemIsListening ? 'Listening Comprehension' : topik,
           sub_topik: offset > 0 ? `Lanjutan Topik ${actualIdx}` : `Topik ${i}`,
@@ -1219,6 +1245,7 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
             ? (itemIsListening ? `Berdasarkan audio percakapan, jelaskan konsep utama ${topik} (Nomor ${actualIdx})!` : `Jelaskan secara mendalam konsep dan fungsi utama dari ${topik} (Bagian ${actualIdx})!`)
             : (itemIsListening ? `Berdasarkan audio, sebutkan istilah penting terkait ${topik} (Nomor ${actualIdx})!` : `Sebutkan istilah atau komponen penting terkait ${topik} (Nomor ${actualIdx})!`),
           jenis: isEssay ? 'essay' : 'isian',
+          tingkat_kesulitan: diff,
           bobot: isEssay ? 20 : 10,
           gambar_url: null,
           kunci_jawaban: `Kunci acuan konsep untuk ${topik} bagian ${actualIdx}`,

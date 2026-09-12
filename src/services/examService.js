@@ -579,6 +579,121 @@ const examService = {
     if (!ulangan) throw new Error('Ulangan tidak ditemukan');
     const reviewService = require('./reviewService');
     return reviewService.toggleReleasePengerjaan(ulanganId, ulangan.guru_id, isReleased);
+  },
+
+  // Kalibrasi Bobot Seluruh Butir Soal dalam Ulangan (Proporsional Cerdas, Skala, atau Rata)
+  calibrateQuestionWeights(ulanganId, guruId, options = {}) {
+    const ulangan = db.prepare('SELECT id, guru_id FROM ulangan WHERE id = ? AND guru_id = ?').get(ulanganId, guruId);
+    if (!ulangan) throw new Error('Ulangan tidak ditemukan atau bukan milik guru ini');
+
+    const soalList = db.prepare('SELECT id, nomor, jenis, tingkat_kesulitan, bobot, urutan FROM soal WHERE ulangan_id = ? ORDER BY urutan ASC, id ASC').all(ulanganId);
+    if (!soalList || soalList.length === 0) {
+      throw new Error('Belum ada butir soal dalam ulangan ini untuk dikalibrasi');
+    }
+
+    const targetTotal = Math.max(10, Math.min(1000, Number(options.target_total_bobot) || 100));
+    const mode = options.mode || 'proportional'; // 'proportional', 'scale_current', 'uniform'
+
+    let updatedSoal = [];
+
+    if (mode === 'uniform') {
+      // 1. Mode Rata: Setiap soal mendapatkan bobot yang sama
+      const n = soalList.length;
+      const baseWeight = Math.floor(targetTotal / n);
+      const remainder = targetTotal - (baseWeight * n);
+
+      updatedSoal = soalList.map((s, idx) => {
+        const extra = idx < remainder ? 1 : 0;
+        return { id: s.id, bobot: Math.max(1, baseWeight + extra) };
+      });
+    } else if (mode === 'scale_current') {
+      // 2. Mode Skala Saat Ini: Menskalakan perbandingan bobot eksisting ke targetTotal
+      const currentSum = soalList.reduce((sum, s) => sum + Math.max(1, Number(s.bobot) || 1), 0);
+      let accumulated = 0;
+
+      updatedSoal = soalList.map((s, idx) => {
+        if (idx === soalList.length - 1) {
+          return { id: s.id, bobot: Math.max(1, targetTotal - accumulated) };
+        }
+        const currentWeight = Math.max(1, Number(s.bobot) || 1);
+        const scaled = Math.max(1, Math.round((currentWeight / currentSum) * targetTotal));
+        accumulated += scaled;
+        return { id: s.id, bobot: scaled };
+      });
+    } else {
+      // 3. Mode Proporsional Cerdas (Default & Rekomendasi):
+      // Mempertimbangkan jenis soal (Essay > Isian) dan tingkat kesulitan (Sulit > Sedang > Mudah)
+      // Pengali Tipe: Isian = 1.0, Essay = 2.0 (butuh elaborasi & penalaran mendalam)
+      // Pengali Kesulitan: Mudah = 1.0, Sedang = 1.5, Sulit = 2.0
+      const relativeWeights = soalList.map(s => {
+        const isEssay = (s.jenis || '').toLowerCase().includes('essay');
+        const typeFactor = isEssay ? 2.0 : 1.0;
+
+        const diff = (s.tingkat_kesulitan || 'sedang').toLowerCase().trim();
+        let diffFactor = 1.5;
+        if (diff === 'mudah') diffFactor = 1.0;
+        else if (diff === 'sulit') diffFactor = 2.0;
+
+        return typeFactor * diffFactor;
+      });
+
+      const sumRelative = relativeWeights.reduce((sum, w) => sum + w, 0);
+      let accumulated = 0;
+
+      updatedSoal = soalList.map((s, idx) => {
+        if (idx === soalList.length - 1) {
+          return { id: s.id, bobot: Math.max(1, targetTotal - accumulated) };
+        }
+        const rel = relativeWeights[idx];
+        const scaled = Math.max(1, Math.round((rel / sumRelative) * targetTotal));
+        accumulated += scaled;
+        return { id: s.id, bobot: scaled };
+      });
+    }
+
+    // Pastikan jika ada butir yang selisih karena pembulatan, total tetap tepat = targetTotal
+    const finalSum = updatedSoal.reduce((sum, item) => sum + item.bobot, 0);
+    if (finalSum !== targetTotal && updatedSoal.length > 0) {
+      const diff = targetTotal - finalSum;
+      updatedSoal[updatedSoal.length - 1].bobot = Math.max(1, updatedSoal[updatedSoal.length - 1].bobot + diff);
+    }
+
+    // Eksekusi pembaruan bobot dalam database
+    const updateStmt = db.prepare('UPDATE soal SET bobot = ? WHERE id = ?');
+    db.transaction(() => {
+      for (const item of updatedSoal) {
+        updateStmt.run(item.bobot, item.id);
+      }
+    })();
+
+    if (typeof db.syncCloud === 'function') {
+      db.syncCloud();
+    }
+
+    // Sinkronkan ulang nilai peserta jika ulangan sudah pernah dikerjakan
+    try {
+      const pengerjaanRows = db.prepare('SELECT id FROM pengerjaan WHERE ulangan_id = ?').all(ulanganId);
+      if (pengerjaanRows && pengerjaanRows.length > 0) {
+        const reviewService = require('./reviewService');
+        for (const p of pengerjaanRows) {
+          reviewService.recalculatePengerjaanTotal(p.id);
+        }
+      }
+    } catch (errRecalc) {
+      console.warn('⚠️ Gagal kalkulasi ulang nilai pengerjaan siswa setelah kalibrasi bobot:', errRecalc.message);
+    }
+
+    const refreshedSoal = db.prepare('SELECT id, nomor, jenis, bobot, tingkat_kesulitan, pertanyaan FROM soal WHERE ulangan_id = ? ORDER BY urutan ASC, id ASC').all(ulanganId);
+    const newTotalBobot = refreshedSoal.reduce((sum, s) => sum + s.bobot, 0);
+
+    return {
+      success: true,
+      total_soal: refreshedSoal.length,
+      total_bobot: newTotalBobot,
+      target_total_bobot: targetTotal,
+      mode,
+      soal: refreshedSoal
+    };
   }
 };
 

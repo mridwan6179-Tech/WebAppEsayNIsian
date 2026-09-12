@@ -422,6 +422,9 @@
               <div class="mt-1.5 flex items-center space-x-3 text-xs flex-wrap gap-y-1">
                 <span class="text-slate-500">Kode Akses: <strong id="detail-exam-code" class="font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded font-bold">KODE</strong></span>
                 <span class="text-slate-400">Total Bobot: <strong id="detail-exam-bobot" class="text-slate-700 font-semibold">0</strong></span>
+                <button id="btn-quick-calibrate-bobot" type="button" class="hidden text-[10px] bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-2 py-0.5 rounded font-bold transition flex items-center space-x-1 cursor-pointer" title="Klik untuk menyeimbangkan total bobot kembali ke 100">
+                  <span>⚖️ Kalibrasi (≠ 100)</span>
+                </button>
                 <span class="text-slate-500">KKM: <strong id="detail-exam-kkm" class="text-indigo-600 font-bold">75</strong></span>
                 <span id="detail-exam-random-info" class="hidden text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md font-medium border border-purple-200"></span>
                 <span id="detail-exam-schedule" class="hidden text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md font-medium border border-blue-200"></span>
@@ -531,6 +534,9 @@
             <div class="flex justify-between items-center flex-wrap gap-2">
               <p class="text-xs text-slate-500">Kunci jawaban & rubrik menjadi acuan utama penilaian semantik AI.</p>
               <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                <button id="btn-open-calibrate-weights" type="button" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold px-3 py-1.5 rounded-lg border border-amber-300 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Kalibrasi bobot seluruh butir soal secara adil & seimbang">
+                  <span>⚖️ Kalibrasi Bobot</span>
+                </button>
                 <button id="btn-open-import-from-bank" type="button" class="text-xs bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold px-3 py-1.5 rounded-lg border border-purple-200 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Ambil dan masukkan soal dari Bank Soal Mandiri">
                   <span>📂 Ambil dari Bank Soal</span>
                 </button>
@@ -549,12 +555,20 @@
                 <h4 class="font-bold text-slate-800">Form Soal Baru</h4>
                 <span class="text-[10px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-100 font-medium">📐 Support Simbol Matematika KaTeX ($x^2$, $\sqrt{n}$, $$\frac{a}{b}$$)</span>
               </div>
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
                   <label class="block font-semibold mb-1">Jenis Soal</label>
                   <select id="soal-jenis" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300">
                     <option value="isian">Isian Singkat</option>
                     <option value="essay">Essay</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block font-semibold mb-1">Tingkat Kesulitan</label>
+                  <select id="soal-kesulitan" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-medium">
+                    <option value="mudah">🟢 Mudah</option>
+                    <option value="sedang" selected>🟡 Sedang</option>
+                    <option value="sulit">🔴 Sulit</option>
                   </select>
                 </div>
                 <div>
@@ -1998,6 +2012,86 @@
     </div>
   </div>
 
+  <!-- MODAL: Kalibrasi Bobot Soal Ujian -->
+  <div id="modal-calibrate-weights" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full flex flex-col border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div class="flex items-center justify-between p-4 bg-gradient-to-r from-amber-500 to-amber-600 text-white">
+        <div class="flex items-center space-x-2.5">
+          <span class="text-2xl">⚖️</span>
+          <div>
+            <h3 class="font-bold text-sm sm:text-base">Kalibrasi Bobot Soal</h3>
+            <p class="text-amber-100 text-[11px]">Seimbangkan proporsi bobot seluruh butir soal secara adil</p>
+          </div>
+        </div>
+        <button id="btn-close-modal-calibrate" type="button" class="text-white/80 hover:text-white text-xl font-bold w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center cursor-pointer">&times;</button>
+      </div>
+
+      <div class="p-4 sm:p-5 space-y-4 text-xs">
+        <!-- Info Status Saat Ini -->
+        <div class="p-3 bg-amber-50/80 border border-amber-200 rounded-xl space-y-1.5 text-amber-950">
+          <div class="flex justify-between items-center text-xs">
+            <span class="font-semibold text-slate-700">Jumlah Soal Saat Ini:</span>
+            <span id="calib-curr-soal-count" class="font-bold text-slate-900">0 butir</span>
+          </div>
+          <div class="flex justify-between items-center text-xs">
+            <span class="font-semibold text-slate-700">Total Akumulasi Bobot Saat Ini:</span>
+            <span id="calib-curr-bobot-sum" class="font-bold text-amber-800 text-sm">0</span>
+          </div>
+          <p class="text-[11px] text-slate-500 pt-1 border-t border-amber-200/60 leading-relaxed">
+            💡 <em>Nilai akhir siswa tetap dikonversi ke skala 100, namun kalibrasi memastikan setiap butir soal memiliki bobot yang adil dan seimbang sesuai tingkat kesulitannya.</em>
+          </p>
+        </div>
+
+        <!-- Target Total Bobot -->
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Target Total Bobot Baru:</label>
+          <div class="flex items-center space-x-2">
+            <input type="number" id="calib-target-bobot" min="10" max="1000" value="100" class="w-28 px-3 py-1.5 rounded-lg border border-slate-300 font-bold text-sm text-center focus:ring-2 focus:ring-amber-500">
+            <span class="text-slate-500 text-xs">(Standar rekomendasi: <strong>100</strong>)</span>
+          </div>
+        </div>
+
+        <!-- Pilihan Strategi / Mode Kalibrasi -->
+        <div class="space-y-2">
+          <label class="block font-bold text-slate-700">Pilih Metode Kalibrasi:</label>
+          
+          <label class="flex items-start space-x-2.5 p-2.5 bg-slate-50 hover:bg-amber-50/60 border border-slate-200 hover:border-amber-300 rounded-xl cursor-pointer transition">
+            <input type="radio" name="calib-mode" value="proportional" checked class="mt-0.5 text-amber-600 focus:ring-amber-500">
+            <div class="space-y-0.5">
+              <span class="font-bold text-slate-900 block">🌟 Proporsional Cerdas (Tipe & Kesulitan) — <em>Rekomendasi</em></span>
+              <p class="text-slate-500 text-[11px] leading-tight">Soal Essay berbobot lebih tinggi dibanding Isian (2 : 1), dan soal Sulit &gt; Sedang &gt; Mudah (2.0x : 1.5x : 1.0x). Sangat adil bagi siswa.</p>
+            </div>
+          </label>
+
+          <label class="flex items-start space-x-2.5 p-2.5 bg-slate-50 hover:bg-amber-50/60 border border-slate-200 hover:border-amber-300 rounded-xl cursor-pointer transition">
+            <input type="radio" name="calib-mode" value="scale_current" class="mt-0.5 text-amber-600 focus:ring-amber-500">
+            <div class="space-y-0.5">
+              <span class="font-bold text-slate-900 block">📐 Skala Bobot Saat Ini</span>
+              <p class="text-slate-500 text-[11px] leading-tight">Mempertahankan perbandingan bobot antar-soal yang ada saat ini, lalu diskalakan proporsional agar jumlah totalnya tepat sama dengan target.</p>
+            </div>
+          </label>
+
+          <label class="flex items-start space-x-2.5 p-2.5 bg-slate-50 hover:bg-amber-50/60 border border-slate-200 hover:border-amber-300 rounded-xl cursor-pointer transition">
+            <input type="radio" name="calib-mode" value="uniform" class="mt-0.5 text-amber-600 focus:ring-amber-500">
+            <div class="space-y-0.5">
+              <span class="font-bold text-slate-900 block">⚖️ Bagi Rata Sama Besar</span>
+              <p class="text-slate-500 text-[11px] leading-tight">Setiap butir soal mendapatkan bobot yang sama rata tanpa membedakan tipe atau tingkat kesulitan.</p>
+            </div>
+          </label>
+        </div>
+
+        <div id="calib-error-msg" class="hidden p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs"></div>
+      </div>
+
+      <div class="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-end space-x-2">
+        <button type="button" id="btn-cancel-modal-calibrate" class="px-4 py-2 text-slate-600 hover:bg-slate-200 font-semibold rounded-xl cursor-pointer">Batal</button>
+        <button type="button" id="btn-do-calibrate-weights" class="px-5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer">
+          <span>⚖️ Terapkan Kalibrasi</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: Cetak Laporan Rekapitulasi Nilai -->
   <div id="modal-laporan" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
     <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col border border-slate-200 overflow-hidden">
@@ -2772,6 +2866,16 @@
       document.getElementById('detail-exam-code').textContent = u.kode_ujian;
       document.getElementById('detail-exam-status').textContent = u.status;
       document.getElementById('detail-exam-bobot').textContent = u.total_bobot;
+      const btnQuickCalib = document.getElementById('btn-quick-calibrate-bobot');
+      if (btnQuickCalib) {
+        if (u.soal && u.soal.length > 0 && Number(u.total_bobot) !== 100) {
+          btnQuickCalib.classList.remove('hidden');
+          btnQuickCalib.classList.add('inline-flex');
+        } else {
+          btnQuickCalib.classList.add('hidden');
+          btnQuickCalib.classList.remove('inline-flex');
+        }
+      }
       document.getElementById('detail-exam-kkm').textContent = u.kkm || 75;
       document.getElementById('count-soal').textContent = u.soal?.length || 0;
 
@@ -3493,12 +3597,20 @@
       soalList.forEach((s, idx) => {
         const item = document.createElement('div');
         item.className = 'p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2.5';
+        
+        const diff = (s.tingkat_kesulitan || 'sedang').toLowerCase().trim();
+        const diffBadgeClass = diff === 'sulit'
+          ? 'bg-red-100 text-red-700 border-red-200'
+          : (diff === 'mudah' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200');
+        const diffLabel = diff === 'sulit' ? '🔴 Sulit' : (diff === 'mudah' ? '🟢 Mudah' : '🟡 Sedang');
+
         item.innerHTML = `
           <div class="flex justify-between items-start gap-2">
             <div class="flex items-center space-x-2 flex-wrap gap-y-1">
               <input type="checkbox" value="${s.id}" class="chk-exam-soal w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer" onchange="updateExamSoalBulkBar()">
               <span class="font-bold text-slate-700">#${idx + 1}</span>
               <span class="uppercase text-[10px] font-semibold px-2 py-0.5 rounded ${s.jenis === 'essay' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">${s.jenis}</span>
+              <span class="text-[10px] font-semibold px-2 py-0.5 rounded border ${diffBadgeClass} capitalize">${diffLabel}</span>
               <span class="text-slate-400 font-medium">Bobot: <strong>${s.bobot}</strong></span>
               ${s.kategori ? `<span class="bg-purple-100 text-purple-800 text-[10px] font-semibold px-2 py-0.5 rounded">${escapeHtml(s.kategori)}</span>` : ''}
               ${s.is_listening ? `<span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded flex items-center space-x-1"><span>🎧 Menyimak (${escapeHtml(s.bahasa || 'Umum')})</span></span>` : ''}
@@ -3724,6 +3836,7 @@
       e.preventDefault();
       const payload = {
         jenis: document.getElementById('soal-jenis').value,
+        tingkat_kesulitan: document.getElementById('soal-kesulitan')?.value || 'sedang',
         bobot: Number(document.getElementById('soal-bobot').value),
         pertanyaan: document.getElementById('soal-pertanyaan').value.trim(),
         kunci_jawaban: document.getElementById('soal-kunci').value.trim(),
@@ -4551,6 +4664,11 @@
                 <option value="isian" ${q.jenis === 'isian' ? 'selected' : ''}>Isian</option>
                 <option value="essay" ${q.jenis === 'essay' ? 'selected' : ''}>Essay</option>
               </select>
+              <select class="gen-field-kesulitan px-2 py-0.5 rounded border border-slate-300 font-semibold text-[10px] capitalize">
+                <option value="mudah" ${q.tingkat_kesulitan === 'mudah' ? 'selected' : ''}>🟢 Mudah</option>
+                <option value="sedang" ${q.tingkat_kesulitan === 'sedang' || !q.tingkat_kesulitan ? 'selected' : ''}>🟡 Sedang</option>
+                <option value="sulit" ${q.tingkat_kesulitan === 'sulit' ? 'selected' : ''}>🔴 Sulit</option>
+              </select>
               ${q.is_listening 
                 ? '<span class="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center space-x-1 shadow-xs"><span>🎧 Listening</span></span>' 
                 : '<span class="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-medium px-2 py-0.5 rounded-full">📄 Teks Biasa</span>'}
@@ -4638,6 +4756,8 @@
         if (btnTts) btnTts.onclick = () => playTeacherTts(q.audio_script, q.bahasa);
         card.querySelector('.gen-field-gambar').oninput = (e) => { q.gambar_url = e.target.value.trim(); };
         card.querySelector('.gen-field-jenis').onchange = (e) => { q.jenis = e.target.value; };
+        const elKesulitan = card.querySelector('.gen-field-kesulitan');
+        if (elKesulitan) elKesulitan.onchange = (e) => { q.tingkat_kesulitan = e.target.value; };
         card.querySelector('.gen-field-bobot').onchange = (e) => {
           q.bobot = Number(e.target.value) || 10;
           const newTotal = generatedQuestionsBuffer.reduce((sum, item) => sum + Number(item.bobot || 0), 0);
@@ -4717,6 +4837,7 @@
             const payload = {
               pertanyaan: q.pertanyaan,
               jenis: q.jenis,
+              tingkat_kesulitan: q.tingkat_kesulitan || 'sedang',
               bobot: q.bobot,
               kunci_jawaban: q.kunci_jawaban,
               rubrik: q.rubrik,
@@ -7388,6 +7509,100 @@
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+      });
+    }
+
+    // --- 6. Kalibrasi Bobot Otomatis & Cerdas ---
+    const modalCalibrateWeights = document.getElementById('modal-calibrate-weights');
+    const btnOpenCalibrateWeights = document.getElementById('btn-open-calibrate-weights');
+    const btnQuickCalibrateBobot = document.getElementById('btn-quick-calibrate-bobot');
+    const btnCloseModalCalibrate = document.getElementById('btn-close-modal-calibrate');
+    const btnCancelModalCalibrate = document.getElementById('btn-cancel-modal-calibrate');
+    const btnDoCalibrateWeights = document.getElementById('btn-do-calibrate-weights');
+    const calibCurrSoalCount = document.getElementById('calib-curr-soal-count');
+    const calibCurrBobotSum = document.getElementById('calib-curr-bobot-sum');
+    const calibTargetBobot = document.getElementById('calib-target-bobot');
+    const calibErrorMsg = document.getElementById('calib-error-msg');
+
+    function openCalibrateModal() {
+      if (!activeUlanganId) {
+        alert('Pilih salah satu ulangan aktif terlebih dahulu!');
+        return;
+      }
+      const soalCount = activeUlanganData?.soal?.length || 0;
+      if (soalCount === 0) {
+        alert('Ulangan ini belum memiliki butir soal untuk dikalibrasi.');
+        return;
+      }
+      const currentBobot = (activeUlanganData?.soal || []).reduce((sum, s) => sum + Number(s.bobot || 0), 0);
+      if (calibCurrSoalCount) calibCurrSoalCount.textContent = `${soalCount} butir soal`;
+      if (calibCurrBobotSum) calibCurrBobotSum.textContent = `${currentBobot} poin`;
+      if (calibTargetBobot) calibTargetBobot.value = 100;
+      if (calibErrorMsg) {
+        calibErrorMsg.classList.add('hidden');
+        calibErrorMsg.textContent = '';
+      }
+      modalCalibrateWeights.classList.remove('hidden');
+    }
+
+    function closeCalibrateModal() {
+      if (modalCalibrateWeights) modalCalibrateWeights.classList.add('hidden');
+    }
+
+    if (btnOpenCalibrateWeights) btnOpenCalibrateWeights.addEventListener('click', openCalibrateModal);
+    if (btnQuickCalibrateBobot) btnQuickCalibrateBobot.addEventListener('click', openCalibrateModal);
+    if (btnCloseModalCalibrate) btnCloseModalCalibrate.addEventListener('click', closeCalibrateModal);
+    if (btnCancelModalCalibrate) btnCancelModalCalibrate.addEventListener('click', closeCalibrateModal);
+
+    if (btnDoCalibrateWeights) {
+      btnDoCalibrateWeights.addEventListener('click', async () => {
+        if (!activeUlanganId) return;
+        const targetTotal = Number(calibTargetBobot?.value) || 100;
+        if (targetTotal < 10 || targetTotal > 1000) {
+          if (calibErrorMsg) {
+            calibErrorMsg.textContent = 'Target bobot harus berupa angka antara 10 hingga 1000.';
+            calibErrorMsg.classList.remove('hidden');
+          }
+          return;
+        }
+
+        const modeRadio = document.querySelector('input[name="calib-mode"]:checked');
+        const mode = modeRadio ? modeRadio.value : 'proportional';
+
+        const originalText = btnDoCalibrateWeights.innerHTML;
+        btnDoCalibrateWeights.disabled = true;
+        btnDoCalibrateWeights.innerHTML = '<span>Mengkalibrasi...</span>';
+        if (calibErrorMsg) calibErrorMsg.classList.add('hidden');
+
+        try {
+          const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/kalibrasi-bobot`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              target_total_bobot: targetTotal,
+              mode: mode
+            })
+          });
+
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.message || 'Gagal melakukan kalibrasi bobot');
+          }
+
+          closeCalibrateModal();
+          alert(`✅ Sukses! Seluruh butir soal (${data.total_soal} butir) berhasil dikalibrasi. Total bobot sekarang tepat = ${data.total_bobot}.`);
+          await selectUlangan(activeUlanganId);
+        } catch (err) {
+          if (calibErrorMsg) {
+            calibErrorMsg.textContent = 'Error: ' + err.message;
+            calibErrorMsg.classList.remove('hidden');
+          } else {
+            alert('Error: ' + err.message);
+          }
+        } finally {
+          btnDoCalibrateWeights.disabled = false;
+          btnDoCalibrateWeights.innerHTML = originalText;
+        }
       });
     }
 
