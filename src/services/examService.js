@@ -677,19 +677,64 @@ const examService = {
       updatedSoal[updatedSoal.length - 1].bobot = Math.max(1, updatedSoal[updatedSoal.length - 1].bobot + diff);
     }
 
-    // Eksekusi pembaruan bobot dalam database
+    // Eksekusi pembaruan bobot dalam database serta kalibrasi proporsional skor jawaban siswa
     const updateStmt = db.prepare('UPDATE soal SET bobot = ? WHERE id = ?');
+    const getJawabanBySoal = db.prepare(`
+      SELECT j.id, j.status_penilaian, j.skor_rekomendasi, j.skor_maksimum, rg.id as rg_id, rg.skor_final
+      FROM jawaban j
+      LEFT JOIN review_guru rg ON j.id = rg.jawaban_id
+      WHERE j.soal_id = ?
+    `);
+    const updateJawabanDone = db.prepare(`
+      UPDATE jawaban 
+      SET skor_rekomendasi = ?, skor_maksimum = ?
+      WHERE id = ?
+    `);
+    const updateJawabanPending = db.prepare(`
+      UPDATE jawaban 
+      SET skor_maksimum = ?
+      WHERE id = ?
+    `);
+    const updateReviewGuru = db.prepare(`
+      UPDATE review_guru
+      SET skor_ai = ?, skor_final = ?
+      WHERE id = ?
+    `);
+
+    const oldBobotMap = new Map(soalList.map(s => [s.id, Number(s.bobot) || 1]));
+
     db.transaction(() => {
       for (const item of updatedSoal) {
         updateStmt.run(item.bobot, item.id);
+        const oldBobot = oldBobotMap.get(item.id) || 1;
+        const newBobot = item.bobot;
+
+        const answers = getJawabanBySoal.all(item.id);
+        for (const j of answers) {
+          if (j.status_penilaian === 'selesai') {
+            // Jawaban sudah dinilai: sesuaikan skor proporsional sesuai rasio capaian awal
+            const oldMax = Number(j.skor_maksimum) || oldBobot || 1;
+            const currentScore = Number(j.skor_rekomendasi ?? 0);
+            const ratio = Math.max(0, Math.min(1, currentScore / oldMax));
+            const newScore = Math.min(newBobot, Math.max(0, Math.round(ratio * newBobot * 100) / 100));
+
+            updateJawabanDone.run(newScore, newBobot, j.id);
+
+            if (j.rg_id) {
+              const currentFinal = Number(j.skor_final ?? currentScore);
+              const guruRatio = Math.max(0, Math.min(1, currentFinal / oldMax));
+              const newFinal = Math.min(newBobot, Math.max(0, Math.round(guruRatio * newBobot * 100) / 100));
+              updateReviewGuru.run(newScore, newFinal, j.rg_id);
+            }
+          } else {
+            // Jawaban belum dinilai: perbarui skor maksimum mengikuti bobot baru
+            updateJawabanPending.run(newBobot, j.id);
+          }
+        }
       }
     })();
 
-    if (typeof db.syncCloud === 'function') {
-      db.syncCloud();
-    }
-
-    // Sinkronkan ulang nilai peserta jika ulangan sudah pernah dikerjakan
+    // Sinkronkan ulang total nilai pengerjaan siswa secara instan (nilai_ai & nilai_final)
     try {
       const pengerjaanRows = db.prepare('SELECT id FROM pengerjaan WHERE ulangan_id = ?').all(ulanganId);
       if (pengerjaanRows && pengerjaanRows.length > 0) {
@@ -700,6 +745,10 @@ const examService = {
       }
     } catch (errRecalc) {
       console.warn('⚠️ Gagal kalkulasi ulang nilai pengerjaan siswa setelah kalibrasi bobot:', errRecalc.message);
+    }
+
+    if (typeof db.syncCloud === 'function') {
+      db.syncCloud();
     }
 
     const refreshedSoal = db.prepare('SELECT id, nomor, jenis, bobot, tingkat_kesulitan, pertanyaan FROM soal WHERE ulangan_id = ? ORDER BY urutan ASC, id ASC').all(ulanganId);

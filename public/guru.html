@@ -703,8 +703,11 @@
                   <p class="text-xs text-slate-400">Memproses 1 jawaban per waktu dengan jeda acak 5–13 detik.</p>
                 </div>
                 <div class="flex items-center flex-wrap gap-2 w-full sm:w-auto">
-                  <button id="btn-start-ai" class="flex-1 sm:flex-initial px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-lg transition flex items-center justify-center space-x-1.5">
-                    <span>Mulai Review AI</span>
+                  <button id="btn-start-ai" class="flex-1 sm:flex-initial px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-lg transition flex items-center justify-center space-x-1.5" title="Nilai jawaban siswa yang belum dinilai">
+                    <span>⚡ Mulai Review AI</span>
+                  </button>
+                  <button id="btn-reevaluate-all" class="flex-1 sm:flex-initial px-3.5 py-1.5 bg-indigo-700 hover:bg-indigo-600 text-white font-semibold text-xs rounded-lg transition flex items-center justify-center space-x-1.5" title="Nilai ulang seluruh jawaban siswa dari awal dengan Gemini AI">
+                    <span>🔄 Nilai Ulang Semua</span>
                   </button>
                   <button id="btn-stop-ai" class="hidden flex-1 sm:flex-initial px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded-lg transition text-center justify-center">
                     Jeda / Stop
@@ -5810,13 +5813,16 @@
 
     function renderAiStatusUI(s, isProcessing = false) {
       const btnStart = document.getElementById('btn-start-ai');
+      const btnReeval = document.getElementById('btn-reevaluate-all');
       const btnStop = document.getElementById('btn-stop-ai');
 
       if (isProcessing || s.isRunning || isAiReviewLoopActive) {
         btnStart?.classList.add('hidden');
+        btnReeval?.classList.add('hidden');
         btnStop?.classList.remove('hidden');
       } else {
         btnStart?.classList.remove('hidden');
+        btnReeval?.classList.remove('hidden');
         btnStop?.classList.add('hidden');
       }
 
@@ -5827,9 +5833,15 @@
       if (barEl) barEl.style.width = `${percent}%`;
       if (pctEl) pctEl.textContent = `${percent}%`;
       if (txtEl) {
-        txtEl.textContent = (isProcessing || s.isRunning || isAiReviewLoopActive)
-          ? `Sedang memproses antrean (${s.selesai}/${s.total} selesai, ${s.menunggu} menunggu)...`
-          : `Selesai (${s.selesai}/${s.total} jawaban ternilai)`;
+        if (isProcessing || s.isRunning || isAiReviewLoopActive) {
+          txtEl.textContent = `Sedang memproses antrean (${s.selesai}/${s.total} selesai, ${s.menunggu} menunggu)...`;
+        } else if (s.total > 0 && s.selesai === s.total) {
+          txtEl.textContent = `✅ Selesai sempurna (${s.selesai}/${s.total} butir ternilai)`;
+        } else if (s.total > 0) {
+          txtEl.textContent = `Status: ${s.selesai}/${s.total} ternilai (${s.menunggu} menunggu)`;
+        } else {
+          txtEl.textContent = 'Menunggu instruksi review...';
+        }
       }
     }
 
@@ -5838,9 +5850,13 @@
       isAiReviewLoopActive = true;
 
       const btnStart = document.getElementById('btn-start-ai');
+      const btnReeval = document.getElementById('btn-reevaluate-all');
       const btnStop = document.getElementById('btn-stop-ai');
       btnStart?.classList.add('hidden');
+      btnReeval?.classList.add('hidden');
       btnStop?.classList.remove('hidden');
+
+      let consecutiveErrors = 0;
 
       try {
         while (isAiReviewLoopActive && activeUlanganId === ulanganId) {
@@ -5848,13 +5864,38 @@
           const data = await res.json();
           
           if (!res.ok || !data.success) {
-            console.warn('AI process step warning:', data.message || data.error);
-            break;
+            consecutiveErrors++;
+            console.warn('AI process step warning/error:', data.error || data.message);
+
+            const isRateLimit = data?.isRateLimit || (data?.error || '').toLowerCase().includes('rate') || (data?.error || '').includes('429');
+            const txtEl = document.getElementById('ai-progress-text');
+            
+            if (isRateLimit) {
+              if (txtEl) txtEl.textContent = '⏳ Kuota AI sementara penuh, menunggu 8 detik sebelum melanjutkan...';
+              await new Promise(r => setTimeout(r, 8000));
+            } else {
+              if (txtEl) txtEl.textContent = `⚠️ Kendala pada 1 butir (${data.error || 'mencoba butir lain'})...`;
+              await new Promise(r => setTimeout(r, 3000));
+            }
+
+            if (data.status) {
+              renderAiStatusUI(data.status, true);
+            }
+
+            if (consecutiveErrors >= 3) {
+              alert('⚠️ Proses antrean AI dihentikan sementara karena 3 kendala berturut-turut:\n' + (data.error || 'Kendala koneksi AI'));
+              break;
+            }
+            continue;
           }
+
+          consecutiveErrors = 0;
 
           if (data.status) {
             renderAiStatusUI(data.status, true);
-            loadPesertaList(ulanganId);
+            if (typeof loadPesertaList === 'function') {
+              loadPesertaList(ulanganId);
+            }
           }
 
           if (data.done || (data.status && data.status.menunggu === 0 && data.status.diproses === 0)) {
@@ -5869,14 +5910,93 @@
       } finally {
         isAiReviewLoopActive = false;
         await checkAiStatus(ulanganId);
-        loadPesertaList(ulanganId);
+        if (typeof loadPesertaList === 'function') {
+          loadPesertaList(ulanganId);
+        }
       }
     }
 
+    // Tombol Mulai Review AI (Menilai jawaban yang belum dinilai, atau konfirmasi nilai ulang jika sudah selesai semua)
     document.getElementById('btn-start-ai').onclick = async () => {
-      if (!confirm('Mulai antrean penilaian AI untuk jawaban yang belum dinilai?')) return;
+      if (!activeUlanganId) return;
+
+      let queueStatus = null;
       try {
-        const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/ai/start`, { method: 'POST' });
+        const resStat = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/ai/status`);
+        const statData = await resStat.json();
+        if (statData.success) queueStatus = statData.data;
+      } catch (e) {}
+
+      let forceAll = false;
+      if (queueStatus) {
+        if (queueStatus.total === 0) {
+          alert('Belum ada siswa yang mengumpulkan ujian (status submitted) pada ulangan ini.');
+          return;
+        }
+
+        if (queueStatus.selesai > 0 && queueStatus.menunggu === 0 && queueStatus.diproses === 0) {
+          const confirmReeval = confirm(
+            `Seluruh jawaban siswa (${queueStatus.total} butir) saat ini sudah selesai dinilai.\n\n` +
+            `Apakah Anda ingin MENILAI ULANG (Re-evaluate) seluruh jawaban siswa dari awal dengan Gemini AI sesuai bobot soal yang berlaku saat ini?`
+          );
+          if (!confirmReeval) return;
+          forceAll = true;
+        } else {
+          const pendingCount = queueStatus.menunggu + queueStatus.gagal;
+          const msg = queueStatus.selesai > 0
+            ? `Mulai antrean penilaian AI untuk ${pendingCount} jawaban yang belum dinilai? (${queueStatus.selesai} sudah dinilai)`
+            : `Mulai antrean penilaian AI untuk seluruh ${queueStatus.total} jawaban siswa?`;
+          if (!confirm(msg)) return;
+        }
+      } else {
+        if (!confirm('Mulai antrean penilaian AI untuk jawaban yang belum dinilai?')) return;
+      }
+
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/ai/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ force_all: forceAll, mode: 'step' })
+        });
+        const data = await res.json();
+        if (data.status) {
+          renderAiStatusUI(data.status, true);
+        }
+      } catch (e) {}
+      runAiReviewLoop(activeUlanganId);
+    };
+
+    // Tombol Khusus: Nilai Ulang Seluruh Jawaban Siswa dari Awal
+    document.getElementById('btn-reevaluate-all').onclick = async () => {
+      if (!activeUlanganId) return;
+
+      let queueStatus = null;
+      try {
+        const resStat = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/ai/status`);
+        const statData = await resStat.json();
+        if (statData.success) queueStatus = statData.data;
+      } catch (e) {}
+
+      if (queueStatus && queueStatus.total === 0) {
+        alert('Belum ada siswa yang mengumpulkan ujian (status submitted) pada ulangan ini.');
+        return;
+      }
+
+      const totalTeks = queueStatus ? `(${queueStatus.total} butir jawaban)` : '';
+      const confirmReeval = confirm(
+        `Apakah Anda yakin ingin MENILAI ULANG SEMUA ${totalTeks} jawaban siswa dari awal menggunakan Gemini AI?\n\n` +
+        `Catatan:\n` +
+        `• Seluruh jawaban akan dievaluasi ulang mengikuti bobot dan rubrik soal saat ini.\n` +
+        `• Nilai rekomendasi AI sebelumnya akan diperbarui.`
+      );
+      if (!confirmReeval) return;
+
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/ai/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ force_all: true, mode: 'step' })
+        });
         const data = await res.json();
         if (data.status) {
           renderAiStatusUI(data.status, true);

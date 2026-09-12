@@ -40,11 +40,47 @@ const queueService = {
     }
   },
 
-  // FR-09: Masukkan seluruh jawaban yang belum dinilai ke dalam antrean
-  enqueueUlangan(ulanganId) {
+  // FR-09: Masukkan jawaban ke dalam antrean (opsional: forceAll untuk menilai ulang seluruhnya)
+  enqueueUlangan(ulanganId, options = {}) {
+    const forceAll = typeof options === 'boolean' ? options : Boolean(options && options.forceAll);
     this.recoverStaleLocks(ulanganId);
 
-    // Ambil semua jawaban dari pengerjaan yang sudah di-submit untuk ulangan ini
+    if (forceAll) {
+      // Reset seluruh jawaban yang sudah submitted agar dinilai ulang dari awal oleh AI
+      db.prepare(`
+        UPDATE jawaban
+        SET status_penilaian = 'menunggu', attempt_count = 0, last_error = NULL
+        WHERE pengerjaan_id IN (
+          SELECT id FROM pengerjaan WHERE ulangan_id = ? AND status = 'submitted'
+        )
+      `).run(ulanganId);
+
+      db.prepare(`
+        INSERT OR IGNORE INTO antrean_review (jawaban_id, status, attempt_count)
+        SELECT j.id, 'menunggu', 0
+        FROM jawaban j
+        JOIN pengerjaan p ON j.pengerjaan_id = p.id
+        WHERE p.ulangan_id = ? AND p.status = 'submitted'
+      `).run(ulanganId);
+
+      db.prepare(`
+        UPDATE antrean_review
+        SET status = 'menunggu', attempt_count = 0, next_attempt_at = NULL, error_message = NULL
+        WHERE jawaban_id IN (
+          SELECT j.id
+          FROM jawaban j
+          JOIN pengerjaan p ON j.pengerjaan_id = p.id
+          WHERE p.ulangan_id = ? AND p.status = 'submitted'
+        )
+      `).run(ulanganId);
+
+      if (typeof db.syncCloud === 'function') {
+        db.syncCloud(true);
+      }
+      return this.getQueueStatus(ulanganId);
+    }
+
+    // Ambil semua jawaban dari pengerjaan yang sudah di-submit untuk ulangan ini yang belum dinilai
     const pendingAnswers = db.prepare(`
       SELECT j.id as jawaban_id
       FROM jawaban j
@@ -190,25 +226,42 @@ const queueService = {
     const id = Number(ulanganId);
     this.recoverStaleLocks(id);
 
-    // Ambil 1 pekerjaan antrean tertua yang siap diproses
-    const queueItem = db.prepare(`
-      SELECT a.id as antrean_id, a.jawaban_id, a.attempt_count,
-             j.pengerjaan_id, j.jawaban_siswa, j.skor_maksimum,
-             s.pertanyaan, s.jenis, s.bobot, s.kunci_jawaban, s.rubrik, s.tingkat_kelas, s.tingkat_kesulitan,
-             s.pembahasan, s.audio_script, s.is_listening, s.bahasa,
-             u.izinkan_singkatan, u.izinkan_informal, u.toleransi_typo, u.instruksi_penilaian_khusus
-      FROM antrean_review a
-      JOIN jawaban j ON a.jawaban_id = j.id
-      JOIN soal s ON j.soal_id = s.id
-      JOIN pengerjaan p ON j.pengerjaan_id = p.id
-      JOIN ulangan u ON p.ulangan_id = u.id
-      WHERE p.ulangan_id = ? 
-        AND j.status_penilaian != 'selesai'
-        AND (a.status = 'menunggu' OR (a.status = 'gagal' AND a.attempt_count < 3))
-        AND (a.next_attempt_at IS NULL OR datetime(a.next_attempt_at) <= datetime('now'))
-      ORDER BY a.attempt_count ASC, a.id ASC
-      LIMIT 1
-    `).get(id);
+    // Ambil dan kunci 1 pekerjaan antrean tertua yang siap diproses secara atomik
+    let queueItem = null;
+    db.transaction(() => {
+      queueItem = db.prepare(`
+        SELECT a.id as antrean_id, a.jawaban_id, a.attempt_count,
+               j.pengerjaan_id, j.jawaban_siswa, j.skor_maksimum,
+               s.pertanyaan, s.jenis, s.bobot, s.kunci_jawaban, s.rubrik, s.tingkat_kelas, s.tingkat_kesulitan,
+               s.pembahasan, s.audio_script, s.is_listening, s.bahasa,
+               u.izinkan_singkatan, u.izinkan_informal, u.toleransi_typo, u.instruksi_penilaian_khusus
+        FROM antrean_review a
+        JOIN jawaban j ON a.jawaban_id = j.id
+        JOIN soal s ON j.soal_id = s.id
+        JOIN pengerjaan p ON j.pengerjaan_id = p.id
+        JOIN ulangan u ON p.ulangan_id = u.id
+        WHERE p.ulangan_id = ? 
+          AND j.status_penilaian != 'selesai'
+          AND (a.status = 'menunggu' OR (a.status = 'gagal' AND a.attempt_count < 3))
+          AND (a.next_attempt_at IS NULL OR datetime(a.next_attempt_at) <= datetime('now'))
+        ORDER BY a.attempt_count ASC, a.id ASC
+        LIMIT 1
+      `).get(id);
+
+      if (queueItem) {
+        db.prepare(`
+          UPDATE antrean_review 
+          SET status = 'diproses', locked_at = CURRENT_TIMESTAMP 
+          WHERE id = ?
+        `).run(queueItem.antrean_id);
+
+        db.prepare(`
+          UPDATE jawaban 
+          SET status_penilaian = 'diproses' 
+          WHERE id = ?
+        `).run(queueItem.jawaban_id);
+      }
+    })();
 
     if (!queueItem) {
       return {
@@ -218,19 +271,6 @@ const queueService = {
         status: this.getQueueStatus(id)
       };
     }
-
-    // Kunci item antrean (status: diproses)
-    db.prepare(`
-      UPDATE antrean_review 
-      SET status = 'diproses', locked_at = CURRENT_TIMESTAMP 
-      WHERE id = ?
-    `).run(queueItem.antrean_id);
-
-    db.prepare(`
-      UPDATE jawaban 
-      SET status_penilaian = 'diproses' 
-      WHERE id = ?
-    `).run(queueItem.jawaban_id);
 
     try {
       let result;
@@ -247,19 +287,25 @@ const queueService = {
         else normalizedStatus = 'perlu_review';
       }
 
+      const maxBobot = Number(queueItem.bobot) || 1;
+      const rawSkor = Number(result.skor_rekomendasi ?? 0);
+      const clampedScore = Math.max(0, Math.min(maxBobot, Math.round(rawSkor * 100) / 100));
+
       // Simpan hasil penilaian yang berhasil
       db.transaction(() => {
         db.prepare(`
           UPDATE jawaban
           SET status_penilaian = 'selesai',
               skor_rekomendasi = ?,
+              skor_maksimum = ?,
               status_jawaban = ?,
               alasan_ai = ?,
               model_ai = ?,
               reviewed_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `).run(
-          result.skor_rekomendasi,
+          clampedScore,
+          maxBobot,
           normalizedStatus,
           result.alasan_ai,
           result.model_ai || 'gemini',
@@ -331,6 +377,7 @@ const queueService = {
       return {
         success: false,
         done: false,
+        isRateLimit,
         jawaban_id: queueItem.jawaban_id,
         error: String(err.message),
         status: this.getQueueStatus(id)
@@ -339,16 +386,30 @@ const queueService = {
   },
 
   // FR-10, FR-11, FR-12, FR-13: Jalankan worker antrean
-  async startReview(ulanganId, gradeFunction = null, delayOverride = null) {
+  async startReview(ulanganId, gradeFunction = null, delayOverride = null, options = {}) {
     const id = Number(ulanganId);
+    const forceAll = Boolean(options?.forceAll);
+    const mode = options?.mode || 'background';
 
-    // Pastikan tidak ada 2 worker aktif bersamaan untuk ulangan yang sama (NFR-02)
-    if (runningWorkers.get(id)?.isRunning) {
-      return { success: false, message: 'Review sedang berjalan' };
+    // Enqueue jawaban baru jika ada (atau reset seluruhnya jika forceAll = true)
+    this.enqueueUlangan(id, { forceAll });
+
+    const currentStatus = this.getQueueStatus(id);
+
+    // Jika mode adalah 'step' (digunakan oleh browser UI guru.html),
+    // jangan jalankan background worker loop agar tidak terjadi bentrokan dual-worker
+    if (mode === 'step') {
+      return {
+        success: true,
+        message: 'Antrean AI siap diproses',
+        status: currentStatus
+      };
     }
 
-    // Enqueue jawaban baru jika ada
-    this.enqueueUlangan(id);
+    // Mode background: Pastikan tidak ada 2 worker aktif bersamaan untuk ulangan yang sama (NFR-02)
+    if (runningWorkers.get(id)?.isRunning) {
+      return { success: false, message: 'Review sedang berjalan', status: currentStatus };
+    }
 
     const workerState = { isRunning: true, shouldStop: false };
     runningWorkers.set(id, workerState);
@@ -382,7 +443,7 @@ const queueService = {
     return {
       success: true,
       message: 'Review AI berhasil dimulai',
-      status: this.getQueueStatus(id)
+      status: currentStatus
     };
   },
 

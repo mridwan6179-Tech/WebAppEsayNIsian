@@ -870,7 +870,11 @@ app.post('/api/guru/pengerjaan/:id/ai/start', requireGuru, async (req, res) => {
 // Antrean AI (Start, Stop, Status)
 app.post('/api/guru/ulangan/:id/ai/start', requireGuru, async (req, res) => {
   try {
-    const result = await queueService.startReview(req.params.id);
+    const { force_all, mode } = req.body || {};
+    const result = await queueService.startReview(req.params.id, null, null, {
+      forceAll: Boolean(force_all),
+      mode: mode || 'step'
+    });
     res.json(result);
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
