@@ -845,13 +845,7 @@ const examService = {
     const sertakanKunci = Boolean(options.sertakan_kunci === true || options.sertakan_kunci === 'true' || options.sertakan_kunci === 1 || options.sertakan_kunci === '1');
     const tampilkanBobot = options.tampilkan_bobot !== undefined ? Boolean(options.tampilkan_bobot === true || options.tampilkan_bobot === 'true' || options.tampilkan_bobot === 1 || options.tampilkan_bobot === '1') : true;
 
-    // Tentukan mode layout: 'hemat_kertas' (2 lembar per A4) atau 'satu_halaman' (1 lembar per A4)
-    let modeLayout = options.mode_layout;
-    if (!modeLayout || modeLayout === 'auto') {
-      modeLayout = (ulangan.soal && ulangan.soal.length <= 5) ? 'hemat_kertas' : 'satu_halaman';
-    }
-
-    const baseSoalList = (ulangan.soal || []).map((s, idx) => ({
+    let baseSoalList = (ulangan.soal || []).map((s, idx) => ({
       id: s.id,
       nomor_asli: s.nomor || (idx + 1),
       jenis: s.jenis || 'isian',
@@ -864,6 +858,21 @@ const examService = {
       rubrik: s.rubrik || '',
       pembahasan: s.pembahasan || ''
     }));
+
+    if (options.filter_jenis && ['isian', 'essay'].includes(options.filter_jenis)) {
+      baseSoalList = baseSoalList.filter(s => s.jenis === options.filter_jenis);
+    }
+
+    if (options.jumlah_soal_cetak !== undefined && options.jumlah_soal_cetak !== null && options.jumlah_soal_cetak !== '' && options.jumlah_soal_cetak !== 'semua') {
+      const targetCount = Math.max(1, Math.min(baseSoalList.length, Number(options.jumlah_soal_cetak)));
+      baseSoalList = baseSoalList.slice(0, targetCount);
+    }
+
+    // Tentukan mode layout: 'hemat_kertas' (2 lembar per A4) atau 'satu_halaman' (1 lembar per A4)
+    let modeLayout = options.mode_layout;
+    if (!modeLayout || modeLayout === 'auto') {
+      modeLayout = (baseSoalList.length <= 5) ? 'hemat_kertas' : 'satu_halaman';
+    }
 
     // Fungsi shuffle Fisher-Yates
     const shuffleArray = (arr) => {

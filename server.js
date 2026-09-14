@@ -428,8 +428,11 @@ app.get('/api/guru/ulangan/:id/laporan', requireGuru, (req, res) => {
 // Lembar Cetak Soal Ujian Fisik / Offline (A4, Hemat Kertas & Acak Paket)
 app.get('/api/guru/ulangan/:id/soal-cetak', requireGuru, (req, res) => {
   try {
-    const printData = examService.getExamPrintData(req.params.id, req.guru.guruId, {
+    const guruId = req.guru?.role === 'admin' ? null : (req.guru?.guruId || req.guru?.id || null);
+    const printData = examService.getExamPrintData(req.params.id, guruId, {
       jumlah_cetak: req.query.jumlah,
+      jumlah_soal_cetak: req.query.jumlah_soal,
+      filter_jenis: req.query.filter_jenis,
       acak_soal: req.query.acak,
       mode_layout: req.query.layout,
       baris_isian: req.query.baris_isian,

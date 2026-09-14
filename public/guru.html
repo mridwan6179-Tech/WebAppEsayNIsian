@@ -2213,60 +2213,73 @@
         </div>
 
         <!-- Panel Pengaturan Cetak (Live Options) -->
-        <div class="p-3 bg-white rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-          <!-- 1. Jumlah Lembar / Paket Siswa -->
-          <div>
-            <label class="block font-bold text-slate-700 mb-1">Jumlah Lembar / Siswa:</label>
+        <div class="p-3 bg-white rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 text-xs">
+          <!-- 1. Pilihan Jumlah Butir Soal yang Dicetak -->
+          <div class="space-y-1">
+            <label class="block font-bold text-slate-700">1. Ambil Butir Soal:</label>
+            <div class="flex items-center space-x-1.5">
+              <select id="select-print-soal-count" class="w-full px-2 py-1.5 rounded-lg border border-slate-300 font-semibold text-slate-800 focus:ring-1 focus:ring-blue-500 bg-white text-xs">
+                <option value="semua">Semua Soal</option>
+                <option value="5">5 Soal Pertama (Hemat A4)</option>
+                <option value="10">10 Soal Pertama</option>
+                <option value="kustom">Kustom Jumlah...</option>
+              </select>
+              <input type="number" id="input-print-soal-count-custom" min="1" max="100" value="5" class="hidden w-14 px-1.5 py-1.5 rounded-lg border border-slate-300 font-bold text-center text-xs">
+            </div>
+            <p id="label-soal-count-hint" class="text-[10px] text-slate-500 truncate">Total: 0 soal tersedia</p>
+          </div>
+
+          <!-- 2. Jumlah Lembar / Rangkap Siswa -->
+          <div class="space-y-1">
+            <label class="block font-bold text-slate-700">2. Rangkap / Siswa:</label>
             <div class="flex items-center space-x-1.5">
               <input type="number" id="input-print-soal-jumlah" min="1" max="100" value="1" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-semibold text-slate-800 focus:ring-1 focus:ring-blue-500">
               <span class="text-slate-400 text-[11px] shrink-0 font-medium">lembar</span>
             </div>
-            <p class="text-[10px] text-slate-500 mt-0.5">Jumlah siswa yang butuh lembar kertas</p>
+            <p class="text-[10px] text-slate-500">Jumlah rangkap cetakan</p>
           </div>
 
-          <!-- 2. Mode Tata Letak Kertas (Hemat Kertas vs Standar) -->
-          <div>
-            <label class="block font-bold text-slate-700 mb-1">Tata Letak Kertas A4:</label>
-            <select id="select-print-soal-layout" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-semibold text-slate-800 focus:ring-1 focus:ring-blue-500 bg-white">
-              <option value="hemat_kertas">🌿 Hemat Kertas (2 Lembar Siswa / A4)</option>
-              <option value="satu_halaman">📄 Standar (1 Lembar Siswa / A4)</option>
+          <!-- 3. Mode Tata Letak Kertas (Hemat Kertas vs Standar) -->
+          <div class="space-y-1">
+            <label class="block font-bold text-slate-700">3. Tata Letak A4:</label>
+            <select id="select-print-soal-layout" class="w-full px-2 py-1.5 rounded-lg border border-slate-300 font-semibold text-slate-800 focus:ring-1 focus:ring-blue-500 bg-white text-xs">
+              <option value="hemat_kertas">🌿 Hemat Kertas (2 Siswa/A4)</option>
+              <option value="satu_halaman">📄 Standar (1 Siswa/A4)</option>
             </select>
-            <p id="label-layout-hint" class="text-[10px] text-emerald-700 mt-0.5 font-medium">1 lembar A4 muat 2 siswa (potong gunting ✂)</p>
+            <p id="label-layout-hint" class="text-[10px] text-emerald-700 font-medium truncate">2 siswa / A4 (potong ✂)</p>
           </div>
 
-          <!-- 3. Pengacakan Soal (Variasi Paket Anti-Contek) -->
-          <div>
-            <label class="block font-bold text-slate-700 mb-1">Pengacakan Urutan Soal:</label>
-            <label class="flex items-center space-x-2 p-1.5 bg-slate-50 rounded-lg border border-slate-200 cursor-pointer">
+          <!-- 4. Pengacakan Soal (Variasi Paket Anti-Contek) -->
+          <div class="space-y-1">
+            <label class="block font-bold text-slate-700">4. Acak Urutan:</label>
+            <label class="flex items-center space-x-1.5 p-1 bg-slate-50 rounded-lg border border-slate-200 cursor-pointer">
               <input type="checkbox" id="chk-print-soal-acak" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500">
-              <span class="text-[11px] font-semibold text-slate-700">Acak Soal Tiap Paket (Paket A, B, C...)</span>
+              <span class="text-[11px] font-semibold text-slate-700">Acak Paket (A, B, C...)</span>
             </label>
-            <p class="text-[10px] text-slate-500 mt-0.5">Siswa bersebelahan dapat urutan nomor berbeda</p>
+            <p class="text-[10px] text-slate-500">Anti-contek antar siswa</p>
           </div>
 
-          <!-- 4. Pengaturan Ruang Baris Jawaban & Opsi Lain -->
-          <div>
-            <label class="block font-bold text-slate-700 mb-1">Ruang Tulis Jawaban:</label>
-            <div class="grid grid-cols-2 gap-1.5">
+          <!-- 5. Pengaturan Ruang Baris Jawaban & Opsi Lain -->
+          <div class="space-y-1">
+            <label class="block font-bold text-slate-700">5. Ruang Tulis:</label>
+            <div class="grid grid-cols-2 gap-1">
               <div class="flex items-center space-x-1">
-                <span class="text-[10px] text-slate-500">Isian:</span>
-                <input type="number" id="input-print-baris-isian" min="1" max="10" value="2" class="w-full px-1.5 py-1 rounded border border-slate-300 font-semibold text-center text-xs">
-                <span class="text-[10px] text-slate-400">brs</span>
+                <span class="text-[10px] text-slate-500">Isi:</span>
+                <input type="number" id="input-print-baris-isian" min="1" max="10" value="2" class="w-full px-1 py-0.5 rounded border border-slate-300 font-semibold text-center text-xs">
               </div>
               <div class="flex items-center space-x-1">
-                <span class="text-[10px] text-slate-500">Essay:</span>
-                <input type="number" id="input-print-baris-essay" min="2" max="15" value="5" class="w-full px-1.5 py-1 rounded border border-slate-300 font-semibold text-center text-xs">
-                <span class="text-[10px] text-slate-400">brs</span>
+                <span class="text-[10px] text-slate-500">Esy:</span>
+                <input type="number" id="input-print-baris-essay" min="2" max="15" value="5" class="w-full px-1 py-0.5 rounded border border-slate-300 font-semibold text-center text-xs">
               </div>
             </div>
-            <div class="flex items-center justify-between mt-1 pt-1 border-t border-slate-100">
-              <label class="flex items-center space-x-1.5 cursor-pointer">
-                <input type="checkbox" id="chk-print-soal-kunci" class="w-3.5 h-3.5 rounded text-blue-600">
-                <span class="text-[10px] font-medium text-slate-600">Sertakan Kunci Guru</span>
+            <div class="flex items-center justify-between pt-0.5 border-t border-slate-100 text-[10px]">
+              <label class="flex items-center space-x-1 cursor-pointer">
+                <input type="checkbox" id="chk-print-soal-kunci" class="w-3 h-3 rounded text-blue-600">
+                <span class="font-medium text-slate-600">Kunci</span>
               </label>
-              <label class="flex items-center space-x-1.5 cursor-pointer">
-                <input type="checkbox" id="chk-print-soal-bobot" checked class="w-3.5 h-3.5 rounded text-blue-600">
-                <span class="text-[10px] font-medium text-slate-600">Bobot</span>
+              <label class="flex items-center space-x-1 cursor-pointer">
+                <input type="checkbox" id="chk-print-soal-bobot" checked class="w-3 h-3 rounded text-blue-600">
+                <span class="font-medium text-slate-600">Bobot</span>
               </label>
             </div>
           </div>
@@ -6452,6 +6465,9 @@
     const btnOpenCetakSoal = document.getElementById('btn-open-print-soal');
     const btnCloseCetakSoal = document.getElementById('btn-close-print-soal');
     const btnDoPrintSoal = document.getElementById('btn-do-print-soal');
+    const selectPrintSoalCount = document.getElementById('select-print-soal-count');
+    const inputPrintSoalCountCustom = document.getElementById('input-print-soal-count-custom');
+    const labelSoalCountHint = document.getElementById('label-soal-count-hint');
     const inputPrintJumlah = document.getElementById('input-print-soal-jumlah');
     const selectPrintLayout = document.getElementById('select-print-soal-layout');
     const chkPrintAcak = document.getElementById('chk-print-soal-acak');
@@ -6467,17 +6483,17 @@
       if (debouncePrintTimer) clearTimeout(debouncePrintTimer);
       debouncePrintTimer = setTimeout(() => {
         refreshCetakSoalPreview();
-      }, 250);
+      }, 150);
     }
 
     function updateLayoutHint(mode) {
       if (!labelLayoutHint) return;
       if (mode === 'hemat_kertas') {
-        labelLayoutHint.textContent = '🌿 1 kertas A4 memuat 2 lembar siswa (dipotong gunting ✂) — Hemat 50% kertas';
-        labelLayoutHint.className = 'text-[10px] text-emerald-700 mt-0.5 font-medium';
+        labelLayoutHint.textContent = '🌿 1 kertas A4 muat 2 lembar siswa (potong gunting ✂) — Hemat 50% kertas';
+        labelLayoutHint.className = 'text-[10px] text-emerald-700 font-medium truncate';
       } else {
         labelLayoutHint.textContent = '📄 1 lembar A4 penuh untuk 1 siswa — Ideal untuk 6–10+ soal';
-        labelLayoutHint.className = 'text-[10px] text-blue-700 mt-0.5 font-medium';
+        labelLayoutHint.className = 'text-[10px] text-blue-700 font-medium truncate';
       }
     }
 
@@ -6493,6 +6509,43 @@
       btnDoPrintSoal.onclick = () => {
         window.print();
       };
+    }
+
+    if (selectPrintSoalCount) {
+      selectPrintSoalCount.onchange = (e) => {
+        const val = e.target.value;
+        const total = (activeUlanganData?.soal && activeUlanganData.soal.length) || 0;
+        if (val === 'kustom') {
+          inputPrintSoalCountCustom?.classList.remove('hidden');
+        } else {
+          inputPrintSoalCountCustom?.classList.add('hidden');
+          if (val === '5') {
+            if (selectPrintLayout) selectPrintLayout.value = 'hemat_kertas';
+            updateLayoutHint('hemat_kertas');
+          } else if (val === '10') {
+            if (selectPrintLayout) selectPrintLayout.value = 'satu_halaman';
+            updateLayoutHint('satu_halaman');
+          } else if (val === 'semua') {
+            const targetLayout = (total <= 5) ? 'hemat_kertas' : 'satu_halaman';
+            if (selectPrintLayout) selectPrintLayout.value = targetLayout;
+            updateLayoutHint(targetLayout);
+          }
+        }
+        scheduleRefreshCetakSoal();
+      };
+    }
+
+    if (inputPrintSoalCountCustom) {
+      inputPrintSoalCountCustom.oninput = () => {
+        const count = Number(inputPrintSoalCountCustom.value || 1);
+        if (selectPrintLayout) {
+          const targetLayout = count <= 5 ? 'hemat_kertas' : 'satu_halaman';
+          selectPrintLayout.value = targetLayout;
+          updateLayoutHint(targetLayout);
+        }
+        scheduleRefreshCetakSoal();
+      };
+      inputPrintSoalCountCustom.onchange = scheduleRefreshCetakSoal;
     }
 
     if (inputPrintJumlah) {
@@ -6519,51 +6572,208 @@
 
       modalCetakSoal.classList.remove('hidden');
 
-      // Tentukan default layout secara pintar berdasarkan jumlah soal ulangan
       const soalCount = (activeUlanganData?.soal && activeUlanganData.soal.length) || 0;
-      if (selectPrintLayout) {
-        if (soalCount > 0 && soalCount <= 5) {
-          selectPrintLayout.value = 'hemat_kertas';
+      if (labelSoalCountHint) {
+        labelSoalCountHint.textContent = `Total: ${soalCount} butir soal tersedia`;
+      }
+
+      if (selectPrintSoalCount) {
+        const optSemua = selectPrintSoalCount.querySelector('option[value="semua"]');
+        if (optSemua) optSemua.textContent = `Semua Soal (${soalCount} Butir)`;
+        
+        if (soalCount <= 5) {
+          selectPrintSoalCount.value = 'semua';
+          if (selectPrintLayout) selectPrintLayout.value = 'hemat_kertas';
           updateLayoutHint('hemat_kertas');
         } else {
-          selectPrintLayout.value = 'satu_halaman';
-          updateLayoutHint('satu_halaman');
+          // Jika ulangan punya lebih dari 5 soal, default ke 5 soal pertama agar pas setengah kertas A4!
+          selectPrintSoalCount.value = '5';
+          if (selectPrintLayout) selectPrintLayout.value = 'hemat_kertas';
+          updateLayoutHint('hemat_kertas');
+        }
+        inputPrintSoalCountCustom?.classList.add('hidden');
+      }
+
+      refreshCetakSoalPreview();
+    }
+
+    // Generator lokal andal: langsung membuat paket cetak dari memori tanpa ketergantungan jaringan
+    function buildLocalExamPrintData(opts) {
+      const u = activeUlanganData;
+      if (!u) return null;
+
+      const rawSoal = (u.soal || []).map((s, idx) => ({
+        id: s.id,
+        nomor_asli: s.nomor || (idx + 1),
+        jenis: s.jenis || 'isian',
+        pertanyaan: s.pertanyaan,
+        gambar_url: s.gambar_url || null,
+        bobot: s.bobot || 0,
+        tingkat_kesulitan: s.tingkat_kesulitan || 'sedang',
+        kategori: s.kategori || '',
+        kunci_jawaban: s.kunci_jawaban || '',
+        rubrik: s.rubrik || '',
+        pembahasan: s.pembahasan || ''
+      }));
+
+      let baseSoalList = [...rawSoal];
+      if (opts.jumlah_soal_cetak && opts.jumlah_soal_cetak !== 'semua' && !isNaN(opts.jumlah_soal_cetak)) {
+        const target = Math.max(1, Math.min(baseSoalList.length, Number(opts.jumlah_soal_cetak)));
+        baseSoalList = baseSoalList.slice(0, target);
+      }
+
+      let modeLayout = opts.mode_layout;
+      if (!modeLayout || modeLayout === 'auto') {
+        modeLayout = (baseSoalList.length <= 5) ? 'hemat_kertas' : 'satu_halaman';
+      }
+
+      const shuffleArray = (arr) => {
+        const copy = [...arr];
+        for (let i = copy.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [copy[i], copy[j]] = [copy[j], copy[i]];
+        }
+        return copy;
+      };
+
+      const getPacketLabel = (index) => {
+        if (opts.jumlah_cetak === 1 && !opts.acak_soal) return 'Paket Standar';
+        let label = '';
+        let num = index;
+        while (num >= 0) {
+          label = String.fromCharCode(65 + (num % 26)) + label;
+          num = Math.floor(num / 26) - 1;
+        }
+        return `Paket ${label}`;
+      };
+
+      const paketList = [];
+      const masterKeys = [];
+
+      for (let i = 0; i < opts.jumlah_cetak; i++) {
+        const kodePaket = getPacketLabel(i);
+        let items = [...baseSoalList];
+        if (opts.acak_soal && baseSoalList.length > 1) {
+          if (i > 0 || opts.acak_soal) {
+            items = shuffleArray(items);
+          }
+        }
+
+        const formattedSoal = items.map((s, sIdx) => ({
+          ...s,
+          nomor_cetak: sIdx + 1,
+          baris_jawaban: (s.jenis === 'essay') ? opts.baris_essay : opts.baris_isian
+        }));
+
+        paketList.push({
+          index: i + 1,
+          kode_paket: kodePaket,
+          soal: formattedSoal
+        });
+
+        if (opts.sertakan_kunci) {
+          masterKeys.push({
+            kode_paket: kodePaket,
+            items: formattedSoal.map(s => ({
+              nomor_cetak: s.nomor_cetak,
+              nomor_asli: s.nomor_asli,
+              jenis: s.jenis,
+              bobot: s.bobot,
+              kunci_jawaban: s.kunci_jawaban,
+              rubrik: s.rubrik
+            }))
+          });
         }
       }
 
-      await refreshCetakSoalPreview();
+      return {
+        success: true,
+        ulangan: {
+          id: u.id,
+          judul: u.judul,
+          mata_pelajaran: u.mata_pelajaran,
+          tingkat_kelas: u.tingkat_kelas,
+          durasi_menit: u.durasi_menit,
+          total_bobot: baseSoalList.reduce((sum, s) => sum + (s.bobot || 0), 0),
+          deskripsi: u.deskripsi,
+          kode_ujian: u.kode_ujian,
+          total_soal: baseSoalList.length
+        },
+        guru: {
+          id: u.guru_id || 1,
+          nama: u.nama_guru || 'Guru Mata Pelajaran'
+        },
+        options: {
+          ...opts,
+          mode_layout: modeLayout,
+          total_tersedia: rawSoal.length,
+          jumlah_soal_cetak: baseSoalList.length
+        },
+        paket_list: paketList,
+        master_keys: masterKeys
+      };
     }
 
     async function refreshCetakSoalPreview() {
       if (!activeUlanganId) return;
-      cetakSheetContainer.innerHTML = '<div class="py-12 text-center text-slate-400 font-medium">Menyusun dan merender lembar soal siap cetak...</div>';
+
+      const totalTersedia = (activeUlanganData?.soal && activeUlanganData.soal.length) || 0;
+      let targetSoalCount = totalTersedia;
+      const countVal = selectPrintSoalCount?.value || 'semua';
+      if (countVal === 'kustom') {
+        targetSoalCount = Math.max(1, Math.min(totalTersedia, Number(inputPrintSoalCountCustom?.value || 5)));
+      } else if (countVal !== 'semua' && !isNaN(countVal)) {
+        targetSoalCount = Math.max(1, Math.min(totalTersedia, Number(countVal)));
+      }
 
       const jumlah = Math.max(1, Math.min(100, Number(inputPrintJumlah?.value || 1)));
-      const layout = selectPrintLayout?.value || 'hemat_kertas';
-      const acak = chkPrintAcak?.checked ? 'true' : 'false';
+      const layout = selectPrintLayout?.value || (targetSoalCount <= 5 ? 'hemat_kertas' : 'satu_halaman');
+      const acak = Boolean(chkPrintAcak?.checked);
       const barisIsian = Number(inputPrintBarisIsian?.value || 2);
       const barisEssay = Number(inputPrintBarisEssay?.value || 5);
-      const kunci = chkPrintKunci?.checked ? 'true' : 'false';
-      const bobot = chkPrintBobot?.checked ? 'true' : 'false';
+      const kunci = Boolean(chkPrintKunci?.checked);
+      const bobot = Boolean(chkPrintBobot?.checked);
 
+      const opts = {
+        jumlah_cetak: jumlah,
+        jumlah_soal_cetak: targetSoalCount,
+        mode_layout: layout,
+        acak_soal: acak,
+        baris_isian: barisIsian,
+        baris_essay: barisEssay,
+        sertakan_kunci: kunci,
+        tampilkan_bobot: bobot
+      };
+
+      // 1. Render LANGSUNG dari data lokal secara instan (0 ms, bebas error server/JSON)
+      const localData = buildLocalExamPrintData(opts);
+      if (localData) {
+        renderCetakSoalSheets(localData);
+      }
+
+      // 2. Sinkronkan dengan server secara aman di latar belakang
       try {
         const queryParams = new URLSearchParams({
           jumlah,
+          jumlah_soal: targetSoalCount,
           layout,
-          acak,
+          acak: acak ? 'true' : 'false',
           baris_isian: barisIsian,
           baris_essay: barisEssay,
-          kunci,
-          tampilkan_bobot: bobot
+          kunci: kunci ? 'true' : 'false',
+          tampilkan_bobot: bobot ? 'true' : 'false'
         });
 
         const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/soal-cetak?${queryParams.toString()}`);
-        const result = await res.json();
-        if (!res.ok || !result.success) throw new Error(result.message || 'Gagal memuat data cetak soal');
-
-        renderCetakSoalSheets(result.data);
-      } catch (err) {
-        cetakSheetContainer.innerHTML = `<div class="p-4 bg-red-50 text-red-700 rounded-xl text-xs font-semibold">${err.message}</div>`;
+        if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+          const result = await res.json();
+          if (result.success && result.data) {
+            renderCetakSoalSheets(result.data);
+          }
+        }
+      } catch (errNet) {
+        // Tampilan lokal sudah aktif dan berjalan sempurna, tidak mengganggu guru
+        console.log('Mode cetak soal menggunakan render lokal:', errNet.message);
       }
     }
 

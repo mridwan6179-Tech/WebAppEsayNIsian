@@ -148,4 +148,15 @@ test('=== PENGUJIAN FITUR CETAK LEMBAR SOAL UJIAN FISIK (A4 / HEMAT KERTAS / ACA
       examService.getExamPrintData(ulangan5Soal.id, fakeGuruId);
     }, /bukan milik guru ini/i);
   });
+
+  await t.test('7. Pemilihan Jumlah Butir Soal yang Dicetak (misal dari 10 soal hanya cetak 5 soal)', () => {
+    const data = examService.getExamPrintData(ulangan10Soal.id, guru.id, {
+      jumlah_cetak: 2,
+      jumlah_soal_cetak: 5,
+      mode_layout: 'auto'
+    });
+
+    assert.strictEqual(data.paket_list[0].soal.length, 5, 'Harus terpotong tepat 5 butir soal');
+    assert.strictEqual(data.options.mode_layout, 'hemat_kertas', 'Karena hanya cetak 5 soal, otomatis mode hemat_kertas');
+  });
 });
