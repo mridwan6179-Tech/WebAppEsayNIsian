@@ -13,6 +13,26 @@
   <style>
     body { font-family: 'Inter', 'Amiri', system-ui, sans-serif; }
     :lang(ar), [dir="rtl"] { font-family: 'Amiri', serif; }
+
+    /* Universal Base Styling Ruang Tulis Jawaban Siswa (Layar & Cetak) */
+    .print-answer-line {
+      border-bottom: 1.5px dashed #94a3b8;
+      height: 20px;
+      width: 100%;
+      margin-top: 2px;
+      box-sizing: border-box;
+    }
+    .mode-hemat-kertas .print-answer-line {
+      height: 18px;
+      margin-top: 1.5px;
+      border-bottom-color: #64748b;
+    }
+    .mode-satu-halaman .print-answer-line {
+      height: 22px;
+      margin-top: 2.5px;
+      border-bottom-color: #64748b;
+    }
+
     @media print {
       body {
         margin: 0 !important;
@@ -90,8 +110,8 @@
 
       /* Mode Hemat Kertas: 1 Lembar A4 Fisik Memuat Tepat 2 Slip Siswa */
       .a4-sheet-page.mode-hemat-kertas {
-        height: 272mm !important;
-        max-height: 272mm !important;
+        height: 275mm !important;
+        max-height: 275mm !important;
         overflow: hidden !important;
         display: flex !important;
         flex-direction: column !important;
@@ -99,10 +119,10 @@
         box-sizing: border-box !important;
       }
       .mode-hemat-kertas .student-exam-slip {
-        max-height: 130mm !important;
+        max-height: 133mm !important;
         overflow: hidden !important;
         padding: 3mm 4.5mm !important;
-        border: 1px solid #64748b !important;
+        border: 1px solid #475569 !important;
         border-radius: 4px !important;
         box-sizing: border-box !important;
         background: white !important;
@@ -117,12 +137,6 @@
         page-break-inside: avoid !important;
         break-inside: avoid !important;
       }
-      .mode-hemat-kertas .print-answer-line {
-        border-bottom: 1px dashed #64748b !important;
-        height: 14px !important;
-        width: 100% !important;
-        margin-top: 1px !important;
-      }
 
       /* Mode Standar: 1 Lembar Siswa per Halaman A4 Penuh */
       .a4-sheet-page.mode-satu-halaman {
@@ -131,17 +145,11 @@
         padding: 2mm 0 !important;
       }
       .mode-satu-halaman .student-exam-slip {
-        padding: 6mm 8mm !important;
-        border: 1px solid #64748b !important;
+        padding: 5mm 7mm !important;
+        border: 1px solid #475569 !important;
         border-radius: 6px !important;
         box-sizing: border-box !important;
         background: white !important;
-      }
-      .mode-satu-halaman .print-answer-line {
-        border-bottom: 1px dashed #64748b !important;
-        height: 20px !important;
-        width: 100% !important;
-        margin-top: 2.5px !important;
       }
 
       @page {
@@ -7004,7 +7012,7 @@
         paket.soal.forEach((s) => {
           let answerLinesHtml = '';
           for (let l = 0; l < s.baris_jawaban; l++) {
-            answerLinesHtml += `<div class="print-answer-line border-b border-dashed border-slate-400"></div>`;
+            answerLinesHtml += `<div class="print-answer-line"></div>`;
           }
 
           const badgeBobot = options.tampilkan_bobot && s.bobot ? `<span class="font-bold text-slate-700">(Bobot: ${s.bobot})</span>` : '';
@@ -7029,7 +7037,7 @@
                   ${gambarHtml}
                 </div>
               </div>
-              <div class="${isHalf ? 'pl-3.5 space-y-0.5' : 'pl-4 sm:pl-5 space-y-0.5'}">
+              <div class="${isHalf ? 'pl-3.5' : 'pl-4 sm:pl-5'}">
                 ${answerLinesHtml}
               </div>
             </div>
@@ -7043,7 +7051,7 @@
         ` : '';
 
         return `
-          <div class="student-exam-slip bg-white ${paddingClass} rounded-xl border border-slate-300 space-y-1.5 text-slate-900">
+          <div class="student-exam-slip bg-white ${paddingClass} rounded-xl border border-slate-300 ${isHalf ? 'space-y-1' : 'space-y-1.5'} text-slate-900">
             <!-- Kop / Header Lembar Soal -->
             <div class="border-b ${isHalf ? 'border-slate-800 pb-1 space-y-0.5' : 'border-b-2 border-slate-900 pb-2 space-y-1'}">
               <div class="flex items-center justify-between gap-2">
