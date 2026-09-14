@@ -432,6 +432,7 @@ app.get('/api/guru/ulangan/:id/soal-cetak', requireGuru, (req, res) => {
     const printData = examService.getExamPrintData(req.params.id, guruId, {
       jumlah_cetak: req.query.jumlah,
       jumlah_soal_cetak: req.query.jumlah_soal,
+      mode_pilihan: req.query.mode_pilihan,
       filter_jenis: req.query.filter_jenis,
       acak_soal: req.query.acak,
       mode_layout: req.query.layout,

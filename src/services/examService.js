@@ -845,7 +845,7 @@ const examService = {
     const sertakanKunci = Boolean(options.sertakan_kunci === true || options.sertakan_kunci === 'true' || options.sertakan_kunci === 1 || options.sertakan_kunci === '1');
     const tampilkanBobot = options.tampilkan_bobot !== undefined ? Boolean(options.tampilkan_bobot === true || options.tampilkan_bobot === 'true' || options.tampilkan_bobot === 1 || options.tampilkan_bobot === '1') : true;
 
-    let baseSoalList = (ulangan.soal || []).map((s, idx) => ({
+    const rawSoalList = (ulangan.soal || []).map((s, idx) => ({
       id: s.id,
       nomor_asli: s.nomor || (idx + 1),
       jenis: s.jenis || 'isian',
@@ -859,19 +859,29 @@ const examService = {
       pembahasan: s.pembahasan || ''
     }));
 
-    if (options.filter_jenis && ['isian', 'essay'].includes(options.filter_jenis)) {
-      baseSoalList = baseSoalList.filter(s => s.jenis === options.filter_jenis);
-    }
+    const isianPool = rawSoalList.filter(s => s.jenis === 'isian');
+    const essayPool = rawSoalList.filter(s => s.jenis === 'essay');
 
-    if (options.jumlah_soal_cetak !== undefined && options.jumlah_soal_cetak !== null && options.jumlah_soal_cetak !== '' && options.jumlah_soal_cetak !== 'semua') {
-      const targetCount = Math.max(1, Math.min(baseSoalList.length, Number(options.jumlah_soal_cetak)));
-      baseSoalList = baseSoalList.slice(0, targetCount);
-    }
+    const targetIsianQuota = (ulangan.jumlah_soal_isian !== null && ulangan.jumlah_soal_isian !== undefined && ulangan.jumlah_soal_isian > 0)
+      ? Number(ulangan.jumlah_soal_isian)
+      : null;
+    const targetEssayQuota = (ulangan.jumlah_soal_essay !== null && ulangan.jumlah_soal_essay !== undefined && ulangan.jumlah_soal_essay > 0)
+      ? Number(ulangan.jumlah_soal_essay)
+      : null;
+    const targetTampilQuota = (ulangan.jumlah_soal_tampil !== null && ulangan.jumlah_soal_tampil !== undefined && ulangan.jumlah_soal_tampil > 0)
+      ? Number(ulangan.jumlah_soal_tampil)
+      : null;
+    const hasExamRules = Boolean(targetIsianQuota !== null || targetEssayQuota !== null || (targetTampilQuota !== null && targetTampilQuota < rawSoalList.length));
 
-    // Tentukan mode layout: 'hemat_kertas' (2 lembar per A4) atau 'satu_halaman' (1 lembar per A4)
-    let modeLayout = options.mode_layout;
-    if (!modeLayout || modeLayout === 'auto') {
-      modeLayout = (baseSoalList.length <= 5) ? 'hemat_kertas' : 'satu_halaman';
+    // Menentukan mode pilihan soal
+    let modePilihan = options.mode_pilihan;
+    if (!modePilihan) {
+      if (options.filter_jenis === 'isian' || options.jumlah_soal_cetak === 'hanya_isian') modePilihan = 'hanya_isian';
+      else if (options.filter_jenis === 'essay' || options.jumlah_soal_cetak === 'hanya_essay') modePilihan = 'hanya_essay';
+      else if (options.jumlah_soal_cetak === 'semua') modePilihan = 'semua';
+      else if (options.jumlah_soal_cetak === 'aturan_ujian' || options.jumlah_soal_cetak === 'aturan') modePilihan = 'aturan_ujian';
+      else if (options.jumlah_soal_cetak && !isNaN(options.jumlah_soal_cetak)) modePilihan = 'kustom';
+      else modePilihan = hasExamRules ? 'aturan_ujian' : 'semua';
     }
 
     // Fungsi shuffle Fisher-Yates
@@ -883,6 +893,72 @@ const examService = {
       }
       return copy;
     };
+
+    const sampleForPacket = (isRandom) => {
+      if (modePilihan === 'hanya_isian') {
+        let pool = isRandom ? shuffleArray(isianPool) : [...isianPool];
+        if (options.jumlah_soal_cetak && !isNaN(options.jumlah_soal_cetak)) {
+          pool = pool.slice(0, Number(options.jumlah_soal_cetak));
+        }
+        return pool;
+      }
+      if (modePilihan === 'hanya_essay') {
+        let pool = isRandom ? shuffleArray(essayPool) : [...essayPool];
+        if (options.jumlah_soal_cetak && !isNaN(options.jumlah_soal_cetak)) {
+          pool = pool.slice(0, Number(options.jumlah_soal_cetak));
+        }
+        return pool;
+      }
+      if (modePilihan === 'semua') {
+        return isRandom ? shuffleArray(rawSoalList) : [...rawSoalList];
+      }
+      if (modePilihan === 'aturan_ujian') {
+        const readyIsian = isRandom ? shuffleArray(isianPool) : [...isianPool];
+        const readyEssay = isRandom ? shuffleArray(essayPool) : [...essayPool];
+
+        let selectedIsian = [];
+        if (targetIsianQuota !== null) {
+          selectedIsian = readyIsian.slice(0, Math.min(targetIsianQuota, readyIsian.length));
+        } else if (targetEssayQuota === null) {
+          selectedIsian = readyIsian;
+        }
+
+        let selectedEssay = [];
+        if (targetEssayQuota !== null) {
+          selectedEssay = readyEssay.slice(0, Math.min(targetEssayQuota, readyEssay.length));
+        } else if (targetIsianQuota === null) {
+          selectedEssay = readyEssay;
+        }
+
+        let combined = [...selectedIsian, ...selectedEssay];
+
+        if (targetTampilQuota && targetTampilQuota > combined.length) {
+          const chosenIds = new Set(combined.map(s => s.id));
+          const unchosen = rawSoalList.filter(s => !chosenIds.has(s.id));
+          const remaining = isRandom ? shuffleArray(unchosen) : unchosen;
+          combined.push(...remaining.slice(0, targetTampilQuota - combined.length));
+        } else if (targetTampilQuota && targetTampilQuota < combined.length) {
+          combined = combined.slice(0, targetTampilQuota);
+        }
+
+        return combined;
+      }
+
+      // Kustom / limit jumlah numerik
+      const targetCount = Number(options.jumlah_soal_cetak) || rawSoalList.length;
+      if (isRandom) {
+        return shuffleArray(rawSoalList).slice(0, targetCount);
+      } else {
+        return rawSoalList.slice(0, targetCount);
+      }
+    };
+
+    // Tentukan mode layout: 'hemat_kertas' (2 lembar per A4) atau 'satu_halaman' (1 lembar per A4)
+    const sampleItemsFirst = sampleForPacket(false);
+    let modeLayout = options.mode_layout;
+    if (!modeLayout || modeLayout === 'auto') {
+      modeLayout = (sampleItemsFirst.length <= 5) ? 'hemat_kertas' : 'satu_halaman';
+    }
 
     // Label paket: A, B, C, D ... Z, AA, AB ...
     const getPacketLabel = (index) => {
@@ -901,14 +977,8 @@ const examService = {
 
     for (let i = 0; i < jumlahCetak; i++) {
       const kodePaket = getPacketLabel(i);
-      let items = [...baseSoalList];
-
-      if (acakSoal && baseSoalList.length > 1) {
-        // Acak urutan soal untuk tiap paket (jika i == 0, biarkan urutan asli atau acak deterministik)
-        if (i > 0 || acakSoal) {
-          items = shuffleArray(items);
-        }
-      }
+      const isRandom = acakSoal && (i > 0 || acakSoal);
+      const items = sampleForPacket(isRandom);
 
       const formattedSoal = items.map((s, sIdx) => ({
         ...s,
@@ -948,7 +1018,8 @@ const examService = {
         total_bobot: ulangan.total_bobot,
         deskripsi: ulangan.deskripsi,
         kode_ujian: ulangan.kode_ujian,
-        total_soal: baseSoalList.length
+        total_soal: paketList[0]?.soal?.length || rawSoalList.length,
+        total_bank: rawSoalList.length
       },
       guru: {
         id: guru.id,
@@ -956,6 +1027,8 @@ const examService = {
       },
       options: {
         jumlah_cetak: jumlahCetak,
+        jumlah_soal_cetak: paketList[0]?.soal?.length || rawSoalList.length,
+        mode_pilihan: modePilihan,
         acak_soal: acakSoal,
         mode_layout: modeLayout,
         baris_isian: barisIsian,

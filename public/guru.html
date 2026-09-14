@@ -6514,7 +6514,8 @@
     if (selectPrintSoalCount) {
       selectPrintSoalCount.onchange = (e) => {
         const val = e.target.value;
-        const total = (activeUlanganData?.soal && activeUlanganData.soal.length) || 0;
+        const u = activeUlanganData;
+        const total = (u?.soal && u.soal.length) || 0;
         if (val === 'kustom') {
           inputPrintSoalCountCustom?.classList.remove('hidden');
         } else {
@@ -6525,6 +6526,13 @@
           } else if (val === '10') {
             if (selectPrintLayout) selectPrintLayout.value = 'satu_halaman';
             updateLayoutHint('satu_halaman');
+          } else if (val === 'aturan_ujian') {
+            const targetIsian = u?.jumlah_soal_isian || 0;
+            const targetEssay = u?.jumlah_soal_essay || 0;
+            const countAturan = u?.jumlah_soal_tampil || (targetIsian + targetEssay) || total;
+            const targetLayout = countAturan <= 5 ? 'hemat_kertas' : 'satu_halaman';
+            if (selectPrintLayout) selectPrintLayout.value = targetLayout;
+            updateLayoutHint(targetLayout);
           } else if (val === 'semua') {
             const targetLayout = (total <= 5) ? 'hemat_kertas' : 'satu_halaman';
             if (selectPrintLayout) selectPrintLayout.value = targetLayout;
@@ -6572,26 +6580,71 @@
 
       modalCetakSoal.classList.remove('hidden');
 
-      const soalCount = (activeUlanganData?.soal && activeUlanganData.soal.length) || 0;
+      const u = activeUlanganData;
+      const rawSoal = u?.soal || [];
+      const totalBank = rawSoal.length;
+      const totalIsian = rawSoal.filter(s => s.jenis === 'isian').length;
+      const totalEssay = rawSoal.filter(s => s.jenis === 'essay').length;
+
+      const targetIsian = (u?.jumlah_soal_isian !== null && u?.jumlah_soal_isian !== undefined && u?.jumlah_soal_isian > 0)
+        ? Number(u.jumlah_soal_isian)
+        : null;
+      const targetEssay = (u?.jumlah_soal_essay !== null && u?.jumlah_soal_essay !== undefined && u?.jumlah_soal_essay > 0)
+        ? Number(u.jumlah_soal_essay)
+        : null;
+      const targetTampil = (u?.jumlah_soal_tampil !== null && u?.jumlah_soal_tampil !== undefined && u?.jumlah_soal_tampil > 0)
+        ? Number(u.jumlah_soal_tampil)
+        : null;
+
+      const hasExamRules = Boolean(targetIsian !== null || targetEssay !== null || (targetTampil !== null && targetTampil < totalBank));
+
+      let aturanDesc = '';
+      if (targetIsian && targetEssay) {
+        aturanDesc = `${targetIsian} Isian + ${targetEssay} Essay = ${(targetIsian + targetEssay)} Soal`;
+      } else if (targetIsian) {
+        aturanDesc = `${targetIsian} Isian`;
+      } else if (targetEssay) {
+        aturanDesc = `${targetEssay} Essay`;
+      } else if (targetTampil) {
+        aturanDesc = `${targetTampil} Soal Tampil`;
+      }
+
       if (labelSoalCountHint) {
-        labelSoalCountHint.textContent = `Total: ${soalCount} butir soal tersedia`;
+        labelSoalCountHint.textContent = hasExamRules
+          ? `Aturan: ${aturanDesc} • Bank: ${totalBank} soal (${totalIsian} Isi, ${totalEssay} Esy)`
+          : `Total Bank: ${totalBank} butir soal (${totalIsian} Isian, ${totalEssay} Essay)`;
       }
 
       if (selectPrintSoalCount) {
-        const optSemua = selectPrintSoalCount.querySelector('option[value="semua"]');
-        if (optSemua) optSemua.textContent = `Semua Soal (${soalCount} Butir)`;
-        
-        if (soalCount <= 5) {
-          selectPrintSoalCount.value = 'semua';
-          if (selectPrintLayout) selectPrintLayout.value = 'hemat_kertas';
-          updateLayoutHint('hemat_kertas');
-        } else {
-          // Jika ulangan punya lebih dari 5 soal, default ke 5 soal pertama agar pas setengah kertas A4!
-          selectPrintSoalCount.value = '5';
-          if (selectPrintLayout) selectPrintLayout.value = 'hemat_kertas';
-          updateLayoutHint('hemat_kertas');
+        let html = '';
+        if (hasExamRules) {
+          html += `<option value="aturan_ujian" selected>🎯 Sesuai Aturan Ujian (${aturanDesc})</option>`;
         }
+        html += `<option value="semua" ${!hasExamRules ? 'selected' : ''}>📚 Semua Soal Bank (${totalBank} Butir)</option>`;
+        if (totalIsian > 0) {
+          html += `<option value="hanya_isian">✏️ Hanya Soal Isian (${totalIsian} Butir)</option>`;
+        }
+        if (totalEssay > 0) {
+          html += `<option value="hanya_essay">📝 Hanya Soal Essay (${totalEssay} Butir)</option>`;
+        }
+        html += `<option value="5">5 Soal Pertama Urutan Bank</option>`;
+        html += `<option value="10">10 Soal Pertama Urutan Bank</option>`;
+        html += `<option value="kustom">⚙️ Kustom Jumlah...</option>`;
+        selectPrintSoalCount.innerHTML = html;
+
+        // Auto tata letak hemat kertas jika aturan ujian <= 5 soal
+        const estimasiSoal = hasExamRules
+          ? (targetTampil || ((targetIsian || 0) + (targetEssay || 0)) || totalBank)
+          : totalBank;
+        const targetLayout = estimasiSoal <= 5 ? 'hemat_kertas' : 'satu_halaman';
+        if (selectPrintLayout) selectPrintLayout.value = targetLayout;
+        updateLayoutHint(targetLayout);
+
         inputPrintSoalCountCustom?.classList.add('hidden');
+      }
+
+      if (chkPrintAcak) {
+        chkPrintAcak.checked = Boolean(u?.acak_soal === 1);
       }
 
       refreshCetakSoalPreview();
@@ -6616,15 +6669,23 @@
         pembahasan: s.pembahasan || ''
       }));
 
-      let baseSoalList = [...rawSoal];
-      if (opts.jumlah_soal_cetak && opts.jumlah_soal_cetak !== 'semua' && !isNaN(opts.jumlah_soal_cetak)) {
-        const target = Math.max(1, Math.min(baseSoalList.length, Number(opts.jumlah_soal_cetak)));
-        baseSoalList = baseSoalList.slice(0, target);
-      }
+      const isianPool = rawSoal.filter(s => s.jenis === 'isian');
+      const essayPool = rawSoal.filter(s => s.jenis === 'essay');
 
-      let modeLayout = opts.mode_layout;
-      if (!modeLayout || modeLayout === 'auto') {
-        modeLayout = (baseSoalList.length <= 5) ? 'hemat_kertas' : 'satu_halaman';
+      const targetIsianQuota = (u.jumlah_soal_isian !== null && u.jumlah_soal_isian !== undefined && u.jumlah_soal_isian > 0)
+        ? Number(u.jumlah_soal_isian)
+        : null;
+      const targetEssayQuota = (u.jumlah_soal_essay !== null && u.jumlah_soal_essay !== undefined && u.jumlah_soal_essay > 0)
+        ? Number(u.jumlah_soal_essay)
+        : null;
+      const targetTampilQuota = (u.jumlah_soal_tampil !== null && u.jumlah_soal_tampil !== undefined && u.jumlah_soal_tampil > 0)
+        ? Number(u.jumlah_soal_tampil)
+        : null;
+      const hasExamRules = Boolean(targetIsianQuota !== null || targetEssayQuota !== null || (targetTampilQuota !== null && targetTampilQuota < rawSoal.length));
+
+      let modePilihan = opts.mode_pilihan || opts.jumlah_soal_cetak;
+      if (!modePilihan) {
+        modePilihan = hasExamRules ? 'aturan_ujian' : 'semua';
       }
 
       const shuffleArray = (arr) => {
@@ -6635,6 +6696,67 @@
         }
         return copy;
       };
+
+      const sampleForPacket = (isRandom) => {
+        if (modePilihan === 'hanya_isian') {
+          let pool = isRandom ? shuffleArray(isianPool) : [...isianPool];
+          if (opts.custom_count) pool = pool.slice(0, opts.custom_count);
+          return pool;
+        }
+        if (modePilihan === 'hanya_essay') {
+          let pool = isRandom ? shuffleArray(essayPool) : [...essayPool];
+          if (opts.custom_count) pool = pool.slice(0, opts.custom_count);
+          return pool;
+        }
+        if (modePilihan === 'semua') {
+          return isRandom ? shuffleArray(rawSoal) : [...rawSoal];
+        }
+        if (modePilihan === 'aturan_ujian') {
+          const readyIsian = isRandom ? shuffleArray(isianPool) : [...isianPool];
+          const readyEssay = isRandom ? shuffleArray(essayPool) : [...essayPool];
+
+          let selectedIsian = [];
+          if (targetIsianQuota !== null) {
+            selectedIsian = readyIsian.slice(0, Math.min(targetIsianQuota, readyIsian.length));
+          } else if (targetEssayQuota === null) {
+            selectedIsian = readyIsian;
+          }
+
+          let selectedEssay = [];
+          if (targetEssayQuota !== null) {
+            selectedEssay = readyEssay.slice(0, Math.min(targetEssayQuota, readyEssay.length));
+          } else if (targetIsianQuota === null) {
+            selectedEssay = readyEssay;
+          }
+
+          let combined = [...selectedIsian, ...selectedEssay];
+
+          if (targetTampilQuota && targetTampilQuota > combined.length) {
+            const chosenIds = new Set(combined.map(s => s.id));
+            const unchosen = rawSoal.filter(s => !chosenIds.has(s.id));
+            const remaining = isRandom ? shuffleArray(unchosen) : unchosen;
+            combined.push(...remaining.slice(0, targetTampilQuota - combined.length));
+          } else if (targetTampilQuota && targetTampilQuota < combined.length) {
+            combined = combined.slice(0, targetTampilQuota);
+          }
+
+          return combined;
+        }
+
+        // Kustom / limit jumlah numerik
+        const targetCount = Number(opts.custom_count || modePilihan) || rawSoal.length;
+        if (isRandom) {
+          return shuffleArray(rawSoal).slice(0, targetCount);
+        } else {
+          return rawSoal.slice(0, targetCount);
+        }
+      };
+
+      const sampleFirst = sampleForPacket(false);
+      let modeLayout = opts.mode_layout;
+      if (!modeLayout || modeLayout === 'auto') {
+        modeLayout = (sampleFirst.length <= 5) ? 'hemat_kertas' : 'satu_halaman';
+      }
 
       const getPacketLabel = (index) => {
         if (opts.jumlah_cetak === 1 && !opts.acak_soal) return 'Paket Standar';
@@ -6652,12 +6774,8 @@
 
       for (let i = 0; i < opts.jumlah_cetak; i++) {
         const kodePaket = getPacketLabel(i);
-        let items = [...baseSoalList];
-        if (opts.acak_soal && baseSoalList.length > 1) {
-          if (i > 0 || opts.acak_soal) {
-            items = shuffleArray(items);
-          }
-        }
+        const isRandom = opts.acak_soal && (i > 0 || opts.acak_soal);
+        const items = sampleForPacket(isRandom);
 
         const formattedSoal = items.map((s, sIdx) => ({
           ...s,
@@ -6694,10 +6812,11 @@
           mata_pelajaran: u.mata_pelajaran,
           tingkat_kelas: u.tingkat_kelas,
           durasi_menit: u.durasi_menit,
-          total_bobot: baseSoalList.reduce((sum, s) => sum + (s.bobot || 0), 0),
+          total_bobot: paketList[0]?.soal?.reduce((sum, s) => sum + (s.bobot || 0), 0) || 0,
           deskripsi: u.deskripsi,
           kode_ujian: u.kode_ujian,
-          total_soal: baseSoalList.length
+          total_soal: paketList[0]?.soal?.length || rawSoal.length,
+          total_bank: rawSoal.length
         },
         guru: {
           id: u.guru_id || 1,
@@ -6706,8 +6825,9 @@
         options: {
           ...opts,
           mode_layout: modeLayout,
+          mode_pilihan: modePilihan,
           total_tersedia: rawSoal.length,
-          jumlah_soal_cetak: baseSoalList.length
+          jumlah_soal_cetak: paketList[0]?.soal?.length || rawSoal.length
         },
         paket_list: paketList,
         master_keys: masterKeys
@@ -6718,16 +6838,14 @@
       if (!activeUlanganId) return;
 
       const totalTersedia = (activeUlanganData?.soal && activeUlanganData.soal.length) || 0;
-      let targetSoalCount = totalTersedia;
-      const countVal = selectPrintSoalCount?.value || 'semua';
+      const countVal = selectPrintSoalCount?.value || 'aturan_ujian';
+      let customCount = null;
       if (countVal === 'kustom') {
-        targetSoalCount = Math.max(1, Math.min(totalTersedia, Number(inputPrintSoalCountCustom?.value || 5)));
-      } else if (countVal !== 'semua' && !isNaN(countVal)) {
-        targetSoalCount = Math.max(1, Math.min(totalTersedia, Number(countVal)));
+        customCount = Math.max(1, Math.min(totalTersedia, Number(inputPrintSoalCountCustom?.value || 5)));
       }
 
       const jumlah = Math.max(1, Math.min(100, Number(inputPrintJumlah?.value || 1)));
-      const layout = selectPrintLayout?.value || (targetSoalCount <= 5 ? 'hemat_kertas' : 'satu_halaman');
+      const layout = selectPrintLayout?.value || 'auto';
       const acak = Boolean(chkPrintAcak?.checked);
       const barisIsian = Number(inputPrintBarisIsian?.value || 2);
       const barisEssay = Number(inputPrintBarisEssay?.value || 5);
@@ -6736,7 +6854,9 @@
 
       const opts = {
         jumlah_cetak: jumlah,
-        jumlah_soal_cetak: targetSoalCount,
+        mode_pilihan: countVal,
+        custom_count: customCount,
+        jumlah_soal_cetak: countVal === 'kustom' ? customCount : countVal,
         mode_layout: layout,
         acak_soal: acak,
         baris_isian: barisIsian,
@@ -6755,7 +6875,8 @@
       try {
         const queryParams = new URLSearchParams({
           jumlah,
-          jumlah_soal: targetSoalCount,
+          mode_pilihan: countVal,
+          jumlah_soal: countVal === 'kustom' ? customCount : countVal,
           layout,
           acak: acak ? 'true' : 'false',
           baris_isian: barisIsian,

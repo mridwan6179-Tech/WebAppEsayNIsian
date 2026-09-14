@@ -159,4 +159,56 @@ test('=== PENGUJIAN FITUR CETAK LEMBAR SOAL UJIAN FISIK (A4 / HEMAT KERTAS / ACA
     assert.strictEqual(data.paket_list[0].soal.length, 5, 'Harus terpotong tepat 5 butir soal');
     assert.strictEqual(data.options.mode_layout, 'hemat_kertas', 'Karena hanya cetak 5 soal, otomatis mode hemat_kertas');
   });
+
+  await t.test('8. Mengikuti Aturan Ujian (Proporsi Kuota 4 Isian + 1 Essay dari Bank Soal Campur)', () => {
+    // Buat ulangan dengan aturan: 4 Isian, 1 Essay, Total Tampil: 5 dari total 15 bank soal
+    const ulanganCampur = examService.createUlangan(guru.id, {
+      judul: 'Ulangan TIK Komputasi',
+      mata_pelajaran: 'Informatika',
+      tingkat_kelas: 'Kelas 9',
+      durasi_menit: 60,
+      jumlah_soal_tampil: 5,
+      jumlah_soal_isian: 4,
+      jumlah_soal_essay: 1,
+      acak_soal: 1
+    });
+
+    // Masukkan 10 butir isian
+    for (let i = 1; i <= 10; i++) {
+      examService.createSoal(ulanganCampur.id, {
+        nomor: i,
+        jenis: 'isian',
+        pertanyaan: `Pertanyaan Isian Informatika ke-${i}`,
+        kunci_jawaban: `Jawaban ${i}`,
+        bobot: 15
+      });
+    }
+    // Masukkan 5 butir essay
+    for (let i = 11; i <= 15; i++) {
+      examService.createSoal(ulanganCampur.id, {
+        nomor: i,
+        jenis: 'essay',
+        pertanyaan: `Pertanyaan Essay Informatika ke-${i}`,
+        kunci_jawaban: `Jawaban Essay ${i}`,
+        bobot: 40
+      });
+    }
+
+    // Default cetak (tanpa override) harus otomatis mengikuti aturan ujian!
+    const data = examService.getExamPrintData(ulanganCampur.id, guru.id, {
+      jumlah_cetak: 3,
+      acak_soal: true
+    });
+
+    assert.strictEqual(data.options.mode_pilihan, 'aturan_ujian');
+    assert.strictEqual(data.paket_list.length, 3);
+
+    data.paket_list.forEach((paket, pIdx) => {
+      assert.strictEqual(paket.soal.length, 5, `Paket ${pIdx + 1} harus tepat 5 butir soal`);
+      const isianCount = paket.soal.filter(s => s.jenis === 'isian').length;
+      const essayCount = paket.soal.filter(s => s.jenis === 'essay').length;
+      assert.strictEqual(isianCount, 4, `Paket ${pIdx + 1} harus tepat memiliki 4 soal isian`);
+      assert.strictEqual(essayCount, 1, `Paket ${pIdx + 1} harus tepat memiliki 1 soal essay`);
+    });
+  });
 });
