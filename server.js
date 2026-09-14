@@ -425,6 +425,24 @@ app.get('/api/guru/ulangan/:id/laporan', requireGuru, (req, res) => {
   }
 });
 
+// Lembar Cetak Soal Ujian Fisik / Offline (A4, Hemat Kertas & Acak Paket)
+app.get('/api/guru/ulangan/:id/soal-cetak', requireGuru, (req, res) => {
+  try {
+    const printData = examService.getExamPrintData(req.params.id, req.guru.guruId, {
+      jumlah_cetak: req.query.jumlah,
+      acak_soal: req.query.acak,
+      mode_layout: req.query.layout,
+      baris_isian: req.query.baris_isian,
+      baris_essay: req.query.baris_essay,
+      sertakan_kunci: req.query.kunci,
+      tampilkan_bobot: req.query.tampilkan_bobot
+    });
+    res.json({ success: true, data: printData });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 // Soal
 app.post('/api/guru/ulangan/:id/soal', requireGuru, (req, res) => {
   try {

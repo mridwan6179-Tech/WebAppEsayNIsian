@@ -827,7 +827,138 @@ const examService = {
       mode,
       soal: refreshedSoal
     };
+  },
+
+  // Fitur Cetak Lembar Soal Ujian Fisik (A4) untuk Siswa Tanpa HP / Ujian Kertas
+  getExamPrintData(ulanganId, guruId, options = {}) {
+    const ulangan = this.getUlanganById(ulanganId, guruId);
+    if (!ulangan) {
+      throw new Error('Ulangan tidak ditemukan atau bukan milik guru ini');
+    }
+
+    const guru = db.prepare('SELECT id, nama, email FROM guru WHERE id = ?').get(ulangan.guru_id) || { nama: 'Guru Pengampu' };
+
+    const jumlahCetak = Math.max(1, Math.min(100, Number(options.jumlah_cetak || 1)));
+    const acakSoal = Boolean(options.acak_soal === true || options.acak_soal === 'true' || options.acak_soal === 1 || options.acak_soal === '1');
+    const barisIsian = Math.max(1, Math.min(10, Number(options.baris_isian || 2)));
+    const barisEssay = Math.max(2, Math.min(20, Number(options.baris_essay || 5)));
+    const sertakanKunci = Boolean(options.sertakan_kunci === true || options.sertakan_kunci === 'true' || options.sertakan_kunci === 1 || options.sertakan_kunci === '1');
+    const tampilkanBobot = options.tampilkan_bobot !== undefined ? Boolean(options.tampilkan_bobot === true || options.tampilkan_bobot === 'true' || options.tampilkan_bobot === 1 || options.tampilkan_bobot === '1') : true;
+
+    // Tentukan mode layout: 'hemat_kertas' (2 lembar per A4) atau 'satu_halaman' (1 lembar per A4)
+    let modeLayout = options.mode_layout;
+    if (!modeLayout || modeLayout === 'auto') {
+      modeLayout = (ulangan.soal && ulangan.soal.length <= 5) ? 'hemat_kertas' : 'satu_halaman';
+    }
+
+    const baseSoalList = (ulangan.soal || []).map((s, idx) => ({
+      id: s.id,
+      nomor_asli: s.nomor || (idx + 1),
+      jenis: s.jenis || 'isian',
+      pertanyaan: s.pertanyaan,
+      gambar_url: s.gambar_url || null,
+      bobot: s.bobot || 0,
+      tingkat_kesulitan: s.tingkat_kesulitan || 'sedang',
+      kategori: s.kategori || '',
+      kunci_jawaban: s.kunci_jawaban || '',
+      rubrik: s.rubrik || '',
+      pembahasan: s.pembahasan || ''
+    }));
+
+    // Fungsi shuffle Fisher-Yates
+    const shuffleArray = (arr) => {
+      const copy = [...arr];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    };
+
+    // Label paket: A, B, C, D ... Z, AA, AB ...
+    const getPacketLabel = (index) => {
+      if (jumlahCetak === 1 && !acakSoal) return 'Paket Standar';
+      let label = '';
+      let num = index;
+      while (num >= 0) {
+        label = String.fromCharCode(65 + (num % 26)) + label;
+        num = Math.floor(num / 26) - 1;
+      }
+      return `Paket ${label}`;
+    };
+
+    const paketList = [];
+    const masterKeys = [];
+
+    for (let i = 0; i < jumlahCetak; i++) {
+      const kodePaket = getPacketLabel(i);
+      let items = [...baseSoalList];
+
+      if (acakSoal && baseSoalList.length > 1) {
+        // Acak urutan soal untuk tiap paket (jika i == 0, biarkan urutan asli atau acak deterministik)
+        if (i > 0 || acakSoal) {
+          items = shuffleArray(items);
+        }
+      }
+
+      const formattedSoal = items.map((s, sIdx) => ({
+        ...s,
+        nomor_cetak: sIdx + 1,
+        baris_jawaban: (s.jenis === 'essay') ? barisEssay : barisIsian
+      }));
+
+      paketList.push({
+        index: i + 1,
+        kode_paket: kodePaket,
+        soal: formattedSoal
+      });
+
+      if (sertakanKunci) {
+        masterKeys.push({
+          kode_paket: kodePaket,
+          items: formattedSoal.map(s => ({
+            nomor_cetak: s.nomor_cetak,
+            nomor_asli: s.nomor_asli,
+            jenis: s.jenis,
+            bobot: s.bobot,
+            kunci_jawaban: s.kunci_jawaban,
+            rubrik: s.rubrik
+          }))
+        });
+      }
+    }
+
+    return {
+      success: true,
+      ulangan: {
+        id: ulangan.id,
+        judul: ulangan.judul,
+        mata_pelajaran: ulangan.mata_pelajaran,
+        tingkat_kelas: ulangan.tingkat_kelas,
+        durasi_menit: ulangan.durasi_menit,
+        total_bobot: ulangan.total_bobot,
+        deskripsi: ulangan.deskripsi,
+        kode_ujian: ulangan.kode_ujian,
+        total_soal: baseSoalList.length
+      },
+      guru: {
+        id: guru.id,
+        nama: guru.nama
+      },
+      options: {
+        jumlah_cetak: jumlahCetak,
+        acak_soal: acakSoal,
+        mode_layout: modeLayout,
+        baris_isian: barisIsian,
+        baris_essay: barisEssay,
+        sertakan_kunci: sertakanKunci,
+        tampilkan_bobot: tampilkanBobot
+      },
+      paket_list: paketList,
+      master_keys: masterKeys
+    };
   }
 };
 
 module.exports = examService;
+

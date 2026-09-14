@@ -20,10 +20,11 @@
       .no-print, nav, header, button, #section-login, #section-dashboard, #modal-ai-generator, #modal-review {
         display: none !important;
       }
-      #modal-laporan, #modal-laporan * {
+      #modal-laporan, #modal-laporan *,
+      #modal-cetak-soal, #modal-cetak-soal * {
         visibility: visible !important;
       }
-      #modal-laporan {
+      #modal-laporan, #modal-cetak-soal {
         position: absolute !important;
         left: 0 !important;
         top: 0 !important;
@@ -35,22 +36,39 @@
         border: none !important;
         overflow: visible !important;
       }
-      #modal-laporan > div {
+      #modal-laporan > div, #modal-cetak-soal > div {
         max-width: 100% !important;
         max-height: none !important;
         box-shadow: none !important;
         border: none !important;
         overflow: visible !important;
+        background: white !important;
       }
-      #laporan-sheet-container {
+      #laporan-sheet-container, #cetak-soal-sheet-container {
         padding: 0 !important;
         margin: 0 !important;
         width: 100% !important;
         overflow: visible !important;
       }
+      .print-page-break {
+        page-break-after: always !important;
+        break-after: page !important;
+      }
+      .print-avoid-break {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+      .print-answer-line {
+        border-bottom: 1px dashed #64748b !important;
+        height: 22px !important;
+        width: 100% !important;
+      }
+      .print-cut-line {
+        border-bottom: 1.5px dashed #475569 !important;
+      }
       @page {
         size: A4 portrait;
-        margin: 1.5cm 1.5cm 1.5cm 1.5cm;
+        margin: 0.8cm 1cm 0.8cm 1cm;
       }
     }
   </style>
@@ -536,6 +554,9 @@
               <div class="flex items-center space-x-2 flex-wrap gap-y-1">
                 <button id="btn-open-calibrate-weights" type="button" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold px-3 py-1.5 rounded-lg border border-amber-300 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Kalibrasi bobot seluruh butir soal secara adil & seimbang">
                   <span>⚖️ Kalibrasi Bobot</span>
+                </button>
+                <button id="btn-open-print-soal" type="button" class="text-xs bg-slate-800 hover:bg-slate-900 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1.5 cursor-pointer" title="Cetak lembar soal ujian fisik untuk siswa offline (kertas A4 / hemat kertas / acak paket)">
+                  <span>🖨️ Cetak Lembar Soal</span>
                 </button>
                 <button id="btn-open-import-from-bank" type="button" class="text-xs bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold px-3 py-1.5 rounded-lg border border-purple-200 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Ambil dan masukkan soal dari Bank Soal Mandiri">
                   <span>📂 Ambil dari Bank Soal</span>
@@ -2160,6 +2181,102 @@
       <div class="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-100/60">
         <div id="laporan-sheet-container" class="bg-white p-6 sm:p-10 rounded-xl shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6 text-slate-800">
           <p class="text-center text-slate-400 py-10">Memuat data laporan nilai...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Cetak Lembar Soal Ujian Fisik (A4 / Offline) -->
+  <div id="modal-cetak-soal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-5 overflow-y-auto">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[95vh] flex flex-col border border-slate-200 overflow-hidden">
+      <!-- Toolbar Atas (No-Print) -->
+      <div class="no-print p-4 bg-slate-50 border-b border-slate-200 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center space-x-2.5">
+            <span class="text-2xl">🖨️</span>
+            <div>
+              <h3 class="font-bold text-slate-800 text-sm sm:text-base flex items-center gap-2">
+                <span>Cetak Lembar Soal Ujian Fisik (Format A4)</span>
+                <span class="text-[11px] bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded-full">Khusus Siswa Tanpa HP / Ujian Kertas</span>
+              </h3>
+              <p class="text-slate-500 text-xs">Mendukung variasi paket acak anti-contek, tata letak hemat kertas (2 lembar per A4), dan ruang tulis bergaris rapi.</p>
+            </div>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button id="btn-do-print-soal" type="button" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition flex items-center space-x-1.5 shadow-md cursor-pointer active:scale-95">
+              <span>🖨️ Cetak / Simpan PDF</span>
+            </button>
+            <button id="btn-close-print-soal" type="button" class="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs rounded-xl transition cursor-pointer">
+              ✕ Tutup
+            </button>
+          </div>
+        </div>
+
+        <!-- Panel Pengaturan Cetak (Live Options) -->
+        <div class="p-3 bg-white rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+          <!-- 1. Jumlah Lembar / Paket Siswa -->
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Jumlah Lembar / Siswa:</label>
+            <div class="flex items-center space-x-1.5">
+              <input type="number" id="input-print-soal-jumlah" min="1" max="100" value="1" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-semibold text-slate-800 focus:ring-1 focus:ring-blue-500">
+              <span class="text-slate-400 text-[11px] shrink-0 font-medium">lembar</span>
+            </div>
+            <p class="text-[10px] text-slate-500 mt-0.5">Jumlah siswa yang butuh lembar kertas</p>
+          </div>
+
+          <!-- 2. Mode Tata Letak Kertas (Hemat Kertas vs Standar) -->
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Tata Letak Kertas A4:</label>
+            <select id="select-print-soal-layout" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-semibold text-slate-800 focus:ring-1 focus:ring-blue-500 bg-white">
+              <option value="hemat_kertas">🌿 Hemat Kertas (2 Lembar Siswa / A4)</option>
+              <option value="satu_halaman">📄 Standar (1 Lembar Siswa / A4)</option>
+            </select>
+            <p id="label-layout-hint" class="text-[10px] text-emerald-700 mt-0.5 font-medium">1 lembar A4 muat 2 siswa (potong gunting ✂)</p>
+          </div>
+
+          <!-- 3. Pengacakan Soal (Variasi Paket Anti-Contek) -->
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Pengacakan Urutan Soal:</label>
+            <label class="flex items-center space-x-2 p-1.5 bg-slate-50 rounded-lg border border-slate-200 cursor-pointer">
+              <input type="checkbox" id="chk-print-soal-acak" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500">
+              <span class="text-[11px] font-semibold text-slate-700">Acak Soal Tiap Paket (Paket A, B, C...)</span>
+            </label>
+            <p class="text-[10px] text-slate-500 mt-0.5">Siswa bersebelahan dapat urutan nomor berbeda</p>
+          </div>
+
+          <!-- 4. Pengaturan Ruang Baris Jawaban & Opsi Lain -->
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Ruang Tulis Jawaban:</label>
+            <div class="grid grid-cols-2 gap-1.5">
+              <div class="flex items-center space-x-1">
+                <span class="text-[10px] text-slate-500">Isian:</span>
+                <input type="number" id="input-print-baris-isian" min="1" max="10" value="2" class="w-full px-1.5 py-1 rounded border border-slate-300 font-semibold text-center text-xs">
+                <span class="text-[10px] text-slate-400">brs</span>
+              </div>
+              <div class="flex items-center space-x-1">
+                <span class="text-[10px] text-slate-500">Essay:</span>
+                <input type="number" id="input-print-baris-essay" min="2" max="15" value="5" class="w-full px-1.5 py-1 rounded border border-slate-300 font-semibold text-center text-xs">
+                <span class="text-[10px] text-slate-400">brs</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between mt-1 pt-1 border-t border-slate-100">
+              <label class="flex items-center space-x-1.5 cursor-pointer">
+                <input type="checkbox" id="chk-print-soal-kunci" class="w-3.5 h-3.5 rounded text-blue-600">
+                <span class="text-[10px] font-medium text-slate-600">Sertakan Kunci Guru</span>
+              </label>
+              <label class="flex items-center space-x-1.5 cursor-pointer">
+                <input type="checkbox" id="chk-print-soal-bobot" checked class="w-3.5 h-3.5 rounded text-blue-600">
+                <span class="text-[10px] font-medium text-slate-600">Bobot</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Container Lembar Dokumen Fisik yang Siap Dicetak -->
+      <div class="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-200/70">
+        <div id="cetak-soal-sheet-container" class="max-w-3xl mx-auto space-y-6">
+          <p class="text-center text-slate-400 py-10">Menyiapkan lembar cetak soal...</p>
         </div>
       </div>
     </div>
@@ -6326,6 +6443,368 @@
           </div>
         </div>
       `;
+    }
+
+    // =========================================================================
+    // FITUR CETAK LEMBAR SOAL UJIAN FISIK (A4 / HEMAT KERTAS / ACAK PAKET)
+    // =========================================================================
+    const modalCetakSoal = document.getElementById('modal-cetak-soal');
+    const btnOpenCetakSoal = document.getElementById('btn-open-print-soal');
+    const btnCloseCetakSoal = document.getElementById('btn-close-print-soal');
+    const btnDoPrintSoal = document.getElementById('btn-do-print-soal');
+    const inputPrintJumlah = document.getElementById('input-print-soal-jumlah');
+    const selectPrintLayout = document.getElementById('select-print-soal-layout');
+    const chkPrintAcak = document.getElementById('chk-print-soal-acak');
+    const inputPrintBarisIsian = document.getElementById('input-print-baris-isian');
+    const inputPrintBarisEssay = document.getElementById('input-print-baris-essay');
+    const chkPrintKunci = document.getElementById('chk-print-soal-kunci');
+    const chkPrintBobot = document.getElementById('chk-print-soal-bobot');
+    const cetakSheetContainer = document.getElementById('cetak-soal-sheet-container');
+    const labelLayoutHint = document.getElementById('label-layout-hint');
+
+    let debouncePrintTimer = null;
+    function scheduleRefreshCetakSoal() {
+      if (debouncePrintTimer) clearTimeout(debouncePrintTimer);
+      debouncePrintTimer = setTimeout(() => {
+        refreshCetakSoalPreview();
+      }, 250);
+    }
+
+    function updateLayoutHint(mode) {
+      if (!labelLayoutHint) return;
+      if (mode === 'hemat_kertas') {
+        labelLayoutHint.textContent = '🌿 1 kertas A4 memuat 2 lembar siswa (dipotong gunting ✂) — Hemat 50% kertas';
+        labelLayoutHint.className = 'text-[10px] text-emerald-700 mt-0.5 font-medium';
+      } else {
+        labelLayoutHint.textContent = '📄 1 lembar A4 penuh untuk 1 siswa — Ideal untuk 6–10+ soal';
+        labelLayoutHint.className = 'text-[10px] text-blue-700 mt-0.5 font-medium';
+      }
+    }
+
+    if (btnOpenCetakSoal) {
+      btnOpenCetakSoal.onclick = () => openCetakSoalModal();
+    }
+    if (btnCloseCetakSoal) {
+      btnCloseCetakSoal.onclick = () => {
+        modalCetakSoal.classList.add('hidden');
+      };
+    }
+    if (btnDoPrintSoal) {
+      btnDoPrintSoal.onclick = () => {
+        window.print();
+      };
+    }
+
+    if (inputPrintJumlah) {
+      inputPrintJumlah.oninput = scheduleRefreshCetakSoal;
+      inputPrintJumlah.onchange = scheduleRefreshCetakSoal;
+    }
+    if (selectPrintLayout) {
+      selectPrintLayout.onchange = (e) => {
+        updateLayoutHint(e.target.value);
+        scheduleRefreshCetakSoal();
+      };
+    }
+    if (chkPrintAcak) chkPrintAcak.onchange = scheduleRefreshCetakSoal;
+    if (inputPrintBarisIsian) inputPrintBarisIsian.onchange = scheduleRefreshCetakSoal;
+    if (inputPrintBarisEssay) inputPrintBarisEssay.onchange = scheduleRefreshCetakSoal;
+    if (chkPrintKunci) chkPrintKunci.onchange = scheduleRefreshCetakSoal;
+    if (chkPrintBobot) chkPrintBobot.onchange = scheduleRefreshCetakSoal;
+
+    async function openCetakSoalModal() {
+      if (!activeUlanganId) {
+        alert('Pilih ulangan terlebih dahulu sebelum mencetak soal');
+        return;
+      }
+
+      modalCetakSoal.classList.remove('hidden');
+
+      // Tentukan default layout secara pintar berdasarkan jumlah soal ulangan
+      const soalCount = (activeUlanganData?.soal && activeUlanganData.soal.length) || 0;
+      if (selectPrintLayout) {
+        if (soalCount > 0 && soalCount <= 5) {
+          selectPrintLayout.value = 'hemat_kertas';
+          updateLayoutHint('hemat_kertas');
+        } else {
+          selectPrintLayout.value = 'satu_halaman';
+          updateLayoutHint('satu_halaman');
+        }
+      }
+
+      await refreshCetakSoalPreview();
+    }
+
+    async function refreshCetakSoalPreview() {
+      if (!activeUlanganId) return;
+      cetakSheetContainer.innerHTML = '<div class="py-12 text-center text-slate-400 font-medium">Menyusun dan merender lembar soal siap cetak...</div>';
+
+      const jumlah = Math.max(1, Math.min(100, Number(inputPrintJumlah?.value || 1)));
+      const layout = selectPrintLayout?.value || 'hemat_kertas';
+      const acak = chkPrintAcak?.checked ? 'true' : 'false';
+      const barisIsian = Number(inputPrintBarisIsian?.value || 2);
+      const barisEssay = Number(inputPrintBarisEssay?.value || 5);
+      const kunci = chkPrintKunci?.checked ? 'true' : 'false';
+      const bobot = chkPrintBobot?.checked ? 'true' : 'false';
+
+      try {
+        const queryParams = new URLSearchParams({
+          jumlah,
+          layout,
+          acak,
+          baris_isian: barisIsian,
+          baris_essay: barisEssay,
+          kunci,
+          tampilkan_bobot: bobot
+        });
+
+        const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/soal-cetak?${queryParams.toString()}`);
+        const result = await res.json();
+        if (!res.ok || !result.success) throw new Error(result.message || 'Gagal memuat data cetak soal');
+
+        renderCetakSoalSheets(result.data);
+      } catch (err) {
+        cetakSheetContainer.innerHTML = `<div class="p-4 bg-red-50 text-red-700 rounded-xl text-xs font-semibold">${err.message}</div>`;
+      }
+    }
+
+    function renderCetakSoalSheets(printData) {
+      const { ulangan, guru, options, paket_list, master_keys } = printData;
+      const isHematKertas = options.mode_layout === 'hemat_kertas';
+      const isAcak = options.acak_soal;
+      const totalLembar = paket_list.length;
+
+      let html = '';
+
+      // Helper untuk merender 1 slip soal siswa
+      function buildStudentSlipHtml(paket, slipIndex, isHalf) {
+        const paddingClass = isHalf ? 'p-4 sm:p-5' : 'p-6 sm:p-8';
+        const titleSize = isHalf ? 'text-sm sm:text-base' : 'text-base sm:text-lg';
+        const textSize = isHalf ? 'text-[11px]' : 'text-xs';
+        const questionTextSize = isHalf ? 'text-[11px] sm:text-xs' : 'text-xs sm:text-sm';
+        const lineSpacing = isHalf ? 'height: 18px; margin-top: 2px;' : 'height: 22px; margin-top: 4px;';
+
+        let questionsHtml = '';
+        paket.soal.forEach((s) => {
+          let answerLinesHtml = '';
+          for (let l = 0; l < s.baris_jawaban; l++) {
+            answerLinesHtml += `<div class="print-answer-line border-b border-dashed border-slate-400" style="${lineSpacing}"></div>`;
+          }
+
+          const badgeBobot = options.tampilkan_bobot && s.bobot ? `<span class="font-bold text-slate-700">(Bobot: ${s.bobot})</span>` : '';
+          const tagJenis = `<span class="uppercase text-[9px] font-bold px-1.5 py-0.2 rounded border border-slate-300 text-slate-600">${s.jenis}</span>`;
+
+          const gambarHtml = s.gambar_url ? `
+            <div class="my-1.5">
+              <img src="${escapeHtml(s.gambar_url)}" alt="Diagram Soal" class="max-h-24 sm:max-h-28 object-contain rounded border border-slate-200">
+            </div>
+          ` : '';
+
+          questionsHtml += `
+            <div class="space-y-1 ${isHalf ? 'py-1' : 'py-1.5'} print-avoid-break">
+              <div class="flex items-start gap-1.5">
+                <span class="font-bold ${questionTextSize} text-slate-900 select-none">${s.nomor_cetak}.</span>
+                <div class="flex-1 ${questionTextSize} text-slate-900 leading-relaxed">
+                  ${escapeHtml(s.pertanyaan)}
+                  <span class="inline-flex items-center gap-1 ml-1 select-none">
+                    ${tagJenis}
+                    ${badgeBobot}
+                  </span>
+                  ${gambarHtml}
+                </div>
+              </div>
+              <div class="pl-4 sm:pl-5 space-y-0.5">
+                ${answerLinesHtml}
+              </div>
+            </div>
+          `;
+        });
+
+        const badgePaket = (isAcak || totalLembar > 1) ? `
+          <div class="border-2 border-slate-900 px-2.5 py-0.5 rounded font-black text-xs sm:text-sm uppercase tracking-wider bg-slate-100 shrink-0">
+            ${escapeHtml(paket.kode_paket)}
+          </div>
+        ` : '';
+
+        return `
+          <div class="student-exam-slip bg-white ${paddingClass} rounded-xl border border-slate-300 print:border-none print:shadow-none print:p-0 space-y-2.5 text-slate-900">
+            <!-- Kop / Header Lembar Soal -->
+            <div class="border-b-2 border-slate-900 pb-2 space-y-1">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex-1">
+                  <h2 class="${titleSize} font-black uppercase tracking-tight text-slate-950">${escapeHtml(ulangan.judul)}</h2>
+                  <div class="${textSize} font-medium text-slate-700 flex flex-wrap items-center gap-x-2">
+                    <span>Mata Pelajaran: <strong>${escapeHtml(ulangan.mata_pelajaran || '-')}</strong></span>
+                    <span>&bull;</span>
+                    <span>Kelas: <strong>${escapeHtml(ulangan.tingkat_kelas || '-')}</strong></span>
+                    ${ulangan.durasi_menit ? `<span>&bull;</span><span>Waktu: <strong>${ulangan.durasi_menit} Menit</strong></span>` : ''}
+                  </div>
+                </div>
+                ${badgePaket}
+              </div>
+
+              <!-- Tabel / Kotak Isian Identitas Siswa & Nilai -->
+              <div class="pt-1.5 grid grid-cols-12 gap-2 text-[11px] items-stretch">
+                <div class="col-span-8 sm:col-span-9 grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-1 font-medium">
+                  <div class="flex items-center gap-1">
+                    <span class="w-16 shrink-0 text-slate-600">Nama Siswa:</span>
+                    <span class="flex-1 border-b border-dotted border-slate-400">&nbsp;</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="w-16 shrink-0 text-slate-600">Kelas / No:</span>
+                    <span class="flex-1 border-b border-dotted border-slate-400">&nbsp;</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="w-16 shrink-0 text-slate-600">Hari / Tgl:</span>
+                    <span class="flex-1 border-b border-dotted border-slate-400">&nbsp;</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="w-16 shrink-0 text-slate-600">Guru:</span>
+                    <span class="flex-1 truncate text-slate-800 font-semibold">${escapeHtml(guru.nama || 'Guru')}</span>
+                  </div>
+                </div>
+                <div class="col-span-4 sm:col-span-3 border border-slate-400 rounded p-1 flex items-center justify-around text-center text-[10px]">
+                  <div>
+                    <span class="block text-slate-500 font-bold uppercase">Nilai</span>
+                    <span class="block h-5"></span>
+                  </div>
+                  <div class="border-l border-slate-300 pl-2">
+                    <span class="block text-slate-500 font-bold uppercase">Paraf</span>
+                    <span class="block h-5"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Petunjuk Ringkas -->
+            <p class="text-[10px] italic text-slate-600 select-none">
+              * Petunjuk: Tuliskan jawaban Anda dengan jelas dan rapi pada garis ruang tulis yang telah disediakan!
+            </p>
+
+            <!-- Daftar Butir Soal & Ruang Tulis -->
+            <div class="exam-questions-container divide-y divide-slate-100 space-y-1">
+              ${questionsHtml}
+            </div>
+          </div>
+        `;
+      }
+
+      // 1. Tata Letak HEMAT KERTAS (2 Lembar Siswa per Kertas A4)
+      if (isHematKertas) {
+        // Kelompokkan paket 2 per 2
+        for (let i = 0; i < paket_list.length; i += 2) {
+          const slipTop = paket_list[i];
+          const slipBottom = paket_list[i + 1] || null;
+          const pageNum = Math.floor(i / 2) + 1;
+          const isLastPage = (i + 2 >= paket_list.length);
+
+          const cutLineHtml = slipBottom ? `
+            <div class="print-cut-line my-4 py-1.5 flex items-center justify-center space-x-2 text-slate-500 font-mono text-[10px] select-none">
+              <span>✂ - - - - - - - - - - Gunting / Potong di Sini (Batas Lembar Ujian Siswa) - - - - - - - - - - ✂</span>
+            </div>
+          ` : '';
+
+          html += `
+            <div class="a4-sheet-page bg-white p-5 sm:p-7 rounded-2xl shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 ${!isLastPage || (options.sertakan_kunci && master_keys.length > 0) ? 'print-page-break' : ''}">
+              <div class="text-[10px] text-slate-400 no-print pb-2 flex justify-between">
+                <span>📄 Halaman Kertas A4 Fisik #${pageNum} (Mode Hemat Kertas: 2 Siswa per HVS)</span>
+                <span>${slipBottom ? '2 Lembar Siswa' : '1 Lembar Siswa'}</span>
+              </div>
+              ${buildStudentSlipHtml(slipTop, i, true)}
+              ${cutLineHtml}
+              ${slipBottom ? buildStudentSlipHtml(slipBottom, i + 1, true) : ''}
+            </div>
+          `;
+        }
+      } else {
+        // 2. Tata Letak STANDAR (1 Lembar Siswa per Halaman A4 Penuh)
+        paket_list.forEach((paket, idx) => {
+          const isLastPage = (idx === paket_list.length - 1);
+          html += `
+            <div class="a4-sheet-page bg-white p-6 sm:p-10 rounded-2xl shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 ${!isLastPage || (options.sertakan_kunci && master_keys.length > 0) ? 'print-page-break' : ''}">
+              <div class="text-[10px] text-slate-400 no-print pb-2 flex justify-between">
+                <span>📄 Halaman Kertas A4 Fisik #${idx + 1} (Mode Standar: 1 Siswa per HVS)</span>
+                <span>${escapeHtml(paket.kode_paket)}</span>
+              </div>
+              ${buildStudentSlipHtml(paket, idx, false)}
+            </div>
+          `;
+        });
+      }
+
+      // 3. Lembar Kunci Jawaban Guru (Master Keys) di Halaman Terakhir jika Diaktifkan
+      if (options.sertakan_kunci && master_keys && master_keys.length > 0) {
+        let masterKeysTables = '';
+        master_keys.forEach((mk) => {
+          let trs = '';
+          mk.items.forEach((it) => {
+            trs += `
+              <tr class="border-b border-slate-200">
+                <td class="py-1.5 px-2.5 font-bold text-center">${it.nomor_cetak}</td>
+                <td class="py-1.5 px-2.5 text-center text-slate-500 font-mono">Soal #${it.nomor_asli}</td>
+                <td class="py-1.5 px-2.5 uppercase text-[10px] font-semibold text-center">${it.jenis}</td>
+                <td class="py-1.5 px-2.5 text-center font-bold">${it.bobot}</td>
+                <td class="py-1.5 px-2.5 font-medium text-slate-900">${escapeHtml(it.kunci_jawaban || '-')}</td>
+                <td class="py-1.5 px-2.5 text-[11px] text-slate-600">${escapeHtml(it.rubrik || '-')}</td>
+              </tr>
+            `;
+          });
+
+          masterKeysTables += `
+            <div class="space-y-1.5 pt-3">
+              <h4 class="font-bold text-xs uppercase bg-slate-100 p-2 rounded border border-slate-200 text-slate-800">
+                🔑 Kunci Jawaban: ${escapeHtml(mk.kode_paket)}
+              </h4>
+              <table class="w-full text-left border-collapse border border-slate-200 text-xs">
+                <thead>
+                  <tr class="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold text-[11px]">
+                    <th class="py-1.5 px-2.5 text-center w-14">No Siswa</th>
+                    <th class="py-1.5 px-2.5 text-center w-20">No Asli</th>
+                    <th class="py-1.5 px-2.5 text-center w-16">Jenis</th>
+                    <th class="py-1.5 px-2.5 text-center w-14">Bobot</th>
+                    <th class="py-1.5 px-2.5">Kunci Jawaban Guru</th>
+                    <th class="py-1.5 px-2.5">Panduan Rubrik</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${trs}
+                </tbody>
+              </table>
+            </div>
+          `;
+        });
+
+        html += `
+          <div class="a4-sheet-page bg-white p-6 sm:p-10 rounded-2xl shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 space-y-4 text-slate-900">
+            <div class="border-b-2 border-slate-900 pb-2">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h2 class="text-base sm:text-lg font-black uppercase text-slate-900">LEMBAR KUNCI JAWABAN & PANDUAN GURU</h2>
+                  <p class="text-xs text-slate-600">Dokumen Pegangan Guru (Jangan Dibagikan ke Siswa) &bull; ${escapeHtml(ulangan.judul)}</p>
+                </div>
+                <span class="bg-amber-100 text-amber-900 font-bold text-xs px-2.5 py-1 rounded border border-amber-300">RAHASIA GURU</span>
+              </div>
+            </div>
+            ${masterKeysTables}
+          </div>
+        `;
+      }
+
+      cetakSheetContainer.innerHTML = html;
+
+      // Render KaTeX Math jika ada rumus matematika
+      if (typeof renderMathInElement === 'function') {
+        try {
+          renderMathInElement(cetakSheetContainer, {
+            delimiters: [
+              { left: '$$', right: '$$', display: true },
+              { left: '$', right: '$', display: false }
+            ],
+            throwOnError: false
+          });
+        } catch (eMath) {
+          console.warn('Gagal merender simbol KaTeX:', eMath);
+        }
+      }
     }
 
     // ==========================================
