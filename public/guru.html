@@ -34,51 +34,85 @@
     }
 
     @media print {
-      body {
+      html, body {
+        width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
         margin: 0 !important;
         padding: 0 !important;
         background: white !important;
+        overflow: visible !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
-      body * {
-        visibility: hidden !important;
-      }
-      .no-print, nav, header, button, #section-login, #section-dashboard, #modal-ai-generator, #modal-review, .no-print * {
+
+      /* 1. Sembunyikan SEMUA elemen root di body secara total agar tidak memakan ruang */
+      body > * {
         display: none !important;
       }
-      #modal-laporan, #modal-laporan *,
-      #modal-cetak-soal, #modal-cetak-soal * {
-        visibility: visible !important;
-      }
-      #modal-laporan, #modal-cetak-soal {
-        position: absolute !important;
-        left: 0 !important;
-        top: 0 !important;
+
+      /* 2. Hanya tampilkan modal yang sedang aktif dicetak dengan aliran statis murni */
+      body > #modal-cetak-soal:not(.hidden),
+      body > #modal-laporan:not(.hidden) {
+        display: block !important;
+        position: static !important;
         width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
         margin: 0 !important;
         padding: 0 !important;
         background: white !important;
         box-shadow: none !important;
         border: none !important;
         overflow: visible !important;
+        inset: auto !important;
+        top: auto !important;
+        left: auto !important;
+        right: auto !important;
+        bottom: auto !important;
+        transform: none !important;
       }
-      #modal-laporan > div, #modal-cetak-soal > div {
+
+      /* 3. Normalisasi semua pembungkus di dalam modal menjadi block statis bebas scroll */
+      #modal-cetak-soal > div,
+      #modal-laporan > div {
+        display: block !important;
+        position: static !important;
+        width: 100% !important;
         max-width: 100% !important;
+        height: auto !important;
         max-height: none !important;
         box-shadow: none !important;
         border: none !important;
-        overflow: visible !important;
-        background: white !important;
         padding: 0 !important;
         margin: 0 !important;
+        overflow: visible !important;
+        background: white !important;
       }
+
+      #modal-cetak-soal > div > div,
+      #modal-laporan > div > div {
+        display: block !important;
+        position: static !important;
+        overflow: visible !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        height: auto !important;
+        max-height: none !important;
+        background: transparent !important;
+      }
+
+      .no-print, .no-print * {
+        display: none !important;
+      }
+
       #laporan-sheet-container, #cetak-soal-sheet-container {
+        display: block !important;
+        position: static !important;
         padding: 0 !important;
         margin: 0 !important;
         width: 100% !important;
         overflow: visible !important;
-        display: block !important;
       }
       .print-page-break {
         page-break-after: always !important;
@@ -6395,6 +6429,9 @@
     };
 
     document.getElementById('btn-do-print').onclick = () => {
+      const scrollEl = document.getElementById('modal-laporan')?.querySelector('.overflow-y-auto');
+      if (scrollEl) scrollEl.scrollTop = 0;
+      window.scrollTo(0, 0);
       window.print();
     };
 
@@ -6602,6 +6639,9 @@
     }
     if (btnDoPrintSoal) {
       btnDoPrintSoal.onclick = () => {
+        const scrollEl = modalCetakSoal?.querySelector('.overflow-y-auto');
+        if (scrollEl) scrollEl.scrollTop = 0;
+        window.scrollTo(0, 0);
         window.print();
       };
     }
