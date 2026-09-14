@@ -14,10 +14,17 @@
     body { font-family: 'Inter', 'Amiri', system-ui, sans-serif; }
     :lang(ar), [dir="rtl"] { font-family: 'Amiri', serif; }
     @media print {
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
       body * {
         visibility: hidden !important;
       }
-      .no-print, nav, header, button, #section-login, #section-dashboard, #modal-ai-generator, #modal-review {
+      .no-print, nav, header, button, #section-login, #section-dashboard, #modal-ai-generator, #modal-review, .no-print * {
         display: none !important;
       }
       #modal-laporan, #modal-laporan *,
@@ -43,12 +50,15 @@
         border: none !important;
         overflow: visible !important;
         background: white !important;
+        padding: 0 !important;
+        margin: 0 !important;
       }
       #laporan-sheet-container, #cetak-soal-sheet-container {
         padding: 0 !important;
         margin: 0 !important;
         width: 100% !important;
         overflow: visible !important;
+        display: block !important;
       }
       .print-page-break {
         page-break-after: always !important;
@@ -58,17 +68,85 @@
         page-break-inside: avoid !important;
         break-inside: avoid !important;
       }
-      .print-answer-line {
-        border-bottom: 1px dashed #64748b !important;
-        height: 22px !important;
+
+      /* Sheet Page Styling */
+      .a4-sheet-page {
         width: 100% !important;
+        box-sizing: border-box !important;
+        background: white !important;
+        box-shadow: none !important;
+        border: none !important;
+        page-break-after: always !important;
+        break-after: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        margin: 0 !important;
+        padding: 0 !important;
       }
-      .print-cut-line {
+      .a4-sheet-page:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
+      }
+
+      /* Mode Hemat Kertas: 1 Lembar A4 Fisik Memuat Tepat 2 Slip Siswa */
+      .a4-sheet-page.mode-hemat-kertas {
+        height: 272mm !important;
+        max-height: 272mm !important;
+        overflow: hidden !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+        box-sizing: border-box !important;
+      }
+      .mode-hemat-kertas .student-exam-slip {
+        max-height: 130mm !important;
+        overflow: hidden !important;
+        padding: 3mm 4.5mm !important;
+        border: 1px solid #64748b !important;
+        border-radius: 4px !important;
+        box-sizing: border-box !important;
+        background: white !important;
+      }
+      .mode-hemat-kertas .print-cut-line {
+        margin: 1mm 0 !important;
+        padding: 0.5mm 0 !important;
         border-bottom: 1.5px dashed #475569 !important;
+        text-align: center !important;
+        font-size: 7.5pt !important;
+        color: #475569 !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
+      .mode-hemat-kertas .print-answer-line {
+        border-bottom: 1px dashed #64748b !important;
+        height: 14px !important;
+        width: 100% !important;
+        margin-top: 1px !important;
+      }
+
+      /* Mode Standar: 1 Lembar Siswa per Halaman A4 Penuh */
+      .a4-sheet-page.mode-satu-halaman {
+        min-height: 265mm !important;
+        display: block !important;
+        padding: 2mm 0 !important;
+      }
+      .mode-satu-halaman .student-exam-slip {
+        padding: 6mm 8mm !important;
+        border: 1px solid #64748b !important;
+        border-radius: 6px !important;
+        box-sizing: border-box !important;
+        background: white !important;
+      }
+      .mode-satu-halaman .print-answer-line {
+        border-bottom: 1px dashed #64748b !important;
+        height: 20px !important;
+        width: 100% !important;
+        margin-top: 2.5px !important;
+      }
+
       @page {
         size: A4 portrait;
-        margin: 0.8cm 1cm 0.8cm 1cm;
+        margin: 8mm 10mm 8mm 10mm;
       }
     }
   </style>
@@ -2282,7 +2360,13 @@
                 <span class="font-medium text-slate-600">Bobot</span>
               </label>
             </div>
+        <!-- Tips Cetak Rapi A4 -->
+        <div class="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-[11px] text-blue-900 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-1.5">
+            <span>💡</span>
+            <span><strong>Tips Agar PDF Rapi & Pas 1 Kertas A4:</strong> Pada dialog Chrome/Edge, pilih <em>Save as PDF</em> &bull; <strong>Hilangkan centang "Headers and footers"</strong> (agar link web / tanggal tidak muncul) &bull; Margins: <em>Default</em> atau <em>None</em>.</span>
           </div>
+          <span class="bg-blue-200 text-blue-900 font-bold px-2 py-0.5 rounded text-[10px] shrink-0">Ukuran Kertas: A4</span>
         </div>
       </div>
 
@@ -6908,33 +6992,32 @@
 
       // Helper untuk merender 1 slip soal siswa
       function buildStudentSlipHtml(paket, slipIndex, isHalf) {
-        const paddingClass = isHalf ? 'p-4 sm:p-5' : 'p-6 sm:p-8';
-        const titleSize = isHalf ? 'text-sm sm:text-base' : 'text-base sm:text-lg';
-        const textSize = isHalf ? 'text-[11px]' : 'text-xs';
-        const questionTextSize = isHalf ? 'text-[11px] sm:text-xs' : 'text-xs sm:text-sm';
-        const lineSpacing = isHalf ? 'height: 18px; margin-top: 2px;' : 'height: 22px; margin-top: 4px;';
+        const paddingClass = isHalf ? 'p-3 sm:p-4' : 'p-6 sm:p-8';
+        const titleSize = isHalf ? 'text-xs sm:text-sm' : 'text-base sm:text-lg';
+        const textSize = isHalf ? 'text-[9.5px]' : 'text-xs';
+        const questionTextSize = isHalf ? 'text-[10.5px]' : 'text-xs sm:text-sm';
 
         let questionsHtml = '';
         paket.soal.forEach((s) => {
           let answerLinesHtml = '';
           for (let l = 0; l < s.baris_jawaban; l++) {
-            answerLinesHtml += `<div class="print-answer-line border-b border-dashed border-slate-400" style="${lineSpacing}"></div>`;
+            answerLinesHtml += `<div class="print-answer-line border-b border-dashed border-slate-400"></div>`;
           }
 
           const badgeBobot = options.tampilkan_bobot && s.bobot ? `<span class="font-bold text-slate-700">(Bobot: ${s.bobot})</span>` : '';
-          const tagJenis = `<span class="uppercase text-[9px] font-bold px-1.5 py-0.2 rounded border border-slate-300 text-slate-600">${s.jenis}</span>`;
+          const tagJenis = `<span class="uppercase text-[8.5px] font-bold px-1.5 py-0.2 rounded border border-slate-300 text-slate-600">${s.jenis}</span>`;
 
           const gambarHtml = s.gambar_url ? `
-            <div class="my-1.5">
-              <img src="${escapeHtml(s.gambar_url)}" alt="Diagram Soal" class="max-h-24 sm:max-h-28 object-contain rounded border border-slate-200">
+            <div class="my-1">
+              <img src="${escapeHtml(s.gambar_url)}" alt="Diagram Soal" class="${isHalf ? 'max-h-16 sm:max-h-20' : 'max-h-24 sm:max-h-28'} object-contain rounded border border-slate-200">
             </div>
           ` : '';
 
           questionsHtml += `
-            <div class="space-y-1 ${isHalf ? 'py-1' : 'py-1.5'} print-avoid-break">
+            <div class="print-avoid-break ${isHalf ? 'py-0.5 space-y-0.5' : 'py-1.5 space-y-1'}">
               <div class="flex items-start gap-1.5">
                 <span class="font-bold ${questionTextSize} text-slate-900 select-none">${s.nomor_cetak}.</span>
-                <div class="flex-1 ${questionTextSize} text-slate-900 leading-relaxed">
+                <div class="flex-1 ${questionTextSize} text-slate-900 leading-snug">
                   ${escapeHtml(s.pertanyaan)}
                   <span class="inline-flex items-center gap-1 ml-1 select-none">
                     ${tagJenis}
@@ -6943,7 +7026,7 @@
                   ${gambarHtml}
                 </div>
               </div>
-              <div class="pl-4 sm:pl-5 space-y-0.5">
+              <div class="${isHalf ? 'pl-3.5 space-y-0.5' : 'pl-4 sm:pl-5 space-y-0.5'}">
                 ${answerLinesHtml}
               </div>
             </div>
@@ -6951,18 +7034,18 @@
         });
 
         const badgePaket = (isAcak || totalLembar > 1) ? `
-          <div class="border-2 border-slate-900 px-2.5 py-0.5 rounded font-black text-xs sm:text-sm uppercase tracking-wider bg-slate-100 shrink-0">
+          <div class="border-2 border-slate-900 ${isHalf ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-0.5 text-xs sm:text-sm'} rounded font-black uppercase tracking-wider bg-slate-100 shrink-0">
             ${escapeHtml(paket.kode_paket)}
           </div>
         ` : '';
 
         return `
-          <div class="student-exam-slip bg-white ${paddingClass} rounded-xl border border-slate-300 print:border-none print:shadow-none print:p-0 space-y-2.5 text-slate-900">
+          <div class="student-exam-slip bg-white ${paddingClass} rounded-xl border border-slate-300 space-y-1.5 text-slate-900">
             <!-- Kop / Header Lembar Soal -->
-            <div class="border-b-2 border-slate-900 pb-2 space-y-1">
+            <div class="border-b ${isHalf ? 'border-slate-800 pb-1 space-y-0.5' : 'border-b-2 border-slate-900 pb-2 space-y-1'}">
               <div class="flex items-center justify-between gap-2">
-                <div class="flex-1">
-                  <h2 class="${titleSize} font-black uppercase tracking-tight text-slate-950">${escapeHtml(ulangan.judul)}</h2>
+                <div class="flex-1 min-w-0">
+                  <h2 class="${titleSize} font-black uppercase tracking-tight text-slate-950 truncate">${escapeHtml(ulangan.judul)}</h2>
                   <div class="${textSize} font-medium text-slate-700 flex flex-wrap items-center gap-x-2">
                     <span>Mata Pelajaran: <strong>${escapeHtml(ulangan.mata_pelajaran || '-')}</strong></span>
                     <span>&bull;</span>
@@ -6974,45 +7057,45 @@
               </div>
 
               <!-- Tabel / Kotak Isian Identitas Siswa & Nilai -->
-              <div class="pt-1.5 grid grid-cols-12 gap-2 text-[11px] items-stretch">
-                <div class="col-span-8 sm:col-span-9 grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-1 font-medium">
+              <div class="${isHalf ? 'pt-0.5 text-[9.5px]' : 'pt-1.5 text-[11px]'} grid grid-cols-12 gap-1.5 items-stretch">
+                <div class="${isHalf ? 'col-span-9' : 'col-span-8 sm:col-span-9'} grid grid-cols-2 gap-x-2 gap-y-0.5 font-medium">
                   <div class="flex items-center gap-1">
-                    <span class="w-16 shrink-0 text-slate-600">Nama Siswa:</span>
+                    <span class="${isHalf ? 'w-12' : 'w-16'} shrink-0 text-slate-600">Nama:</span>
                     <span class="flex-1 border-b border-dotted border-slate-400">&nbsp;</span>
                   </div>
                   <div class="flex items-center gap-1">
-                    <span class="w-16 shrink-0 text-slate-600">Kelas / No:</span>
+                    <span class="${isHalf ? 'w-14' : 'w-16'} shrink-0 text-slate-600">Kelas / No:</span>
                     <span class="flex-1 border-b border-dotted border-slate-400">&nbsp;</span>
                   </div>
                   <div class="flex items-center gap-1">
-                    <span class="w-16 shrink-0 text-slate-600">Hari / Tgl:</span>
+                    <span class="${isHalf ? 'w-12' : 'w-16'} shrink-0 text-slate-600">Hari / Tgl:</span>
                     <span class="flex-1 border-b border-dotted border-slate-400">&nbsp;</span>
                   </div>
                   <div class="flex items-center gap-1">
-                    <span class="w-16 shrink-0 text-slate-600">Guru:</span>
+                    <span class="${isHalf ? 'w-14' : 'w-16'} shrink-0 text-slate-600">Guru:</span>
                     <span class="flex-1 truncate text-slate-800 font-semibold">${escapeHtml(guru.nama || 'Guru')}</span>
                   </div>
                 </div>
-                <div class="col-span-4 sm:col-span-3 border border-slate-400 rounded p-1 flex items-center justify-around text-center text-[10px]">
+                <div class="${isHalf ? 'col-span-3 py-0.5 text-[8.5px]' : 'col-span-4 sm:col-span-3 p-1 text-[10px]'} border border-slate-400 rounded flex items-center justify-around text-center">
                   <div>
                     <span class="block text-slate-500 font-bold uppercase">Nilai</span>
-                    <span class="block h-5"></span>
+                    <span class="block ${isHalf ? 'h-3.5' : 'h-5'}"></span>
                   </div>
-                  <div class="border-l border-slate-300 pl-2">
+                  <div class="border-l border-slate-300 ${isHalf ? 'pl-1' : 'pl-2'}">
                     <span class="block text-slate-500 font-bold uppercase">Paraf</span>
-                    <span class="block h-5"></span>
+                    <span class="block ${isHalf ? 'h-3.5' : 'h-5'}"></span>
                   </div>
                 </div>
               </div>
             </div>
 
             <!-- Petunjuk Ringkas -->
-            <p class="text-[10px] italic text-slate-600 select-none">
+            <p class="${isHalf ? 'text-[8.5px]' : 'text-[10px]'} italic text-slate-500 select-none">
               * Petunjuk: Tuliskan jawaban Anda dengan jelas dan rapi pada garis ruang tulis yang telah disediakan!
             </p>
 
             <!-- Daftar Butir Soal & Ruang Tulis -->
-            <div class="exam-questions-container divide-y divide-slate-100 space-y-1">
+            <div class="exam-questions-container divide-y divide-slate-100 ${isHalf ? 'space-y-0.5' : 'space-y-1'}">
               ${questionsHtml}
             </div>
           </div>
@@ -7029,20 +7112,24 @@
           const isLastPage = (i + 2 >= paket_list.length);
 
           const cutLineHtml = slipBottom ? `
-            <div class="print-cut-line my-4 py-1.5 flex items-center justify-center space-x-2 text-slate-500 font-mono text-[10px] select-none">
+            <div class="print-cut-line my-1 py-0.5 flex items-center justify-center space-x-2 text-slate-500 font-mono text-[9px] select-none">
               <span>✂ - - - - - - - - - - Gunting / Potong di Sini (Batas Lembar Ujian Siswa) - - - - - - - - - - ✂</span>
             </div>
           ` : '';
 
           html += `
-            <div class="a4-sheet-page bg-white p-5 sm:p-7 rounded-2xl shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 ${!isLastPage || (options.sertakan_kunci && master_keys.length > 0) ? 'print-page-break' : ''}">
-              <div class="text-[10px] text-slate-400 no-print pb-2 flex justify-between">
-                <span>📄 Halaman Kertas A4 Fisik #${pageNum} (Mode Hemat Kertas: 2 Siswa per HVS)</span>
-                <span>${slipBottom ? '2 Lembar Siswa' : '1 Lembar Siswa'}</span>
+            <div class="a4-sheet-page mode-hemat-kertas bg-white p-4 sm:p-6 rounded-2xl shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 ${!isLastPage || (options.sertakan_kunci && master_keys.length > 0) ? 'print-page-break' : ''}">
+              <div class="text-[10px] text-slate-400 no-print pb-1 flex justify-between">
+                <span>📄 Halaman Kertas A4 Fisik #${pageNum} (Mode Hemat Kertas: 2 Siswa per HVS A4)</span>
+                <span>${slipBottom ? '2 Lembar Siswa (Slip Atas & Bawah)' : '1 Lembar Siswa (Slip Atas Saja)'}</span>
               </div>
               ${buildStudentSlipHtml(slipTop, i, true)}
               ${cutLineHtml}
-              ${slipBottom ? buildStudentSlipHtml(slipBottom, i + 1, true) : ''}
+              ${slipBottom ? buildStudentSlipHtml(slipBottom, i + 1, true) : `
+                <div class="no-print mt-4 p-4 border border-dashed border-slate-300 rounded-xl text-center text-slate-400 text-xs">
+                  [ Sisa Kertas Slip Bawah Kosong — Cetak 1 Eksemplar Ganjil ]
+                </div>
+              `}
             </div>
           `;
         }
@@ -7051,9 +7138,9 @@
         paket_list.forEach((paket, idx) => {
           const isLastPage = (idx === paket_list.length - 1);
           html += `
-            <div class="a4-sheet-page bg-white p-6 sm:p-10 rounded-2xl shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 ${!isLastPage || (options.sertakan_kunci && master_keys.length > 0) ? 'print-page-break' : ''}">
+            <div class="a4-sheet-page mode-satu-halaman bg-white p-6 sm:p-10 rounded-2xl shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 ${!isLastPage || (options.sertakan_kunci && master_keys.length > 0) ? 'print-page-break' : ''}">
               <div class="text-[10px] text-slate-400 no-print pb-2 flex justify-between">
-                <span>📄 Halaman Kertas A4 Fisik #${idx + 1} (Mode Standar: 1 Siswa per HVS)</span>
+                <span>📄 Halaman Kertas A4 Fisik #${idx + 1} (Mode Standar: 1 Siswa per Lembar A4 Penuh)</span>
                 <span>${escapeHtml(paket.kode_paket)}</span>
               </div>
               ${buildStudentSlipHtml(paket, idx, false)}
