@@ -54,8 +54,15 @@ app.get('/health', (req, res) => {
 });
 
 // Jadwalkan sinkronisasi latar belakang Turso secara debounced setelah request write selesai (tidak memblokir request klien)
+const SKIP_SYNC_PATHS = new Set(['/api/siswa/ping', '/api/siswa/cek-kode', '/api/auth/logout']);
+
 app.use((req, res, next) => {
   if (req.path && req.path.startsWith('/api/') && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+    // Lewati sinkronisasi untuk endpoint rutin seperti ping detak jantung & validasi kode
+    // agar kuota sinkronisasi Turso hemat maksimal dan server tidak pernah over-quota
+    if (SKIP_SYNC_PATHS.has(req.path)) {
+      return next();
+    }
     res.on('finish', () => {
       if (res.statusCode >= 200 && res.statusCode < 400 && typeof db.syncCloud === 'function') {
         db.syncCloud();
