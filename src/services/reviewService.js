@@ -5,7 +5,8 @@ const studentService = require('./studentService');
 const reviewService = {
   // Ambil daftar seluruh siswa/pengerjaan pada suatu ulangan
   getPengerjaanListByUlangan(ulanganId, guruId) {
-    const ulangan = db.prepare('SELECT id, zona_waktu FROM ulangan WHERE id = ? AND guru_id = ?').get(ulanganId, guruId);
+    const isOwner = (Number(guruId) === 1 || Number(guruId) === 3);
+    const ulangan = db.prepare(`SELECT id, zona_waktu FROM ulangan WHERE id = ? AND ${isOwner ? 'guru_id IN (1, 3)' : 'guru_id = ?'}`).get(...(isOwner ? [ulanganId] : [ulanganId, guruId]));
     if (!ulangan) throw new Error('Ulangan tidak ditemukan atau bukan milik guru ini');
 
     // Bersihkan sesi DC kosong (>1 jam atau lewat durasi) dan auto-submit sesi terisi yang kedaluwarsa
@@ -280,7 +281,11 @@ const reviewService = {
     `).get(pengerjaanId);
 
     if (!pengerjaan) throw new Error('Data pengerjaan tidak ditemukan');
-    if (pengerjaan.guru_id !== guruId) throw new Error('Akses ditolak: bukan ulangan milik Anda');
+    const isOwner = (Number(guruId) === 1 || Number(guruId) === 3);
+    const ulanganOwner = (Number(pengerjaan.guru_id) === 1 || Number(pengerjaan.guru_id) === 3);
+    if ((!isOwner || !ulanganOwner) && pengerjaan.guru_id !== guruId) {
+      throw new Error('Akses ditolak: bukan ulangan milik Anda');
+    }
 
     // Sinkronkan dan pulihkan nilai otomatis jika ada perbedaan bobot soal
     try {
@@ -518,7 +523,8 @@ const reviewService = {
       return this.toggleReleaseSinglePengerjaan(pengerjaanId, guruId, isReleased);
     }
 
-    const ulangan = db.prepare('SELECT id FROM ulangan WHERE id = ? AND guru_id = ?').get(ulanganId, guruId);
+    const isOwner = (Number(guruId) === 1 || Number(guruId) === 3);
+    const ulangan = db.prepare(`SELECT id FROM ulangan WHERE id = ? AND ${isOwner ? 'guru_id IN (1, 3)' : 'guru_id = ?'}`).get(...(isOwner ? [ulanganId] : [ulanganId, guruId]));
     if (!ulangan) throw new Error('Ulangan tidak ditemukan atau bukan milik guru ini');
 
     const cleanKelas = (kelasFilter && String(kelasFilter).trim() !== '') ? String(kelasFilter).trim() : null;
@@ -576,13 +582,14 @@ const reviewService = {
 
   // Rilis hasil ujian perorangan / siswa tertentu
   toggleReleaseSinglePengerjaan(pengerjaanId, guruId, isReleased) {
+    const isOwner = (Number(guruId) === 1 || Number(guruId) === 3);
     const pengerjaan = db.prepare(`
       SELECT p.id, p.ulangan_id, p.status, p.released_at, pes.nama as nama_siswa
       FROM pengerjaan p
       JOIN ulangan u ON p.ulangan_id = u.id
       JOIN peserta pes ON p.peserta_id = pes.id
-      WHERE p.id = ? AND u.guru_id = ?
-    `).get(pengerjaanId, guruId);
+      WHERE p.id = ? AND ${isOwner ? 'u.guru_id IN (1, 3)' : 'u.guru_id = ?'}
+    `).get(...(isOwner ? [pengerjaanId] : [pengerjaanId, guruId]));
 
     if (!pengerjaan) throw new Error('Data pengerjaan tidak ditemukan atau bukan milik guru ini');
 
@@ -624,12 +631,13 @@ const reviewService = {
 
   // Laporan Rekapitulasi Nilai per Kelas & per Ulangan untuk Dicetak
   getLaporanNilai(ulanganId, guruId, kelasFilter = null) {
+    const isOwner = (Number(guruId) === 1 || Number(guruId) === 3);
     const ulangan = db.prepare(`
       SELECT u.*, g.nama as nama_guru, g.email as email_guru
       FROM ulangan u
       JOIN guru g ON u.guru_id = g.id
-      WHERE u.id = ? AND u.guru_id = ?
-    `).get(ulanganId, guruId);
+      WHERE u.id = ? AND ${isOwner ? 'u.guru_id IN (1, 3)' : 'u.guru_id = ?'}
+    `).get(...(isOwner ? [ulanganId] : [ulanganId, guruId]));
 
     if (!ulangan) throw new Error('Ulangan tidak ditemukan atau bukan milik guru ini');
 

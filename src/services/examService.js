@@ -152,28 +152,30 @@ const examService = {
     return this.getUlanganById(ulanganId, guruId);
   },
 
-  // Ambil semua ulangan milik guru tertentu
+  // Ambil semua ulangan milik guru tertentu (mendukung ID 1 dan 3 agar kompatibel login email pribadi maupun guru@sekolah.id)
   getUlanganByGuru(guruId) {
+    const isOwner = (Number(guruId) === 1 || Number(guruId) === 3);
     const rows = db.prepare(`
       SELECT u.*, 
         (SELECT COUNT(*) FROM soal WHERE ulangan_id = u.id) as total_soal,
         (SELECT COALESCE(SUM(bobot), 0) FROM soal WHERE ulangan_id = u.id) as total_bobot,
         (SELECT COUNT(*) FROM peserta WHERE ulangan_id = u.id) as total_peserta
       FROM ulangan u
-      WHERE u.guru_id = ?
+      WHERE ${isOwner ? 'u.guru_id IN (1, 3)' : 'u.guru_id = ?'}
       ORDER BY u.created_at DESC
-    `).all(guruId);
+    `).all(...(isOwner ? [] : [guruId]));
     return rows;
   },
 
   // Ambil daftar mata pelajaran unik yang pernah dibuat oleh guru
   getMataPelajaranByGuru(guruId) {
+    const isOwner = (Number(guruId) === 1 || Number(guruId) === 3);
     const rows = db.prepare(`
       SELECT DISTINCT mata_pelajaran
       FROM ulangan
-      WHERE guru_id = ? AND mata_pelajaran IS NOT NULL AND TRIM(mata_pelajaran) != ''
+      WHERE ${isOwner ? 'guru_id IN (1, 3)' : 'guru_id = ?'} AND mata_pelajaran IS NOT NULL AND TRIM(mata_pelajaran) != ''
       ORDER BY mata_pelajaran ASC
-    `).all(guruId);
+    `).all(...(isOwner ? [] : [guruId]));
     return rows.map(r => r.mata_pelajaran.trim()).filter(Boolean);
   },
 
@@ -200,8 +202,9 @@ const examService = {
     let query = 'SELECT * FROM ulangan WHERE id = ?';
     let params = [id];
     if (guruId !== null) {
-      query += ' AND guru_id = ?';
-      params.push(guruId);
+      const isOwner = (Number(guruId) === 1 || Number(guruId) === 3);
+      query += isOwner ? ' AND guru_id IN (1, 3)' : ' AND guru_id = ?';
+      if (!isOwner) params.push(guruId);
     }
     const ulangan = db.prepare(query).get(...params);
     if (!ulangan) return null;
@@ -648,7 +651,11 @@ const examService = {
 
   // Kalibrasi Bobot Seluruh Butir Soal dalam Ulangan (Proporsional Cerdas, Skala, atau Rata)
   calibrateQuestionWeights(ulanganId, guruId, options = {}) {
-    const ulangan = db.prepare('SELECT id, guru_id FROM ulangan WHERE id = ? AND guru_id = ?').get(ulanganId, guruId);
+    const isOwner = (Number(guruId) === 1 || Number(guruId) === 3);
+    const ulangan = db.prepare(`
+      SELECT id, guru_id FROM ulangan 
+      WHERE id = ? AND ${isOwner ? 'guru_id IN (1, 3)' : 'guru_id = ?'}
+    `).get(...(isOwner ? [ulanganId] : [ulanganId, guruId]));
     if (!ulangan) throw new Error('Ulangan tidak ditemukan atau bukan milik guru ini');
 
     const soalList = db.prepare('SELECT id, nomor, jenis, tingkat_kesulitan, bobot, urutan FROM soal WHERE ulangan_id = ? ORDER BY urutan ASC, id ASC').all(ulanganId);
