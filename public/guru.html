@@ -9848,7 +9848,8 @@
       document.getElementById('detail-siswa-kata-badge').textContent = `${sub.jumlah_kata} kata`;
       document.getElementById('detail-siswa-teks').textContent = sub.teks_rangkuman || '(Kosong)';
 
-      document.getElementById('detail-siswa-skor-ai').textContent = sub.skor_ai !== null ? `Skor AI: ${sub.skor_ai} / 100` : 'Menunggu Pengecekan AI';
+      const modelLabel = sub.model_ai ? ` • ${sub.model_ai}` : '';
+      document.getElementById('detail-siswa-skor-ai').textContent = sub.skor_ai !== null ? `Skor AI: ${sub.skor_ai} / 100${modelLabel}` : 'Menunggu Pengecekan AI';
       document.getElementById('detail-siswa-feedback').textContent = sub.feedback_ai || 'Belum ada catatan evaluasi AI.';
 
       // Form koreksi

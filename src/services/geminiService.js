@@ -193,6 +193,126 @@ const geminiService = {
     cachedRankedModelsTimestamp = 0;
   },
 
+  // Tandai model sedang dalam masa cooldown (misal setelah 429 atau failure, default 3 menit)
+  markModelCooldown(model, durationMs = 180000) {
+    if (model) {
+      modelCooldownMap.set(model, Date.now() + durationMs);
+    }
+  },
+
+  // Hapus status cooldown model jika kembali pulih / berhasil
+  clearModelCooldown(model) {
+    if (model) {
+      modelCooldownMap.delete(model);
+    }
+  },
+
+  // Cek apakah model sedang dalam status cooldown
+  isModelInCooldown(model) {
+    if (!model) return false;
+    const until = modelCooldownMap.get(model) || 0;
+    return Date.now() < until;
+  },
+
+  // Universal dynamic JSON generation engine across Gemini models & keys:
+  // - Evaluasi urutan kandidat dinamis (getOrderedCandidateModels)
+  // - Multi-key failover otomatis (getAllActiveApiKeys)
+  // - Cooldown tracking terpusat (modelCooldownMap)
+  async callJsonPrompt(prompt, options = {}) {
+    const temperature = options.temperature ?? 0.2;
+    const timeoutMs = options.timeout ?? 15000;
+    const availableKeys = (options.apiKey !== null && options.apiKey !== undefined && String(options.apiKey).trim())
+      ? [{ id: 0, label: 'Manual Key', key: String(options.apiKey).trim() }]
+      : this.getAllActiveApiKeys();
+
+    if (availableKeys.length === 0) {
+      throw new Error('Tidak ada API Key Gemini yang aktif');
+    }
+
+    let lastError = null;
+    let anyRateLimit = false;
+
+    for (const keyObj of availableKeys) {
+      const activeKey = keyObj.key;
+      const candidateList = await this.getOrderedCandidateModels(activeKey);
+
+      for (let i = 0; i < candidateList.length; i++) {
+        const model = candidateList[i];
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`;
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: AbortSignal.timeout(timeoutMs),
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: {
+                temperature,
+                responseMimeType: 'application/json'
+              }
+            })
+          });
+
+          if (response.status === 429) {
+            anyRateLimit = true;
+            this.markModelCooldown(model, 180000);
+            const errText = await response.text();
+            throw new Error(`Rate limit 429 pada model ${model} (Key: ${keyObj.label}): ${errText.substring(0, 80)}`);
+          }
+
+          if (!response.ok) {
+            this.markModelCooldown(model, 180000);
+            const errBody = await response.text();
+            throw new Error(`Gemini API error (${response.status}) pada model ${model} (Key: ${keyObj.label}): ${errBody.substring(0, 80)}`);
+          }
+
+          const data = await response.json();
+          const candidate = data.candidates?.[0];
+          const textResponse = candidate?.content?.parts?.[0]?.text;
+
+          if (!textResponse) {
+            this.markModelCooldown(model, 180000);
+            throw new Error(`Respons AI dari model ${model} kosong`);
+          }
+
+          let parsed;
+          try {
+            parsed = JSON.parse(textResponse);
+          } catch (jsonErr) {
+            const cleaned = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+            parsed = JSON.parse(cleaned);
+          }
+
+          this.clearModelCooldown(model);
+
+          const modelLabel = (options.apiKey || keyObj.id === 0) ? model : `${model} (${keyObj.label})`;
+          return {
+            data: parsed,
+            model: modelLabel,
+            rawModel: model
+          };
+        } catch (err) {
+          lastError = err;
+          this.markModelCooldown(model, 180000);
+          const nextModel = candidateList[i + 1];
+          if (nextModel) {
+            console.warn(`[GEMINI-DYNAMIC] Model "${model}" (Key: ${keyObj.label}) gagal (${err.message}). Beralih ke kandidat berikutnya: "${nextModel}"...`);
+          }
+          continue;
+        }
+      }
+      console.warn(`[GEMINI-DYNAMIC] Seluruh model pada kunci "${keyObj.label}" gagal. Mencoba kunci berikutnya...`);
+    }
+
+    if (anyRateLimit) {
+      const err = new Error('Seluruh kunci dan kandidat model Gemini mencapai batas kuota (Rate limit 429)');
+      err.status = 429;
+      throw err;
+    }
+
+    throw lastError || new Error('Gagal menghubungi seluruh kandidat model Gemini');
+  },
+
   // FR-18 & NFR-12: Menentukan model utama yang aktif (terbaru & teringan)
   async getAvailableModel(apiKey = null) {
     const candidates = await this.getOrderedCandidateModels(apiKey);

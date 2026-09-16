@@ -206,6 +206,90 @@ describe('=== SUITE: FITUR TUGAS RANGKUMAN BERBANTUAN AI ===', () => {
     assert.ok(Array.isArray(result.poin_kunci) && result.poin_kunci.length >= 3, 'Harus menghasilkan poin kunci');
   });
 
+  test('11. Evaluasi AI Tugas Rangkuman menggunakan rotasi model dinamis, failover otomatis, dan cooldown terpusat (mirip ulangan)', async () => {
+    const geminiService = require('../src/services/geminiService');
+    geminiService.clearModelCooldowns();
+
+    const ordered = await geminiService.getOrderedCandidateModels();
+    assert.ok(ordered.length >= 2, 'Harus ada minimal 2 kandidat model');
+
+    // Buat data submission uji
+    const testSubId = db.prepare(`
+      INSERT INTO pengerjaan_rangkuman (
+        tugas_id, nama_siswa, kelas_siswa, teks_rangkuman, jumlah_kata, status, status_antrean
+      ) VALUES (?, ?, ?, ?, ?, 'submitted', 'menunggu')
+    `).run(
+      createdTask.id,
+      'Siti Nurhaliza',
+      '10 MIPA 1',
+      'Peradaban Islam pada masa Dinasti Abbasiyah berkembang sangat pesat dengan berdirinya Baitul Hikmah sebagai pusat riset dan penerjemahan naskah ilmu pengetahuan dunia.',
+      22
+    ).lastInsertRowid;
+
+    const originalFetch = global.fetch;
+    const attemptedModels = [];
+
+    global.fetch = async (url, opts) => {
+      const urlStr = String(url);
+      if (urlStr.includes(ordered[0])) {
+        attemptedModels.push(ordered[0]);
+        // Model 1 kena Rate Limit 429
+        return {
+          ok: false,
+          status: 429,
+          text: async () => 'Rate limit 429 exceeded on primary flash-lite model'
+        };
+      }
+      if (urlStr.includes(ordered[1])) {
+        attemptedModels.push(ordered[1]);
+        // Model 2 berhasil
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            candidates: [{
+              content: {
+                parts: [{
+                  text: JSON.stringify({
+                    skor: 88,
+                    kelebihan: 'Pemahaman konsep Baitul Hikmah sangat baik.',
+                    kekurangan: 'Bisa dielaborasi lebih lanjut mengenai tokoh ilmuwan.',
+                    saran: 'Lanjutkan membaca literatur sejarah Islam.',
+                    poin_tercapai: ['Baitul Hikmah sebagai pusat riset dunia'],
+                    poin_terlewat: []
+                  })
+                }]
+              }
+            }]
+          })
+        };
+      }
+      return originalFetch(url, opts);
+    };
+
+    try {
+      const evalRes = await summaryService.evaluateSingleSubmission(testSubId);
+      assert.equal(evalRes.skor, 88);
+
+      // Pastikan model pertama yang 429 dicoba lalu beralih ke model kedua
+      assert.strictEqual(attemptedModels.length, 2);
+      assert.strictEqual(attemptedModels[0], ordered[0]);
+      assert.strictEqual(attemptedModels[1], ordered[1]);
+
+      // Pastikan model pertama masuk masa cooldown
+      assert.ok(geminiService.isModelInCooldown(ordered[0]), 'Model pertama yang 429 harus tercatat dalam cooldown');
+
+      // Pastikan database pengerjaan mencatat nama model dinamis yang sukses
+      const updatedSub = db.prepare('SELECT skor_ai, model_ai, status_antrean FROM pengerjaan_rangkuman WHERE id = ?').get(testSubId);
+      assert.equal(updatedSub.skor_ai, 88);
+      assert.match(updatedSub.model_ai, new RegExp(ordered[1]));
+      assert.equal(updatedSub.status_antrean, 'selesai');
+    } finally {
+      global.fetch = originalFetch;
+      geminiService.clearModelCooldowns();
+    }
+  });
+
   after(() => {
     // Bersihkan data uji
     if (createdTask?.id) {
