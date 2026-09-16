@@ -2637,7 +2637,8 @@
           clearTimeout(syncServerTimer);
           syncServerTimer = null;
         }
-        stopHeartbeat();
+        // Catatan: Heartbeat tetap aktif selama proses pengiriman ke server
+        // agar status siswa tidak berubah menjadi "Terputus (DC)" saat upload data berlangsung.
 
         if (countdownInterval) {
           clearInterval(countdownInterval);
@@ -2713,24 +2714,44 @@
           }
         }
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout guard
+        // Kirim pengumpulan jawaban dengan batas waktu 60 detik & auto-retry 1x jika ada gangguan sinyal HP siswa
+        let res;
+        let data;
+        let submitAttempt = 0;
+        const maxSubmitAttempts = 2;
 
-        const res = await fetch('/api/siswa/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-          body: JSON.stringify({ 
-            pengerjaan_id: currentPengerjaanId, 
-            jawaban,
-            paste_count: pasteDetectionCount,
-            paste_details: pasteDetailsMap,
-            is_auto_submit: isAutoSubmit
-          })
-        });
-        clearTimeout(timeoutId);
+        while (submitAttempt < maxSubmitAttempts) {
+          submitAttempt++;
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout guard untuk sinyal lemah
 
-        const data = await res.json();
+          try {
+            res = await fetch('/api/siswa/submit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              signal: controller.signal,
+              body: JSON.stringify({ 
+                pengerjaan_id: currentPengerjaanId, 
+                jawaban,
+                paste_count: pasteDetectionCount,
+                paste_details: pasteDetailsMap,
+                is_auto_submit: isAutoSubmit
+              })
+            });
+            clearTimeout(timeoutId);
+            data = await res.json();
+            break; // Berhasil dapat respons dari server
+          } catch (fetchErr) {
+            clearTimeout(timeoutId);
+            if (submitAttempt < maxSubmitAttempts) {
+              const descEl = document.getElementById('submit-overlay-desc');
+              if (descEl) descEl.textContent = 'Koneksi internet lambat, mencoba mengirim ulang jawaban Anda secara otomatis...';
+              await new Promise(r => setTimeout(r, 2000));
+            } else {
+              throw fetchErr;
+            }
+          }
+        }
 
         // Jika backend menolak karena jawaban kosong (bukan error sistem)
         if (!data.success && data.empty) {
@@ -2745,6 +2766,9 @@
         }
 
         if (!res.ok || !data.success) throw new Error(data.message || 'Gagal submit');
+
+        // Hentikan detak jantung hanya setelah lembar ujian berhasil terkirim 100%
+        stopHeartbeat();
 
         // Bersihkan draft tersimpan saat berhasil submit
         try {
