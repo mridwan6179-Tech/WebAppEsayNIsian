@@ -488,96 +488,109 @@ Instruksi Khusus:
   // BACKGROUND QUEUE WORKER
   // ----------------------------------------------------------------
 
-  async processQueueWorker() {
-    if (isWorkerRunning) return;
+  // Evaluasi 1 antrean berikutnya secara atomik (optimal untuk Vercel Serverless polling & background worker)
+  async processNextInQueue(targetPengerjaanId = null) {
+    if (isWorkerRunning) return false;
     isWorkerRunning = true;
 
     try {
-      while (true) {
-        // Pulihkan lock macet jika lebih dari 2 menit
+      // Pulihkan lock macet jika lebih dari 2 menit
+      try {
         db.prepare(`
           UPDATE antrean_rangkuman 
           SET status = 'menunggu' 
           WHERE status = 'diproses' AND datetime(locked_at) <= datetime('now', '-2 minutes')
         `).run();
+      } catch (e) {}
 
-        // Ambil 1 antrean terdepan
-        const queueItem = db.prepare(`
+      // Ambil 1 antrean (target spesifik jika ada, atau antrean tertua)
+      let queueItem = null;
+      if (targetPengerjaanId) {
+        queueItem = db.prepare(`
+          SELECT a.id as antrean_id, a.pengerjaan_id, a.attempt_count
+          FROM antrean_rangkuman a
+          WHERE a.pengerjaan_id = ? AND a.status IN ('menunggu', 'diproses')
+          LIMIT 1
+        `).get(targetPengerjaanId);
+      }
+
+      if (!queueItem) {
+        queueItem = db.prepare(`
           SELECT a.id as antrean_id, a.pengerjaan_id, a.attempt_count
           FROM antrean_rangkuman a
           WHERE a.status = 'menunggu'
           ORDER BY a.id ASC
           LIMIT 1
         `).get();
+      }
 
-        if (!queueItem) {
-          // Antrean kosong, worker selesai
-          break;
-        }
+      if (!queueItem) return false;
 
-        // Kunci antrean ini
+      // Kunci antrean ini
+      db.prepare(`
+        UPDATE antrean_rangkuman 
+        SET status = 'diproses', locked_at = CURRENT_TIMESTAMP, attempt_count = attempt_count + 1
+        WHERE id = ?
+      `).run(queueItem.antrean_id);
+
+      db.prepare(`
+        UPDATE pengerjaan_rangkuman 
+        SET status_antrean = 'diproses'
+        WHERE id = ?
+      `).run(queueItem.pengerjaan_id);
+
+      // Nilai dengan AI
+      try {
+        await this.evaluateSingleSubmission(queueItem.pengerjaan_id);
+
         db.prepare(`
           UPDATE antrean_rangkuman 
-          SET status = 'diproses', locked_at = CURRENT_TIMESTAMP, attempt_count = attempt_count + 1
+          SET status = 'selesai', completed_at = CURRENT_TIMESTAMP 
           WHERE id = ?
         `).run(queueItem.antrean_id);
 
         db.prepare(`
           UPDATE pengerjaan_rangkuman 
-          SET status_antrean = 'diproses'
+          SET status_antrean = 'selesai'
           WHERE id = ?
         `).run(queueItem.pengerjaan_id);
 
-        // Nilai dengan AI
-        try {
-          await this.evaluateSingleSubmission(queueItem.pengerjaan_id);
+        if (typeof db.syncCloud === 'function') db.syncCloud();
+        return true;
+      } catch (err) {
+        console.warn(`⚠️ Evaluasi rangkuman #${queueItem.pengerjaan_id} gagal:`, err.message);
 
-          // Tandai sukses
+        if (queueItem.attempt_count >= 3) {
           db.prepare(`
             UPDATE antrean_rangkuman 
-            SET status = 'selesai', completed_at = CURRENT_TIMESTAMP 
+            SET status = 'gagal', error_message = ?
             WHERE id = ?
-          `).run(queueItem.antrean_id);
+          `).run(err.message, queueItem.antrean_id);
 
           db.prepare(`
             UPDATE pengerjaan_rangkuman 
-            SET status_antrean = 'selesai'
+            SET status_antrean = 'gagal', feedback_ai = 'Evaluasi AI otomatis mengalami kendala teknis. Menunggu penilaian manual dari guru.'
             WHERE id = ?
           `).run(queueItem.pengerjaan_id);
-
-          if (typeof db.syncCloud === 'function') db.syncCloud();
-
-        } catch (err) {
-          console.warn(`⚠️ Evaluasi rangkuman #${queueItem.pengerjaan_id} gagal:`, err.message);
-
-          if (queueItem.attempt_count >= 3) {
-            // Sudah 3 kali gagal, tandai gagal permanen dengan fallback
-            db.prepare(`
-              UPDATE antrean_rangkuman 
-              SET status = 'gagal', error_message = ?
-              WHERE id = ?
-            `).run(err.message, queueItem.antrean_id);
-
-            db.prepare(`
-              UPDATE pengerjaan_rangkuman 
-              SET status_antrean = 'gagal', feedback_ai = 'Evaluasi AI otomatis mengalami kendala teknis. Menunggu penilaian manual dari guru.'
-              WHERE id = ?
-            `).run(queueItem.pengerjaan_id);
-          } else {
-            // Kembalikan ke antrean menunggu
-            db.prepare(`
-              UPDATE antrean_rangkuman 
-              SET status = 'menunggu', error_message = ?
-              WHERE id = ?
-            `).run(err.message, queueItem.antrean_id);
-          }
+        } else {
+          db.prepare(`
+            UPDATE antrean_rangkuman 
+            SET status = 'menunggu', error_message = ?
+            WHERE id = ?
+          `).run(err.message, queueItem.antrean_id);
         }
-
-        // Beri jeda aman 4 detik antar pemanggilan agar kuota RPM dan TPM Gemini aman
-        await new Promise(resolve => setTimeout(resolve, 4000));
+        return false;
       }
     } finally {
       isWorkerRunning = false;
+    }
+  },
+
+  async processQueueWorker() {
+    while (true) {
+      const processed = await this.processNextInQueue();
+      if (!processed) break;
+      await new Promise(resolve => setTimeout(resolve, 3000));
     }
   },
 

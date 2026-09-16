@@ -619,18 +619,18 @@
         </div>
 
         <!-- Queue Status Card -->
-        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 max-w-sm mx-auto space-y-2 text-xs">
+        <div class="p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-200 max-w-sm mx-auto space-y-3 text-xs">
           <div class="flex items-center justify-between font-semibold text-slate-700">
-            <span>Posisi Antrean:</span>
-            <span id="rgk-queue-pos" class="font-black text-teal-700 text-sm">#1</span>
+            <span class="flex items-center space-x-1.5">
+              <span class="inline-block w-2 h-2 rounded-full bg-teal-500 animate-ping"></span>
+              <span>Posisi Antrean:</span>
+            </span>
+            <span id="rgk-queue-pos" class="font-black text-teal-700 text-sm bg-teal-100/70 px-2.5 py-0.5 rounded-lg border border-teal-200">#1</span>
           </div>
-          <div class="flex items-center justify-between font-semibold text-slate-700">
-            <span>Estimasi Waktu Tunggu:</span>
-            <span id="rgk-queue-eta" class="font-bold text-slate-800">~10 detik</span>
+          <div class="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+            <div id="rgk-queue-progress" class="bg-gradient-to-r from-teal-500 to-emerald-500 h-2.5 rounded-full animate-pulse transition-all duration-500" style="width: 75%"></div>
           </div>
-          <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden mt-2">
-            <div id="rgk-queue-progress" class="bg-teal-600 h-2 rounded-full animate-pulse" style="width: 50%"></div>
-          </div>
+          <p class="text-[11px] text-slate-500 text-center font-medium">Sedang memproses evaluasi rangkuman Anda...</p>
         </div>
 
         <p class="text-[11px] text-slate-400">Halaman ini akan otomatis menampilkan nilai begitu evaluasi AI selesai.</p>
@@ -3975,9 +3975,7 @@
       if (doneBox) doneBox.classList.add('hidden');
 
       const posEl = document.getElementById('rgk-queue-pos');
-      const etaEl = document.getElementById('rgk-queue-eta');
       if (posEl) posEl.textContent = `#${initialPos || 1}`;
-      if (etaEl) etaEl.textContent = `~${initialEta || 10} detik`;
 
       if (rgkStatusPollInterval) clearInterval(rgkStatusPollInterval);
 
@@ -3995,10 +3993,9 @@
           } else {
             const pos = p.posisi_antrean || 1;
             if (posEl) posEl.textContent = `#${pos}`;
-            if (etaEl) etaEl.textContent = `~${Math.max(5, pos * 6)} detik`;
             const progressEl = document.getElementById('rgk-queue-progress');
             if (progressEl) {
-              const pct = Math.max(25, Math.min(95, 100 - (pos * 15)));
+              const pct = Math.max(35, Math.min(95, 100 - (pos * 15)));
               progressEl.style.width = `${pct}%`;
             }
           }
@@ -4008,7 +4005,7 @@
       }
 
       poll();
-      rgkStatusPollInterval = setInterval(poll, 3000);
+      rgkStatusPollInterval = setInterval(poll, 2000);
     }
 
     function renderRangkumanResult(p) {

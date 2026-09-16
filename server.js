@@ -1189,12 +1189,20 @@ app.post('/api/siswa/rangkuman/submit', (req, res) => {
 });
 
 // 3. Siswa: Polling Status & Nilai AI
-app.get('/api/siswa/rangkuman/status/:pengerjaanId', (req, res) => {
+app.get('/api/siswa/rangkuman/status/:pengerjaanId', async (req, res) => {
   try {
-    const result = summaryService.getStudentStatus(req.params.pengerjaanId);
+    let result = summaryService.getStudentStatus(req.params.pengerjaanId);
     if (!result.success) {
       return res.status(404).json(result);
     }
+
+    // Jika siswa ini belum selesai dinilai, langsung proses antreannya sekarang juga
+    // (Penting untuk Vercel Serverless agar antrean tidak tertahan/membeku)
+    if (!result.data.is_selesai) {
+      await summaryService.processNextInQueue(req.params.pengerjaanId);
+      result = summaryService.getStudentStatus(req.params.pengerjaanId);
+    }
+
     res.json(result);
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
