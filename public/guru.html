@@ -1328,11 +1328,17 @@
           <p id="rekap-rangkuman-meta" class="text-xs text-slate-500 mt-0.5">Mapel &bull; Kelas &bull; Minimal Kata</p>
         </div>
         <div class="flex items-center flex-wrap gap-2">
+          <button id="btn-rekap-recheck-all" type="button" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs rounded-lg transition flex items-center space-x-1 shadow-sm cursor-pointer" title="Cek ulang seluruh pengumpulan tugas ini dengan AI">
+            <span>⚡ Cek Ulang Semua AI</span>
+          </button>
           <button id="btn-rekap-approve-all" type="button" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg transition flex items-center space-x-1 shadow-sm cursor-pointer" title="Setujui seluruh nilai sementara AI menjadi nilai final">
             <span>✅ Setujui Semua Skor AI</span>
           </button>
           <button id="btn-rekap-export-csv" type="button" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs rounded-lg transition flex items-center space-x-1 shadow-sm cursor-pointer">
             <span>📊 Ekspor CSV / Excel</span>
+          </button>
+          <button id="btn-rekap-delete-all" type="button" class="px-2.5 py-1.5 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-semibold text-xs rounded-lg transition flex items-center space-x-1 cursor-pointer" title="Bersihkan/reset seluruh data pengumpulan siswa untuk tugas ini">
+            <span>🗑️ Reset Semua</span>
           </button>
           <button id="btn-rekap-refresh" type="button" class="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs rounded-lg transition cursor-pointer">
             <span>🔄 Segarkan</span>
@@ -1345,9 +1351,19 @@
       <div class="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
         <!-- Tabel Peserta (Col 7 / 12) -->
         <div class="lg:col-span-7 p-4 overflow-y-auto space-y-3">
-          <div class="flex items-center justify-between text-xs text-slate-600 font-medium">
-            <span id="rekap-rangkuman-count">Total: 0 Siswa Mengumpulkan</span>
-            <span class="text-[11px] text-slate-400">Klik baris siswa untuk melihat teks rangkuman & feedback AI</span>
+          <div class="flex items-center justify-between text-xs text-slate-600 font-medium gap-2 flex-wrap pb-1 border-b border-slate-100">
+            <div class="flex items-center space-x-2">
+              <label for="filter-rekap-kelas" class="font-bold text-slate-700 text-xs flex items-center space-x-1">
+                <span>🏫 Filter Kelas:</span>
+              </label>
+              <select id="filter-rekap-kelas" class="text-xs px-2.5 py-1 rounded-lg border border-slate-300 bg-white font-semibold text-slate-700 focus:ring-1 focus:ring-teal-500 cursor-pointer shadow-xs">
+                <option value="">Semua Kelas</option>
+              </select>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span id="rekap-rangkuman-count" class="font-semibold text-teal-800">Total: 0 Siswa</span>
+              <span class="text-[11px] text-slate-400 hidden sm:inline">&bull; Klik baris untuk detail & verifikasi</span>
+            </div>
           </div>
 
           <div class="overflow-x-auto border border-slate-200 rounded-xl">
@@ -1377,12 +1393,18 @@
           </div>
 
           <div id="rekap-detail-content" class="hidden space-y-4 text-xs">
-            <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-2 flex-wrap">
               <div>
                 <h4 id="detail-siswa-nama" class="font-bold text-slate-900 text-sm">Nama Siswa</h4>
                 <p id="detail-siswa-meta" class="text-slate-500 text-[11px]">Kelas &bull; Waktu Kumpul</p>
               </div>
-              <div class="text-right">
+              <div class="flex items-center space-x-1.5 flex-wrap gap-1">
+                <button id="btn-detail-recheck-ai" type="button" class="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 font-semibold text-[11px] rounded-lg transition flex items-center space-x-1 cursor-pointer" title="Cek ulang rangkuman siswa ini dengan AI Gemini">
+                  <span>✨ Cek Ulang AI</span>
+                </button>
+                <button id="btn-detail-delete-submission" type="button" class="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-semibold text-[11px] rounded-lg transition flex items-center space-x-1 cursor-pointer" title="Hapus pengerjaan siswa ini agar dapat mengumpulkan ulang">
+                  <span>🗑️ Hapus</span>
+                </button>
                 <span id="detail-siswa-badge-status" class="px-2 py-0.5 rounded-full font-bold text-[10px] bg-blue-100 text-blue-800">Terkumpul</span>
               </div>
             </div>
@@ -9772,7 +9794,14 @@
     const btnCloseRekapRangkuman = document.getElementById('btn-close-rekap-rangkuman');
     const btnRekapRefresh = document.getElementById('btn-rekap-refresh');
     const btnRekapApproveAll = document.getElementById('btn-rekap-approve-all');
+    const btnRekapRecheckAll = document.getElementById('btn-rekap-recheck-all');
+    const btnRekapDeleteAll = document.getElementById('btn-rekap-delete-all');
     const btnRekapExportCsv = document.getElementById('btn-rekap-export-csv');
+    const filterRekapKelas = document.getElementById('filter-rekap-kelas');
+    const btnDetailRecheckAi = document.getElementById('btn-detail-recheck-ai');
+    const btnDetailDeleteSub = document.getElementById('btn-detail-delete-submission');
+
+    let activeRekapKelasFilter = '';
 
     async function openRekapRangkumanModal(taskId) {
       activeRangkumanId = taskId;
@@ -9783,12 +9812,62 @@
       document.getElementById('rekap-rangkuman-kode-badge').textContent = task.kode_tugas;
       document.getElementById('rekap-rangkuman-meta').textContent = `${task.mata_pelajaran} • ${task.tingkat_kelas} • Batas Minimal: ${task.batas_minimum_kata} kata`;
 
-      // Reset detail panel
+      // Reset filter kelas dan panel detail
+      activeRekapKelasFilter = '';
+      if (filterRekapKelas) filterRekapKelas.value = '';
       document.getElementById('rekap-detail-placeholder').classList.remove('hidden');
       document.getElementById('rekap-detail-content').classList.add('hidden');
 
       modalRekapRangkuman.classList.remove('hidden');
       await loadRekapSubmissions(taskId);
+    }
+
+    function renderRekapTable() {
+      const tbody = document.getElementById('rekap-rangkuman-table-body');
+      if (!tbody) return;
+
+      const displayed = activeRekapKelasFilter
+        ? activeRangkumanSubmissions.filter(s => (s.kelas_siswa || '').trim() === activeRekapKelasFilter)
+        : activeRangkumanSubmissions;
+
+      const countEl = document.getElementById('rekap-rangkuman-count');
+      if (countEl) {
+        if (activeRekapKelasFilter) {
+          countEl.textContent = `Menampilkan ${displayed.length} dari ${activeRangkumanSubmissions.length} Siswa (${activeRekapKelasFilter})`;
+        } else {
+          countEl.textContent = `Total: ${activeRangkumanSubmissions.length} Siswa Mengumpulkan`;
+        }
+      }
+
+      if (displayed.length === 0) {
+        tbody.innerHTML = activeRekapKelasFilter
+          ? `<tr><td colspan="6" class="p-6 text-center text-slate-400">Tidak ada data siswa untuk kelas "${escapeHtml(activeRekapKelasFilter)}".</td></tr>`
+          : '<tr><td colspan="6" class="p-6 text-center text-slate-400">Belum ada siswa yang mengumpulkan rangkuman untuk tugas ini.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = displayed.map((s) => {
+        let statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">Menunggu Guru</span>';
+        if (s.status_kelulusan === 'final') {
+          statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">✅ Disetujui</span>';
+        } else if (s.status_kelulusan === 'revisi') {
+          statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">⚠️ Revisi</span>';
+        }
+
+        const skorAi = s.skor_ai !== null ? `<span class="font-bold text-purple-700">${s.skor_ai}</span>` : '<span class="text-slate-400">Diantrekan</span>';
+        const skorFinal = s.skor_final !== null ? `<span class="font-bold text-teal-800 text-sm">${s.skor_final}</span>` : '-';
+
+        return `
+          <tr onclick="selectStudentSubmission(${s.id})" class="hover:bg-teal-50/50 cursor-pointer transition">
+            <td class="p-2.5 font-bold text-slate-900">${escapeHtml(s.nama_siswa)}</td>
+            <td class="p-2.5 text-slate-600">${escapeHtml(s.kelas_siswa)}</td>
+            <td class="p-2.5 text-center font-mono">${s.jumlah_kata}</td>
+            <td class="p-2.5 text-center">${skorAi}</td>
+            <td class="p-2.5 text-center">${skorFinal}</td>
+            <td class="p-2.5 text-center">${statusBadge}</td>
+          </tr>
+        `;
+      }).join('');
     }
 
     async function loadRekapSubmissions(taskId) {
@@ -9801,39 +9880,37 @@
         if (!res.ok || !data.success) throw new Error(data.message || 'Gagal memuat rekap');
 
         activeRangkumanSubmissions = data.data || [];
-        document.getElementById('rekap-rangkuman-count').textContent = `Total: ${activeRangkumanSubmissions.length} Siswa Mengumpulkan`;
 
-        if (activeRangkumanSubmissions.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-400">Belum ada siswa yang mengumpulkan rangkuman untuk tugas ini.</td></tr>';
-          return;
+        // Populasi dropdown kelas unik
+        if (filterRekapKelas) {
+          const prevFilter = activeRekapKelasFilter;
+          const uniqueClasses = [...new Set(activeRangkumanSubmissions.map(s => (s.kelas_siswa || '').trim()).filter(Boolean))].sort();
+          
+          filterRekapKelas.innerHTML = '<option value="">Semua Kelas</option>' +
+            uniqueClasses.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+
+          if (uniqueClasses.includes(prevFilter)) {
+            filterRekapKelas.value = prevFilter;
+            activeRekapKelasFilter = prevFilter;
+          } else {
+            filterRekapKelas.value = '';
+            activeRekapKelasFilter = '';
+          }
         }
 
-        tbody.innerHTML = activeRangkumanSubmissions.map((s, idx) => {
-          let statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">Menunggu Guru</span>';
-          if (s.status_kelulusan === 'final') {
-            statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">✅ Disetujui</span>';
-          } else if (s.status_kelulusan === 'revisi') {
-            statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">⚠️ Revisi</span>';
-          }
-
-          const skorAi = s.skor_ai !== null ? `<span class="font-bold text-purple-700">${s.skor_ai}</span>` : '<span class="text-slate-400">Diantrekan</span>';
-          const skorFinal = s.skor_final !== null ? `<span class="font-bold text-teal-800 text-sm">${s.skor_final}</span>` : '-';
-
-          return `
-            <tr onclick="selectStudentSubmission(${s.id})" class="hover:bg-teal-50/50 cursor-pointer transition">
-              <td class="p-2.5 font-bold text-slate-900">${escapeHtml(s.nama_siswa)}</td>
-              <td class="p-2.5 text-slate-600">${escapeHtml(s.kelas_siswa)}</td>
-              <td class="p-2.5 text-center font-mono">${s.jumlah_kata}</td>
-              <td class="p-2.5 text-center">${skorAi}</td>
-              <td class="p-2.5 text-center">${skorFinal}</td>
-              <td class="p-2.5 text-center">${statusBadge}</td>
-            </tr>
-          `;
-        }).join('');
+        renderRekapTable();
 
       } catch (err) {
         tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-red-500">Error: ${escapeHtml(err.message)}</td></tr>`;
       }
+    }
+
+    // Filter Kelas Event Listener
+    if (filterRekapKelas) {
+      filterRekapKelas.addEventListener('change', (e) => {
+        activeRekapKelasFilter = e.target.value;
+        renderRekapTable();
+      });
     }
 
     function selectStudentSubmission(subId) {
@@ -9856,6 +9933,111 @@
       document.getElementById('koreksi-pengerjaan-id').value = sub.id;
       document.getElementById('koreksi-skor-final').value = sub.skor_final !== null ? sub.skor_final : (sub.skor_ai || 80);
       document.getElementById('koreksi-status-kelulusan').value = sub.status_kelulusan || 'final';
+    }
+
+    // Cek Ulang AI Siswa Individual
+    if (btnDetailRecheckAi) {
+      btnDetailRecheckAi.addEventListener('click', async () => {
+        const subId = Number(document.getElementById('koreksi-pengerjaan-id').value);
+        if (!subId) return;
+        const sub = activeRangkumanSubmissions.find(s => s.id === subId);
+        if (!sub) return;
+
+        if (!confirm(`Cek ulang teks rangkuman "${sub.nama_siswa}" dengan AI sekarang?`)) return;
+
+        btnDetailRecheckAi.disabled = true;
+        btnDetailRecheckAi.innerHTML = '<span>⏳ Memeriksa...</span>';
+
+        try {
+          const res = await guruFetch(`/api/guru/rangkuman/pengerjaan/${subId}/cek-ulang`, { method: 'POST' });
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.message || 'Gagal mengecek ulang');
+
+          alert('✅ Rangkuman siswa berhasil dicek ulang oleh AI!');
+          await loadRekapSubmissions(activeRangkumanId);
+          selectStudentSubmission(subId);
+        } catch (err) {
+          alert('Gagal cek ulang AI: ' + err.message);
+        } finally {
+          btnDetailRecheckAi.disabled = false;
+          btnDetailRecheckAi.innerHTML = '<span>✨ Cek Ulang AI</span>';
+        }
+      });
+    }
+
+    // Hapus Pengerjaan Siswa Individual
+    if (btnDetailDeleteSub) {
+      btnDetailDeleteSub.addEventListener('click', async () => {
+        const subId = Number(document.getElementById('koreksi-pengerjaan-id').value);
+        if (!subId) return;
+        const sub = activeRangkumanSubmissions.find(s => s.id === subId);
+        if (!sub) return;
+
+        if (!confirm(`⚠️ PERINGATAN: Yakin ingin menghapus data pengumpulan "${sub.nama_siswa}" (${sub.kelas_siswa})?\n\nSetelah dihapus, siswa ini dapat mengumpulkan tugas kembali dari awal.`)) return;
+
+        btnDetailDeleteSub.disabled = true;
+        try {
+          const res = await guruFetch(`/api/guru/rangkuman/pengerjaan/${subId}`, { method: 'DELETE' });
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.message || 'Gagal menghapus pengerjaan');
+
+          alert('✅ ' + data.message);
+          document.getElementById('rekap-detail-placeholder').classList.remove('hidden');
+          document.getElementById('rekap-detail-content').classList.add('hidden');
+          await loadRekapSubmissions(activeRangkumanId);
+        } catch (err) {
+          alert('Gagal menghapus data: ' + err.message);
+        } finally {
+          btnDetailDeleteSub.disabled = false;
+        }
+      });
+    }
+
+    // Cek Ulang Semua Pengumpulan dengan AI (Massal)
+    if (btnRekapRecheckAll) {
+      btnRekapRecheckAll.addEventListener('click', async () => {
+        if (!activeRangkumanId) return;
+        if (!confirm('⚡ Masukkan SELURUH pengerjaan tugas ini ke antrean evaluasi AI untuk dicek ulang?')) return;
+
+        btnRekapRecheckAll.disabled = true;
+        try {
+          const res = await guruFetch(`/api/guru/rangkuman/${activeRangkumanId}/cek-ulang-semua`, { method: 'POST' });
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.message || 'Gagal memulai cek ulang massal');
+
+          alert('✅ ' + data.message);
+          await loadRekapSubmissions(activeRangkumanId);
+        } catch (err) {
+          alert('Error: ' + err.message);
+        } finally {
+          btnRekapRecheckAll.disabled = false;
+        }
+      });
+    }
+
+    // Reset / Hapus Seluruh Pengumpulan Tugas Ini
+    if (btnRekapDeleteAll) {
+      btnRekapDeleteAll.addEventListener('click', async () => {
+        if (!activeRangkumanId) return;
+        const firstConfirm = confirm('⚠️ PERINGATAN KERAS:\nAnda akan MENGHAPUS SELURUH data pengumpulan siswa untuk tugas ini.\n\nSemua riwayat nilai, teks rangkuman, dan feedback AI siswa akan dibersihkan agar siswa dapat mengumpulkan ulang.\n\nApakah Anda yakin ingin melanjutkan?');
+        if (!firstConfirm) return;
+
+        btnRekapDeleteAll.disabled = true;
+        try {
+          const res = await guruFetch(`/api/guru/rangkuman/${activeRangkumanId}/peserta`, { method: 'DELETE' });
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.message || 'Gagal membersihkan data');
+
+          alert('✅ ' + data.message);
+          document.getElementById('rekap-detail-placeholder').classList.remove('hidden');
+          document.getElementById('rekap-detail-content').classList.add('hidden');
+          await loadRekapSubmissions(activeRangkumanId);
+        } catch (err) {
+          alert('Error: ' + err.message);
+        } finally {
+          btnRekapDeleteAll.disabled = false;
+        }
+      });
     }
 
     // Submit Koreksi Nilai Guru

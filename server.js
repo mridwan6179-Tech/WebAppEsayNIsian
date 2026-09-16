@@ -1312,6 +1312,46 @@ app.get('/api/guru/rangkuman/:id/ekspor-csv', requireGuru, (req, res) => {
   }
 });
 
+// 14. Guru: Hapus Pengerjaan Siswa Perorangan
+app.delete('/api/guru/rangkuman/pengerjaan/:id', requireGuru, (req, res) => {
+  try {
+    const result = summaryService.deleteSubmission(req.params.id, req.guru.guruId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// 15. Guru: Hapus / Reset Semua Pengumpulan Tugas
+app.delete('/api/guru/rangkuman/:id/peserta', requireGuru, (req, res) => {
+  try {
+    const result = summaryService.deleteAllSubmissions(req.params.id, req.guru.guruId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// 16. Guru: Cek Ulang AI untuk Pengerjaan Siswa Perorangan
+app.post('/api/guru/rangkuman/pengerjaan/:id/cek-ulang', requireGuru, async (req, res) => {
+  try {
+    const result = await summaryService.recheckSubmissionAi(req.params.id, req.guru.guruId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// 17. Guru: Cek Ulang Semua Pengumpulan dengan AI
+app.post('/api/guru/rangkuman/:id/cek-ulang-semua', requireGuru, (req, res) => {
+  try {
+    const result = summaryService.recheckAllAi(req.params.id, req.guru.guruId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 // Export app untuk testing atau jalankan server jika dipanggil langsung
 if (require.main === module) {
   app.listen(PORT, () => {

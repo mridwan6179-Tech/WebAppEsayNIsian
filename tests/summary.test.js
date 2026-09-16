@@ -290,6 +290,72 @@ describe('=== SUITE: FITUR TUGAS RANGKUMAN BERBANTUAN AI ===', () => {
     }
   });
 
+  test('12. Guru dapat memicu cek ulang AI untuk pengerjaan siswa (individual & massal)', async () => {
+    // Ambil submission yang ada
+    const sub = db.prepare('SELECT id FROM pengerjaan_rangkuman WHERE tugas_id = ? LIMIT 1').get(createdTask.id);
+    assert.ok(sub, 'Harus ada submission');
+
+    // 1. Cek ulang individual
+    const recheckRes = await summaryService.recheckSubmissionAi(sub.id, testGuruId);
+    assert.equal(recheckRes.success, true);
+    assert.ok(recheckRes.data.skor_ai >= 60);
+    assert.equal(recheckRes.data.status_antrean, 'selesai');
+
+    // 2. Cek ulang massal
+    const bulkRes = summaryService.recheckAllAi(createdTask.id, testGuruId);
+    assert.equal(bulkRes.success, true);
+
+    const antreanCount = db.prepare("SELECT COUNT(*) as count FROM antrean_rangkuman WHERE status = 'menunggu'").get();
+    assert.ok(antreanCount.count >= 1, 'Antrean harus terisi kembali status menunggu');
+  });
+
+  test('13. Guru dapat menghapus pengerjaan siswa sehingga siswa dapat mengumpulkan ulang', () => {
+    // Buat pengerjaan baru untuk siswa Budi (minimal 20 kata)
+    const subBudi = summaryService.submitSummary(createdTask.id, {
+      namaSiswa: 'Budi Santoso',
+      kelasSiswa: '10 MIPA 2',
+      teksRangkuman: 'Peradaban Islam pada masa Dinasti Abbasiyah di Baghdad berkembang sangat pesat melalui perpustakaan Baitul Hikmah yang giat menerjemahkan aneka ilmu pengetahuan dunia.'
+    });
+    assert.equal(subBudi.success, true);
+    assert.ok(subBudi.pengerjaan_id);
+
+    // Coba submit lagi (harus ditolak karena double-submit guard)
+    const rejectDouble = summaryService.submitSummary(createdTask.id, {
+      namaSiswa: 'Budi Santoso',
+      kelasSiswa: '10 MIPA 2',
+      teksRangkuman: 'Peradaban Islam pada masa Dinasti Abbasiyah di Baghdad berkembang sangat pesat melalui perpustakaan Baitul Hikmah yang giat menerjemahkan aneka ilmu pengetahuan dunia.'
+    });
+    assert.equal(rejectDouble.success, false);
+    assert.match(rejectDouble.message, /sudah pernah mengumpulkan/);
+
+    // Guru menghapus pengerjaan Budi
+    const deleteRes = summaryService.deleteSubmission(subBudi.pengerjaan_id, testGuruId);
+    assert.equal(deleteRes.success, true);
+
+    // Pastikan terhapus dari database
+    const checkDb = db.prepare('SELECT id FROM pengerjaan_rangkuman WHERE id = ?').get(subBudi.pengerjaan_id);
+    assert.equal(checkDb, undefined, 'Pengerjaan harus sudah terhapus');
+
+    // Siswa Budi sekarang BISA mengumpulkan ulang tanpa terblokir
+    const resubmission = summaryService.submitSummary(createdTask.id, {
+      namaSiswa: 'Budi Santoso',
+      kelasSiswa: '10 MIPA 2',
+      teksRangkuman: 'Rangkuman revisi Budi yang berhasil dikumpulkan kembali secara lengkap dan mendalam setelah data pengerjaan lamanya dibersihkan oleh bapak ibu guru pengampu mata pelajaran.'
+    });
+    assert.equal(resubmission.success, true, 'Siswa harus bisa mengumpulkan kembali setelah datanya dihapus');
+  });
+
+  test('14. Guru dapat membersihkan/reset seluruh data pengumpulan untuk satu tugas', () => {
+    // Bersihkan seluruh pengumpulan
+    const resetRes = summaryService.deleteAllSubmissions(createdTask.id, testGuruId);
+    assert.equal(resetRes.success, true);
+    assert.ok(resetRes.deleted_count >= 1);
+
+    // Cek bahwa tidak ada lagi pengerjaan untuk tugas ini
+    const remaining = summaryService.getSubmissionsByTask(createdTask.id, testGuruId);
+    assert.equal(remaining.length, 0);
+  });
+
   after(() => {
     // Bersihkan data uji
     if (createdTask?.id) {

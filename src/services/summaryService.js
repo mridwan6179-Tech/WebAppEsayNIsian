@@ -884,6 +884,131 @@ Kembalikan HASIL HANYA berupa JSON valid tanpa codeblock markdown:
       csv += `${idx + 1},${escape(s.nama_siswa)},${escape(s.kelas_siswa)},${s.jumlah_kata},${skorAi},${skorFinal},${escape(s.status_kelulusan)},${escape(s.submitted_at)},${escape(s.feedback_ai)}\n`;
     });
     return csv;
+  },
+
+  // Hapus data pengerjaan siswa perorangan
+  deleteSubmission(pengerjaanId, guruId) {
+    const pengerjaan = db.prepare(`
+      SELECT p.id, p.nama_siswa, p.tugas_id, t.guru_id
+      FROM pengerjaan_rangkuman p
+      JOIN tugas_rangkuman t ON p.tugas_id = t.id
+      WHERE p.id = ?
+    `).get(pengerjaanId);
+
+    if (!pengerjaan || pengerjaan.guru_id !== guruId) {
+      throw new Error('Data pengerjaan tidak ditemukan atau bukan milik kelas Anda');
+    }
+
+    db.prepare('DELETE FROM antrean_rangkuman WHERE pengerjaan_id = ?').run(pengerjaanId);
+    db.prepare('DELETE FROM pengerjaan_rangkuman WHERE id = ?').run(pengerjaanId);
+
+    if (typeof db.syncCloud === 'function') db.syncCloud(true);
+
+    return {
+      success: true,
+      message: `Data pengerjaan siswa "${pengerjaan.nama_siswa}" berhasil dihapus. Siswa kini dapat mengumpulkan ulang.`
+    };
+  },
+
+  // Hapus/reset seluruh data pengumpulan untuk tugas tertentu
+  deleteAllSubmissions(taskId, guruId) {
+    const task = this.getTaskById(taskId, guruId);
+    if (!task) {
+      throw new Error('Tugas rangkuman tidak ditemukan atau bukan milik Anda');
+    }
+
+    db.prepare(`
+      DELETE FROM antrean_rangkuman 
+      WHERE pengerjaan_id IN (SELECT id FROM pengerjaan_rangkuman WHERE tugas_id = ?)
+    `).run(taskId);
+
+    const info = db.prepare('DELETE FROM pengerjaan_rangkuman WHERE tugas_id = ?').run(taskId);
+
+    if (typeof db.syncCloud === 'function') db.syncCloud(true);
+
+    return {
+      success: true,
+      deleted_count: info.changes,
+      message: `Seluruh data pengumpulan (${info.changes} siswa) berhasil dibersihkan.`
+    };
+  },
+
+  // Cek ulang AI untuk satu pengerjaan siswa secara individual
+  async recheckSubmissionAi(pengerjaanId, guruId) {
+    const pengerjaan = db.prepare(`
+      SELECT p.id, p.nama_siswa, t.guru_id
+      FROM pengerjaan_rangkuman p
+      JOIN tugas_rangkuman t ON p.tugas_id = t.id
+      WHERE p.id = ?
+    `).get(pengerjaanId);
+
+    if (!pengerjaan || pengerjaan.guru_id !== guruId) {
+      throw new Error('Data pengerjaan tidak ditemukan atau bukan milik kelas Anda');
+    }
+
+    db.prepare("UPDATE pengerjaan_rangkuman SET status_antrean = 'diproses' WHERE id = ?").run(pengerjaanId);
+
+    const evalResult = await this.evaluateSingleSubmission(pengerjaanId);
+
+    db.prepare("UPDATE antrean_rangkuman SET status = 'selesai', completed_at = CURRENT_TIMESTAMP WHERE pengerjaan_id = ?").run(pengerjaanId);
+
+    if (typeof db.syncCloud === 'function') db.syncCloud(true);
+
+    const updated = db.prepare('SELECT * FROM pengerjaan_rangkuman WHERE id = ?').get(pengerjaanId);
+    if (updated) {
+      try {
+        updated.detail_poin_ai = updated.detail_poin_ai ? JSON.parse(updated.detail_poin_ai) : {};
+      } catch (e) {
+        updated.detail_poin_ai = {};
+      }
+    }
+
+    return {
+      success: true,
+      message: `Pengerjaan siswa "${pengerjaan.nama_siswa}" berhasil dicek ulang dengan AI.`,
+      data: updated,
+      evaluation: evalResult
+    };
+  },
+
+  // Cek ulang seluruh pengerjaan tugas secara massal
+  recheckAllAi(taskId, guruId) {
+    const task = this.getTaskById(taskId, guruId);
+    if (!task) {
+      throw new Error('Tugas rangkuman tidak ditemukan atau bukan milik Anda');
+    }
+
+    // Reset status pengerjaan
+    db.prepare(`
+      UPDATE pengerjaan_rangkuman 
+      SET status_antrean = 'menunggu', reviewed_at = NULL 
+      WHERE tugas_id = ?
+    `).run(taskId);
+
+    // Insert ke antrean jika belum ada
+    db.prepare(`
+      INSERT OR IGNORE INTO antrean_rangkuman (pengerjaan_id, status, attempt_count)
+      SELECT id, 'menunggu', 0 FROM pengerjaan_rangkuman WHERE tugas_id = ?
+    `).run(taskId);
+
+    // Reset status antrean yang sudah ada
+    db.prepare(`
+      UPDATE antrean_rangkuman 
+      SET status = 'menunggu', attempt_count = 0, error_message = NULL, locked_at = NULL, completed_at = NULL
+      WHERE pengerjaan_id IN (SELECT id FROM pengerjaan_rangkuman WHERE tugas_id = ?)
+    `).run(taskId);
+
+    if (typeof db.syncCloud === 'function') db.syncCloud(true);
+
+    // Jalankan background worker
+    setImmediate(() => {
+      this.processQueueWorker().catch(e => console.warn('Worker recheck error:', e.message));
+    });
+
+    return {
+      success: true,
+      message: 'Seluruh pengumpulan berhasil dimasukkan ke antrean evaluasi AI.'
+    };
   }
 };
 
