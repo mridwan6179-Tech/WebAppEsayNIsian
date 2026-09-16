@@ -3598,6 +3598,27 @@
       return (match && match[1]) ? match[1] : null;
     }
 
+    function extractGoogleDrivePreviewUrl(url) {
+      if (!url || typeof url !== 'string') return null;
+      const clean = url.trim();
+      // drive.google.com/file/d/FILE_ID/...
+      const matchFile = clean.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
+      if (matchFile && matchFile[1]) {
+        return `https://drive.google.com/file/d/${matchFile[1]}/preview`;
+      }
+      // drive.google.com/open?id=FILE_ID
+      const matchOpen = clean.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/i);
+      if (matchOpen && matchOpen[1]) {
+        return `https://drive.google.com/file/d/${matchOpen[1]}/preview`;
+      }
+      // docs.google.com/document|presentation|spreadsheets/d/FILE_ID/...
+      const matchDocs = clean.match(/docs\.google\.com\/(document|presentation|spreadsheets)\/d\/([a-zA-Z0-9_-]+)/i);
+      if (matchDocs && matchDocs[1] && matchDocs[2]) {
+        return `https://docs.google.com/${matchDocs[1]}/d/${matchDocs[2]}/preview`;
+      }
+      return null;
+    }
+
     function startRangkumanMode(task, nama, kelas) {
       currentRangkumanSession = { task, nama, kelas };
       localStorage.setItem('ulangan_rangkuman_session', JSON.stringify({ task, nama, kelas }));
@@ -3638,10 +3659,18 @@
       }
 
       // Tipe Media Badge
+      const isGDrive = !!extractGoogleDrivePreviewUrl(task.media_url);
       const tipeBadge = document.getElementById('siswa-rgk-tipe-badge');
       if (tipeBadge) {
-        const tipeNames = { youtube: 'Video YouTube', pdf: 'Dokumen PDF', video: 'Video Materi', teks: 'Teks Bacaan' };
-        tipeBadge.textContent = tipeNames[task.tipe_media] || (task.tipe_media ? task.tipe_media.toUpperCase() : 'Materi');
+        const tipeNames = {
+          youtube: 'Video YouTube',
+          pdf: 'Dokumen PDF',
+          pdf_url: isGDrive ? 'Google Drive PDF' : 'Dokumen PDF',
+          video: 'Video Materi',
+          video_url: isGDrive ? 'Google Drive Video' : 'Video Materi',
+          teks: 'Teks Bacaan'
+        };
+        tipeBadge.textContent = tipeNames[task.tipe_media] || (isGDrive ? 'Google Drive' : (task.tipe_media ? task.tipe_media.toUpperCase() : 'Materi'));
       }
 
       // Render Media
@@ -3663,6 +3692,10 @@
         if (teksContainer) teksContainer.classList.add('hidden');
         if (mediaContainer) {
           mediaContainer.classList.remove('hidden');
+          const gDrivePreview = extractGoogleDrivePreviewUrl(task.media_url);
+          const isPdfType = (task.tipe_media === 'pdf' || task.tipe_media === 'pdf_url');
+          const isVideoType = (task.tipe_media === 'video' || task.tipe_media === 'video_url');
+
           if (task.tipe_media === 'youtube') {
             mediaContainer.className = 'rounded-xl overflow-hidden border border-slate-200 bg-slate-950 aspect-video flex items-center justify-center shadow-xs';
             const ytId = extractYouTubeId(task.media_url);
@@ -3678,7 +3711,19 @@
                 </div>
               `;
             }
-          } else if (task.tipe_media === 'pdf') {
+          } else if (gDrivePreview) {
+            // Google Drive preview embed (Buku PDF / Google Docs / Video Drive)
+            mediaContainer.className = 'rounded-xl overflow-hidden border border-slate-200 bg-slate-100 h-[520px] flex flex-col items-center justify-center shadow-xs';
+            mediaContainer.innerHTML = `
+              <iframe src="${gDrivePreview}" class="w-full flex-1 border-0 rounded-t-xl" allow="autoplay"></iframe>
+              <div class="p-2 bg-slate-50 border-t border-slate-200 w-full text-center flex items-center justify-center space-x-2">
+                <a href="${escapeHtml(task.media_url)}" target="_blank" rel="noopener noreferrer" class="text-[11px] text-teal-700 hover:underline font-semibold flex items-center space-x-1">
+                  <span>📂</span>
+                  <span>Buka di Google Drive (Tab Baru)</span>
+                </a>
+              </div>
+            `;
+          } else if (isPdfType) {
             mediaContainer.className = 'rounded-xl overflow-hidden border border-slate-200 bg-slate-100 h-[520px] flex flex-col items-center justify-center shadow-xs';
             mediaContainer.innerHTML = `
               <iframe src="${escapeHtml(task.media_url)}#toolbar=0" class="w-full flex-1 border-0"></iframe>
@@ -3688,7 +3733,7 @@
                 </a>
               </div>
             `;
-          } else if (task.tipe_media === 'video') {
+          } else if (isVideoType) {
             mediaContainer.className = 'rounded-xl overflow-hidden border border-slate-200 bg-slate-950 aspect-video flex items-center justify-center shadow-xs';
             mediaContainer.innerHTML = `
               <video class="w-full h-full" controls playsinline controlslist="nodownload">

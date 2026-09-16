@@ -1205,7 +1205,7 @@
             </label>
             <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 cursor-pointer hover:border-teal-500 text-slate-700 font-medium text-[11px]">
               <input type="radio" name="tipe_media" value="pdf_url" class="text-teal-600 focus:ring-teal-500">
-              <span>PDF / Buku</span>
+              <span>PDF / Google Drive</span>
             </label>
             <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 cursor-pointer hover:border-teal-500 text-slate-700 font-medium text-[11px]">
               <input type="radio" name="tipe_media" value="video_url" class="text-teal-600 focus:ring-teal-500">
@@ -1220,7 +1220,7 @@
           <div id="wrapper-media-url">
             <label class="block font-semibold text-slate-700 mb-1" id="label-media-url">Tautan / URL Video YouTube</label>
             <input type="url" id="form-rangkuman-media-url" placeholder="https://www.youtube.com/watch?v=..." class="w-full px-3 py-2 rounded-xl border border-slate-300 focus:border-teal-500">
-            <p class="text-[10px] text-slate-500 mt-1">Dapat berupa link YouTube biasa atau tautan publik dokumen PDF Google Drive / cloud.</p>
+            <p id="hint-media-url" class="text-[10px] text-slate-500 mt-1">Dapat berupa link YouTube biasa atau tautan publik dokumen PDF / Google Drive / cloud.</p>
           </div>
 
           <div id="wrapper-media-teks" class="hidden">
@@ -9427,6 +9427,8 @@
       const wrapperUrl = document.getElementById('wrapper-media-url');
       const wrapperTeks = document.getElementById('wrapper-media-teks');
       const labelUrl = document.getElementById('label-media-url');
+      const hintUrl = document.getElementById('hint-media-url');
+      const inputUrl = document.getElementById('form-rangkuman-media-url');
 
       if (val === 'teks') {
         if (wrapperUrl) wrapperUrl.classList.add('hidden');
@@ -9435,9 +9437,19 @@
         if (wrapperTeks) wrapperTeks.classList.add('hidden');
         if (wrapperUrl) wrapperUrl.classList.remove('hidden');
         if (labelUrl) {
-          if (val === 'youtube') labelUrl.textContent = 'Tautan / URL Video YouTube';
-          else if (val === 'pdf_url') labelUrl.textContent = 'Tautan Dokumen PDF / E-Book';
-          else labelUrl.textContent = 'Tautan Video / Google Drive';
+          if (val === 'youtube') {
+            labelUrl.textContent = 'Tautan / URL Video YouTube';
+            if (inputUrl) inputUrl.placeholder = 'https://www.youtube.com/watch?v=...';
+            if (hintUrl) hintUrl.textContent = 'Salin tautan video pembelajaran dari YouTube.';
+          } else if (val === 'pdf_url') {
+            labelUrl.textContent = 'Tautan PDF / Google Drive / Dokumen';
+            if (inputUrl) inputUrl.placeholder = 'https://drive.google.com/file/d/.../view atau link dokumen PDF';
+            if (hintUrl) hintUrl.innerHTML = '💡 <strong>Hemat Kuota Database:</strong> Cukup gunakan link Google Drive (PDF / Google Docs). Pastikan akses diset <em>"Siapa saja yang memiliki link dapat melihat"</em>. Sistem otomatis meng-embed ke browser siswa tanpa membebani database!';
+          } else {
+            labelUrl.textContent = 'Tautan Video / Google Drive Video';
+            if (inputUrl) inputUrl.placeholder = 'https://drive.google.com/file/d/... atau tautan video';
+            if (hintUrl) hintUrl.textContent = 'Tautan video publik atau video dari Google Drive.';
+          }
         }
       }
     }
