@@ -36,9 +36,9 @@
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between antialiased p-3 sm:p-6">
 
-  <div class="max-w-3xl w-full mx-auto">
+  <div id="main-app-container" class="max-w-3xl w-full mx-auto transition-all duration-300">
     <!-- Header -->
-    <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-200">
+    <header id="main-header" class="flex items-center justify-between pb-4 mb-6 border-b border-slate-200">
       <div class="flex items-center space-x-2">
         <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold shadow-md shadow-blue-200">
           U
@@ -512,51 +512,62 @@
     </section>
 
     <!-- STEP: PENGERJAAN TUGAS RANGKUMAN (SPLIT-SCREEN INTERAKTIF) -->
-    <section id="step-rangkuman" class="hidden bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200/80 space-y-4">
+    <section id="step-rangkuman" class="hidden bg-white p-4 sm:p-6 lg:p-7 rounded-2xl shadow-sm border border-slate-200/80 space-y-4 sm:space-y-5">
       <!-- Header Tugas Rangkuman -->
-      <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
-        <div>
-          <div class="flex items-center space-x-2">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-slate-200">
+        <div class="space-y-1">
+          <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <span class="px-2.5 py-0.5 bg-teal-100 text-teal-800 font-mono font-bold text-xs rounded-lg" id="siswa-rgk-kode-badge">RGK-XXXX</span>
-            <span class="text-xs font-semibold text-slate-500" id="siswa-rgk-mapel-badge">Mata Pelajaran</span>
+            <span class="px-2.5 py-0.5 bg-slate-100 text-slate-700 font-semibold text-xs rounded-lg" id="siswa-rgk-mapel-badge">Mata Pelajaran</span>
+            <span id="siswa-rgk-tipe-badge" class="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 font-bold text-xs rounded-lg border border-indigo-200">YouTube</span>
           </div>
-          <h2 class="text-lg sm:text-xl font-bold text-slate-900 mt-1" id="siswa-rgk-judul">Judul Tugas Rangkuman</h2>
-          <p class="text-xs text-slate-600 font-medium mt-0.5">Siswa: <strong class="text-slate-900" id="siswa-rgk-nama-label">-</strong> (<span id="siswa-rgk-kelas-label">-</span>)</p>
+          <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight" id="siswa-rgk-judul">Judul Tugas Rangkuman</h2>
+          <p class="text-xs sm:text-sm text-slate-600 font-medium">
+            Siswa: <strong class="text-slate-900" id="siswa-rgk-nama-label">-</strong> &bull; Kelas: <span class="font-semibold text-slate-800" id="siswa-rgk-kelas-label">-</span>
+          </p>
         </div>
-        <div class="flex items-center space-x-2">
-          <span id="draft-autosave-indicator" class="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg flex items-center space-x-1">
-            <span>💾</span>
+        <div class="flex items-center space-x-2 shrink-0 self-start sm:self-center">
+          <span id="draft-autosave-indicator" class="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl flex items-center space-x-1.5 shadow-2xs">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span>Draft Tersimpan Otomatis</span>
           </span>
+          <button type="button" onclick="keluarDariRangkuman()" class="text-xs text-slate-400 hover:text-rose-600 font-semibold px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer" title="Keluar dari tugas ini">
+            Keluar ✕
+          </button>
         </div>
       </div>
 
       <!-- Deskripsi / Petunjuk Guru jika ada -->
-      <div id="siswa-rgk-deskripsi-box" class="hidden p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-xs text-amber-900">
-        <p class="font-bold flex items-center space-x-1 mb-0.5"><span>📌</span><span>Petunjuk Guru:</span></p>
-        <p id="siswa-rgk-deskripsi-text">-</p>
+      <div id="siswa-rgk-deskripsi-box" class="hidden p-3.5 sm:p-4 bg-gradient-to-r from-amber-50 to-orange-50/50 border border-amber-200 rounded-xl text-xs sm:text-sm text-amber-950 shadow-2xs">
+        <div class="flex items-start space-x-2.5">
+          <span class="text-lg leading-none">📌</span>
+          <div class="space-y-0.5">
+            <p class="font-bold text-amber-900 text-xs uppercase tracking-wider">Petunjuk Guru:</p>
+            <p id="siswa-rgk-deskripsi-text" class="leading-relaxed font-medium text-slate-800">-</p>
+          </div>
+        </div>
       </div>
 
       <!-- Grid Split-Screen (Kiri: Media Pembelajaran | Kanan: Editor Rangkuman) -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start">
         
         <!-- Kolom Kiri: Media Pembelajaran (YouTube / PDF / Teks Bacaan) (Col 6 / 12) -->
-        <div class="lg:col-span-6 space-y-3">
+        <div class="lg:col-span-6 space-y-3 lg:sticky lg:top-4">
           <div class="flex items-center justify-between">
             <h3 class="font-bold text-slate-800 text-xs sm:text-sm flex items-center space-x-1.5">
               <span>📖</span>
               <span>Bahan Materi Pembelajaran</span>
             </h3>
-            <span id="siswa-rgk-tipe-badge" class="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded">YouTube</span>
+            <span class="text-[11px] text-slate-500">Simak materi di bawah ini</span>
           </div>
 
           <!-- Media Container -->
-          <div id="siswa-rgk-media-container" class="rounded-xl overflow-hidden border border-slate-200 bg-slate-950 aspect-video flex items-center justify-center shadow-xs">
+          <div id="siswa-rgk-media-container" class="w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 aspect-video flex items-center justify-center shadow-xs">
             <!-- Iframe / PDF Embed / Teks di-inject via JS -->
           </div>
 
           <!-- Jika tipe media teks, tampilkan card artikel bacaan yang nyaman -->
-          <div id="siswa-rgk-teks-container" class="hidden p-4 bg-slate-50 rounded-xl border border-slate-200 max-h-[500px] overflow-y-auto text-xs leading-relaxed text-slate-800 whitespace-pre-wrap font-sans">
+          <div id="siswa-rgk-teks-container" class="hidden p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-200 max-h-[600px] overflow-y-auto text-xs sm:text-sm leading-relaxed text-slate-800 whitespace-pre-wrap font-sans">
           </div>
         </div>
 
@@ -568,24 +579,24 @@
               <span>Tulis Rangkuman Mandiri</span>
             </h3>
             <!-- Live Word Counter -->
-            <div id="siswa-rgk-word-counter-box" class="px-2.5 py-1 rounded-lg border text-xs font-mono font-bold bg-slate-100 text-slate-700 border-slate-300">
+            <div id="siswa-rgk-word-counter-box" class="px-3 py-1 rounded-xl border text-xs font-mono font-bold bg-slate-100 text-slate-700 border-slate-300 shadow-2xs">
               <span id="siswa-rgk-word-count">0</span> / <span id="siswa-rgk-min-count">100</span> kata minimum
             </div>
           </div>
 
           <!-- Textarea Editor -->
           <div class="relative">
-            <textarea id="siswa-rgk-editor" rows="15" placeholder="Ketik rangkuman Anda di sini dengan bahasa sendiri...&#10;&#10;Tips:&#10;• Simak materi di samping dengan seksama.&#10;• Jelaskan konsep-konsep kunci dan kesimpulan yang Anda peroleh.&#10;• Hindari copy-paste mentah atau kalimat spam." class="w-full p-3.5 sm:p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm text-slate-800 leading-relaxed font-sans transition shadow-xs resize-y"></textarea>
+            <textarea id="siswa-rgk-editor" rows="18" placeholder="Ketik rangkuman Anda di sini dengan bahasa sendiri...&#10;&#10;Tips Merangkum:&#10;• Simak materi di samping dengan seksama.&#10;• Jelaskan konsep-konsep kunci dan kesimpulan yang Anda peroleh.&#10;• Gunakan bahasa Anda sendiri dan hindari copy-paste mentah." class="w-full p-3.5 sm:p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm text-slate-800 leading-relaxed font-sans transition shadow-xs resize-y min-h-[380px] lg:min-h-[460px]"></textarea>
           </div>
 
           <!-- Status Kelayakan Kirim -->
-          <div id="siswa-rgk-status-warning" class="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px] flex items-center space-x-2">
+          <div id="siswa-rgk-status-warning" class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs flex items-center space-x-2 font-medium">
             <span>⚠️</span>
             <span id="siswa-rgk-warning-text">Jumlah kata belum memenuhi batas minimal (100 kata). Silakan lengkapi rangkuman Anda.</span>
           </div>
 
           <!-- Tombol Kirim Rangkuman -->
-          <button type="button" id="btn-submit-rangkuman" disabled class="w-full py-3 bg-slate-300 text-slate-500 font-bold rounded-xl shadow-md transition duration-150 flex items-center justify-center space-x-2 cursor-not-allowed">
+          <button type="button" id="btn-submit-rangkuman" disabled class="w-full py-3 sm:py-3.5 bg-slate-300 text-slate-500 font-bold rounded-xl shadow-md transition duration-150 flex items-center justify-center space-x-2 cursor-not-allowed text-xs sm:text-sm">
             <span>🚀 Kumpulkan Rangkuman & Mulai Penilaian AI</span>
           </button>
         </div>
@@ -923,25 +934,35 @@
     });
 
     // Cek apakah siswa punya sesi pengerjaan yang tersimpan (Mendukung Resume Sesi & Anti-Refresh)
-    const isDirectParamKode = !!(urlParams.get('kode') || urlParams.get('token'));
+    const directParamKode = (urlParams.get('kode') || urlParams.get('token') || '').trim().toUpperCase();
+    const isDirectParamKode = !!directParamKode;
     const savedRgkPId = localStorage.getItem('ulangan_rangkuman_pengerjaan_id');
-    if (savedRgkPId && !isDirectParamKode) {
+    const savedRgkSession = localStorage.getItem('ulangan_rangkuman_session');
+
+    let isSameRgkSession = false;
+    if (savedRgkSession) {
+      try {
+        const parsed = JSON.parse(savedRgkSession);
+        if (parsed && parsed.task && parsed.nama && parsed.kelas) {
+          if (!isDirectParamKode || (directParamKode && parsed.task.kode_tugas && directParamKode === parsed.task.kode_tugas.toUpperCase())) {
+            isSameRgkSession = true;
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (savedRgkPId && (!isDirectParamKode || isSameRgkSession)) {
       startPollingRangkumanStatus(savedRgkPId);
     } else if (currentPengerjaanId) {
       stepAuth.classList.add('hidden');
       const stepRes = document.getElementById('step-resuming');
       if (stepRes) stepRes.classList.remove('hidden');
       resumeOrCheckSession(currentPengerjaanId);
-    } else if (!isDirectParamKode) {
-      const savedRgkSession = localStorage.getItem('ulangan_rangkuman_session');
-      if (savedRgkSession) {
-        try {
-          const parsed = JSON.parse(savedRgkSession);
-          if (parsed && parsed.task && parsed.nama && parsed.kelas) {
-            startRangkumanMode(parsed.task, parsed.nama, parsed.kelas);
-          }
-        } catch (e) {}
-      }
+    } else if (isSameRgkSession) {
+      try {
+        const parsed = JSON.parse(savedRgkSession);
+        startRangkumanMode(parsed.task, parsed.nama, parsed.kelas);
+      } catch (e) {}
     }
 
     // Cek kode ulangan otomatis dan isi dropdown kelas
@@ -3623,6 +3644,14 @@
       currentRangkumanSession = { task, nama, kelas };
       localStorage.setItem('ulangan_rangkuman_session', JSON.stringify({ task, nama, kelas }));
 
+      // Perluas container utama menjadi max-w-7xl agar sangat lapang dan profesional di PC
+      const mainAppContainer = document.getElementById('main-app-container');
+      if (mainAppContainer) {
+        mainAppContainer.classList.remove('max-w-3xl');
+        mainAppContainer.classList.add('max-w-7xl');
+      }
+      document.getElementById('main-header')?.classList.add('hidden');
+
       // Sembunyikan semua step lain
       if (stepAuth) stepAuth.classList.add('hidden');
       document.getElementById('step-exam')?.classList.add('hidden');
@@ -3682,9 +3711,9 @@
         if (teksContainer) {
           teksContainer.classList.remove('hidden');
           teksContainer.innerHTML = `
-            <div class="space-y-2">
-              <h4 class="font-bold text-slate-900 text-sm pb-1.5 border-b border-slate-200">📖 Bahan Bacaan</h4>
-              <div class="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap">${escapeHtml(task.media_teks || 'Tidak ada teks bacaan')}</div>
+            <div class="space-y-2.5">
+              <h4 class="font-bold text-slate-900 text-sm sm:text-base pb-2 border-b border-slate-200">📖 Bahan Bacaan Materi</h4>
+              <div class="text-xs sm:text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">${escapeHtml(task.media_teks || 'Tidak ada teks bacaan')}</div>
             </div>
           `;
         }
@@ -3697,10 +3726,10 @@
           const isVideoType = (task.tipe_media === 'video' || task.tipe_media === 'video_url');
 
           if (task.tipe_media === 'youtube') {
-            mediaContainer.className = 'rounded-xl overflow-hidden border border-slate-200 bg-slate-950 aspect-video flex items-center justify-center shadow-xs';
+            mediaContainer.className = 'w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 aspect-video flex items-center justify-center shadow-xs';
             const ytId = extractYouTubeId(task.media_url);
             if (ytId) {
-              mediaContainer.innerHTML = `<iframe class="w-full h-full rounded-xl" src="https://www.youtube.com/embed/${ytId}?rel=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>`;
+              mediaContainer.innerHTML = `<iframe class="w-full h-full rounded-2xl" src="https://www.youtube.com/embed/${ytId}?rel=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>`;
             } else {
               mediaContainer.innerHTML = `
                 <div class="text-center p-4 text-white">
@@ -3713,30 +3742,30 @@
             }
           } else if (gDrivePreview) {
             // Google Drive preview embed (Buku PDF / Google Docs / Video Drive)
-            mediaContainer.className = 'rounded-xl overflow-hidden border border-slate-200 bg-slate-100 h-[520px] flex flex-col items-center justify-center shadow-xs';
+            mediaContainer.className = 'w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 h-[560px] lg:h-[660px] flex flex-col items-center justify-center shadow-xs';
             mediaContainer.innerHTML = `
-              <iframe src="${gDrivePreview}" class="w-full flex-1 border-0 rounded-t-xl" allow="autoplay"></iframe>
-              <div class="p-2 bg-slate-50 border-t border-slate-200 w-full text-center flex items-center justify-center space-x-2">
-                <a href="${escapeHtml(task.media_url)}" target="_blank" rel="noopener noreferrer" class="text-[11px] text-teal-700 hover:underline font-semibold flex items-center space-x-1">
+              <iframe src="${gDrivePreview}" class="w-full flex-1 border-0 rounded-t-2xl" allow="autoplay"></iframe>
+              <div class="p-2.5 bg-slate-50 border-t border-slate-200 w-full text-center flex items-center justify-center space-x-2">
+                <a href="${escapeHtml(task.media_url)}" target="_blank" rel="noopener noreferrer" class="text-xs text-teal-700 hover:underline font-semibold flex items-center space-x-1">
                   <span>📂</span>
                   <span>Buka di Google Drive (Tab Baru)</span>
                 </a>
               </div>
             `;
           } else if (isPdfType) {
-            mediaContainer.className = 'rounded-xl overflow-hidden border border-slate-200 bg-slate-100 h-[520px] flex flex-col items-center justify-center shadow-xs';
+            mediaContainer.className = 'w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 h-[560px] lg:h-[660px] flex flex-col items-center justify-center shadow-xs';
             mediaContainer.innerHTML = `
               <iframe src="${escapeHtml(task.media_url)}#toolbar=0" class="w-full flex-1 border-0"></iframe>
-              <div class="p-2 bg-slate-50 border-t border-slate-200 w-full text-center">
-                <a href="${escapeHtml(task.media_url)}" target="_blank" rel="noopener noreferrer" class="text-[11px] text-teal-700 hover:underline font-semibold">
+              <div class="p-2.5 bg-slate-50 border-t border-slate-200 w-full text-center">
+                <a href="${escapeHtml(task.media_url)}" target="_blank" rel="noopener noreferrer" class="text-xs text-teal-700 hover:underline font-semibold">
                   📄 Buka dokumen PDF di tab baru jika tampilan kosong
                 </a>
               </div>
             `;
           } else if (isVideoType) {
-            mediaContainer.className = 'rounded-xl overflow-hidden border border-slate-200 bg-slate-950 aspect-video flex items-center justify-center shadow-xs';
+            mediaContainer.className = 'w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 aspect-video flex items-center justify-center shadow-xs';
             mediaContainer.innerHTML = `
-              <video class="w-full h-full" controls playsinline controlslist="nodownload">
+              <video class="w-full h-full rounded-2xl" controls playsinline controlslist="nodownload">
                 <source src="${escapeHtml(task.media_url)}">
                 Browser Anda tidak mendukung pemutar video HTML5.
               </video>
@@ -3809,42 +3838,44 @@
       if (count < minWords) {
         // Kurang kata
         if (counterBox) {
-          counterBox.className = 'px-2.5 py-1 rounded-lg border text-xs font-mono font-bold bg-slate-100 text-slate-700 border-slate-300';
+          counterBox.className = 'px-3 py-1 rounded-xl border text-xs font-mono font-bold bg-amber-50 text-amber-800 border-amber-300 shadow-2xs';
         }
         if (warningBox && warningText) {
           warningBox.classList.remove('hidden');
-          warningBox.className = 'p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px] flex items-center space-x-2';
-          warningText.textContent = `Jumlah kata belum memenuhi batas minimal (${count}/${minWords} kata). Silakan lengkapi rangkuman Anda.`;
+          warningBox.className = 'p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs flex items-center space-x-2 font-medium';
+          warningText.innerHTML = `Jumlah kata belum memenuhi batas minimal (<strong>${count}/${minWords} kata</strong> &bull; kurang ${minWords - count} kata lagi). Silakan lengkapi rangkuman Anda.`;
         }
         if (btnSubmit) {
           btnSubmit.disabled = true;
-          btnSubmit.className = 'w-full py-3 bg-slate-300 text-slate-500 font-bold rounded-xl shadow-md transition duration-150 flex items-center justify-center space-x-2 cursor-not-allowed';
+          btnSubmit.className = 'w-full py-3 sm:py-3.5 bg-slate-300 text-slate-500 font-bold rounded-xl shadow-md transition duration-150 flex items-center justify-center space-x-2 cursor-not-allowed text-xs sm:text-sm';
         }
       } else if (isSpam) {
         // Terdeteksi spam / kata diulang berlebihan
         if (counterBox) {
-          counterBox.className = 'px-2.5 py-1 rounded-lg border text-xs font-mono font-bold bg-rose-50 text-rose-800 border-rose-300';
+          counterBox.className = 'px-3 py-1 rounded-xl border text-xs font-mono font-bold bg-rose-50 text-rose-800 border-rose-300 shadow-2xs';
         }
         if (warningBox && warningText) {
           warningBox.classList.remove('hidden');
-          warningBox.className = 'p-2.5 bg-rose-50 rounded-xl border border-rose-200 text-rose-900 text-[11px] flex items-center space-x-2';
+          warningBox.className = 'p-3 bg-rose-50 rounded-xl border border-rose-200 text-rose-900 text-xs flex items-center space-x-2 font-medium';
           warningText.textContent = '⚠️ Rangkuman terdeteksi banyak pengulangan kata yang sama. Gunakan kalimat bermakna dan variatif.';
         }
         if (btnSubmit) {
           btnSubmit.disabled = true;
-          btnSubmit.className = 'w-full py-3 bg-slate-300 text-slate-500 font-bold rounded-xl shadow-md transition duration-150 flex items-center justify-center space-x-2 cursor-not-allowed';
+          btnSubmit.className = 'w-full py-3 sm:py-3.5 bg-slate-300 text-slate-500 font-bold rounded-xl shadow-md transition duration-150 flex items-center justify-center space-x-2 cursor-not-allowed text-xs sm:text-sm';
         }
       } else {
         // Lolos validasi nol-token!
         if (counterBox) {
-          counterBox.className = 'px-2.5 py-1 rounded-lg border text-xs font-mono font-bold bg-emerald-50 text-emerald-700 border-emerald-300';
+          counterBox.className = 'px-3 py-1 rounded-xl border text-xs font-mono font-bold bg-emerald-50 text-emerald-800 border-emerald-300 shadow-2xs';
         }
-        if (warningBox) {
-          warningBox.classList.add('hidden');
+        if (warningBox && warningText) {
+          warningBox.classList.remove('hidden');
+          warningBox.className = 'p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 text-xs flex items-center space-x-2 font-medium';
+          warningText.innerHTML = `✅ <strong>Rangkuman Siap Dikumpulkan:</strong> ${count} kata telah terisi (memenuhi syarat minimum ${minWords} kata).`;
         }
         if (btnSubmit) {
           btnSubmit.disabled = false;
-          btnSubmit.className = 'w-full py-3 bg-teal-600 hover:bg-teal-700 active:scale-[0.99] text-white font-bold rounded-xl shadow-md shadow-teal-600/20 transition duration-150 flex items-center justify-center space-x-2 cursor-pointer';
+          btnSubmit.className = 'w-full py-3 sm:py-3.5 bg-teal-600 hover:bg-teal-700 active:scale-[0.99] text-white font-bold rounded-xl shadow-md shadow-teal-600/20 transition duration-150 flex items-center justify-center space-x-2 cursor-pointer text-xs sm:text-sm';
         }
       }
     }
@@ -3921,6 +3952,13 @@
     }
 
     function startPollingRangkumanStatus(pengerjaanId, initialPos = 1, initialEta = 10) {
+      const mainAppContainer = document.getElementById('main-app-container');
+      if (mainAppContainer) {
+        mainAppContainer.classList.remove('max-w-7xl');
+        mainAppContainer.classList.add('max-w-3xl');
+      }
+      document.getElementById('main-header')?.classList.remove('hidden');
+
       if (stepAuth) stepAuth.classList.add('hidden');
       document.getElementById('step-exam')?.classList.add('hidden');
       document.getElementById('step-result')?.classList.add('hidden');
