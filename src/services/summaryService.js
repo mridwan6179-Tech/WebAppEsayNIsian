@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const geminiService = require('./geminiService');
+const fileParserService = require('./fileParserService');
 
 // Mutex antrean agar worker tidak jalan ganda secara tumpang tindih
 let isWorkerRunning = false;
@@ -206,10 +207,20 @@ const summaryService = {
   },
 
   // AI Helper: Ekstraksi Master Rangkuman & Poin Kunci Materi 1x saat guru menyusun tugas
-  async generateMasterSummaryAI({ judul, mataPelajaran, tingkatKelas, deskripsi, tipeMedia, mediaUrl, mediaTeks }) {
+  async generateMasterSummaryAI({ judul, mataPelajaran, tingkatKelas, deskripsi, tipeMedia, mediaUrl, mediaTeks, fileBase64, fileName }) {
     let sourceContent = `Judul Materi: ${judul}\nMata Pelajaran: ${mataPelajaran} (${tingkatKelas})\nPetunjuk Guru: ${deskripsi || '-'}\n`;
 
-    if (tipeMedia === 'teks' && mediaTeks) {
+    // Jika guru mengunggah berkas PDF/Word/TXT untuk dibaca AI sesaat
+    if (fileBase64) {
+      try {
+        const parsed = await fileParserService.parseFile(fileBase64, fileName || 'dokumen.pdf');
+        if (parsed && parsed.text) {
+          sourceContent += `\nIsi Dokumen Materi (${fileName || 'Berkas'}):\n${parsed.text.slice(0, 15000)}`;
+        }
+      } catch (err) {
+        console.warn('⚠️ Gagal membaca berkas dokumen yang diunggah:', err.message);
+      }
+    } else if (tipeMedia === 'teks' && mediaTeks) {
       sourceContent += `\nIsi Teks Bacaan:\n${mediaTeks.slice(0, 10000)}`;
     } else if (tipeMedia === 'youtube' && mediaUrl) {
       sourceContent += `\nSumber Media: Video YouTube (${mediaUrl})`;

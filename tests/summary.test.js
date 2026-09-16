@@ -190,6 +190,22 @@ describe('=== SUITE: FITUR TUGAS RANGKUMAN BERBANTUAN AI ===', () => {
     assert.ok(pengerjaan.feedback_ai && pengerjaan.feedback_ai.length > 10, 'Feedback AI harus terisi');
   });
 
+  test('10. AI Helper dapat mengekstrak berkas dokumen (PDF/Word/TXT base64) tanpa menyimpannya ke database', async () => {
+    const sampleTxtBase64 = Buffer.from('Materi Bab 1: Fotosintesis pada tumbuhan membutuhkan cahaya matahari, klorofil, dan air untuk menghasilkan oksigen dan glukosa.').toString('base64');
+    const result = await summaryService.generateMasterSummaryAI({
+      judul: 'Fotosintesis Tumbuhan',
+      mataPelajaran: 'Biologi',
+      tingkatKelas: '10 MIPA',
+      deskripsi: 'Simak dokumen berikut',
+      tipeMedia: 'pdf_url',
+      fileBase64: sampleTxtBase64,
+      fileName: 'modul_fotosintesis.txt'
+    });
+
+    assert.ok(result.master_rangkuman, 'Harus menghasilkan master rangkuman');
+    assert.ok(Array.isArray(result.poin_kunci) && result.poin_kunci.length >= 3, 'Harus menghasilkan poin kunci');
+  });
+
   after(() => {
     // Bersihkan data uji
     if (createdTask?.id) {

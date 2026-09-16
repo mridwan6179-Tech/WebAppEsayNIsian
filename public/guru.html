@@ -1245,15 +1245,32 @@
 
         <!-- Master Rujukan AI (Ground Truth) -->
         <div class="p-3.5 bg-purple-50/60 rounded-xl border border-purple-200 space-y-2.5">
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between flex-wrap gap-2">
             <div>
               <label class="block font-bold text-purple-900">🤖 Master Rujukan & Poin Inti Penilaian AI</label>
               <p class="text-[10px] text-purple-700">AI hanya membaca master ini saat menilai siswa (sangat hemat kuota & cepat).</p>
             </div>
-            <button type="button" id="btn-generate-master-ai" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] rounded-lg transition flex items-center space-x-1 cursor-pointer">
-              <span>✨ Ekstrak via AI</span>
-            </button>
+            <div class="flex items-center space-x-1.5 flex-wrap gap-1">
+              <label class="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-purple-300 text-purple-900 font-semibold text-[11px] rounded-lg transition flex items-center space-x-1 cursor-pointer shadow-xs">
+                <span>📎 Unggah Modul (PDF/Word)</span>
+                <input type="file" id="form-rangkuman-file-dokumen" accept=".pdf,.docx,.doc,.txt" class="hidden">
+              </label>
+              <button type="button" id="btn-generate-master-ai" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] rounded-lg transition flex items-center space-x-1 cursor-pointer shadow-xs">
+                <span>✨ Ekstrak via AI</span>
+              </button>
+            </div>
           </div>
+
+          <!-- Info File Terpilih -->
+          <div id="wrapper-file-dokumen-info" class="hidden p-2 bg-purple-100/70 border border-purple-300 rounded-lg flex items-center justify-between text-[11px] text-purple-950">
+            <div class="flex items-center space-x-1.5 truncate">
+              <span>📄</span>
+              <span id="file-dokumen-name" class="font-bold truncate">dokumen.pdf</span>
+              <span id="file-dokumen-size" class="text-[10px] text-purple-700 shrink-0">(0 KB)</span>
+            </div>
+            <button type="button" id="btn-remove-file-dokumen" class="text-rose-600 hover:text-rose-800 font-bold ml-2 shrink-0 cursor-pointer">Hapus</button>
+          </div>
+          <p class="text-[10px] text-slate-500 italic">💡 Berkas dokumen hanya dibaca sesaat oleh AI untuk menyusun poin kunci dan <strong>TIDAK disimpan ke database</strong> (100% hemat kuota).</p>
 
           <div>
             <label class="block font-semibold text-slate-700 mb-1">Master Intisari Materi (Pedoman AI)</label>
@@ -9460,6 +9477,32 @@
     });
 
     if (btnOpenCreateRangkuman) btnOpenCreateRangkuman.addEventListener('click', openCreateRangkumanModal);
+    let selectedMasterFile = null;
+    const fileDokumenInput = document.getElementById('form-rangkuman-file-dokumen');
+    const wrapperFileInfo = document.getElementById('wrapper-file-dokumen-info');
+    const fileNameEl = document.getElementById('file-dokumen-name');
+    const fileSizeEl = document.getElementById('file-dokumen-size');
+    const btnRemoveFile = document.getElementById('btn-remove-file-dokumen');
+
+    if (fileDokumenInput) {
+      fileDokumenInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        selectedMasterFile = file;
+        if (fileNameEl) fileNameEl.textContent = file.name;
+        if (fileSizeEl) fileSizeEl.textContent = `(${(file.size / 1024).toFixed(1)} KB)`;
+        if (wrapperFileInfo) wrapperFileInfo.classList.remove('hidden');
+      });
+    }
+
+    if (btnRemoveFile) {
+      btnRemoveFile.addEventListener('click', () => {
+        selectedMasterFile = null;
+        if (fileDokumenInput) fileDokumenInput.value = '';
+        if (wrapperFileInfo) wrapperFileInfo.classList.add('hidden');
+      });
+    }
+
     if (btnCloseModalRangkuman) btnCloseModalRangkuman.addEventListener('click', () => modalTugasRangkuman.classList.add('hidden'));
     if (btnCancelModalRangkuman) btnCancelModalRangkuman.addEventListener('click', () => modalTugasRangkuman.classList.add('hidden'));
 
@@ -9484,6 +9527,21 @@
         btnGenerateMasterAi.disabled = true;
 
         try {
+          let fileBase64 = null;
+          let fileName = null;
+
+          if (selectedMasterFile) {
+            btnGenerateMasterAi.innerHTML = '<span>📄 Membaca Berkas Dokumen...</span>';
+            fileName = selectedMasterFile.name;
+            fileBase64 = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = (err) => reject(err);
+              reader.readAsDataURL(selectedMasterFile);
+            });
+            btnGenerateMasterAi.innerHTML = '<span>🤖 AI Merangkum Dokumen...</span>';
+          }
+
           const res = await guruFetch('/api/guru/rangkuman/generate-master', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -9494,7 +9552,9 @@
               deskripsi,
               tipeMedia,
               mediaUrl,
-              mediaTeks
+              mediaTeks,
+              fileBase64,
+              fileName
             })
           });
           const data = await res.json();
@@ -9504,7 +9564,12 @@
           if (Array.isArray(data.poin_kunci) && data.poin_kunci.length > 0) {
             document.getElementById('form-rangkuman-poin').value = data.poin_kunci.join('\n');
           }
-          alert('✅ Sukses! Master intisari materi dan poin-poin kunci rujukan berhasil disusun oleh AI. Anda dapat menyuntingnya jika perlu.');
+
+          if (selectedMasterFile) {
+            alert('✅ Sukses! Berkas ' + fileName + ' berhasil dibaca dan dirangkum oleh AI menjadi poin-poin rujukan. Berkas fisik tidak disimpan ke database demi efisiensi kuota.');
+          } else {
+            alert('✅ Sukses! Master intisari materi dan poin-poin kunci rujukan berhasil disusun oleh AI. Anda dapat menyuntingnya jika perlu.');
+          }
         } catch (err) {
           alert('Gagal menyusun master via AI: ' + err.message);
         } finally {
