@@ -511,6 +511,163 @@
       </div>
     </section>
 
+    <!-- STEP: PENGERJAAN TUGAS RANGKUMAN (SPLIT-SCREEN INTERAKTIF) -->
+    <section id="step-rangkuman" class="hidden bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200/80 space-y-4">
+      <!-- Header Tugas Rangkuman -->
+      <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="px-2.5 py-0.5 bg-teal-100 text-teal-800 font-mono font-bold text-xs rounded-lg" id="siswa-rgk-kode-badge">RGK-XXXX</span>
+            <span class="text-xs font-semibold text-slate-500" id="siswa-rgk-mapel-badge">Mata Pelajaran</span>
+          </div>
+          <h2 class="text-lg sm:text-xl font-bold text-slate-900 mt-1" id="siswa-rgk-judul">Judul Tugas Rangkuman</h2>
+          <p class="text-xs text-slate-600 font-medium mt-0.5">Siswa: <strong class="text-slate-900" id="siswa-rgk-nama-label">-</strong> (<span id="siswa-rgk-kelas-label">-</span>)</p>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span id="draft-autosave-indicator" class="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg flex items-center space-x-1">
+            <span>💾</span>
+            <span>Draft Tersimpan Otomatis</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- Deskripsi / Petunjuk Guru jika ada -->
+      <div id="siswa-rgk-deskripsi-box" class="hidden p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-xs text-amber-900">
+        <p class="font-bold flex items-center space-x-1 mb-0.5"><span>📌</span><span>Petunjuk Guru:</span></p>
+        <p id="siswa-rgk-deskripsi-text">-</p>
+      </div>
+
+      <!-- Grid Split-Screen (Kiri: Media Pembelajaran | Kanan: Editor Rangkuman) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        
+        <!-- Kolom Kiri: Media Pembelajaran (YouTube / PDF / Teks Bacaan) (Col 6 / 12) -->
+        <div class="lg:col-span-6 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-slate-800 text-xs sm:text-sm flex items-center space-x-1.5">
+              <span>📖</span>
+              <span>Bahan Materi Pembelajaran</span>
+            </h3>
+            <span id="siswa-rgk-tipe-badge" class="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded">YouTube</span>
+          </div>
+
+          <!-- Media Container -->
+          <div id="siswa-rgk-media-container" class="rounded-xl overflow-hidden border border-slate-200 bg-slate-950 aspect-video flex items-center justify-center shadow-xs">
+            <!-- Iframe / PDF Embed / Teks di-inject via JS -->
+          </div>
+
+          <!-- Jika tipe media teks, tampilkan card artikel bacaan yang nyaman -->
+          <div id="siswa-rgk-teks-container" class="hidden p-4 bg-slate-50 rounded-xl border border-slate-200 max-h-[500px] overflow-y-auto text-xs leading-relaxed text-slate-800 whitespace-pre-wrap font-sans">
+          </div>
+        </div>
+
+        <!-- Kolom Kanan: Editor Rangkuman Siswa (Col 6 / 12) -->
+        <div class="lg:col-span-6 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-slate-800 text-xs sm:text-sm flex items-center space-x-1.5">
+              <span>✍️</span>
+              <span>Tulis Rangkuman Mandiri</span>
+            </h3>
+            <!-- Live Word Counter -->
+            <div id="siswa-rgk-word-counter-box" class="px-2.5 py-1 rounded-lg border text-xs font-mono font-bold bg-slate-100 text-slate-700 border-slate-300">
+              <span id="siswa-rgk-word-count">0</span> / <span id="siswa-rgk-min-count">100</span> kata minimum
+            </div>
+          </div>
+
+          <!-- Textarea Editor -->
+          <div class="relative">
+            <textarea id="siswa-rgk-editor" rows="15" placeholder="Ketik rangkuman Anda di sini dengan bahasa sendiri...&#10;&#10;Tips:&#10;• Simak materi di samping dengan seksama.&#10;• Jelaskan konsep-konsep kunci dan kesimpulan yang Anda peroleh.&#10;• Hindari copy-paste mentah atau kalimat spam." class="w-full p-3.5 sm:p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs sm:text-sm text-slate-800 leading-relaxed font-sans transition shadow-xs resize-y"></textarea>
+          </div>
+
+          <!-- Status Kelayakan Kirim -->
+          <div id="siswa-rgk-status-warning" class="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px] flex items-center space-x-2">
+            <span>⚠️</span>
+            <span id="siswa-rgk-warning-text">Jumlah kata belum memenuhi batas minimal (100 kata). Silakan lengkapi rangkuman Anda.</span>
+          </div>
+
+          <!-- Tombol Kirim Rangkuman -->
+          <button type="button" id="btn-submit-rangkuman" disabled class="w-full py-3 bg-slate-300 text-slate-500 font-bold rounded-xl shadow-md transition duration-150 flex items-center justify-center space-x-2 cursor-not-allowed">
+            <span>🚀 Kumpulkan Rangkuman & Mulai Penilaian AI</span>
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- STEP: ANTRIAN & HASIL PENILAIAN AI (RANGKUMAN) -->
+    <section id="step-rangkuman-result" class="hidden bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200/80 max-w-2xl mx-auto text-center space-y-6">
+      
+      <!-- State 1: Menunggu Antrean AI -->
+      <div id="rgk-result-waiting-box" class="space-y-4">
+        <div class="w-16 h-16 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center mx-auto text-3xl shadow-md shadow-teal-100 animate-bounce">
+          🤖
+        </div>
+        <div class="space-y-1">
+          <span class="px-3 py-1 bg-teal-100 text-teal-800 font-bold text-xs rounded-full inline-block">Rangkuman Berhasil Diterima</span>
+          <h3 class="font-black text-xl text-slate-900">Sedang Dianalisis oleh AI...</h3>
+          <p class="text-xs text-slate-500 max-w-md mx-auto">AI sedang mencocokkan pembahasan rangkuman Anda dengan master rujukan materi secara adil dan objektif.</p>
+        </div>
+
+        <!-- Queue Status Card -->
+        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 max-w-sm mx-auto space-y-2 text-xs">
+          <div class="flex items-center justify-between font-semibold text-slate-700">
+            <span>Posisi Antrean:</span>
+            <span id="rgk-queue-pos" class="font-black text-teal-700 text-sm">#1</span>
+          </div>
+          <div class="flex items-center justify-between font-semibold text-slate-700">
+            <span>Estimasi Waktu Tunggu:</span>
+            <span id="rgk-queue-eta" class="font-bold text-slate-800">~10 detik</span>
+          </div>
+          <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden mt-2">
+            <div id="rgk-queue-progress" class="bg-teal-600 h-2 rounded-full animate-pulse" style="width: 50%"></div>
+          </div>
+        </div>
+
+        <p class="text-[11px] text-slate-400">Halaman ini akan otomatis menampilkan nilai begitu evaluasi AI selesai.</p>
+      </div>
+
+      <!-- State 2: Hasil Penilaian AI Selesai -->
+      <div id="rgk-result-done-box" class="hidden space-y-5 text-left">
+        <div class="text-center space-y-1 pb-3 border-b border-slate-100">
+          <span class="text-4xl block mb-1">🎉</span>
+          <h3 class="font-black text-xl text-slate-900">Evaluasi Rangkuman Selesai!</h3>
+          <p class="text-xs text-slate-500" id="rgk-done-title-meta">Tugas Rangkuman • Mapel</p>
+        </div>
+
+        <!-- Kartu Skor Sementara -->
+        <div class="p-5 bg-gradient-to-r from-teal-500 via-emerald-500 to-teal-600 text-white rounded-2xl shadow-lg flex items-center justify-between gap-4">
+          <div>
+            <span class="text-xs font-semibold text-teal-100 block">Nilai Sementara AI</span>
+            <span id="rgk-skor-ai-val" class="text-4xl sm:text-5xl font-black tracking-tight">85</span>
+            <span class="text-xs font-semibold text-teal-100 ml-1">/ 100</span>
+          </div>
+          <div class="text-right">
+            <span class="inline-block px-3 py-1 bg-white/20 backdrop-blur-sm text-white font-bold text-xs rounded-full">
+              Belum Final
+            </span>
+            <p class="text-[11px] text-teal-100 mt-1 max-w-[160px]">Menunggu verifikasi & persetujuan akhir dari guru pengampu.</p>
+          </div>
+        </div>
+
+        <!-- Catatan & Ulasan AI -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
+          <h4 class="font-bold text-slate-800 text-xs flex items-center space-x-1.5">
+            <span>🤖</span>
+            <span>Ulasan & Masukan AI:</span>
+          </h4>
+          <div id="rgk-feedback-text" class="p-3 bg-slate-50 rounded-lg text-xs leading-relaxed text-slate-700 whitespace-pre-wrap font-sans">
+            -
+          </div>
+        </div>
+
+        <div class="pt-2 flex justify-center">
+          <button type="button" onclick="keluarDariRangkuman()" class="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer">
+            Kembali ke Beranda
+          </button>
+        </div>
+      </div>
+
+    </section>
+
     <!-- STEP 3: Sukses Pengumpulan & Tampilan Hasil -->
     <section id="step-result" class="hidden bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200">
       <div class="text-center max-w-md mx-auto mb-6">
@@ -766,17 +923,89 @@
     });
 
     // Cek apakah siswa punya sesi pengerjaan yang tersimpan (Mendukung Resume Sesi & Anti-Refresh)
-    if (currentPengerjaanId) {
+    const isDirectParamKode = !!(urlParams.get('kode') || urlParams.get('token'));
+    const savedRgkPId = localStorage.getItem('ulangan_rangkuman_pengerjaan_id');
+    if (savedRgkPId && !isDirectParamKode) {
+      startPollingRangkumanStatus(savedRgkPId);
+    } else if (currentPengerjaanId) {
       stepAuth.classList.add('hidden');
       const stepRes = document.getElementById('step-resuming');
       if (stepRes) stepRes.classList.remove('hidden');
       resumeOrCheckSession(currentPengerjaanId);
+    } else if (!isDirectParamKode) {
+      const savedRgkSession = localStorage.getItem('ulangan_rangkuman_session');
+      if (savedRgkSession) {
+        try {
+          const parsed = JSON.parse(savedRgkSession);
+          if (parsed && parsed.task && parsed.nama && parsed.kelas) {
+            startRangkumanMode(parsed.task, parsed.nama, parsed.kelas);
+          }
+        } catch (e) {}
+      }
     }
 
     // Cek kode ulangan otomatis dan isi dropdown kelas
     const inputKode = document.getElementById('input-kode');
     const inputKelas = document.getElementById('input-kelas');
     const examFoundInfo = document.getElementById('exam-found-info');
+
+    let currentRangkumanTask = null;
+
+    function applyRangkumanTaskFound(task) {
+      currentRangkumanTask = task;
+      authAlert.classList.add('hidden');
+      document.getElementById('exam-found-title').textContent = task.judul;
+      document.getElementById('exam-found-meta').textContent = `${task.mata_pelajaran} • Tugas Rangkuman • Min. ${task.batas_minimum_kata || 100} Kata`;
+      const foundBadge = examFoundInfo.querySelector('span');
+      if (foundBadge) {
+        foundBadge.textContent = 'Tugas Rangkuman';
+        foundBadge.className = 'text-[10px] font-bold uppercase bg-teal-600 text-white px-2 py-0.5 rounded-md';
+      }
+      examFoundInfo.classList.remove('hidden');
+      document.getElementById('kisi-kisi-container')?.classList.add('hidden');
+
+      // Dropdown kelas
+      inputKelas.innerHTML = '<option value="">-- Pilih Kelas Anda --</option>';
+      const rawKelas = task.tingkat_kelas || 'Umum';
+      const classes = rawKelas.split(/[,;/]+/).map(s => s.trim()).filter(Boolean);
+      if (classes.length > 0) {
+        classes.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c;
+          opt.textContent = c;
+          inputKelas.appendChild(opt);
+        });
+      } else {
+        const opt = document.createElement('option');
+        opt.value = 'Umum';
+        opt.textContent = 'Umum';
+        inputKelas.appendChild(opt);
+      }
+
+      hidePortalMonitor();
+    }
+
+    async function checkKodeRangkuman(kode) {
+      try {
+        const res = await fetch('/api/siswa/rangkuman/cek-kode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kode_tugas: kode })
+        });
+        const data = await res.json();
+        if (res.ok && data.valid && data.task) {
+          applyRangkumanTaskFound(data.task);
+        } else {
+          currentRangkumanTask = null;
+          examFoundInfo.classList.add('hidden');
+          inputKelas.innerHTML = '<option value="">-- Kode tugas tidak valid --</option>';
+          hidePortalMonitor();
+          if (data.message) showAlert(data.message);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
 
     let debounceTimer = null;
     inputKode.addEventListener('input', () => {
@@ -787,6 +1016,7 @@
       if (kode.length >= 6) {
         debounceTimer = setTimeout(() => checkKodeUlangan(kode), 400);
       } else {
+        currentRangkumanTask = null;
         examFoundInfo.classList.add('hidden');
         document.getElementById('kisi-kisi-container')?.classList.add('hidden');
         inputKelas.innerHTML = '<option value="">-- Ketik kode ulangan di atas terlebih dahulu --</option>';
@@ -795,6 +1025,16 @@
     });
 
     async function checkKodeUlangan(kode) {
+      if (kode.startsWith('RGK-')) {
+        return checkKodeRangkuman(kode);
+      }
+      currentRangkumanTask = null;
+      const foundBadge = examFoundInfo.querySelector('span');
+      if (foundBadge) {
+        foundBadge.textContent = 'Tersedia';
+        foundBadge.className = 'text-[10px] font-bold uppercase bg-blue-600 text-white px-2 py-0.5 rounded-md';
+      }
+
       try {
         const res = await fetch('/api/siswa/cek-kode', {
           method: 'POST',
@@ -844,6 +1084,19 @@
           // Muat data monitor siswa (sedang mengerjakan, DC & jawaban diterima)
           loadPortalData(kode, false);
         } else {
+          // Fallback cek tugas rangkuman jika kode bukan awalan RGK-
+          try {
+            const rgkRes = await fetch('/api/siswa/rangkuman/cek-kode', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ kode_tugas: kode })
+            });
+            const rgkData = await rgkRes.json();
+            if (rgkRes.ok && rgkData.valid && rgkData.task) {
+              return applyRangkumanTaskFound(rgkData.task);
+            }
+          } catch (e) {}
+
           examFoundInfo.classList.add('hidden');
           document.getElementById('kisi-kisi-container')?.classList.add('hidden');
           inputKelas.innerHTML = '<option value="">-- Kode tidak valid --</option>';
@@ -1239,6 +1492,32 @@
       const btn = document.getElementById('btn-masuk');
       btn.disabled = true;
       btn.innerHTML = 'Memeriksa data...';
+
+      // JIKA INI TUGAS RANGKUMAN
+      if (currentRangkumanTask || kode.startsWith('RGK-')) {
+        try {
+          if (!currentRangkumanTask) {
+            const res = await fetch('/api/siswa/rangkuman/cek-kode', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ kode_tugas: kode })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.valid || !data.task) {
+              throw new Error(data.message || 'Kode tugas rangkuman tidak ditemukan atau belum dibuka.');
+            }
+            currentRangkumanTask = data.task;
+          }
+
+          startRangkumanMode(currentRangkumanTask, nama, kelas);
+        } catch (err) {
+          showAlert(err.message);
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = '<span>Masuk & Kerjakan</span><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>';
+        }
+        return;
+      }
 
       try {
         const res = await fetch('/api/siswa/mulai', {
@@ -3287,6 +3566,435 @@
         window.location.href = '/';
       });
     }
+
+    // ================================================================
+    // LOGIKA SISWA: FITUR TUGAS RANGKUMAN (SPLIT-SCREEN & ANTREAN AI)
+    // ================================================================
+    let currentRangkumanSession = null;
+    let rgkStatusPollInterval = null;
+
+    function countWordsClient(text) {
+      if (!text || typeof text !== 'string') return 0;
+      const cleaned = text.trim().replace(/\s+/g, ' ');
+      if (!cleaned) return 0;
+      return cleaned.split(' ').filter(Boolean).length;
+    }
+
+    function checkVocabularyDiversityClient(text) {
+      if (!text) return 0;
+      const words = text.toLowerCase()
+        .replace(/[^\w\s]/g, '')
+        .split(/\s+/)
+        .filter(w => w.length > 1);
+      if (words.length === 0) return 0;
+      const unique = new Set(words);
+      return unique.size / words.length;
+    }
+
+    function extractYouTubeId(url) {
+      if (!url) return null;
+      const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
+      const match = url.match(regExp);
+      return (match && match[1]) ? match[1] : null;
+    }
+
+    function startRangkumanMode(task, nama, kelas) {
+      currentRangkumanSession = { task, nama, kelas };
+      localStorage.setItem('ulangan_rangkuman_session', JSON.stringify({ task, nama, kelas }));
+
+      // Sembunyikan semua step lain
+      if (stepAuth) stepAuth.classList.add('hidden');
+      document.getElementById('step-exam')?.classList.add('hidden');
+      document.getElementById('step-result')?.classList.add('hidden');
+      document.getElementById('step-waiting-room')?.classList.add('hidden');
+      document.getElementById('step-resuming')?.classList.add('hidden');
+      document.getElementById('step-rangkuman-result')?.classList.add('hidden');
+
+      const stepRgk = document.getElementById('step-rangkuman');
+      if (!stepRgk) return;
+      stepRgk.classList.remove('hidden');
+
+      // Setup Header Tugas Rangkuman
+      const kodeBadge = document.getElementById('siswa-rgk-kode-badge');
+      const mapelBadge = document.getElementById('siswa-rgk-mapel-badge');
+      const judulEl = document.getElementById('siswa-rgk-judul');
+      const namaLabel = document.getElementById('siswa-rgk-nama-label');
+      const kelasLabel = document.getElementById('siswa-rgk-kelas-label');
+
+      if (kodeBadge) kodeBadge.textContent = task.kode_tugas || 'RGK';
+      if (mapelBadge) mapelBadge.textContent = task.mata_pelajaran || 'Umum';
+      if (judulEl) judulEl.textContent = task.judul;
+      if (namaLabel) namaLabel.textContent = nama;
+      if (kelasLabel) kelasLabel.textContent = kelas;
+
+      // Deskripsi Petunjuk Guru
+      const descBox = document.getElementById('siswa-rgk-deskripsi-box');
+      const descText = document.getElementById('siswa-rgk-deskripsi-text');
+      if (task.deskripsi && task.deskripsi.trim()) {
+        if (descText) descText.textContent = task.deskripsi.trim();
+        if (descBox) descBox.classList.remove('hidden');
+      } else {
+        if (descBox) descBox.classList.add('hidden');
+      }
+
+      // Tipe Media Badge
+      const tipeBadge = document.getElementById('siswa-rgk-tipe-badge');
+      if (tipeBadge) {
+        const tipeNames = { youtube: 'Video YouTube', pdf: 'Dokumen PDF', video: 'Video Materi', teks: 'Teks Bacaan' };
+        tipeBadge.textContent = tipeNames[task.tipe_media] || (task.tipe_media ? task.tipe_media.toUpperCase() : 'Materi');
+      }
+
+      // Render Media
+      const mediaContainer = document.getElementById('siswa-rgk-media-container');
+      const teksContainer = document.getElementById('siswa-rgk-teks-container');
+
+      if (task.tipe_media === 'teks') {
+        if (mediaContainer) mediaContainer.classList.add('hidden');
+        if (teksContainer) {
+          teksContainer.classList.remove('hidden');
+          teksContainer.innerHTML = `
+            <div class="space-y-2">
+              <h4 class="font-bold text-slate-900 text-sm pb-1.5 border-b border-slate-200">📖 Bahan Bacaan</h4>
+              <div class="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap">${escapeHtml(task.media_teks || 'Tidak ada teks bacaan')}</div>
+            </div>
+          `;
+        }
+      } else {
+        if (teksContainer) teksContainer.classList.add('hidden');
+        if (mediaContainer) {
+          mediaContainer.classList.remove('hidden');
+          if (task.tipe_media === 'youtube') {
+            mediaContainer.className = 'rounded-xl overflow-hidden border border-slate-200 bg-slate-950 aspect-video flex items-center justify-center shadow-xs';
+            const ytId = extractYouTubeId(task.media_url);
+            if (ytId) {
+              mediaContainer.innerHTML = `<iframe class="w-full h-full rounded-xl" src="https://www.youtube.com/embed/${ytId}?rel=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>`;
+            } else {
+              mediaContainer.innerHTML = `
+                <div class="text-center p-4 text-white">
+                  <p class="text-xs text-slate-300 mb-2">Tautan Video:</p>
+                  <a href="${escapeHtml(task.media_url)}" target="_blank" rel="noopener noreferrer" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold inline-flex items-center space-x-1.5">
+                    <span>▶️ Buka Video YouTube di Tab Baru</span>
+                  </a>
+                </div>
+              `;
+            }
+          } else if (task.tipe_media === 'pdf') {
+            mediaContainer.className = 'rounded-xl overflow-hidden border border-slate-200 bg-slate-100 h-[520px] flex flex-col items-center justify-center shadow-xs';
+            mediaContainer.innerHTML = `
+              <iframe src="${escapeHtml(task.media_url)}#toolbar=0" class="w-full flex-1 border-0"></iframe>
+              <div class="p-2 bg-slate-50 border-t border-slate-200 w-full text-center">
+                <a href="${escapeHtml(task.media_url)}" target="_blank" rel="noopener noreferrer" class="text-[11px] text-teal-700 hover:underline font-semibold">
+                  📄 Buka dokumen PDF di tab baru jika tampilan kosong
+                </a>
+              </div>
+            `;
+          } else if (task.tipe_media === 'video') {
+            mediaContainer.className = 'rounded-xl overflow-hidden border border-slate-200 bg-slate-950 aspect-video flex items-center justify-center shadow-xs';
+            mediaContainer.innerHTML = `
+              <video class="w-full h-full" controls playsinline controlslist="nodownload">
+                <source src="${escapeHtml(task.media_url)}">
+                Browser Anda tidak mendukung pemutar video HTML5.
+              </video>
+            `;
+          } else {
+            mediaContainer.innerHTML = `<p class="text-xs text-slate-400">Media materi tidak tersedia</p>`;
+          }
+        }
+      }
+
+      // Min word counter display
+      const minCountEl = document.getElementById('siswa-rgk-min-count');
+      const minWords = task.batas_minimum_kata || 100;
+      if (minCountEl) minCountEl.textContent = minWords;
+
+      // Editor & Draft Restore
+      const editor = document.getElementById('siswa-rgk-editor');
+      const draftKey = `rangkuman_draft_${task.id}_${encodeURIComponent(nama)}_${encodeURIComponent(kelas)}`;
+      const savedDraft = localStorage.getItem(draftKey);
+      if (editor) {
+        editor.value = savedDraft || '';
+        updateLiveWordCount(task);
+      }
+
+      // Bind input listener untuk live word counter dan auto-save
+      if (editor && !editor.dataset.listenerBound) {
+        editor.dataset.listenerBound = 'true';
+        editor.addEventListener('input', () => {
+          if (!currentRangkumanSession) return;
+          const curTask = currentRangkumanSession.task;
+          updateLiveWordCount(curTask);
+          const cNama = currentRangkumanSession.nama;
+          const cKelas = currentRangkumanSession.kelas;
+          const curDraftKey = `rangkuman_draft_${curTask.id}_${encodeURIComponent(cNama)}_${encodeURIComponent(cKelas)}`;
+          localStorage.setItem(curDraftKey, editor.value);
+          const autoSaveInd = document.getElementById('draft-autosave-indicator');
+          if (autoSaveInd) {
+            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            autoSaveInd.innerHTML = `<span>💾</span><span>Draft Tersimpan (${timeStr})</span>`;
+          }
+        });
+      }
+
+      // Bind Submit Button
+      const btnSubmit = document.getElementById('btn-submit-rangkuman');
+      if (btnSubmit && !btnSubmit.dataset.listenerBound) {
+        btnSubmit.dataset.listenerBound = 'true';
+        btnSubmit.addEventListener('click', () => handleStudentSubmitRangkuman());
+      }
+    }
+
+    function updateLiveWordCount(task) {
+      const editor = document.getElementById('siswa-rgk-editor');
+      if (!editor) return;
+      const text = editor.value;
+      const count = countWordsClient(text);
+      const minWords = task ? (task.batas_minimum_kata || 100) : 100;
+
+      const wordCountEl = document.getElementById('siswa-rgk-word-count');
+      if (wordCountEl) wordCountEl.textContent = count;
+
+      const counterBox = document.getElementById('siswa-rgk-word-counter-box');
+      const warningBox = document.getElementById('siswa-rgk-status-warning');
+      const warningText = document.getElementById('siswa-rgk-warning-text');
+      const btnSubmit = document.getElementById('btn-submit-rangkuman');
+
+      const diversity = checkVocabularyDiversityClient(text);
+      const isSpam = diversity < 0.25 && count >= 15;
+
+      if (count < minWords) {
+        // Kurang kata
+        if (counterBox) {
+          counterBox.className = 'px-2.5 py-1 rounded-lg border text-xs font-mono font-bold bg-slate-100 text-slate-700 border-slate-300';
+        }
+        if (warningBox && warningText) {
+          warningBox.classList.remove('hidden');
+          warningBox.className = 'p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px] flex items-center space-x-2';
+          warningText.textContent = `Jumlah kata belum memenuhi batas minimal (${count}/${minWords} kata). Silakan lengkapi rangkuman Anda.`;
+        }
+        if (btnSubmit) {
+          btnSubmit.disabled = true;
+          btnSubmit.className = 'w-full py-3 bg-slate-300 text-slate-500 font-bold rounded-xl shadow-md transition duration-150 flex items-center justify-center space-x-2 cursor-not-allowed';
+        }
+      } else if (isSpam) {
+        // Terdeteksi spam / kata diulang berlebihan
+        if (counterBox) {
+          counterBox.className = 'px-2.5 py-1 rounded-lg border text-xs font-mono font-bold bg-rose-50 text-rose-800 border-rose-300';
+        }
+        if (warningBox && warningText) {
+          warningBox.classList.remove('hidden');
+          warningBox.className = 'p-2.5 bg-rose-50 rounded-xl border border-rose-200 text-rose-900 text-[11px] flex items-center space-x-2';
+          warningText.textContent = '⚠️ Rangkuman terdeteksi banyak pengulangan kata yang sama. Gunakan kalimat bermakna dan variatif.';
+        }
+        if (btnSubmit) {
+          btnSubmit.disabled = true;
+          btnSubmit.className = 'w-full py-3 bg-slate-300 text-slate-500 font-bold rounded-xl shadow-md transition duration-150 flex items-center justify-center space-x-2 cursor-not-allowed';
+        }
+      } else {
+        // Lolos validasi nol-token!
+        if (counterBox) {
+          counterBox.className = 'px-2.5 py-1 rounded-lg border text-xs font-mono font-bold bg-emerald-50 text-emerald-700 border-emerald-300';
+        }
+        if (warningBox) {
+          warningBox.classList.add('hidden');
+        }
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.className = 'w-full py-3 bg-teal-600 hover:bg-teal-700 active:scale-[0.99] text-white font-bold rounded-xl shadow-md shadow-teal-600/20 transition duration-150 flex items-center justify-center space-x-2 cursor-pointer';
+        }
+      }
+    }
+
+    async function handleStudentSubmitRangkuman() {
+      if (!currentRangkumanSession) return;
+      const { task, nama, kelas } = currentRangkumanSession;
+      const editor = document.getElementById('siswa-rgk-editor');
+      const text = editor ? editor.value.trim() : '';
+      const wordCount = countWordsClient(text);
+      const minWords = task.batas_minimum_kata || 100;
+
+      if (wordCount < minWords) {
+        alert(`Jumlah kata rangkuman (${wordCount} kata) belum mencapai batas minimum (${minWords} kata).`);
+        return;
+      }
+
+      const diversity = checkVocabularyDiversityClient(text);
+      if (diversity < 0.25 && wordCount >= 15) {
+        alert('Rangkuman terdeteksi banyak pengulangan kata yang sama. Mohon susun kembali dengan kalimat yang variatif.');
+        return;
+      }
+
+      const ok = confirm(`Kumpulkan rangkuman sekarang?\n\n• Jumlah kata: ${wordCount} kata\n• Siswa: ${nama} (${kelas})\n\nSetelah dikumpulkan, AI akan langsung menganalisis kesesuaian rangkuman Anda.`);
+      if (!ok) return;
+
+      const btn = document.getElementById('btn-submit-rangkuman');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>Mengirim rangkuman...</span>';
+      }
+
+      try {
+        const res = await fetch('/api/siswa/rangkuman/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tugas_id: task.id,
+            nama_siswa: nama,
+            kelas_siswa: kelas,
+            teks_rangkuman: text
+          })
+        });
+
+        const result = await res.json();
+
+        if (!res.ok || !result.success) {
+          if (result.pengerjaan_id) {
+            alert(result.message || 'Anda sudah pernah mengumpulkan tugas ini.');
+            const curDraftKey = `rangkuman_draft_${task.id}_${encodeURIComponent(nama)}_${encodeURIComponent(kelas)}`;
+            localStorage.removeItem(curDraftKey);
+            localStorage.removeItem('ulangan_rangkuman_session');
+            localStorage.setItem('ulangan_rangkuman_pengerjaan_id', result.pengerjaan_id);
+            startPollingRangkumanStatus(result.pengerjaan_id);
+            return;
+          }
+          throw new Error(result.message || 'Gagal mengirim rangkuman');
+        }
+
+        // Berhasil submit
+        const curDraftKey = `rangkuman_draft_${task.id}_${encodeURIComponent(nama)}_${encodeURIComponent(kelas)}`;
+        localStorage.removeItem(curDraftKey);
+        localStorage.removeItem('ulangan_rangkuman_session');
+        localStorage.setItem('ulangan_rangkuman_pengerjaan_id', result.pengerjaan_id);
+
+        startPollingRangkumanStatus(result.pengerjaan_id, result.posisi_antrean, result.estimasi_detik);
+      } catch (err) {
+        alert('⚠️ Gagal mengirim rangkuman: ' + err.message);
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>🚀 Kumpulkan Rangkuman & Mulai Penilaian AI</span>';
+        }
+      }
+    }
+
+    function startPollingRangkumanStatus(pengerjaanId, initialPos = 1, initialEta = 10) {
+      if (stepAuth) stepAuth.classList.add('hidden');
+      document.getElementById('step-exam')?.classList.add('hidden');
+      document.getElementById('step-result')?.classList.add('hidden');
+      document.getElementById('step-waiting-room')?.classList.add('hidden');
+      document.getElementById('step-resuming')?.classList.add('hidden');
+      document.getElementById('step-rangkuman')?.classList.add('hidden');
+
+      const stepRgkResult = document.getElementById('step-rangkuman-result');
+      if (stepRgkResult) stepRgkResult.classList.remove('hidden');
+
+      const waitingBox = document.getElementById('rgk-result-waiting-box');
+      const doneBox = document.getElementById('rgk-result-done-box');
+      if (waitingBox) waitingBox.classList.remove('hidden');
+      if (doneBox) doneBox.classList.add('hidden');
+
+      const posEl = document.getElementById('rgk-queue-pos');
+      const etaEl = document.getElementById('rgk-queue-eta');
+      if (posEl) posEl.textContent = `#${initialPos || 1}`;
+      if (etaEl) etaEl.textContent = `~${initialEta || 10} detik`;
+
+      if (rgkStatusPollInterval) clearInterval(rgkStatusPollInterval);
+
+      async function poll() {
+        try {
+          const res = await fetch(`/api/siswa/rangkuman/status/${pengerjaanId}`);
+          const result = await res.json();
+          if (!res.ok || !result.success || !result.data) return;
+
+          const p = result.data;
+          if (p.is_selesai) {
+            clearInterval(rgkStatusPollInterval);
+            rgkStatusPollInterval = null;
+            renderRangkumanResult(p);
+          } else {
+            const pos = p.posisi_antrean || 1;
+            if (posEl) posEl.textContent = `#${pos}`;
+            if (etaEl) etaEl.textContent = `~${Math.max(5, pos * 6)} detik`;
+            const progressEl = document.getElementById('rgk-queue-progress');
+            if (progressEl) {
+              const pct = Math.max(25, Math.min(95, 100 - (pos * 15)));
+              progressEl.style.width = `${pct}%`;
+            }
+          }
+        } catch (e) {
+          console.warn('Gagal memuat status antrean rangkuman:', e);
+        }
+      }
+
+      poll();
+      rgkStatusPollInterval = setInterval(poll, 3000);
+    }
+
+    function renderRangkumanResult(p) {
+      const waitingBox = document.getElementById('rgk-result-waiting-box');
+      const doneBox = document.getElementById('rgk-result-done-box');
+      if (waitingBox) waitingBox.classList.add('hidden');
+      if (doneBox) doneBox.classList.remove('hidden');
+
+      const metaEl = document.getElementById('rgk-done-title-meta');
+      if (metaEl) {
+        metaEl.textContent = `${p.judul_tugas || 'Tugas Rangkuman'} • ${p.mata_pelajaran || '-'} • ${p.nama_siswa} (${p.kelas_siswa})`;
+      }
+
+      const skorVal = document.getElementById('rgk-skor-ai-val');
+      if (skorVal) {
+        const score = p.skor_final !== null ? p.skor_final : (p.skor_ai !== null ? p.skor_ai : 0);
+        skorVal.textContent = Math.round(score);
+      }
+
+      const feedbackEl = document.getElementById('rgk-feedback-text');
+      if (feedbackEl) {
+        feedbackEl.textContent = p.feedback_ai || 'Rangkuman Anda telah dinilai oleh AI.';
+      }
+
+      // Tampilkan detail poin kunci jika ada
+      let detailContainer = document.getElementById('rgk-detail-poin-container');
+      if (!detailContainer) {
+        detailContainer = document.createElement('div');
+        detailContainer.id = 'rgk-detail-poin-container';
+        detailContainer.className = 'bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-xs space-y-2.5 text-xs';
+        const doneBoxEl = document.getElementById('rgk-result-done-box');
+        if (doneBoxEl && doneBoxEl.children.length > 2) {
+          doneBoxEl.insertBefore(detailContainer, doneBoxEl.lastElementChild);
+        }
+      }
+
+      if (Array.isArray(p.detail_poin_ai) && p.detail_poin_ai.length > 0) {
+        detailContainer.classList.remove('hidden');
+        detailContainer.innerHTML = `
+          <h4 class="font-bold text-slate-800 flex items-center space-x-1.5 text-xs">
+            <span>📋</span>
+            <span>Ketercakupan Poin Intisari:</span>
+          </h4>
+          <div class="space-y-1.5">
+            ${p.detail_poin_ai.map(pt => {
+              const tercakup = pt.tercakup === true || pt.tercakup === 1 || (typeof pt.skor === 'number' && pt.skor >= 60);
+              return `
+                <div class="flex items-start space-x-2 p-2 rounded-lg ${tercakup ? 'bg-emerald-50/80 border border-emerald-200 text-emerald-950' : 'bg-rose-50/80 border border-rose-200 text-rose-950'}">
+                  <span class="text-sm shrink-0">${tercakup ? '✅' : '❌'}</span>
+                  <div class="min-w-0 flex-1">
+                    <p class="font-medium leading-relaxed">${escapeHtml(pt.poin || pt.nama || '-')}</p>
+                    ${pt.catatan ? `<p class="text-[11px] opacity-80 mt-0.5">${escapeHtml(pt.catatan)}</p>` : ''}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      } else if (detailContainer) {
+        detailContainer.classList.add('hidden');
+      }
+    }
+
+    window.keluarDariRangkuman = function() {
+      if (rgkStatusPollInterval) clearInterval(rgkStatusPollInterval);
+      localStorage.removeItem('ulangan_rangkuman_pengerjaan_id');
+      localStorage.removeItem('ulangan_rangkuman_session');
+      window.location.href = window.location.pathname;
+    };
   </script>
 
   <!-- MODAL FULL-SCREEN IMAGE ZOOM LIGHTBOX -->

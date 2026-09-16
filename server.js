@@ -16,6 +16,7 @@ const adminService = require('./src/services/adminService');
 const fileParserService = require('./src/services/fileParserService');
 const waitingRoomService = require('./src/services/waitingRoomService');
 const bankSoalService = require('./src/services/bankSoalService');
+const summaryService = require('./src/services/summaryService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -54,7 +55,12 @@ app.get('/health', (req, res) => {
 });
 
 // Jadwalkan sinkronisasi latar belakang Turso secara debounced setelah request write selesai (tidak memblokir request klien)
-const SKIP_SYNC_PATHS = new Set(['/api/siswa/ping', '/api/siswa/cek-kode', '/api/auth/logout']);
+const SKIP_SYNC_PATHS = new Set([
+  '/api/siswa/ping',
+  '/api/siswa/cek-kode',
+  '/api/auth/logout',
+  '/api/siswa/rangkuman/cek-kode'
+]);
 
 app.use((req, res, next) => {
   if (req.path && req.path.startsWith('/api/') && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
@@ -1146,6 +1152,157 @@ app.post('/api/admin/database/restore', requireAdmin, (req, res) => {
   }
 });
 
+// ----------------------------------------------------
+// ROUTE: Fitur Tugas Rangkuman Berbantuan AI
+// ----------------------------------------------------
+
+// 1. Siswa: Cek Kode Tugas Rangkuman
+app.post('/api/siswa/rangkuman/cek-kode', (req, res) => {
+  try {
+    const { kode_tugas } = req.body;
+    const result = summaryService.validateTaskCodeForStudent(kode_tugas);
+    if (!result.valid) {
+      return res.status(400).json(result);
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ valid: false, message: err.message });
+  }
+});
+
+// 2. Siswa: Submit Rangkuman
+app.post('/api/siswa/rangkuman/submit', (req, res) => {
+  try {
+    const { tugas_id, nama_siswa, kelas_siswa, teks_rangkuman } = req.body;
+    const result = summaryService.submitSummary(tugas_id, {
+      namaSiswa: nama_siswa,
+      kelasSiswa: kelas_siswa,
+      teksRangkuman: teks_rangkuman
+    });
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 3. Siswa: Polling Status & Nilai AI
+app.get('/api/siswa/rangkuman/status/:pengerjaanId', (req, res) => {
+  try {
+    const result = summaryService.getStudentStatus(req.params.pengerjaanId);
+    if (!result.success) {
+      return res.status(404).json(result);
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 4. Guru: Daftar Tugas Rangkuman
+app.get('/api/guru/rangkuman', requireGuru, (req, res) => {
+  try {
+    const list = summaryService.getTasksByGuru(req.guru.guruId);
+    res.json({ success: true, data: list });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 5. Guru: Detail Tugas Rangkuman
+app.get('/api/guru/rangkuman/:id', requireGuru, (req, res) => {
+  try {
+    const task = summaryService.getTaskById(req.params.id, req.guru.guruId);
+    if (!task) return res.status(404).json({ success: false, message: 'Tugas rangkuman tidak ditemukan' });
+    res.json({ success: true, data: task });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 6. Guru: Buat Tugas Rangkuman Baru
+app.post('/api/guru/rangkuman', requireGuru, (req, res) => {
+  try {
+    const created = summaryService.createTask(req.guru.guruId, req.body);
+    res.json({ success: true, data: created });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// 7. Guru: Update Tugas Rangkuman
+app.put('/api/guru/rangkuman/:id', requireGuru, (req, res) => {
+  try {
+    const updated = summaryService.updateTask(req.params.id, req.guru.guruId, req.body);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// 8. Guru: Hapus Tugas Rangkuman
+app.delete('/api/guru/rangkuman/:id', requireGuru, (req, res) => {
+  try {
+    const result = summaryService.deleteTask(req.params.id, req.guru.guruId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// 9. Guru: Generate Master Intisari & Poin Kunci dengan AI
+app.post('/api/guru/rangkuman/generate-master', requireGuru, async (req, res) => {
+  try {
+    const result = await summaryService.generateMasterSummaryAI(req.body);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 10. Guru: Daftar Pengumpulan Siswa untuk 1 Tugas
+app.get('/api/guru/rangkuman/:id/peserta', requireGuru, (req, res) => {
+  try {
+    const list = summaryService.getSubmissionsByTask(req.params.id, req.guru.guruId);
+    res.json({ success: true, data: list });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 11. Guru: Verifikasi / Edit Skor Siswa
+app.put('/api/guru/rangkuman/pengerjaan/:id/nilai', requireGuru, (req, res) => {
+  try {
+    const result = summaryService.updateScoreByGuru(req.params.id, req.guru.guruId, req.body);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// 12. Guru: Setujui Semua Skor AI
+app.post('/api/guru/rangkuman/:id/approve-all', requireGuru, (req, res) => {
+  try {
+    const result = summaryService.approveAllAiScores(req.params.id, req.guru.guruId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// 13. Guru: Ekspor CSV Pengumpulan
+app.get('/api/guru/rangkuman/:id/ekspor-csv', requireGuru, (req, res) => {
+  try {
+    const csvData = summaryService.exportSubmissionsCSV(req.params.id, req.guru.guruId);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="rekap_rangkuman_${req.params.id}.csv"`);
+    res.send(csvData);
+  } catch (err) {
+    res.status(500).send('Gagal mengekspor CSV: ' + err.message);
+  }
+});
 
 // Export app untuk testing atau jalankan server jika dipanggil langsung
 if (require.main === module) {

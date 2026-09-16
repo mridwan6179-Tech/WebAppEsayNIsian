@@ -304,6 +304,76 @@ function initDatabase() {
   `);
   }
 
+  // Tabel Fitur Baru: Tugas Rangkuman Berbantuan AI
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS tugas_rangkuman (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        guru_id INTEGER NOT NULL,
+        judul TEXT NOT NULL,
+        mata_pelajaran TEXT NOT NULL,
+        tingkat_kelas TEXT NOT NULL,
+        deskripsi TEXT,
+        kode_tugas TEXT UNIQUE NOT NULL,
+        tipe_media TEXT CHECK(tipe_media IN ('youtube', 'video_url', 'pdf_url', 'teks')) NOT NULL DEFAULT 'youtube',
+        media_url TEXT,
+        media_teks TEXT,
+        batas_minimum_kata INTEGER DEFAULT 100,
+        batas_maksimum_kata INTEGER DEFAULT 500,
+        master_rangkuman TEXT,
+        poin_kunci TEXT,
+        tanggal_mulai DATETIME,
+        tanggal_selesai DATETIME,
+        status TEXT CHECK(status IN ('draft', 'dibuka', 'ditutup', 'selesai')) DEFAULT 'draft',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (guru_id) REFERENCES guru(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS pengerjaan_rangkuman (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tugas_id INTEGER NOT NULL,
+        nama_siswa TEXT NOT NULL,
+        kelas_siswa TEXT NOT NULL,
+        teks_rangkuman TEXT NOT NULL,
+        jumlah_kata INTEGER DEFAULT 0,
+        status TEXT CHECK(status IN ('submitted', 'dinilai')) DEFAULT 'submitted',
+        skor_ai REAL DEFAULT NULL,
+        skor_final REAL DEFAULT NULL,
+        status_kelulusan TEXT CHECK(status_kelulusan IN ('belum_final', 'lulus', 'revisi', 'final')) DEFAULT 'belum_final',
+        feedback_ai TEXT,
+        detail_poin_ai TEXT,
+        model_ai TEXT,
+        status_antrean TEXT CHECK(status_antrean IN ('menunggu', 'diproses', 'selesai', 'gagal')) DEFAULT 'menunggu',
+        posisi_antrean INTEGER DEFAULT 0,
+        submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        reviewed_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (tugas_id) REFERENCES tugas_rangkuman(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS antrean_rangkuman (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pengerjaan_id INTEGER UNIQUE NOT NULL,
+        status TEXT CHECK(status IN ('menunggu', 'diproses', 'selesai', 'gagal')) DEFAULT 'menunggu',
+        attempt_count INTEGER DEFAULT 0,
+        locked_at DATETIME,
+        completed_at DATETIME,
+        error_message TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (pengerjaan_id) REFERENCES pengerjaan_rangkuman(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_tugas_rangkuman_guru ON tugas_rangkuman(guru_id);
+      CREATE INDEX IF NOT EXISTS idx_tugas_rangkuman_kode ON tugas_rangkuman(kode_tugas);
+      CREATE INDEX IF NOT EXISTS idx_pengerjaan_rangkuman_tugas ON pengerjaan_rangkuman(tugas_id);
+      CREATE INDEX IF NOT EXISTS idx_antrean_rangkuman_status ON antrean_rangkuman(status);
+    `);
+  } catch (e) {
+    console.warn('⚠️ Gagal inisialisasi tabel rangkuman:', e.message);
+  }
+
   // Migrasi cerdas: Periksa ketersediaan kolom via local pragma sebelum mengeksekusi ALTER TABLE
   // Mencegah puluhan round-trip remote yang memblokir server saat startup
   const tableColumnsMap = new Map();

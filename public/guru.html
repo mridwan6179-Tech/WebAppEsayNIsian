@@ -275,7 +275,7 @@
       </div>
     </header>
 
-    <!-- Main Dashboard Nav: Ulangan vs Bank Soal -->
+    <!-- Main Dashboard Nav: Ulangan vs Bank Soal vs Tugas Rangkuman -->
     <div class="flex items-center space-x-2 border-b border-slate-200 pb-2">
       <button id="nav-tab-ulangan" type="button" class="flex-1 sm:flex-initial px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 bg-blue-600 text-white shadow-sm shadow-blue-500/20">
         <span>📝 Paket Ulangan</span>
@@ -285,6 +285,10 @@
         <span>📂 Bank Soal</span>
         <span class="hidden sm:inline">Mandiri</span>
         <span id="badge-bank-soal-count" class="bg-purple-100 text-purple-800 text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full">0</span>
+      </button>
+      <button id="nav-tab-rangkuman" type="button" class="flex-1 sm:flex-initial px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center justify-center space-x-2 bg-white text-slate-700 hover:bg-slate-100 border border-slate-200">
+        <span>📚 Tugas Rangkuman</span>
+        <span id="badge-rangkuman-count" class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full">0</span>
       </button>
     </div>
 
@@ -1102,6 +1106,311 @@
       </div>
     </div>
     <!-- AKHIR VIEW 2 -->
+
+    <!-- VIEW 3: TUGAS RANGKUMAN BERBANTUAN AI -->
+    <div id="view-rangkuman-mode" class="hidden space-y-5">
+      <!-- Header Banner -->
+      <div class="bg-gradient-to-r from-teal-800 via-emerald-800 to-green-900 text-white p-5 sm:p-6 rounded-2xl shadow-md flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <span class="inline-block px-2.5 py-0.5 bg-white/20 backdrop-blur-sm text-white font-bold text-[10px] sm:text-[11px] rounded-lg uppercase tracking-wider mb-2">
+            Literasi & Evaluasi AI Terarah
+          </span>
+          <h2 class="text-lg sm:text-xl font-black">Tugas Rangkuman (Video / Buku / Teks)</h2>
+          <p class="text-xs text-teal-100 max-w-xl mt-1">
+            Siswa menyimak materi tersemat (YouTube, PDF, atau artikel teks) lalu merangkum dengan panduan kata. Rangkuman dievaluasi AI seketika secara adil berdasarkan Master Intisari.
+          </p>
+        </div>
+        <div>
+          <button id="btn-open-create-rangkuman" type="button" class="px-4 py-2.5 bg-white hover:bg-emerald-50 text-teal-900 font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer">
+            <span>➕ Buat Tugas Rangkuman Baru</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Ringkasan Statistik Rangkuman -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="text-[11px] text-slate-500 font-semibold block">Total Tugas</span>
+          <span id="rangkuman-stat-total" class="text-2xl font-black text-slate-900">0</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="text-[11px] text-slate-500 font-semibold block">Tugas Dibuka</span>
+          <span id="rangkuman-stat-dibuka" class="text-2xl font-black text-emerald-700">0</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="text-[11px] text-slate-500 font-semibold block">Total Pengumpulan</span>
+          <span id="rangkuman-stat-pengumpulan" class="text-2xl font-black text-blue-600">0</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="text-[11px] text-slate-500 font-semibold block">Rata-Rata Nilai</span>
+          <span id="rangkuman-stat-rata-rata" class="text-2xl font-black text-amber-600">-</span>
+        </div>
+      </div>
+
+      <!-- Container Daftar Tugas Rangkuman -->
+      <div id="rangkuman-cards-container" class="space-y-3">
+        <p class="text-center text-slate-400 py-8 text-xs">Memuat daftar tugas rangkuman...</p>
+      </div>
+    </div>
+    <!-- AKHIR VIEW 3 -->
+  </div>
+
+  <!-- MODAL BUAT / EDIT TUGAS RANGKUMAN -->
+  <div id="modal-tugas-rangkuman" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 my-auto max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h3 id="modal-rangkuman-title-header" class="font-bold text-slate-900 text-sm sm:text-base flex items-center space-x-2">
+            <span>📚</span>
+            <span>Buat Tugas Rangkuman Baru</span>
+          </h3>
+          <p class="text-[11px] text-slate-500">Tentukan materi video/PDF, batas jumlah kata, dan poin rujukan penilaian AI</p>
+        </div>
+        <button type="button" id="btn-close-modal-rangkuman" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+      </div>
+
+      <div id="modal-rangkuman-alert" class="hidden p-3 rounded-xl text-xs border"></div>
+
+      <form id="form-tugas-rangkuman" class="space-y-4 text-xs">
+        <input type="hidden" id="form-rangkuman-id">
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Judul Tugas Rangkuman</label>
+          <input type="text" id="form-rangkuman-judul" required placeholder="Contoh: Rangkuman Fotosintesis & Reaksi Terang" class="w-full px-3 py-2 rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-1 focus:ring-teal-500">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Mata Pelajaran</label>
+            <input type="text" id="form-rangkuman-mapel" required placeholder="Contoh: Biologi" class="w-full px-3 py-2 rounded-xl border border-slate-300 focus:border-teal-500">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Tingkat Kelas</label>
+            <input type="text" id="form-rangkuman-kelas" required placeholder="Contoh: 10 MIPA" class="w-full px-3 py-2 rounded-xl border border-slate-300 focus:border-teal-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Petunjuk Khusus untuk Siswa (Opsional)</label>
+          <textarea id="form-rangkuman-deskripsi" rows="2" placeholder="Contoh: Simak video menit 02:00 - 10:30, lalu jelaskan tahapan reaksi gelap dan terang dengan bahasa kalian sendiri..." class="w-full px-3 py-2 rounded-xl border border-slate-300"></textarea>
+        </div>
+
+        <!-- Pilihan Sumber Media -->
+        <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+          <label class="block font-bold text-slate-800">📺 Format Sumber Media Pembelajaran</label>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 cursor-pointer hover:border-teal-500 text-slate-700 font-medium text-[11px]">
+              <input type="radio" name="tipe_media" value="youtube" checked class="text-teal-600 focus:ring-teal-500">
+              <span>YouTube</span>
+            </label>
+            <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 cursor-pointer hover:border-teal-500 text-slate-700 font-medium text-[11px]">
+              <input type="radio" name="tipe_media" value="pdf_url" class="text-teal-600 focus:ring-teal-500">
+              <span>PDF / Buku</span>
+            </label>
+            <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 cursor-pointer hover:border-teal-500 text-slate-700 font-medium text-[11px]">
+              <input type="radio" name="tipe_media" value="video_url" class="text-teal-600 focus:ring-teal-500">
+              <span>Video Link / Drive</span>
+            </label>
+            <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 cursor-pointer hover:border-teal-500 text-slate-700 font-medium text-[11px]">
+              <input type="radio" name="tipe_media" value="teks" class="text-teal-600 focus:ring-teal-500">
+              <span>Teks Artikel</span>
+            </label>
+          </div>
+
+          <div id="wrapper-media-url">
+            <label class="block font-semibold text-slate-700 mb-1" id="label-media-url">Tautan / URL Video YouTube</label>
+            <input type="url" id="form-rangkuman-media-url" placeholder="https://www.youtube.com/watch?v=..." class="w-full px-3 py-2 rounded-xl border border-slate-300 focus:border-teal-500">
+            <p class="text-[10px] text-slate-500 mt-1">Dapat berupa link YouTube biasa atau tautan publik dokumen PDF Google Drive / cloud.</p>
+          </div>
+
+          <div id="wrapper-media-teks" class="hidden">
+            <label class="block font-semibold text-slate-700 mb-1">Teks Materi / Artikel Bacaan</label>
+            <textarea id="form-rangkuman-media-teks" rows="5" placeholder="Ketik atau tempel teks artikel / bacaan yang wajib dibaca siswa..." class="w-full px-3 py-2 rounded-xl border border-slate-300"></textarea>
+          </div>
+        </div>
+
+        <!-- Batasan Jumlah Kata -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-emerald-50/50 rounded-xl border border-emerald-200">
+          <div>
+            <label class="block font-bold text-emerald-950 mb-1">Batas Minimum Kata</label>
+            <input type="number" id="form-rangkuman-min-kata" min="10" max="2000" value="100" class="w-full px-3 py-1.5 rounded-lg border border-emerald-300 bg-white font-bold text-emerald-900">
+            <span class="text-[10px] text-emerald-700">Siswa tidak dapat mengumpulkan jika kurang dari batas ini.</span>
+          </div>
+          <div>
+            <label class="block font-bold text-emerald-950 mb-1">Batas Maksimum Kata</label>
+            <input type="number" id="form-rangkuman-max-kata" min="50" max="5000" value="500" class="w-full px-3 py-1.5 rounded-lg border border-emerald-300 bg-white font-bold text-emerald-900">
+            <span class="text-[10px] text-emerald-700">Menjaga rangkuman tetap padat dan hemat token AI.</span>
+          </div>
+        </div>
+
+        <!-- Master Rujukan AI (Ground Truth) -->
+        <div class="p-3.5 bg-purple-50/60 rounded-xl border border-purple-200 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <div>
+              <label class="block font-bold text-purple-900">🤖 Master Rujukan & Poin Inti Penilaian AI</label>
+              <p class="text-[10px] text-purple-700">AI hanya membaca master ini saat menilai siswa (sangat hemat kuota & cepat).</p>
+            </div>
+            <button type="button" id="btn-generate-master-ai" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] rounded-lg transition flex items-center space-x-1 cursor-pointer">
+              <span>✨ Ekstrak via AI</span>
+            </button>
+          </div>
+
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Master Intisari Materi (Pedoman AI)</label>
+            <textarea id="form-rangkuman-master" rows="3" placeholder="Rangkuman komprehensif materi (dapat di-generate otomatis via AI atau diisi manual)..." class="w-full px-3 py-2 rounded-xl border border-purple-200 bg-white text-xs"></textarea>
+          </div>
+
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Poin-Poin Kunci yang Wajib Dicakup (1 baris per poin)</label>
+            <textarea id="form-rangkuman-poin" rows="3" placeholder="Contoh:&#10;Konsep fotosintesis dan klorofil&#10;Perbedaan reaksi terang dan gelap&#10;Faktor yang mempengaruhi laju fotosintesis" class="w-full px-3 py-2 rounded-xl border border-purple-200 bg-white text-xs font-mono"></textarea>
+          </div>
+        </div>
+
+        <!-- Status Tugas -->
+        <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+          <div>
+            <label class="block font-bold text-slate-800">Status Akses Tugas</label>
+            <p class="text-[11px] text-slate-500">Pilih 'Dibuka' agar siswa dapat mulai mengerjakan.</p>
+          </div>
+          <select id="form-rangkuman-status" class="px-3 py-1.5 rounded-lg border border-slate-300 font-semibold bg-white text-xs">
+            <option value="dibuka">🟢 Dibuka (Aktif)</option>
+            <option value="draft">🟡 Draft (Tertutup)</option>
+            <option value="ditutup">🔴 Ditutup</option>
+          </select>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+          <button type="button" id="btn-cancel-modal-rangkuman" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-medium transition cursor-pointer">Batal</button>
+          <button type="submit" id="btn-save-modal-rangkuman" class="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-md transition cursor-pointer">Simpan Tugas Rangkuman</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL REKAP PENGUMPULAN & PENILAIAN RANGKUMAN -->
+  <div id="modal-rekap-rangkuman" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-5xl w-full max-h-[95vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden my-auto">
+      <!-- Header -->
+      <div class="p-4 border-b border-slate-200 flex flex-wrap justify-between items-center gap-3 bg-slate-50">
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xl">📚</span>
+            <h3 id="rekap-rangkuman-judul" class="font-bold text-slate-900 text-sm sm:text-base">Rekap Tugas Rangkuman</h3>
+            <span id="rekap-rangkuman-kode-badge" class="px-2.5 py-0.5 bg-teal-100 text-teal-800 font-mono font-bold text-xs rounded-lg">RGK-XXXX</span>
+          </div>
+          <p id="rekap-rangkuman-meta" class="text-xs text-slate-500 mt-0.5">Mapel &bull; Kelas &bull; Minimal Kata</p>
+        </div>
+        <div class="flex items-center flex-wrap gap-2">
+          <button id="btn-rekap-approve-all" type="button" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg transition flex items-center space-x-1 shadow-sm cursor-pointer" title="Setujui seluruh nilai sementara AI menjadi nilai final">
+            <span>✅ Setujui Semua Skor AI</span>
+          </button>
+          <button id="btn-rekap-export-csv" type="button" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs rounded-lg transition flex items-center space-x-1 shadow-sm cursor-pointer">
+            <span>📊 Ekspor CSV / Excel</span>
+          </button>
+          <button id="btn-rekap-refresh" type="button" class="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs rounded-lg transition cursor-pointer">
+            <span>🔄 Segarkan</span>
+          </button>
+          <button id="btn-close-rekap-rangkuman" type="button" class="text-slate-400 hover:text-slate-600 p-1 text-lg font-bold">&times;</button>
+        </div>
+      </div>
+
+      <!-- Content Area (Split Grid: Tabel Peserta di Kiri, Detail Jawaban di Kanan jika dipilih) -->
+      <div class="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
+        <!-- Tabel Peserta (Col 7 / 12) -->
+        <div class="lg:col-span-7 p-4 overflow-y-auto space-y-3">
+          <div class="flex items-center justify-between text-xs text-slate-600 font-medium">
+            <span id="rekap-rangkuman-count">Total: 0 Siswa Mengumpulkan</span>
+            <span class="text-[11px] text-slate-400">Klik baris siswa untuk melihat teks rangkuman & feedback AI</span>
+          </div>
+
+          <div class="overflow-x-auto border border-slate-200 rounded-xl">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="p-2.5">Siswa</th>
+                  <th class="p-2.5">Kelas</th>
+                  <th class="p-2.5 text-center">Kata</th>
+                  <th class="p-2.5 text-center">Nilai AI</th>
+                  <th class="p-2.5 text-center">Nilai Final</th>
+                  <th class="p-2.5 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody id="rekap-rangkuman-table-body" class="divide-y divide-slate-100">
+                <tr><td colspan="6" class="p-6 text-center text-slate-400">Belum ada siswa yang mengumpulkan rangkuman.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Panel Detail Rangkuman Siswa (Col 5 / 12) -->
+        <div id="rekap-rangkuman-detail-panel" class="lg:col-span-5 p-4 overflow-y-auto space-y-4 bg-slate-50/50">
+          <div id="rekap-detail-placeholder" class="text-center text-slate-400 py-16 text-xs">
+            <span class="text-3xl block mb-2">👈</span>
+            <span>Pilih salah satu siswa di sebelah kiri untuk memeriksa teks rangkuman dan catatan evaluasi AI.</span>
+          </div>
+
+          <div id="rekap-detail-content" class="hidden space-y-4 text-xs">
+            <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <div>
+                <h4 id="detail-siswa-nama" class="font-bold text-slate-900 text-sm">Nama Siswa</h4>
+                <p id="detail-siswa-meta" class="text-slate-500 text-[11px]">Kelas &bull; Waktu Kumpul</p>
+              </div>
+              <div class="text-right">
+                <span id="detail-siswa-badge-status" class="px-2 py-0.5 rounded-full font-bold text-[10px] bg-blue-100 text-blue-800">Terkumpul</span>
+              </div>
+            </div>
+
+            <!-- Teks Rangkuman Siswa -->
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-slate-800">📝 Teks Rangkuman Siswa</span>
+                <span id="detail-siswa-kata-badge" class="px-2 py-0.5 bg-slate-100 text-slate-700 font-mono text-[10px] rounded">0 kata</span>
+              </div>
+              <div id="detail-siswa-teks" class="p-3 bg-slate-50 rounded-lg text-slate-800 leading-relaxed max-h-56 overflow-y-auto font-sans whitespace-pre-wrap border border-slate-100">
+                -
+              </div>
+            </div>
+
+            <!-- Evaluasi AI -->
+            <div class="bg-white p-3.5 rounded-xl border border-purple-200 shadow-sm space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-purple-900 flex items-center space-x-1">
+                  <span>🤖 Evaluasi & Catatan AI</span>
+                </span>
+                <span id="detail-siswa-skor-ai" class="font-black text-sm text-purple-800">Skor: -</span>
+              </div>
+              <div id="detail-siswa-feedback" class="p-3 bg-purple-50/50 rounded-lg text-slate-700 leading-relaxed whitespace-pre-wrap text-[11px] border border-purple-100">
+                -
+              </div>
+            </div>
+
+            <!-- Form Koreksi Nilai Final Guru -->
+            <form id="form-koreksi-nilai-rangkuman" class="bg-white p-3.5 rounded-xl border border-teal-200 shadow-sm space-y-2.5">
+              <span class="font-bold text-teal-950 block">⚖️ Verifikasi & Nilai Akhir Guru</span>
+              <input type="hidden" id="koreksi-pengerjaan-id">
+              
+              <div class="flex items-center space-x-3">
+                <div class="flex-1">
+                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">Nilai Final (0-100)</label>
+                  <input type="number" id="koreksi-skor-final" min="0" max="100" required class="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-bold text-slate-800 focus:ring-1 focus:ring-teal-500">
+                </div>
+                <div class="flex-1">
+                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">Status Kelulusan</label>
+                  <select id="koreksi-status-kelulusan" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-semibold text-slate-700 bg-white">
+                    <option value="final">✅ Final (Disetujui)</option>
+                    <option value="revisi">⚠️ Perlu Revisi</option>
+                  </select>
+                </div>
+              </div>
+
+              <button type="submit" class="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg transition shadow-sm cursor-pointer">
+                Simpan Nilai Final
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- MODAL REVIEW JAWABAN SISWA -->
@@ -7396,31 +7705,43 @@
     let bankSoalCache = [];
     let bankCategoriesCache = [];
 
-    // --- 1. Tab Navigation: Paket Ulangan vs Bank Soal ---
+    // --- 1. Tab Navigation: Paket Ulangan vs Bank Soal vs Tugas Rangkuman ---
     const navTabUlangan = document.getElementById('nav-tab-ulangan');
     const navTabBankSoal = document.getElementById('nav-tab-bank-soal');
+    const navTabRangkuman = document.getElementById('nav-tab-rangkuman');
     const viewUlanganMode = document.getElementById('view-ulangan-mode');
     const viewBankSoalMode = document.getElementById('view-bank-soal-mode');
+    const viewRangkumanMode = document.getElementById('view-rangkuman-mode');
     const badgeBankSoalCount = document.getElementById('badge-bank-soal-count');
+    const badgeRangkumanCount = document.getElementById('badge-rangkuman-count');
 
     function switchDashboardTab(tab) {
+      if (navTabUlangan) navTabUlangan.className = 'px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 bg-white text-slate-700 hover:bg-slate-100 border border-slate-200';
+      if (navTabBankSoal) navTabBankSoal.className = 'px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 bg-white text-slate-700 hover:bg-slate-100 border border-slate-200';
+      if (navTabRangkuman) navTabRangkuman.className = 'px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 bg-white text-slate-700 hover:bg-slate-100 border border-slate-200';
+
+      if (viewUlanganMode) viewUlanganMode.classList.add('hidden');
+      if (viewBankSoalMode) viewBankSoalMode.classList.add('hidden');
+      if (viewRangkumanMode) viewRangkumanMode.classList.add('hidden');
+
       if (tab === 'bank-soal') {
-        navTabUlangan.className = 'px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 bg-white text-slate-700 hover:bg-slate-100 border border-slate-200';
-        navTabBankSoal.className = 'px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-purple-600 text-white shadow-sm shadow-purple-500/20';
-        viewUlanganMode.classList.add('hidden');
-        viewBankSoalMode.classList.remove('hidden');
+        if (navTabBankSoal) navTabBankSoal.className = 'px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-purple-600 text-white shadow-sm shadow-purple-500/20';
+        if (viewBankSoalMode) viewBankSoalMode.classList.remove('hidden');
         loadBankCategories();
         loadBankSoal();
+      } else if (tab === 'rangkuman') {
+        if (navTabRangkuman) navTabRangkuman.className = 'px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-teal-600 text-white shadow-sm shadow-teal-500/20';
+        if (viewRangkumanMode) viewRangkumanMode.classList.remove('hidden');
+        loadTugasRangkuman();
       } else {
-        navTabBankSoal.className = 'px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center space-x-2 bg-white text-slate-700 hover:bg-slate-100 border border-slate-200';
-        navTabUlangan.className = 'px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-blue-600 text-white shadow-sm shadow-blue-500/20';
-        viewBankSoalMode.classList.add('hidden');
-        viewUlanganMode.classList.remove('hidden');
+        if (navTabUlangan) navTabUlangan.className = 'px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 bg-blue-600 text-white shadow-sm shadow-blue-500/20';
+        if (viewUlanganMode) viewUlanganMode.classList.remove('hidden');
       }
     }
 
     if (navTabUlangan) navTabUlangan.addEventListener('click', () => switchDashboardTab('ulangan'));
     if (navTabBankSoal) navTabBankSoal.addEventListener('click', () => switchDashboardTab('bank-soal'));
+    if (navTabRangkuman) navTabRangkuman.addEventListener('click', () => switchDashboardTab('rangkuman'));
 
     // --- 2. Bank Soal: Fetch Categories & List ---
     async function loadBankCategories() {
@@ -8922,6 +9243,486 @@
         }
       });
     }
+
+    // =========================================================================
+    // MODUL TUGAS RANGKUMAN BERBANTUAN AI (GURU)
+    // =========================================================================
+    let tugasRangkumanCache = [];
+    let activeRangkumanId = null;
+    let activeRangkumanSubmissions = [];
+
+    // 1. Load Daftar Tugas Rangkuman
+    async function loadTugasRangkuman() {
+      const container = document.getElementById('rangkuman-cards-container');
+      if (!container) return;
+      container.innerHTML = '<p class="text-center text-slate-400 py-8 text-xs">Memuat daftar tugas rangkuman...</p>';
+
+      try {
+        const res = await guruFetch('/api/guru/rangkuman');
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Gagal memuat tugas rangkuman');
+
+        tugasRangkumanCache = data.data || [];
+
+        // Update badges
+        const count = tugasRangkumanCache.length;
+        if (badgeRangkumanCount) badgeRangkumanCount.textContent = count;
+        const statTotal = document.getElementById('rangkuman-stat-total');
+        if (statTotal) statTotal.textContent = count;
+
+        const terbukaCount = tugasRangkumanCache.filter(t => t.status === 'dibuka').length;
+        const statDibuka = document.getElementById('rangkuman-stat-dibuka');
+        if (statDibuka) statDibuka.textContent = terbukaCount;
+
+        const totalKumpul = tugasRangkumanCache.reduce((acc, t) => acc + (Number(t.total_mengumpulkan) || 0), 0);
+        const statKumpul = document.getElementById('rangkuman-stat-pengumpulan');
+        if (statKumpul) statKumpul.textContent = totalKumpul;
+
+        const validAverages = tugasRangkumanCache.map(t => Number(t.rata_rata_nilai)).filter(v => !isNaN(v) && v > 0);
+        const avgTotal = validAverages.length > 0 ? (validAverages.reduce((a, b) => a + b, 0) / validAverages.length).toFixed(1) : '-';
+        const statAvg = document.getElementById('rangkuman-stat-rata-rata');
+        if (statAvg) statAvg.textContent = avgTotal;
+
+        if (tugasRangkumanCache.length === 0) {
+          container.innerHTML = `
+            <div class="bg-white p-10 rounded-2xl border border-slate-200 text-center space-y-3">
+              <span class="text-4xl block">📚</span>
+              <h4 class="font-bold text-slate-800 text-sm">Belum Ada Tugas Rangkuman</h4>
+              <p class="text-slate-500 text-xs max-w-md mx-auto">Buat tugas literasi baru dengan materi video YouTube, buku PDF, atau teks bacaan. Rangkuman siswa akan dievaluasi AI secara instan dan hemat kuota.</p>
+              <button type="button" onclick="openCreateRangkumanModal()" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-xl shadow transition cursor-pointer">
+                + Buat Tugas Rangkuman Sekarang
+              </button>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = tugasRangkumanCache.map(t => {
+          let statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">🟢 Dibuka</span>';
+          if (t.status === 'draft') {
+            statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">🟡 Draft</span>';
+          } else if (t.status === 'ditutup' || t.status === 'selesai') {
+            statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">🔴 Ditutup</span>';
+          }
+
+          let mediaIcon = '📺 YouTube';
+          if (t.tipe_media === 'pdf_url') mediaIcon = '📄 PDF / E-Book';
+          else if (t.tipe_media === 'teks') mediaIcon = '📝 Teks Artikel';
+          else if (t.tipe_media === 'video_url') mediaIcon = '🎥 Video Link';
+
+          const avgScore = t.rata_rata_nilai ? Number(t.rata_rata_nilai).toFixed(1) : '-';
+
+          return `
+            <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-teal-300 transition space-y-3">
+              <div class="flex flex-wrap items-start justify-between gap-2">
+                <div class="space-y-1 min-w-0 flex-1">
+                  <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                    <span class="px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                      ${escapeHtml(t.kode_tugas)}
+                    </span>
+                    <span class="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-700">
+                      ${mediaIcon}
+                    </span>
+                    ${statusBadge}
+                  </div>
+                  <h3 class="font-bold text-slate-900 text-sm sm:text-base">${escapeHtml(t.judul)}</h3>
+                  <p class="text-xs text-slate-500">${escapeHtml(t.mata_pelajaran)} &bull; Kelas: <span class="font-semibold text-slate-700">${escapeHtml(t.tingkat_kelas)}</span> &bull; Min: <span class="font-semibold text-teal-700">${t.batas_minimum_kata} kata</span></p>
+                </div>
+
+                <div class="flex items-center space-x-2">
+                  <button type="button" onclick="copyRangkumanLink('${escapeHtml(t.kode_tugas)}')" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1 cursor-pointer" title="Salin tautan pengerjaan siswa">
+                    <span>🔗 Salin Link</span>
+                  </button>
+                  <button type="button" onclick="openRekapRangkumanModal(${t.id})" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg shadow transition flex items-center space-x-1 cursor-pointer">
+                    <span>👥 Rekap Siswa (${t.total_mengumpulkan || 0})</span>
+                  </button>
+                  <button type="button" onclick="openEditRangkumanModal(${t.id})" class="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg transition cursor-pointer" title="Edit Tugas">
+                    ✏️
+                  </button>
+                  <button type="button" onclick="deleteTugasRangkuman(${t.id})" class="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg transition cursor-pointer" title="Hapus Tugas">
+                    🗑️
+                  </button>
+                </div>
+              </div>
+
+              <!-- Bar Statistik Pengerjaan -->
+              <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <span>Pengumpulan: <strong class="text-slate-800">${t.total_mengumpulkan || 0}</strong> siswa | Dinilai AI: <strong class="text-purple-700">${t.total_dinilai || 0}</strong></span>
+                <span>Rata-rata Nilai: <strong class="text-amber-700">${avgScore}</strong></span>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+      } catch (err) {
+        container.innerHTML = `<p class="p-4 text-center text-red-500 text-xs">Error: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    // 2. Helper Salin Link Tugas
+    function copyRangkumanLink(kode) {
+      const url = `${window.location.origin}/?kode=${encodeURIComponent(kode)}`;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+          alert(`✅ Tautan tugas rangkuman berhasil disalin ke clipboard:\n${url}\n\nSiswa cukup membuka link ini untuk langsung mulai membaca/menonton & merangkum.`);
+        }).catch(() => prompt('Salin tautan tugas ini:', url));
+      } else {
+        prompt('Salin tautan tugas ini:', url);
+      }
+    }
+
+    // 3. Modal Form Buat & Edit Tugas Rangkuman
+    const modalTugasRangkuman = document.getElementById('modal-tugas-rangkuman');
+    const formTugasRangkuman = document.getElementById('form-tugas-rangkuman');
+    const btnOpenCreateRangkuman = document.getElementById('btn-open-create-rangkuman');
+    const btnCloseModalRangkuman = document.getElementById('btn-close-modal-rangkuman');
+    const btnCancelModalRangkuman = document.getElementById('btn-cancel-modal-rangkuman');
+    const btnGenerateMasterAi = document.getElementById('btn-generate-master-ai');
+
+    function openCreateRangkumanModal() {
+      if (!modalTugasRangkuman) return;
+      document.getElementById('modal-rangkuman-title-header').innerHTML = '<span>📚</span><span>Buat Tugas Rangkuman Baru</span>';
+      document.getElementById('form-rangkuman-id').value = '';
+      formTugasRangkuman.reset();
+      document.getElementById('form-rangkuman-min-kata').value = '100';
+      document.getElementById('form-rangkuman-max-kata').value = '500';
+      document.getElementById('form-rangkuman-status').value = 'dibuka';
+      handleTipeMediaChange('youtube');
+      modalTugasRangkuman.classList.remove('hidden');
+    }
+
+    function openEditRangkumanModal(taskId) {
+      const task = tugasRangkumanCache.find(t => t.id === taskId);
+      if (!task || !modalTugasRangkuman) return;
+
+      document.getElementById('modal-rangkuman-title-header').innerHTML = '<span>✏️</span><span>Edit Tugas Rangkuman</span>';
+      document.getElementById('form-rangkuman-id').value = task.id;
+      document.getElementById('form-rangkuman-judul').value = task.judul;
+      document.getElementById('form-rangkuman-mapel').value = task.mata_pelajaran;
+      document.getElementById('form-rangkuman-kelas').value = task.tingkat_kelas;
+      document.getElementById('form-rangkuman-deskripsi').value = task.deskripsi || '';
+      document.getElementById('form-rangkuman-min-kata').value = task.batas_minimum_kata || 100;
+      document.getElementById('form-rangkuman-max-kata').value = task.batas_maksimum_kata || 500;
+      document.getElementById('form-rangkuman-master').value = task.master_rangkuman || '';
+
+      const poinList = Array.isArray(task.poin_kunci) ? task.poin_kunci.join('\n') : '';
+      document.getElementById('form-rangkuman-poin').value = poinList;
+
+      // Radio tipe media
+      const radio = document.querySelector(`input[name="tipe_media"][value="${task.tipe_media}"]`);
+      if (radio) radio.checked = true;
+      handleTipeMediaChange(task.tipe_media);
+
+      if (task.tipe_media === 'teks') {
+        document.getElementById('form-rangkuman-media-teks').value = task.media_teks || '';
+      } else {
+        document.getElementById('form-rangkuman-media-url').value = task.media_url || '';
+      }
+
+      document.getElementById('form-rangkuman-status').value = task.status || 'dibuka';
+      modalTugasRangkuman.classList.remove('hidden');
+    }
+
+    function handleTipeMediaChange(val) {
+      const wrapperUrl = document.getElementById('wrapper-media-url');
+      const wrapperTeks = document.getElementById('wrapper-media-teks');
+      const labelUrl = document.getElementById('label-media-url');
+
+      if (val === 'teks') {
+        if (wrapperUrl) wrapperUrl.classList.add('hidden');
+        if (wrapperTeks) wrapperTeks.classList.remove('hidden');
+      } else {
+        if (wrapperTeks) wrapperTeks.classList.add('hidden');
+        if (wrapperUrl) wrapperUrl.classList.remove('hidden');
+        if (labelUrl) {
+          if (val === 'youtube') labelUrl.textContent = 'Tautan / URL Video YouTube';
+          else if (val === 'pdf_url') labelUrl.textContent = 'Tautan Dokumen PDF / E-Book';
+          else labelUrl.textContent = 'Tautan Video / Google Drive';
+        }
+      }
+    }
+
+    // Event listeners tipe media
+    document.querySelectorAll('input[name="tipe_media"]').forEach(elem => {
+      elem.addEventListener('change', (e) => handleTipeMediaChange(e.target.value));
+    });
+
+    if (btnOpenCreateRangkuman) btnOpenCreateRangkuman.addEventListener('click', openCreateRangkumanModal);
+    if (btnCloseModalRangkuman) btnCloseModalRangkuman.addEventListener('click', () => modalTugasRangkuman.classList.add('hidden'));
+    if (btnCancelModalRangkuman) btnCancelModalRangkuman.addEventListener('click', () => modalTugasRangkuman.classList.add('hidden'));
+
+    // AI Ekstrak Master Rujukan
+    if (btnGenerateMasterAi) {
+      btnGenerateMasterAi.addEventListener('click', async () => {
+        const judul = document.getElementById('form-rangkuman-judul').value.trim();
+        const mapel = document.getElementById('form-rangkuman-mapel').value.trim();
+        const kelas = document.getElementById('form-rangkuman-kelas').value.trim();
+        const deskripsi = document.getElementById('form-rangkuman-deskripsi').value.trim();
+        const tipeMedia = document.querySelector('input[name="tipe_media"]:checked')?.value || 'youtube';
+        const mediaUrl = document.getElementById('form-rangkuman-media-url')?.value?.trim();
+        const mediaTeks = document.getElementById('form-rangkuman-media-teks')?.value?.trim();
+
+        if (!judul || !mapel) {
+          alert('Isi minimal Judul Tugas dan Mata Pelajaran terlebih dahulu agar AI memahami konteks materi.');
+          return;
+        }
+
+        const originalHtml = btnGenerateMasterAi.innerHTML;
+        btnGenerateMasterAi.innerHTML = '<span>🤖 AI Membaca Materi...</span>';
+        btnGenerateMasterAi.disabled = true;
+
+        try {
+          const res = await guruFetch('/api/guru/rangkuman/generate-master', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              judul,
+              mataPelajaran: mapel,
+              tingkatKelas: kelas,
+              deskripsi,
+              tipeMedia,
+              mediaUrl,
+              mediaTeks
+            })
+          });
+          const data = await res.json();
+          if (data.master_rangkuman) {
+            document.getElementById('form-rangkuman-master').value = data.master_rangkuman;
+          }
+          if (Array.isArray(data.poin_kunci) && data.poin_kunci.length > 0) {
+            document.getElementById('form-rangkuman-poin').value = data.poin_kunci.join('\n');
+          }
+          alert('✅ Sukses! Master intisari materi dan poin-poin kunci rujukan berhasil disusun oleh AI. Anda dapat menyuntingnya jika perlu.');
+        } catch (err) {
+          alert('Gagal menyusun master via AI: ' + err.message);
+        } finally {
+          btnGenerateMasterAi.innerHTML = originalHtml;
+          btnGenerateMasterAi.disabled = false;
+        }
+      });
+    }
+
+    // Submit Simpan Tugas Rangkuman
+    if (formTugasRangkuman) {
+      formTugasRangkuman.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const taskId = document.getElementById('form-rangkuman-id').value;
+        const judul = document.getElementById('form-rangkuman-judul').value.trim();
+        const mapel = document.getElementById('form-rangkuman-mapel').value.trim();
+        const kelas = document.getElementById('form-rangkuman-kelas').value.trim();
+        const deskripsi = document.getElementById('form-rangkuman-deskripsi').value.trim();
+        const tipeMedia = document.querySelector('input[name="tipe_media"]:checked')?.value || 'youtube';
+        const mediaUrl = document.getElementById('form-rangkuman-media-url')?.value?.trim();
+        const mediaTeks = document.getElementById('form-rangkuman-media-teks')?.value?.trim();
+        const minKata = Number(document.getElementById('form-rangkuman-min-kata').value) || 100;
+        const maxKata = Number(document.getElementById('form-rangkuman-max-kata').value) || 500;
+        const master = document.getElementById('form-rangkuman-master').value.trim();
+        const poinRaw = document.getElementById('form-rangkuman-poin').value.trim();
+        const status = document.getElementById('form-rangkuman-status').value;
+
+        const poinKunci = poinRaw.split('\n').map(p => p.trim()).filter(Boolean);
+
+        const payload = {
+          judul,
+          mata_pelajaran: mapel,
+          tingkat_kelas: kelas,
+          deskripsi,
+          tipe_media: tipeMedia,
+          media_url: mediaUrl,
+          media_teks: mediaTeks,
+          batas_minimum_kata: minKata,
+          batas_maksimum_kata: maxKata,
+          master_rangkuman: master,
+          poin_kunci: poinKunci,
+          status
+        };
+
+        const saveBtn = document.getElementById('btn-save-modal-rangkuman');
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Menyimpan...';
+
+        try {
+          const url = taskId ? `/api/guru/rangkuman/${taskId}` : '/api/guru/rangkuman';
+          const method = taskId ? 'PUT' : 'POST';
+
+          const res = await guruFetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.message || 'Gagal menyimpan tugas');
+
+          modalTugasRangkuman.classList.add('hidden');
+          alert('✅ Tugas rangkuman berhasil disimpan!');
+          await loadTugasRangkuman();
+        } catch (err) {
+          alert('Error: ' + err.message);
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Simpan Tugas Rangkuman';
+        }
+      });
+    }
+
+    // Hapus Tugas Rangkuman
+    async function deleteTugasRangkuman(taskId) {
+      if (!confirm('Yakin ingin menghapus tugas rangkuman ini beserta seluruh data pengumpulan siswa?')) return;
+      try {
+        const res = await guruFetch(`/api/guru/rangkuman/${taskId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Gagal menghapus tugas');
+        alert('Tugas rangkuman berhasil dihapus');
+        await loadTugasRangkuman();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    // 4. Modal Rekap Pengumpulan & Penilaian Siswa
+    const modalRekapRangkuman = document.getElementById('modal-rekap-rangkuman');
+    const btnCloseRekapRangkuman = document.getElementById('btn-close-rekap-rangkuman');
+    const btnRekapRefresh = document.getElementById('btn-rekap-refresh');
+    const btnRekapApproveAll = document.getElementById('btn-rekap-approve-all');
+    const btnRekapExportCsv = document.getElementById('btn-rekap-export-csv');
+
+    async function openRekapRangkumanModal(taskId) {
+      activeRangkumanId = taskId;
+      const task = tugasRangkumanCache.find(t => t.id === taskId);
+      if (!task || !modalRekapRangkuman) return;
+
+      document.getElementById('rekap-rangkuman-judul').textContent = task.judul;
+      document.getElementById('rekap-rangkuman-kode-badge').textContent = task.kode_tugas;
+      document.getElementById('rekap-rangkuman-meta').textContent = `${task.mata_pelajaran} • ${task.tingkat_kelas} • Batas Minimal: ${task.batas_minimum_kata} kata`;
+
+      // Reset detail panel
+      document.getElementById('rekap-detail-placeholder').classList.remove('hidden');
+      document.getElementById('rekap-detail-content').classList.add('hidden');
+
+      modalRekapRangkuman.classList.remove('hidden');
+      await loadRekapSubmissions(taskId);
+    }
+
+    async function loadRekapSubmissions(taskId) {
+      const tbody = document.getElementById('rekap-rangkuman-table-body');
+      tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-400">Memuat data pengumpulan siswa...</td></tr>';
+
+      try {
+        const res = await guruFetch(`/api/guru/rangkuman/${taskId}/peserta`);
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Gagal memuat rekap');
+
+        activeRangkumanSubmissions = data.data || [];
+        document.getElementById('rekap-rangkuman-count').textContent = `Total: ${activeRangkumanSubmissions.length} Siswa Mengumpulkan`;
+
+        if (activeRangkumanSubmissions.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-400">Belum ada siswa yang mengumpulkan rangkuman untuk tugas ini.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = activeRangkumanSubmissions.map((s, idx) => {
+          let statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">Menunggu Guru</span>';
+          if (s.status_kelulusan === 'final') {
+            statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">✅ Disetujui</span>';
+          } else if (s.status_kelulusan === 'revisi') {
+            statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">⚠️ Revisi</span>';
+          }
+
+          const skorAi = s.skor_ai !== null ? `<span class="font-bold text-purple-700">${s.skor_ai}</span>` : '<span class="text-slate-400">Diantrekan</span>';
+          const skorFinal = s.skor_final !== null ? `<span class="font-bold text-teal-800 text-sm">${s.skor_final}</span>` : '-';
+
+          return `
+            <tr onclick="selectStudentSubmission(${s.id})" class="hover:bg-teal-50/50 cursor-pointer transition">
+              <td class="p-2.5 font-bold text-slate-900">${escapeHtml(s.nama_siswa)}</td>
+              <td class="p-2.5 text-slate-600">${escapeHtml(s.kelas_siswa)}</td>
+              <td class="p-2.5 text-center font-mono">${s.jumlah_kata}</td>
+              <td class="p-2.5 text-center">${skorAi}</td>
+              <td class="p-2.5 text-center">${skorFinal}</td>
+              <td class="p-2.5 text-center">${statusBadge}</td>
+            </tr>
+          `;
+        }).join('');
+
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-red-500">Error: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    function selectStudentSubmission(subId) {
+      const sub = activeRangkumanSubmissions.find(s => s.id === subId);
+      if (!sub) return;
+
+      document.getElementById('rekap-detail-placeholder').classList.add('hidden');
+      document.getElementById('rekap-detail-content').classList.remove('hidden');
+
+      document.getElementById('detail-siswa-nama').textContent = sub.nama_siswa;
+      document.getElementById('detail-siswa-meta').textContent = `${sub.kelas_siswa} • Dikumpulkan: ${sub.submitted_at ? new Date(sub.submitted_at).toLocaleTimeString() : '-'}`;
+      document.getElementById('detail-siswa-kata-badge').textContent = `${sub.jumlah_kata} kata`;
+      document.getElementById('detail-siswa-teks').textContent = sub.teks_rangkuman || '(Kosong)';
+
+      document.getElementById('detail-siswa-skor-ai').textContent = sub.skor_ai !== null ? `Skor AI: ${sub.skor_ai} / 100` : 'Menunggu Pengecekan AI';
+      document.getElementById('detail-siswa-feedback').textContent = sub.feedback_ai || 'Belum ada catatan evaluasi AI.';
+
+      // Form koreksi
+      document.getElementById('koreksi-pengerjaan-id').value = sub.id;
+      document.getElementById('koreksi-skor-final').value = sub.skor_final !== null ? sub.skor_final : (sub.skor_ai || 80);
+      document.getElementById('koreksi-status-kelulusan').value = sub.status_kelulusan || 'final';
+    }
+
+    // Submit Koreksi Nilai Guru
+    const formKoreksiNilai = document.getElementById('form-koreksi-nilai-rangkuman');
+    if (formKoreksiNilai) {
+      formKoreksiNilai.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const pId = document.getElementById('koreksi-pengerjaan-id').value;
+        const skorFinal = Number(document.getElementById('koreksi-skor-final').value);
+        const statusKelulusan = document.getElementById('koreksi-status-kelulusan').value;
+
+        try {
+          const res = await guruFetch(`/api/guru/rangkuman/pengerjaan/${pId}/nilai`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ skorFinal, statusKelulusan })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.message || 'Gagal menyimpan nilai');
+
+          alert('✅ Nilai final siswa berhasil diperbarui!');
+          await loadRekapSubmissions(activeRangkumanId);
+          selectStudentSubmission(Number(pId));
+        } catch (err) {
+          alert('Error: ' + err.message);
+        }
+      });
+    }
+
+    // Setujui Semua Skor AI
+    if (btnRekapApproveAll) {
+      btnRekapApproveAll.addEventListener('click', async () => {
+        if (!confirm('Setujui seluruh nilai rekomendasi AI untuk siswa yang belum memiliki nilai final?')) return;
+        try {
+          const res = await guruFetch(`/api/guru/rangkuman/${activeRangkumanId}/approve-all`, { method: 'POST' });
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.message || 'Gagal menyetujui nilai');
+          alert('✅ Seluruh skor AI berhasil disetujui sebagai nilai final!');
+          await loadRekapSubmissions(activeRangkumanId);
+        } catch (err) {
+          alert('Error: ' + err.message);
+        }
+      });
+    }
+
+    // Ekspor CSV Rangkuman
+    if (btnRekapExportCsv) {
+      btnRekapExportCsv.addEventListener('click', () => {
+        if (!activeRangkumanId) return;
+        window.open(`/api/guru/rangkuman/${activeRangkumanId}/ekspor-csv`, '_blank');
+      });
+    }
+
+    if (btnCloseRekapRangkuman) btnCloseRekapRangkuman.addEventListener('click', () => modalRekapRangkuman.classList.add('hidden'));
+    if (btnRekapRefresh) btnRekapRefresh.addEventListener('click', () => activeRangkumanId && loadRekapSubmissions(activeRangkumanId));
+
 
   </script>
 </body>
