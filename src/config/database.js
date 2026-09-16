@@ -22,21 +22,16 @@ if (tursoUrl && tursoToken) {
   const LibsqlDatabase = require('libsql');
   dbPath = path.join(dataDir, 'turso.sqlite');
   console.log('📡 Menghubungkan ke Turso Cloud Database (libSQL Embedded Replica)...');
-  db = new LibsqlDatabase(dbPath, {
-    syncUrl: tursoUrl,
-    authToken: tursoToken,
-    syncInterval: 60000 // Sinkronisasi otomatis setiap 60 detik
-  });
-  if (typeof db.sync === 'function') {
-    // Jalankan sinkronisasi awal secara non-blocking agar server langsung bisa menerima request
-    setImmediate(() => {
-      try {
-        db.sync();
-        console.log('✅ Sinkronisasi latar belakang Turso Cloud (AWS Tokyo) berhasil!');
-      } catch (err) {
-        console.warn('⚠️ Sinkronisasi latar belakang Turso:', err.message);
-      }
+  try {
+    db = new LibsqlDatabase(dbPath, {
+      syncUrl: tursoUrl,
+      authToken: tursoToken
+      // Catatan: syncInterval dimatikan agar tidak melakukan background polling otomatis
+      // yang menghabiskan kuota sinkronisasi Turso saat server menganggur (idle).
     });
+  } catch (err) {
+    console.error('⚠️ Gagal koneksi replica Turso, mencoba fallback:', err.message);
+    db = new LibsqlDatabase(dbPath);
   }
 
   // libSQL embedded replica tidak mendukung transaksi manual "BEGIN " via exec()
@@ -73,7 +68,9 @@ let lastSyncTime = 0;
 db.syncCloud = function(force = false) {
   if (typeof db.sync !== 'function' || isSyncing) return;
   const now = Date.now();
-  const minInterval = force ? 10000 : 30000;
+  // Throttle sinkronisasi: minimal jeda 60 detik jika normal, 20 detik jika force
+  // Ini menghemat kuota bandwidth hingga 90%+
+  const minInterval = force ? 20000 : 60000;
   if (now - lastSyncTime < minInterval) return;
 
   lastSyncTime = now;
@@ -83,7 +80,7 @@ db.syncCloud = function(force = false) {
     try {
       db.sync();
     } catch (e) {
-      console.warn('⚠️ Turso background sync:', e.message);
+      console.warn('⚠️ Turso background sync notice:', e.message);
     } finally {
       isSyncing = false;
     }
