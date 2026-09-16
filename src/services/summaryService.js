@@ -217,16 +217,18 @@ const summaryService = {
       sourceContent += `\nSumber Media: Dokumen / Tautan (${mediaUrl})`;
     }
 
+    const isYouTube = tipeMedia === 'youtube';
     const prompt = `Anda adalah Asisten Kurikulum dan Pakar Evaluasi Pembelajaran.
 Tugas Anda adalah menyusun "Master Intisari Materi" dan "Daftar Poin Kunci" yang akan digunakan sebagai pedoman/ground truth rujukan penilaian rangkuman siswa.
 
-Data Materi:
+Data Materi Pembelajaran:
 ${sourceContent}
 
-Instruksi:
-1. Buat "master_rangkuman" yang komprehensif, padat, dan jelas mengenai topik di atas (sekitar 300 - 600 kata). Rangkuman ini mencakup semua konsep esensial yang harus dipahami oleh siswa.
-2. Buat "poin_kunci" berupa array berisi 5 sampai 8 butir poin pokok/esensial yang wajib disinggung dalam rangkuman siswa.
-3. Kembalikan HASIL HANYA dalam format JSON murni tanpa markdown pembungkus codeblock lainnya:
+Instruksi Khusus:
+1. ${isYouTube ? 'Karena sumber materi berupa Video YouTube, telaah topik materi video tersebut secara mendalam sesuai kurikulum sekolah, jenjang kelas, serta petunjuk guru.' : 'Pahami seluruh topik materi dan bahan yang disediakan secara mendalam sesuai kurikulum sekolah.'}
+2. Buat "master_rangkuman" yang komprehensif, padat, dan jelas mengenai materi tersebut (sekitar 300 - 600 kata). Rangkuman ini mencakup semua konsep esensial yang wajib dipahami oleh siswa setelah menyimak video/materi ini.
+3. Buat "poin_kunci" berupa array berisi 5 sampai 8 butir poin pokok/esensial yang wajib disinggung dalam rangkuman siswa untuk membuktikan bahwa siswa benar-benar menyimak pembahasan materi secara utuh.
+4. Kembalikan HASIL HANYA dalam format JSON murni tanpa markdown pembungkus codeblock lainnya:
 {
   "master_rangkuman": "...",
   "poin_kunci": [
