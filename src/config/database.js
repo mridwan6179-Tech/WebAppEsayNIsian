@@ -1,7 +1,9 @@
-const BetterSqlite3 = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
+
+// NOTE: better-sqlite3 hanya diload secara lazy (di dalam blok else / fungsi restore)
+// agar tidak crash di Vercel serverless Linux saat env Turso sudah diset.
 
 const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true' || !!process.env.NOW_REGION;
 const dataDir = isVercel ? '/tmp' : path.join(__dirname, '../../data');
@@ -50,6 +52,9 @@ if (tursoUrl && tursoToken) {
     return wrapped;
   };
 } else {
+  // Lazy-load hanya di mode lokal (tidak ada env Turso). Di Vercel, ini tidak akan pernah dieksekusi
+  // selama TURSO_DATABASE_URL & TURSO_AUTH_TOKEN sudah diset di dashboard Vercel.
+  const BetterSqlite3 = require('better-sqlite3');
   dbPath = path.join(dataDir, 'database.sqlite');
   db = new BetterSqlite3(dbPath);
 }
@@ -474,6 +479,15 @@ function initDatabase() {
 }
 
 async function backupDatabaseToFile(targetPath) {
+  // db.backup() hanya tersedia di better-sqlite3, tidak di libsql/Turso embedded replica.
+  // Di mode Turso (Vercel), backup file langsung tidak tersedia — data sudah ada di cloud Turso.
+  if (typeof db.backup !== 'function') {
+    throw new Error(
+      'Backup file lokal tidak tersedia di mode database cloud (Turso). ' +
+      'Data kamu sudah tersimpan aman di Turso Cloud. ' +
+      'Gunakan fitur export dari dashboard Turso untuk backup manual.'
+    );
+  }
   try {
     db.pragma('wal_checkpoint(TRUNCATE)');
   } catch (err) {
@@ -484,6 +498,7 @@ async function backupDatabaseToFile(targetPath) {
 }
 
 function restoreDatabaseFromBuffer(buffer) {
+  // Validasi ukuran buffer
   if (!buffer || buffer.length < 100) {
     throw new Error('File terlalu kecil atau kosong untuk database SQLite.');
   }
@@ -496,21 +511,33 @@ function restoreDatabaseFromBuffer(buffer) {
   const tempRestorePath = path.join(dataDir, `temp_restore_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.sqlite`);
   fs.writeFileSync(tempRestorePath, buffer);
 
-  let testTempDb;
+  // Lazy-load BetterSqlite3 untuk verifikasi file cadangan
+  // (hanya digunakan di sini untuk membaca file temp, bukan untuk koneksi utama)
+  let BetterSqlite3Local;
   try {
-    testTempDb = new BetterSqlite3(tempRestorePath, { readonly: true });
-    const tables = testTempDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all();
-    if (tables.length === 0) {
-      throw new Error('File database tidak memiliki tabel data yang valid.');
+    BetterSqlite3Local = require('better-sqlite3');
+  } catch (e) {
+    // Di Vercel tanpa better-sqlite3, skip verifikasi via BetterSqlite3
+    BetterSqlite3Local = null;
+  }
+
+  let testTempDb;
+  if (BetterSqlite3Local) {
+    try {
+      testTempDb = new BetterSqlite3Local(tempRestorePath, { readonly: true });
+      const tables = testTempDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all();
+      if (tables.length === 0) {
+        throw new Error('File database tidak memiliki tabel data yang valid.');
+      }
+      testTempDb.close();
+      testTempDb = null;
+    } catch (err) {
+      if (testTempDb) try { testTempDb.close(); } catch (e) {}
+      if (fs.existsSync(tempRestorePath)) {
+        try { fs.unlinkSync(tempRestorePath); } catch (e) {}
+      }
+      throw new Error('Gagal memverifikasi file cadangan: ' + err.message);
     }
-    testTempDb.close();
-    testTempDb = null;
-  } catch (err) {
-    if (testTempDb) try { testTempDb.close(); } catch (e) {}
-    if (fs.existsSync(tempRestorePath)) {
-      try { fs.unlinkSync(tempRestorePath); } catch (e) {}
-    }
-    throw new Error('Gagal memverifikasi file cadangan: ' + err.message);
   }
 
   try {
