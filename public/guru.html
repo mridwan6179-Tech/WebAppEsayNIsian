@@ -1185,8 +1185,18 @@
             <input type="text" id="form-rangkuman-mapel" required placeholder="Contoh: Biologi" class="w-full px-3 py-2 rounded-xl border border-slate-300 focus:border-teal-500">
           </div>
           <div>
-            <label class="block font-semibold text-slate-700 mb-1">Tingkat Kelas</label>
-            <input type="text" id="form-rangkuman-kelas" required placeholder="Contoh: 10 MIPA" class="w-full px-3 py-2 rounded-xl border border-slate-300 focus:border-teal-500">
+            <div class="flex items-center justify-between mb-1">
+              <label class="block font-semibold text-slate-700">Pilih Kelas yang Mengikuti</label>
+              <div class="space-x-1.5 text-[10px]">
+                <button type="button" id="btn-rangkuman-select-all-kelas" class="text-teal-700 hover:text-teal-900 font-semibold hover:underline cursor-pointer">Pilih Semua</button>
+                <span class="text-slate-300">&bull;</span>
+                <button type="button" id="btn-rangkuman-clear-all-kelas" class="text-slate-500 hover:text-slate-700 hover:underline cursor-pointer">Hapus</button>
+              </div>
+            </div>
+            <div id="rangkuman-class-checkboxes" class="flex flex-wrap gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-300 min-h-[42px] max-h-32 overflow-y-auto items-center">
+              <p class="text-[11px] text-slate-400">Memuat kelas...</p>
+            </div>
+            <input type="text" id="form-rangkuman-kelas" required placeholder="Pilih kelas di atas..." class="w-full px-3 py-1.5 mt-1.5 rounded-lg border border-slate-200 bg-slate-100 text-slate-700 text-xs font-medium" readonly>
           </div>
         </div>
 
@@ -3044,6 +3054,9 @@
         if (globalKelasList.length === 0) {
           container.innerHTML = '<p class="text-xs text-slate-400">Belum ada kelas.</p>';
           checkboxContainer.innerHTML = '<p class="text-[11px] text-slate-400">Belum ada master kelas. Tambah kelas terlebih dahulu di atas.</p>';
+          if (typeof renderRangkumanClassCheckboxes === 'function') {
+            renderRangkumanClassCheckboxes('');
+          }
           return;
         }
 
@@ -3066,6 +3079,11 @@
           `;
           checkboxContainer.appendChild(label);
         });
+
+        if (typeof renderRangkumanClassCheckboxes === 'function') {
+          const currentVal = document.getElementById('form-rangkuman-kelas')?.value || '';
+          renderRangkumanClassCheckboxes(currentVal);
+        }
       } catch (err) {
         console.error(err);
       }
@@ -9396,27 +9414,35 @@
     const btnCancelModalRangkuman = document.getElementById('btn-cancel-modal-rangkuman');
     const btnGenerateMasterAi = document.getElementById('btn-generate-master-ai');
 
-    function openCreateRangkumanModal() {
+    async function openCreateRangkumanModal() {
       if (!modalTugasRangkuman) return;
+      if (!globalKelasList || globalKelasList.length === 0) {
+        await loadKelasList();
+      }
       document.getElementById('modal-rangkuman-title-header').innerHTML = '<span>📚</span><span>Buat Tugas Rangkuman Baru</span>';
       document.getElementById('form-rangkuman-id').value = '';
       formTugasRangkuman.reset();
       document.getElementById('form-rangkuman-min-kata').value = '100';
       document.getElementById('form-rangkuman-max-kata').value = '500';
       document.getElementById('form-rangkuman-status').value = 'dibuka';
+      renderRangkumanClassCheckboxes('');
       handleTipeMediaChange('youtube');
       modalTugasRangkuman.classList.remove('hidden');
     }
 
-    function openEditRangkumanModal(taskId) {
+    async function openEditRangkumanModal(taskId) {
       const task = tugasRangkumanCache.find(t => t.id === taskId);
       if (!task || !modalTugasRangkuman) return;
+      if (!globalKelasList || globalKelasList.length === 0) {
+        await loadKelasList();
+      }
 
       document.getElementById('modal-rangkuman-title-header').innerHTML = '<span>✏️</span><span>Edit Tugas Rangkuman</span>';
       document.getElementById('form-rangkuman-id').value = task.id;
       document.getElementById('form-rangkuman-judul').value = task.judul;
       document.getElementById('form-rangkuman-mapel').value = task.mata_pelajaran;
-      document.getElementById('form-rangkuman-kelas').value = task.tingkat_kelas;
+      document.getElementById('form-rangkuman-kelas').value = task.tingkat_kelas || '';
+      renderRangkumanClassCheckboxes(task.tingkat_kelas || '');
       document.getElementById('form-rangkuman-deskripsi').value = task.deskripsi || '';
       document.getElementById('form-rangkuman-min-kata').value = task.batas_minimum_kata || 100;
       document.getElementById('form-rangkuman-max-kata').value = task.batas_maksimum_kata || 500;
@@ -9475,6 +9501,86 @@
     document.querySelectorAll('input[name="tipe_media"]').forEach(elem => {
       elem.addEventListener('change', (e) => handleTipeMediaChange(e.target.value));
     });
+
+    // Helper render class checkboxes untuk Tugas Rangkuman
+    function renderRangkumanClassCheckboxes(currentTingkatKelas = '') {
+      const container = document.getElementById('rangkuman-class-checkboxes');
+      const inputKelas = document.getElementById('form-rangkuman-kelas');
+      if (!container || !inputKelas) return;
+
+      container.innerHTML = '';
+
+      const activeNames = (currentTingkatKelas || '')
+        .split(/[,;/]+/)
+        .map(s => s.trim().toLowerCase())
+        .filter(Boolean);
+
+      if (!globalKelasList || globalKelasList.length === 0) {
+        container.innerHTML = '<p class="text-[11px] text-amber-600 font-medium">Belum ada master kelas di menu Kelas. Silakan ketik kelas manual di bawah.</p>';
+        inputKelas.readOnly = false;
+        inputKelas.placeholder = 'Ketik kelas manual, cth: 10 MIPA 1, 10 MIPA 2';
+        inputKelas.classList.remove('bg-slate-100');
+        inputKelas.classList.add('bg-white');
+        if (currentTingkatKelas) inputKelas.value = currentTingkatKelas;
+        return;
+      }
+
+      inputKelas.readOnly = true;
+      inputKelas.placeholder = 'Pilih kelas di atas...';
+      inputKelas.classList.add('bg-slate-100');
+      inputKelas.classList.remove('bg-white');
+
+      globalKelasList.forEach(k => {
+        const isChecked = activeNames.includes(k.nama_kelas.toLowerCase());
+        const label = document.createElement('label');
+        label.className = 'inline-flex items-center space-x-1.5 px-2.5 py-1 bg-white rounded-lg border border-slate-200 text-slate-700 cursor-pointer text-xs hover:bg-slate-50 transition shadow-2xs select-none';
+        label.innerHTML = `
+          <input type="checkbox" name="rangkuman_kelas_choice" value="${escapeHtml(k.nama_kelas)}" ${isChecked ? 'checked' : ''} class="rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer">
+          <span class="font-medium">${escapeHtml(k.nama_kelas)}</span>
+        `;
+        container.appendChild(label);
+      });
+
+      const syncInput = () => {
+        const checked = Array.from(container.querySelectorAll('input[name="rangkuman_kelas_choice"]:checked'));
+        const names = checked.map(cb => cb.value.trim());
+        inputKelas.value = names.join(', ');
+      };
+
+      container.onchange = syncInput;
+
+      // Sinkronkan input dengan checkbox yang terpilih
+      syncInput();
+      if (currentTingkatKelas && !inputKelas.value) {
+        inputKelas.value = currentTingkatKelas;
+      }
+    }
+
+    const btnSelectAllRgkKelas = document.getElementById('btn-rangkuman-select-all-kelas');
+    const btnClearRgkKelas = document.getElementById('btn-rangkuman-clear-all-kelas');
+
+    if (btnSelectAllRgkKelas) {
+      btnSelectAllRgkKelas.addEventListener('click', () => {
+        const container = document.getElementById('rangkuman-class-checkboxes');
+        if (!container) return;
+        const checkboxes = container.querySelectorAll('input[name="rangkuman_kelas_choice"]');
+        checkboxes.forEach(cb => { cb.checked = true; });
+        const names = Array.from(checkboxes).map(cb => cb.value.trim());
+        const inputKelas = document.getElementById('form-rangkuman-kelas');
+        if (inputKelas) inputKelas.value = names.join(', ');
+      });
+    }
+
+    if (btnClearRgkKelas) {
+      btnClearRgkKelas.addEventListener('click', () => {
+        const container = document.getElementById('rangkuman-class-checkboxes');
+        if (!container) return;
+        const checkboxes = container.querySelectorAll('input[name="rangkuman_kelas_choice"]');
+        checkboxes.forEach(cb => { cb.checked = false; });
+        const inputKelas = document.getElementById('form-rangkuman-kelas');
+        if (inputKelas) inputKelas.value = '';
+      });
+    }
 
     if (btnOpenCreateRangkuman) btnOpenCreateRangkuman.addEventListener('click', openCreateRangkumanModal);
     let selectedMasterFile = null;
@@ -9596,6 +9702,11 @@
         const master = document.getElementById('form-rangkuman-master').value.trim();
         const poinRaw = document.getElementById('form-rangkuman-poin').value.trim();
         const status = document.getElementById('form-rangkuman-status').value;
+
+        if (!kelas) {
+          alert('Harap pilih minimal satu kelas yang mengikuti tugas rangkuman ini!');
+          return;
+        }
 
         const poinKunci = poinRaw.split('\n').map(p => p.trim()).filter(Boolean);
 
