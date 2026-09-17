@@ -356,6 +356,37 @@ describe('=== SUITE: FITUR TUGAS RANGKUMAN BERBANTUAN AI ===', () => {
     assert.equal(remaining.length, 0);
   });
 
+  test('15. Guru dapat mengedit tugas rangkuman termasuk memperbarui daftar kelas', () => {
+    const updated = summaryService.updateTask(createdTask.id, testGuruId, {
+      judul: 'Rangkuman Peradaban Islam Klasik (Revisi)',
+      tingkat_kelas: '10 MIPA 1, 10 MIPA 2, 10 IPS 1',
+      batas_minimum_kata: 30
+    });
+
+    assert.equal(updated.judul, 'Rangkuman Peradaban Islam Klasik (Revisi)');
+    assert.equal(updated.tingkat_kelas, '10 MIPA 1, 10 MIPA 2, 10 IPS 1');
+    assert.equal(updated.batas_minimum_kata, 30);
+  });
+
+  test('16. Status pengerjaan siswa menyertakan teks rangkuman, link media, dan kelas untuk fitur unduh PDF', () => {
+    // Kumpulkan rangkuman baru (minimal 30 kata)
+    const submitRes = summaryService.submitSummary(createdTask.id, {
+      namaSiswa: 'Siti Rahma',
+      kelasSiswa: '10 MIPA 1',
+      teksRangkuman: 'Peradaban Islam klasik memberikan sumbangsih yang luar biasa dalam bidang ilmu pengetahuan dan sains seperti astronomi, aljabar, optik, dan kedokteran yang hingga kini terus dipelajari dan dikembangkan oleh para ilmuwan di seluruh dunia modern.'
+    });
+
+    assert.equal(submitRes.success, true);
+    const statusRes = summaryService.getStudentStatus(submitRes.pengerjaan_id);
+
+    assert.equal(statusRes.success, true);
+    assert.ok(statusRes.data.teks_rangkuman, 'Harus memuat teks_rangkuman');
+    assert.equal(statusRes.data.nama_siswa, 'Siti Rahma');
+    assert.equal(statusRes.data.tingkat_kelas, '10 MIPA 1, 10 MIPA 2, 10 IPS 1');
+    assert.equal(statusRes.data.media_url, createdTask.media_url);
+    assert.equal(statusRes.data.tipe_media, 'youtube');
+  });
+
   after(() => {
     // Bersihkan data uji
     if (createdTask?.id) {

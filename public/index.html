@@ -32,6 +32,48 @@
     .font-exam-large .soal-pertanyaan { font-size: 1.15rem !important; line-height: 1.8 !important; }
 
     .zoom-img-smooth { transition: transform 0.1s ease-out; }
+
+    /* Pengaturan Cetak Lembar Rangkuman Siswa (PDF / Print) */
+    @media print {
+      html, body {
+        width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        overflow: visible !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      body > * {
+        display: none !important;
+      }
+      body > #modal-cetak-rangkuman:not(.hidden) {
+        display: block !important;
+        position: static !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        box-shadow: none !important;
+        border: none !important;
+        overflow: visible !important;
+      }
+      #modal-cetak-rangkuman .no-print {
+        display: none !important;
+      }
+      #modal-cetak-rangkuman .print-page {
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        margin: 0 !important;
+      }
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between antialiased p-3 sm:p-6">
@@ -670,8 +712,29 @@
           </div>
         </div>
 
-        <div class="pt-2 flex justify-center">
-          <button type="button" onclick="keluarDariRangkuman()" class="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer">
+        <!-- Sumber Video / Materi Pembelajaran -->
+        <div id="rgk-media-source-card" class="hidden p-3.5 bg-teal-50/90 rounded-xl border border-teal-200 flex items-center justify-between flex-wrap gap-2 text-xs">
+          <div class="flex items-center space-x-2.5 min-w-0 flex-1">
+            <span id="rgk-media-source-icon" class="text-2xl shrink-0">📺</span>
+            <div class="min-w-0">
+              <span id="rgk-media-source-title" class="font-bold text-teal-950 block text-xs">Tautan Video Pembelajaran:</span>
+              <a id="rgk-media-link" href="#" target="_blank" rel="noopener noreferrer" class="text-teal-700 hover:text-teal-900 underline font-medium truncate block text-[11px]">
+                https://...
+              </a>
+            </div>
+          </div>
+          <a id="rgk-media-btn" href="#" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg shadow-xs transition text-[11px] inline-flex items-center space-x-1 shrink-0">
+            <span>Buka Materi</span>
+            <span>↗</span>
+          </a>
+        </div>
+
+        <div class="pt-2 flex flex-wrap justify-center gap-2.5">
+          <button type="button" id="btn-unduh-hasil-rangkuman" onclick="cetakHasilRangkumanSiswa()" class="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer">
+            <span>📥</span>
+            <span>Unduh / Cetak Hasil Rangkuman (PDF)</span>
+          </button>
+          <button type="button" onclick="keluarDariRangkuman()" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer">
             Kembali ke Beranda
           </button>
         </div>
@@ -4008,7 +4071,10 @@
       rgkStatusPollInterval = setInterval(poll, 2000);
     }
 
+    let lastRangkumanData = null;
+
     function renderRangkumanResult(p) {
+      lastRangkumanData = p;
       const waitingBox = document.getElementById('rgk-result-waiting-box');
       const doneBox = document.getElementById('rgk-result-done-box');
       if (waitingBox) waitingBox.classList.add('hidden');
@@ -4028,6 +4094,35 @@
       const feedbackEl = document.getElementById('rgk-feedback-text');
       if (feedbackEl) {
         feedbackEl.textContent = p.feedback_ai || 'Rangkuman Anda telah dinilai oleh AI.';
+      }
+
+      // Tampilkan kartu sumber materi / video
+      const mediaCard = document.getElementById('rgk-media-source-card');
+      const mediaLink = document.getElementById('rgk-media-link');
+      const mediaBtn = document.getElementById('rgk-media-btn');
+      const mediaIcon = document.getElementById('rgk-media-source-icon');
+      const mediaTitle = document.getElementById('rgk-media-source-title');
+
+      if (p.media_url) {
+        if (mediaCard) mediaCard.classList.remove('hidden');
+        if (mediaLink) {
+          mediaLink.href = p.media_url;
+          mediaLink.textContent = p.media_url;
+        }
+        if (mediaBtn) mediaBtn.href = p.media_url;
+
+        if (p.tipe_media === 'youtube') {
+          if (mediaIcon) mediaIcon.textContent = '▶️';
+          if (mediaTitle) mediaTitle.textContent = 'Tautan Video YouTube Pembelajaran:';
+        } else if (p.tipe_media === 'pdf_url') {
+          if (mediaIcon) mediaIcon.textContent = '📄';
+          if (mediaTitle) mediaTitle.textContent = 'Tautan Dokumen / Google Drive Materi:';
+        } else {
+          if (mediaIcon) mediaIcon.textContent = '🎬';
+          if (mediaTitle) mediaTitle.textContent = 'Tautan Sumber Materi Pembelajaran:';
+        }
+      } else if (mediaCard) {
+        mediaCard.classList.add('hidden');
       }
 
       // Tampilkan detail poin kunci jika ada
@@ -4069,6 +4164,115 @@
       }
     }
 
+    window.cetakHasilRangkumanSiswa = function() {
+      const p = lastRangkumanData;
+      if (!p) {
+        alert('Data evaluasi rangkuman belum siap.');
+        return;
+      }
+
+      const modal = document.getElementById('modal-cetak-rangkuman');
+      if (!modal) return;
+
+      const subjudulEl = document.getElementById('cetak-rgk-subjudul');
+      if (subjudulEl) subjudulEl.textContent = `${p.judul_tugas || 'Tugas Rangkuman'} • ${p.mata_pelajaran || '-'}`;
+      
+      const namaEl = document.getElementById('cetak-rgk-nama');
+      if (namaEl) namaEl.textContent = p.nama_siswa || '-';
+
+      const kelasEl = document.getElementById('cetak-rgk-kelas');
+      if (kelasEl) kelasEl.textContent = p.kelas_siswa || '-';
+
+      const mapelEl = document.getElementById('cetak-rgk-mapel');
+      if (mapelEl) mapelEl.textContent = p.mata_pelajaran || '-';
+
+      const judulEl = document.getElementById('cetak-rgk-judul');
+      if (judulEl) judulEl.textContent = p.judul_tugas || '-';
+
+      const kataEl = document.getElementById('cetak-rgk-kata');
+      if (kataEl) kataEl.textContent = `${p.jumlah_kata || 0} kata`;
+
+      const score = p.skor_final !== null ? p.skor_final : (p.skor_ai !== null ? p.skor_ai : 0);
+      const nilaiEl = document.getElementById('cetak-rgk-nilai');
+      if (nilaiEl) nilaiEl.textContent = `${Math.round(score)} / 100`;
+
+      // Waktu pengerjaan
+      let timeStr = '-';
+      if (p.submitted_at) {
+        const d = new Date(p.submitted_at);
+        timeStr = isNaN(d.getTime()) ? p.submitted_at : d.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+      }
+      const waktuEl = document.getElementById('cetak-rgk-waktu');
+      if (waktuEl) waktuEl.textContent = timeStr;
+
+      // Media Box
+      const mediaBox = document.getElementById('cetak-rgk-media-box');
+      const mediaUrlEl = document.getElementById('cetak-rgk-media-url');
+      const mediaLabelEl = document.getElementById('cetak-rgk-media-label');
+      if (p.media_url) {
+        if (mediaBox) mediaBox.classList.remove('hidden');
+        if (mediaUrlEl) {
+          mediaUrlEl.href = p.media_url;
+          mediaUrlEl.textContent = p.media_url;
+        }
+        if (mediaLabelEl) {
+          if (p.tipe_media === 'youtube') mediaLabelEl.textContent = 'Tautan Video YouTube Materi:';
+          else if (p.tipe_media === 'pdf_url') mediaLabelEl.textContent = 'Tautan Dokumen / PDF Materi:';
+          else mediaLabelEl.textContent = 'Tautan Sumber Materi Pembelajaran:';
+        }
+      } else if (mediaBox) {
+        mediaBox.classList.add('hidden');
+      }
+
+      // Teks rangkuman siswa
+      const teksEl = document.getElementById('cetak-rgk-teks');
+      if (teksEl) teksEl.textContent = p.teks_rangkuman || '(Teks rangkuman tidak tersedia)';
+
+      // Review AI
+      const feedbackEl = document.getElementById('cetak-rgk-feedback');
+      if (feedbackEl) feedbackEl.textContent = p.feedback_ai || 'Rangkuman telah diperiksa secara komprehensif oleh AI.';
+
+      // Detail poin kunci
+      const poinBox = document.getElementById('cetak-rgk-poin-container');
+      if (poinBox) {
+        if (Array.isArray(p.detail_poin_ai) && p.detail_poin_ai.length > 0) {
+          poinBox.innerHTML = `
+            <h4 class="font-bold text-slate-800 text-xs mb-1">Checklist Ketercapaian Poin Kunci:</h4>
+            <div class="space-y-1">
+              ${p.detail_poin_ai.map(pt => {
+                const tercakup = pt.tercakup === true || pt.tercakup === 1 || (typeof pt.skor === 'number' && pt.skor >= 60);
+                return `
+                  <div class="flex items-start space-x-2 p-1.5 rounded text-[11px] ${tercakup ? 'bg-emerald-50 text-emerald-950 border border-emerald-200' : 'bg-rose-50 text-rose-950 border border-rose-200'}">
+                    <span class="font-bold shrink-0">${tercakup ? '✓' : '✗'}</span>
+                    <div>
+                      <span class="font-semibold">${escapeHtml(pt.poin || pt.nama || '-')}</span>
+                      ${pt.catatan ? `<span class="opacity-80 block text-[10px]">${escapeHtml(pt.catatan)}</span>` : ''}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        } else {
+          poinBox.innerHTML = '';
+        }
+      }
+
+      const now = new Date();
+      const tsEl = document.getElementById('cetak-rgk-timestamp');
+      if (tsEl) {
+        tsEl.textContent = `Dicetak pada: ${now.toLocaleDateString('id-ID', { dateStyle: 'full' })} ${now.toLocaleTimeString('id-ID', { timeStyle: 'short' })}`;
+      }
+
+      modal.classList.remove('hidden');
+      window.scrollTo(0, 0);
+    };
+
+    window.closeCetakRangkumanModal = function() {
+      const modal = document.getElementById('modal-cetak-rangkuman');
+      if (modal) modal.classList.add('hidden');
+    };
+
     window.keluarDariRangkuman = function() {
       if (rgkStatusPollInterval) clearInterval(rgkStatusPollInterval);
       localStorage.removeItem('ulangan_rangkuman_pengerjaan_id');
@@ -4101,6 +4305,124 @@
     <!-- Bottom Helper Bar -->
     <div class="py-2 px-3 bg-slate-900/80 border-t border-slate-800/80 text-[11px] text-slate-400 text-center flex items-center justify-center space-x-2">
       <span>💡 Geser (drag) gambar untuk memindahkan &bull; Gunakan tombol + / − atau scroll untuk zoom</span>
+  <!-- MODAL CETAK & UNDUH HASIL RANGKUMAN (PDF / PRINT) -->
+  <div id="modal-cetak-rangkuman" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto p-2 sm:p-4">
+    <!-- Top Action Bar (Hanya tampil di layar monitor/HP, otomatis tersembunyi saat dicetak) -->
+    <div class="no-print max-w-4xl w-full flex items-center justify-between bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl mb-3 shrink-0">
+      <div class="flex items-center space-x-2">
+        <span class="text-xl">📄</span>
+        <div>
+          <h4 class="font-bold text-xs sm:text-sm leading-tight">Pratinjau Lembar Hasil Rangkuman & Review AI</h4>
+          <p class="text-[11px] text-slate-400">Pilih opsi tujuan "Save as PDF" / "Simpan sebagai PDF" pada menu cetak browser Anda.</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2">
+        <button type="button" onclick="window.print()" class="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center space-x-1.5 cursor-pointer">
+          <span>🖨️</span>
+          <span>Cetak / Simpan PDF</span>
+        </button>
+        <button type="button" onclick="closeCetakRangkumanModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition cursor-pointer">
+          Tutup ✕
+        </button>
+      </div>
+    </div>
+
+    <!-- Printable Paper Sheet -->
+    <div class="print-page max-w-4xl w-full bg-white rounded-2xl shadow-2xl p-6 sm:p-10 border border-slate-200 text-slate-800 text-xs space-y-5 my-auto">
+      <!-- Kop Dokumen -->
+      <div class="border-b-2 border-slate-900 pb-4 flex items-center justify-between">
+        <div>
+          <h2 class="text-lg sm:text-xl font-black tracking-tight text-slate-900 uppercase">Lembar Hasil Tugas Rangkuman Siswa</h2>
+          <p class="text-xs font-semibold text-slate-600 mt-0.5" id="cetak-rgk-subjudul">Sistem Evaluasi Literasi & Rangkuman Berbantuan AI</p>
+        </div>
+        <div class="text-right shrink-0">
+          <span class="inline-block px-3 py-1 bg-teal-100 text-teal-800 text-xs font-black rounded-lg border border-teal-300">
+            TEREVALUASI
+          </span>
+        </div>
+      </div>
+
+      <!-- Informasi Pengerjaan & Identitas Siswa -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+        <div>
+          <span class="text-[11px] text-slate-500 block">Nama Siswa:</span>
+          <strong id="cetak-rgk-nama" class="text-slate-900 text-sm">-</strong>
+        </div>
+        <div>
+          <span class="text-[11px] text-slate-500 block">Kelas:</span>
+          <strong id="cetak-rgk-kelas" class="text-slate-900 text-sm">-</strong>
+        </div>
+        <div>
+          <span class="text-[11px] text-slate-500 block">Mata Pelajaran:</span>
+          <strong id="cetak-rgk-mapel" class="text-slate-900">-</strong>
+        </div>
+        <div>
+          <span class="text-[11px] text-slate-500 block">Waktu Pengumpulan:</span>
+          <strong id="cetak-rgk-waktu" class="text-slate-900">-</strong>
+        </div>
+        <div class="col-span-2">
+          <span class="text-[11px] text-slate-500 block">Judul Tugas:</span>
+          <strong id="cetak-rgk-judul" class="text-slate-900">-</strong>
+        </div>
+        <div>
+          <span class="text-[11px] text-slate-500 block">Jumlah Kata:</span>
+          <strong id="cetak-rgk-kata" class="text-slate-900">- kata</strong>
+        </div>
+        <div>
+          <span class="text-[11px] text-slate-500 block">Nilai Sementara AI:</span>
+          <strong id="cetak-rgk-nilai" class="text-teal-700 text-base font-black">- / 100</strong>
+        </div>
+      </div>
+
+      <!-- Tautan Sumber Materi Video / Dokumen -->
+      <div id="cetak-rgk-media-box" class="p-3 bg-teal-50/70 rounded-xl border border-teal-200 text-xs space-y-1">
+        <span class="font-bold text-teal-950 flex items-center space-x-1.5">
+          <span>📺</span>
+          <span id="cetak-rgk-media-label">Tautan Sumber Materi Pembelajaran:</span>
+        </span>
+        <p class="text-teal-900 font-mono text-[11px] break-all">
+          <a id="cetak-rgk-media-url" href="#" target="_blank" rel="noopener noreferrer" class="underline font-semibold text-teal-700 hover:text-teal-900">
+            https://...
+          </a>
+        </p>
+      </div>
+
+      <!-- Teks Rangkuman Siswa -->
+      <div class="space-y-1.5">
+        <h3 class="font-black text-slate-900 text-xs uppercase tracking-wider flex items-center space-x-1.5">
+          <span>✍️</span>
+          <span>Teks Rangkuman yang Dikumpulkan Siswa:</span>
+        </h3>
+        <div id="cetak-rgk-teks" class="p-4 bg-slate-50/90 rounded-xl border border-slate-200 text-xs leading-relaxed text-slate-800 whitespace-pre-wrap font-sans min-h-[140px]">
+          -
+        </div>
+      </div>
+
+      <!-- Hasil Review AI -->
+      <div class="space-y-2.5">
+        <h3 class="font-black text-slate-900 text-xs uppercase tracking-wider flex items-center space-x-1.5">
+          <span>🤖</span>
+          <span>Hasil Evaluasi & Ulasan AI:</span>
+        </h3>
+        <div id="cetak-rgk-feedback" class="p-4 bg-slate-50/90 rounded-xl border border-slate-200 text-xs leading-relaxed text-slate-800 whitespace-pre-wrap font-sans">
+          -
+        </div>
+
+        <!-- Checklist Poin Intisari Materi -->
+        <div id="cetak-rgk-poin-container" class="space-y-1 pt-1">
+          <!-- Dinamis diisi -->
+        </div>
+      </div>
+
+      <!-- Catatan Kaki Dokumen -->
+      <div class="pt-4 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
+        <div>
+          <span>Dihasilkan secara otomatis oleh Sistem Ulangan & Evaluasi AI</span>
+        </div>
+        <div class="text-right">
+          <span id="cetak-rgk-timestamp">-</span>
+        </div>
+      </div>
     </div>
   </div>
 </body>

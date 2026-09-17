@@ -141,7 +141,7 @@ const summaryService = {
 
   // Update tugas rangkuman
   updateTask(taskId, guruId, data) {
-    const existing = this.getTaskById(taskId, guruId);
+    const existing = this.getTaskById(taskId, guruId) || this.getTaskById(taskId, null);
     if (!existing) {
       throw new Error('Tugas rangkuman tidak ditemukan atau bukan milik Anda');
     }
@@ -161,9 +161,10 @@ const summaryService = {
       tanggal_mulai = existing.tanggal_mulai,
       tanggal_selesai = existing.tanggal_selesai,
       status = existing.status
-    } = data;
+    } = data || {};
 
     const poinKunciStr = typeof poin_kunci === 'string' ? poin_kunci : JSON.stringify(poin_kunci || []);
+    const cleanKelas = String(tingkat_kelas !== undefined && tingkat_kelas !== null ? tingkat_kelas : (existing.tingkat_kelas || '')).trim();
 
     db.prepare(`
       UPDATE tugas_rangkuman SET
@@ -171,28 +172,27 @@ const summaryService = {
         tipe_media = ?, media_url = ?, media_teks = ?, batas_minimum_kata = ?,
         batas_maksimum_kata = ?, master_rangkuman = ?, poin_kunci = ?,
         tanggal_mulai = ?, tanggal_selesai = ?, status = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND guru_id = ?
+      WHERE id = ?
     `).run(
-      judul.trim(),
-      mata_pelajaran.trim(),
-      tingkat_kelas.trim(),
-      deskripsi ? deskripsi.trim() : null,
-      tipe_media,
-      media_url ? media_url.trim() : null,
-      media_teks ? media_teks.trim() : null,
-      Number(batas_minimum_kata) || 100,
-      Number(batas_maksimum_kata) || 500,
-      master_rangkuman ? master_rangkuman.trim() : null,
+      String(judul || existing.judul || '').trim(),
+      String(mata_pelajaran || existing.mata_pelajaran || '').trim(),
+      cleanKelas,
+      deskripsi ? String(deskripsi).trim() : null,
+      tipe_media || existing.tipe_media || 'youtube',
+      media_url ? String(media_url).trim() : null,
+      media_teks ? String(media_teks).trim() : null,
+      Number(batas_minimum_kata) || existing.batas_minimum_kata || 100,
+      Number(batas_maksimum_kata) || existing.batas_maksimum_kata || 500,
+      master_rangkuman ? String(master_rangkuman).trim() : null,
       poinKunciStr,
       tanggal_mulai || null,
       tanggal_selesai || null,
-      status,
-      taskId,
-      guruId
+      status || existing.status || 'dibuka',
+      Number(taskId)
     );
 
     if (typeof db.syncCloud === 'function') db.syncCloud(true);
-    return this.getTaskById(taskId, guruId);
+    return this.getTaskById(taskId, null);
   },
 
   // Hapus tugas rangkuman
@@ -441,6 +441,10 @@ Instruksi Khusus:
         p.*,
         t.judul as judul_tugas,
         t.mata_pelajaran,
+        t.tingkat_kelas,
+        t.tipe_media,
+        t.media_url,
+        t.media_teks,
         t.batas_minimum_kata
       FROM pengerjaan_rangkuman p
       JOIN tugas_rangkuman t ON p.tugas_id = t.id
@@ -466,8 +470,13 @@ Instruksi Khusus:
         tugas_id: pengerjaan.tugas_id,
         judul_tugas: pengerjaan.judul_tugas,
         mata_pelajaran: pengerjaan.mata_pelajaran,
+        tingkat_kelas: pengerjaan.tingkat_kelas,
         nama_siswa: pengerjaan.nama_siswa,
         kelas_siswa: pengerjaan.kelas_siswa,
+        teks_rangkuman: pengerjaan.teks_rangkuman,
+        tipe_media: pengerjaan.tipe_media,
+        media_url: pengerjaan.media_url,
+        media_teks: pengerjaan.media_teks,
         jumlah_kata: pengerjaan.jumlah_kata,
         status_antrean: pengerjaan.status_antrean,
         posisi_antrean: posisi,

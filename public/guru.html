@@ -9751,15 +9751,21 @@
         saveBtn.disabled = true;
         saveBtn.textContent = 'Menyimpan...';
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
         try {
+          // Gunakan POST untuk create dan update agar kompatibel 100% dengan jaringan sekolah, firewall, & serverless Vercel
           const url = taskId ? `/api/guru/rangkuman/${taskId}` : '/api/guru/rangkuman';
-          const method = taskId ? 'PUT' : 'POST';
+          const method = 'POST';
 
           const res = await guruFetch(url, {
             method,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            signal: controller.signal
           });
+          clearTimeout(timeoutId);
           const data = await res.json();
           if (!res.ok || !data.success) throw new Error(data.message || 'Gagal menyimpan tugas');
 
@@ -9767,8 +9773,14 @@
           alert('✅ Tugas rangkuman berhasil disimpan!');
           await loadTugasRangkuman();
         } catch (err) {
-          alert('Error: ' + err.message);
+          clearTimeout(timeoutId);
+          if (err.name === 'AbortError') {
+            alert('⚠️ Waktu penyimpanan habis (koneksi timeout). Silakan periksa jaringan internet Anda dan coba lagi.');
+          } else {
+            alert('Error: ' + err.message);
+          }
         } finally {
+          clearTimeout(timeoutId);
           saveBtn.disabled = false;
           saveBtn.textContent = 'Simpan Tugas Rangkuman';
         }

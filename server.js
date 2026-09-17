@@ -1240,15 +1240,19 @@ app.post('/api/guru/rangkuman', requireGuru, (req, res) => {
   }
 });
 
-// 7. Guru: Update Tugas Rangkuman
-app.put('/api/guru/rangkuman/:id', requireGuru, (req, res) => {
+// 7. Guru: Update Tugas Rangkuman (Mendukung PUT & POST untuk kompatibilitas proxy/firewall)
+const handleUpdateRangkuman = (req, res) => {
   try {
-    const updated = summaryService.updateTask(req.params.id, req.guru.guruId, req.body);
+    const guruId = req.guru?.role === 'admin' ? null : (req.guru?.guruId || req.guru?.id || null);
+    const updated = summaryService.updateTask(req.params.id, guruId, req.body);
     res.json({ success: true, data: updated });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }
-});
+};
+app.put('/api/guru/rangkuman/:id', requireGuru, handleUpdateRangkuman);
+app.post('/api/guru/rangkuman/:id', requireGuru, handleUpdateRangkuman);
+app.post('/api/guru/rangkuman/:id/update', requireGuru, handleUpdateRangkuman);
 
 // 8. Guru: Hapus Tugas Rangkuman
 app.delete('/api/guru/rangkuman/:id', requireGuru, (req, res) => {
