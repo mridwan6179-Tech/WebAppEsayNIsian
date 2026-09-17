@@ -1328,6 +1328,9 @@
           <p id="rekap-rangkuman-meta" class="text-xs text-slate-500 mt-0.5">Mapel &bull; Kelas &bull; Minimal Kata</p>
         </div>
         <div class="flex items-center flex-wrap gap-2">
+          <button id="btn-rekap-wa-broadcast" type="button" class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold text-xs rounded-lg transition flex items-center space-x-1 shadow-2xs cursor-pointer" title="Buat Sebaran Pengumuman WhatsApp untuk tugas ini">
+            <span>💬 Sebaran WA</span>
+          </button>
           <button id="btn-rekap-recheck-all" type="button" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs rounded-lg transition flex items-center space-x-1 shadow-sm cursor-pointer" title="Cek ulang seluruh pengumpulan tugas ini dengan AI">
             <span>⚡ Cek Ulang Semua AI</span>
           </button>
@@ -7654,9 +7657,42 @@
     const btnRegenAi = document.getElementById('btn-regen-ai-broadcast');
     const previewWa = document.getElementById('wa-broadcast-preview');
 
+    let currentWaContext = { type: 'ulangan', id: null };
+
     function closeWaModal() {
       if (modalWa) modalWa.classList.add('hidden');
     }
+
+    async function loadWaBroadcastContent(useAi = false) {
+      if (!currentWaContext.id) return;
+      previewWa.value = useAi ? 'Menyusun sebaran WhatsApp via AI...' : 'Memuat draf sebaran pengumuman WhatsApp...';
+
+      const url = currentWaContext.type === 'rangkuman'
+        ? `/api/guru/rangkuman/${currentWaContext.id}/generate-broadcast`
+        : `/api/guru/ulangan/${currentWaContext.id}/generate-broadcast`;
+
+      try {
+        const res = await guruFetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ use_ai: useAi })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          previewWa.value = data.text;
+        } else {
+          previewWa.value = 'Gagal memuat pesan: ' + (data.message || 'Error server');
+        }
+      } catch (err) {
+        previewWa.value = 'Gagal memuat pesan: ' + err.message;
+      }
+    }
+
+    window.openRangkumanWaBroadcast = function(taskId) {
+      currentWaContext = { type: 'rangkuman', id: taskId };
+      modalWa.classList.remove('hidden');
+      loadWaBroadcastContent(false);
+    };
 
     if (btnOpenWa) {
       btnOpenWa.onclick = async () => {
@@ -7664,25 +7700,9 @@
           alert('Pilih paket ulangan terlebih dahulu.');
           return;
         }
-
+        currentWaContext = { type: 'ulangan', id: activeUlanganId };
         modalWa.classList.remove('hidden');
-        previewWa.value = 'Memuat draf sebaran pengumuman WhatsApp...';
-
-        try {
-          const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/generate-broadcast`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ use_ai: false })
-          });
-          const data = await res.json();
-          if (res.ok && data.success) {
-            previewWa.value = data.text;
-          } else {
-            previewWa.value = 'Gagal memuat pesan: ' + (data.message || 'Error server');
-          }
-        } catch (err) {
-          previewWa.value = 'Gagal memuat pesan: ' + err.message;
-        }
+        loadWaBroadcastContent(false);
       };
     }
 
@@ -7728,24 +7748,14 @@
 
     if (btnRegenAi) {
       btnRegenAi.onclick = async () => {
-        if (!activeUlanganId) return;
+        if (!currentWaContext.id) return;
         const txtLabel = document.getElementById('regen-ai-text');
         const originalText = txtLabel.textContent;
         txtLabel.textContent = 'Menyusun via AI...';
         btnRegenAi.disabled = true;
 
         try {
-          const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/generate-broadcast`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ use_ai: true })
-          });
-          const data = await res.json();
-          if (res.ok && data.success) {
-            previewWa.value = data.text;
-          } else {
-            alert(data.message || 'Gagal menyusun pesan AI');
-          }
+          await loadWaBroadcastContent(true);
         } catch (err) {
           alert('Error: ' + err.message);
         } finally {
@@ -9386,7 +9396,10 @@
                   <p class="text-xs text-slate-500">${escapeHtml(t.mata_pelajaran)} &bull; Kelas: <span class="font-semibold text-slate-700">${escapeHtml(t.tingkat_kelas)}</span> &bull; Min: <span class="font-semibold text-teal-700">${t.batas_minimum_kata} kata</span></p>
                 </div>
 
-                <div class="flex items-center space-x-2">
+                <div class="flex items-center space-x-2 flex-wrap gap-y-1.5">
+                  <button type="button" onclick="openRangkumanWaBroadcast(${t.id})" class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-semibold rounded-lg transition flex items-center space-x-1 cursor-pointer shadow-2xs" title="Buat Sebaran Pengumuman WhatsApp">
+                    <span>💬 Sebaran WA</span>
+                  </button>
                   <button type="button" onclick="copyRangkumanLink('${escapeHtml(t.kode_tugas)}')" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1 cursor-pointer" title="Salin tautan pengerjaan siswa">
                     <span>🔗 Salin Link</span>
                   </button>
@@ -10100,6 +10113,13 @@
       btnRekapExportCsv.addEventListener('click', () => {
         if (!activeRangkumanId) return;
         window.open(`/api/guru/rangkuman/${activeRangkumanId}/ekspor-csv`, '_blank');
+      });
+    }
+
+    const btnRekapWa = document.getElementById('btn-rekap-wa-broadcast');
+    if (btnRekapWa) {
+      btnRekapWa.addEventListener('click', () => {
+        if (activeRangkumanId) openRangkumanWaBroadcast(activeRangkumanId);
       });
     }
 

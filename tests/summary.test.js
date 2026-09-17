@@ -2,6 +2,7 @@ const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const db = require('../src/config/database');
 const summaryService = require('../src/services/summaryService');
+const geminiService = require('../src/services/geminiService');
 
 describe('=== SUITE: FITUR TUGAS RANGKUMAN BERBANTUAN AI ===', () => {
   let testGuruId = 1;
@@ -385,6 +386,19 @@ describe('=== SUITE: FITUR TUGAS RANGKUMAN BERBANTUAN AI ===', () => {
     assert.equal(statusRes.data.tingkat_kelas, '10 MIPA 1, 10 MIPA 2, 10 IPS 1');
     assert.equal(statusRes.data.media_url, createdTask.media_url);
     assert.equal(statusRes.data.tipe_media, 'youtube');
+  });
+
+  test('17. Guru dapat menyusun draf sebaran WhatsApp to-the-point untuk tugas rangkuman (standar & AI)', async () => {
+    const defaultBroadcast = geminiService.formatDefaultWhatsAppBroadcastForSummary(createdTask, 'http://localhost:3000');
+    assert.match(defaultBroadcast, /PEMBERITAHUAN TUGAS LITERASI & RANGKUMAN/);
+    assert.match(defaultBroadcast, new RegExp(createdTask.kode_tugas));
+    assert.match(defaultBroadcast, /Tautan Langsung Pengerjaan/);
+    assert.match(defaultBroadcast, /minimal \d+ kata/i);
+
+    // Generator AI (atau fallback instan)
+    const aiBroadcast = await geminiService.generateWhatsAppBroadcastForSummary(createdTask, 'http://localhost:3000');
+    assert.ok(aiBroadcast && typeof aiBroadcast === 'string');
+    assert.match(aiBroadcast, new RegExp(createdTask.kode_tugas));
   });
 
   after(() => {

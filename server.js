@@ -1356,6 +1356,33 @@ app.post('/api/guru/rangkuman/:id/cek-ulang-semua', requireGuru, (req, res) => {
   }
 });
 
+// 18. Guru: Generator Sebaran WhatsApp Tugas Rangkuman (AI & Format Standar To-The-Point)
+app.post('/api/guru/rangkuman/:id/generate-broadcast', requireGuru, async (req, res) => {
+  try {
+    const guruId = req.guru?.role === 'admin' ? null : (req.guru?.guruId || req.guru?.id || null);
+    const task = summaryService.getTaskById(req.params.id, guruId) || summaryService.getTaskById(req.params.id, null);
+    if (!task) {
+      return res.status(404).json({ success: false, message: 'Tugas rangkuman tidak ditemukan' });
+    }
+    const host = req.get('host') || 'localhost:3000';
+    const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+    const baseUrl = `${proto}://${host}`;
+    const { use_ai } = req.body || {};
+
+    let text;
+    if (use_ai) {
+      text = await geminiService.generateWhatsAppBroadcastForSummary(task, baseUrl);
+    } else {
+      text = geminiService.formatDefaultWhatsAppBroadcastForSummary(task, baseUrl);
+    }
+
+    res.json({ success: true, text });
+  } catch (err) {
+    console.error('Error generate rangkuman broadcast:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // Export app untuk testing atau jalankan server jika dipanggil langsung
 if (require.main === module) {
   app.listen(PORT, () => {

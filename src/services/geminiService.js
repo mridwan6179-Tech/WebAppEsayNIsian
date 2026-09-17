@@ -1687,6 +1687,139 @@ Kembalikan HANYA teks sebaran pesan WhatsApp siap kirim tanpa penjelasan pembuka
     }
 
     return defaultText;
+  },
+
+  // Format Standar Sebaran WhatsApp untuk Tugas Rangkuman (Instan, Hemat Token & To The Point)
+  formatDefaultWhatsAppBroadcastForSummary(task, baseUrl = '') {
+    const cleanBase = (baseUrl || '').replace(/\/+$/, '');
+    const directLink = `${cleanBase}/?kode=${task.kode_tugas}`;
+    const classes = task.tingkat_kelas || 'Seluruh Siswa Terdaftar';
+
+    let mediaLabel = 'Materi Pembelajaran';
+    if (task.tipe_media === 'youtube') mediaLabel = 'Video YouTube';
+    else if (task.tipe_media === 'pdf_url') mediaLabel = 'Dokumen PDF / Google Drive';
+    else if (task.tipe_media === 'teks') mediaLabel = 'Artikel Bacaan';
+    else if (task.tipe_media === 'video_url') mediaLabel = 'Tautan Video';
+
+    const lines = [
+      `📢 *PEMBERITAHUAN TUGAS LITERASI & RANGKUMAN*`,
+      ``,
+      `*Mata Pelajaran:* ${task.mata_pelajaran}`,
+      `*Judul Tugas:* ${task.judul}`,
+      `*Sasaran Kelas:* ${classes}`,
+      `*Format Materi:* ${mediaLabel}`
+    ];
+
+    if (task.media_url) {
+      lines.push(`*Tautan Materi/Video:* ${task.media_url}`);
+    }
+
+    const minKata = task.batas_minimum_kata || 100;
+    const maxKata = task.batas_maksimum_kata || 500;
+    lines.push(`*Ketentuan Rangkuman:* Minimal ${minKata} kata (Maks. ${maxKata} kata)`);
+
+    if (task.deskripsi && task.deskripsi.trim()) {
+      lines.push(``);
+      lines.push(`*Petunjuk Khusus:*`);
+      lines.push(`${task.deskripsi.trim()}`);
+    }
+
+    lines.push(``);
+    lines.push(`*Tautan Langsung Pengerjaan:*`);
+    lines.push(`${directLink}`);
+    lines.push(``);
+    lines.push(`*Kode Tugas (Token):*`);
+    lines.push(`*${task.kode_tugas}*`);
+    lines.push(``);
+    lines.push(`_(Buka tautan di atas untuk menyimak materi dan mengumpulkan rangkuman. Hasil evaluasi dan nilai sementara akan langsung diperiksa secara instan oleh AI)._`);
+
+    return lines.join('\n');
+  },
+
+  // Generator Sebaran WhatsApp Tugas Rangkuman Menggunakan AI (To The Point, Profesional)
+  async generateWhatsAppBroadcastForSummary(task, baseUrl = '') {
+    const defaultText = this.formatDefaultWhatsAppBroadcastForSummary(task, baseUrl);
+    const availableKeys = this.getAllActiveApiKeys();
+
+    if (availableKeys.length === 0) {
+      return defaultText;
+    }
+
+    const cleanBase = (baseUrl || '').replace(/\/+$/, '');
+    const directLink = `${cleanBase}/?kode=${task.kode_tugas}`;
+    const classes = task.tingkat_kelas || 'Seluruh Siswa Terdaftar';
+
+    let mediaLabel = 'Materi Pembelajaran';
+    if (task.tipe_media === 'youtube') mediaLabel = 'Video YouTube';
+    else if (task.tipe_media === 'pdf_url') mediaLabel = 'Dokumen PDF / Google Drive';
+    else if (task.tipe_media === 'teks') mediaLabel = 'Artikel Bacaan';
+    else if (task.tipe_media === 'video_url') mediaLabel = 'Tautan Video';
+
+    const prompt = `
+Anda adalah asisten guru profesional yang bertugas menyusun teks pengumuman sebaran WhatsApp resmi untuk tugas literasi / merangkum materi siswa.
+
+ATURAN WAJIB FORMAT & GAYA BAHASA:
+1. SANGAT TO THE POINT, JELAS, DAN PROFESIONAL.
+2. DILARANG membuat kata sambutan atau basa-basi (DILARANG: "Halo siswa-siswi", "Semoga kalian sehat", "Assalamu'alaikum semuanya", dll). Langsung ke judul pengumuman dan data teknis tugas!
+3. Gunakan formatting WhatsApp yang rapi (*tebal* untuk judul/label/kode tugas).
+4. WAJIB mencakup komponen ini secara runtut:
+   - Header: *PEMBERITAHUAN TUGAS LITERASI & RANGKUMAN*
+   - Mata Pelajaran & Judul Tugas
+   - Sasaran Kelas: ${classes}
+   - Sumber Materi / Tautan Video (jika ada): ${task.media_url || mediaLabel}
+   - Batasan Kata: Min ${task.batas_minimum_kata || 100} kata (Maks ${task.batas_maksimum_kata || 500} kata)
+   - Petunjuk / Deskripsi singkat
+   - Tautan Langsung Pengerjaan: ${directLink}
+   - Kode Tugas (Token): *${task.kode_tugas}*
+   - Catatan 1 baris singkat bahwa rangkuman akan dinilai otomatis oleh AI.
+
+DATA TUGAS:
+- Judul: ${task.judul}
+- Mata Pelajaran: ${task.mata_pelajaran}
+- Sasaran Kelas: ${classes}
+- Tipe Media: ${mediaLabel}
+- URL Media: ${task.media_url || '-'}
+- Batas Kata: ${task.batas_minimum_kata || 100} s/d ${task.batas_maksimum_kata || 500} kata
+- Petunjuk: ${task.deskripsi || 'Simak materi dengan seksama lalu tulis rangkuman dengan bahasa sendiri.'}
+- Kode Tugas: ${task.kode_tugas}
+- Tautan: ${directLink}
+
+Kembalikan HANYA teks sebaran pesan WhatsApp siap kirim tanpa penjelasan pembuka/penutup apapun.
+`;
+
+    for (const keyObj of availableKeys) {
+      const activeKey = keyObj.key;
+      const candidateList = await this.getOrderedCandidateModels(activeKey);
+
+      for (const model of candidateList) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`;
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: AbortSignal.timeout(12000),
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: {
+                temperature: 0.2
+              }
+            })
+          });
+
+          if (!response.ok) continue;
+          const data = await response.json();
+          const candidate = data.candidates?.[0];
+          const textResponse = candidate?.content?.parts?.[0]?.text;
+          if (textResponse && textResponse.trim()) {
+            return textResponse.trim();
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+    }
+
+    return defaultText;
   }
 };
 
