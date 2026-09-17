@@ -401,6 +401,58 @@ describe('=== SUITE: FITUR TUGAS RANGKUMAN BERBANTUAN AI ===', () => {
     assert.match(aiBroadcast, new RegExp(createdTask.kode_tugas));
   });
 
+  test('18. Sistem mendeteksi riwayat pengumpulan siswa untuk fitur anti-refresh dan izin unduh langsung', async () => {
+    // Siswa belum pernah submit
+    const notSubmitted = summaryService.checkStudentSubmission(createdTask.id, 'Siswa Baru', '10 MIPA 1');
+    assert.equal(notSubmitted, null);
+
+    // Siswa sudah submit di test 16 ('Siti Rahma', '10 MIPA 1')
+    const alreadySubmitted = summaryService.checkStudentSubmission(createdTask.id, 'siti rahma', '10 MIPA 1');
+    assert.ok(alreadySubmitted && alreadySubmitted.success);
+    assert.equal(alreadySubmitted.data.nama_siswa, 'Siti Rahma');
+    assert.ok(alreadySubmitted.data.teks_rangkuman);
+
+    // Test API REST: POST /api/siswa/rangkuman/cek-status
+    const app = require('../server');
+    const http = require('http');
+    const server = http.createServer(app);
+    await new Promise(r => server.listen(0, r));
+    const port = server.address().port;
+
+    try {
+      const resCheck = await fetch(`http://localhost:${port}/api/siswa/rangkuman/cek-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kode_tugas: createdTask.kode_tugas,
+          nama_siswa: 'Siti Rahma',
+          kelas_siswa: '10 MIPA 1'
+        })
+      });
+      const dataCheck = await resCheck.json();
+      assert.equal(dataCheck.success, true);
+      assert.equal(dataCheck.alreadySubmitted, true);
+      assert.ok(dataCheck.pengerjaan_id);
+      assert.equal(dataCheck.data.nama_siswa, 'Siti Rahma');
+
+      // Cek untuk siswa yang belum submit
+      const resUnsubmitted = await fetch(`http://localhost:${port}/api/siswa/rangkuman/cek-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kode_tugas: createdTask.kode_tugas,
+          nama_siswa: 'Belum Mengerjakan',
+          kelas_siswa: '10 MIPA 1'
+        })
+      });
+      const dataUnsubmitted = await resUnsubmitted.json();
+      assert.equal(dataUnsubmitted.success, true);
+      assert.equal(dataUnsubmitted.alreadySubmitted, false);
+    } finally {
+      await new Promise(r => server.close(r));
+    }
+  });
+
   after(() => {
     // Bersihkan data uji
     if (createdTask?.id) {

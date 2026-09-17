@@ -493,6 +493,21 @@ Instruksi Khusus:
     };
   },
 
+  // Cek apakah siswa sudah pernah mengumpulkan tugas ini
+  checkStudentSubmission(tugasId, namaSiswa, kelasSiswa) {
+    if (!tugasId || !namaSiswa || !kelasSiswa) return null;
+    const cleanNama = String(namaSiswa).trim();
+    const cleanKelas = String(kelasSiswa).trim();
+    const existing = db.prepare(`
+      SELECT id FROM pengerjaan_rangkuman 
+      WHERE tugas_id = ? AND LOWER(nama_siswa) = LOWER(?) AND LOWER(kelas_siswa) = LOWER(?)
+      ORDER BY id DESC LIMIT 1
+    `).get(tugasId, cleanNama, cleanKelas);
+
+    if (!existing) return null;
+    return this.getStudentStatus(existing.id);
+  },
+
   // ----------------------------------------------------------------
   // BACKGROUND QUEUE WORKER
   // ----------------------------------------------------------------

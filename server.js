@@ -59,7 +59,8 @@ const SKIP_SYNC_PATHS = new Set([
   '/api/siswa/ping',
   '/api/siswa/cek-kode',
   '/api/auth/logout',
-  '/api/siswa/rangkuman/cek-kode'
+  '/api/siswa/rangkuman/cek-kode',
+  '/api/siswa/rangkuman/cek-status'
 ]);
 
 app.use((req, res, next) => {
@@ -1167,6 +1168,38 @@ app.post('/api/siswa/rangkuman/cek-kode', (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ valid: false, message: err.message });
+  }
+});
+
+// 1b. Siswa: Cek Riwayat Pengumpulan Rangkuman (Mendukung Tampil Langsung & Izin Unduh)
+app.post('/api/siswa/rangkuman/cek-status', (req, res) => {
+  try {
+    const { kode_tugas, tugas_id, nama_siswa, kelas_siswa } = req.body;
+    let targetTaskId = tugas_id;
+    if (!targetTaskId && kode_tugas) {
+      const val = summaryService.validateTaskCodeForStudent(kode_tugas);
+      if (val && val.valid && val.task) {
+        targetTaskId = val.task.id;
+      }
+    }
+
+    if (!targetTaskId || !nama_siswa || !kelas_siswa) {
+      return res.json({ success: true, alreadySubmitted: false });
+    }
+
+    const check = summaryService.checkStudentSubmission(targetTaskId, nama_siswa, kelas_siswa);
+    if (check && check.success && check.data) {
+      return res.json({
+        success: true,
+        alreadySubmitted: true,
+        pengerjaan_id: check.data.id,
+        data: check.data
+      });
+    }
+
+    res.json({ success: true, alreadySubmitted: false });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 

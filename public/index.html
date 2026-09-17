@@ -675,6 +675,13 @@
           <p class="text-[11px] text-slate-500 text-center font-medium">Sedang memproses evaluasi rangkuman Anda...</p>
         </div>
 
+        <div class="pt-1">
+          <button type="button" onclick="manualRefreshRangkumanStatus(this)" class="inline-flex items-center space-x-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl border border-slate-300 shadow-xs transition cursor-pointer active:scale-95">
+            <span class="refresh-spinner">🔄</span>
+            <span>Segarkan Status Antrean</span>
+          </button>
+        </div>
+
         <p class="text-[11px] text-slate-400">Halaman ini akan otomatis menampilkan nilai begitu evaluasi AI selesai.</p>
       </div>
 
@@ -730,11 +737,15 @@
         </div>
 
         <div class="pt-2 flex flex-wrap justify-center gap-2.5">
-          <button type="button" id="btn-unduh-hasil-rangkuman" onclick="cetakHasilRangkumanSiswa()" class="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer">
+          <button type="button" id="btn-unduh-hasil-rangkuman" onclick="cetakHasilRangkumanSiswa()" class="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer active:scale-95">
             <span>📥</span>
             <span>Unduh / Cetak Hasil Rangkuman (PDF)</span>
           </button>
-          <button type="button" onclick="keluarDariRangkuman()" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer">
+          <button type="button" id="btn-refresh-hasil-rangkuman" onclick="manualRefreshRangkumanStatus(this)" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 font-bold text-xs rounded-xl border border-slate-300 shadow-xs transition flex items-center space-x-1.5 cursor-pointer active:scale-95" title="Muat ulang nilai terbaru jika ada penyesuaian dari guru">
+            <span>🔄</span>
+            <span>Segarkan Hasil</span>
+          </button>
+          <button type="button" onclick="keluarDariRangkuman()" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer active:scale-95">
             Kembali ke Beranda
           </button>
         </div>
@@ -1000,6 +1011,7 @@
     const directParamKode = (urlParams.get('kode') || urlParams.get('token') || '').trim().toUpperCase();
     const isDirectParamKode = !!directParamKode;
     const savedRgkPId = localStorage.getItem('ulangan_rangkuman_pengerjaan_id');
+    const savedRgkKode = (localStorage.getItem('ulangan_rangkuman_kode') || '').trim().toUpperCase();
     const savedRgkSession = localStorage.getItem('ulangan_rangkuman_session');
 
     let isSameRgkSession = false;
@@ -1014,7 +1026,10 @@
       } catch (e) {}
     }
 
-    if (savedRgkPId && (!isDirectParamKode || isSameRgkSession)) {
+    // Siswa yang sudah mengumpulkan tugas rangkuman tetap berada di layar hasil saat di-refresh (Anti-Refresh)
+    const isSameSubmittedRgk = savedRgkPId && (!isDirectParamKode || !savedRgkKode || directParamKode === savedRgkKode);
+
+    if (isSameSubmittedRgk) {
       startPollingRangkumanStatus(savedRgkPId);
     } else if (currentPengerjaanId) {
       stepAuth.classList.add('hidden');
@@ -1591,6 +1606,30 @@
               throw new Error(data.message || 'Kode tugas rangkuman tidak ditemukan atau belum dibuka.');
             }
             currentRangkumanTask = data.task;
+          }
+
+          // Cek apakah siswa sudah pernah mengumpulkan tugas ini sebelumnya (izinkan langsung unduh/lihat hasil)
+          try {
+            const checkRes = await fetch('/api/siswa/rangkuman/cek-status', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                tugas_id: currentRangkumanTask.id,
+                kode_tugas: currentRangkumanTask.kode_tugas,
+                nama_siswa: nama,
+                kelas_siswa: kelas
+              })
+            });
+            const checkData = await checkRes.json();
+            if (checkData.success && checkData.alreadySubmitted && checkData.pengerjaan_id) {
+              localStorage.setItem('ulangan_rangkuman_pengerjaan_id', checkData.pengerjaan_id);
+              localStorage.setItem('ulangan_rangkuman_kode', (currentRangkumanTask.kode_tugas || '').toUpperCase());
+              localStorage.removeItem('ulangan_rangkuman_session');
+              startPollingRangkumanStatus(checkData.pengerjaan_id);
+              return;
+            }
+          } catch (chkErr) {
+            console.warn('Gagal cek riwayat pengerjaan:', chkErr);
           }
 
           startRangkumanMode(currentRangkumanTask, nama, kelas);
@@ -3992,6 +4031,9 @@
             localStorage.removeItem(curDraftKey);
             localStorage.removeItem('ulangan_rangkuman_session');
             localStorage.setItem('ulangan_rangkuman_pengerjaan_id', result.pengerjaan_id);
+            localStorage.setItem('ulangan_rangkuman_kode', (task.kode_tugas || '').toUpperCase());
+            localStorage.setItem('ulangan_rangkuman_nama', nama);
+            localStorage.setItem('ulangan_rangkuman_kelas', kelas);
             startPollingRangkumanStatus(result.pengerjaan_id);
             return;
           }
@@ -4003,6 +4045,9 @@
         localStorage.removeItem(curDraftKey);
         localStorage.removeItem('ulangan_rangkuman_session');
         localStorage.setItem('ulangan_rangkuman_pengerjaan_id', result.pengerjaan_id);
+        localStorage.setItem('ulangan_rangkuman_kode', (task.kode_tugas || '').toUpperCase());
+        localStorage.setItem('ulangan_rangkuman_nama', nama);
+        localStorage.setItem('ulangan_rangkuman_kelas', kelas);
 
         startPollingRangkumanStatus(result.pengerjaan_id, result.posisi_antrean, result.estimasi_detik);
       } catch (err) {
@@ -4014,7 +4059,12 @@
       }
     }
 
+    let currentRangkumanPengerjaanId = null;
+
     function startPollingRangkumanStatus(pengerjaanId, initialPos = 1, initialEta = 10) {
+      currentRangkumanPengerjaanId = pengerjaanId;
+      localStorage.setItem('ulangan_rangkuman_pengerjaan_id', pengerjaanId);
+
       const mainAppContainer = document.getElementById('main-app-container');
       if (mainAppContainer) {
         mainAppContainer.classList.remove('max-w-7xl');
@@ -4045,8 +4095,21 @@
       async function poll() {
         try {
           const res = await fetch(`/api/siswa/rangkuman/status/${pengerjaanId}`);
+          if (!res.ok) {
+            if (res.status === 404) {
+              clearInterval(rgkStatusPollInterval);
+              rgkStatusPollInterval = null;
+              localStorage.removeItem('ulangan_rangkuman_pengerjaan_id');
+              localStorage.removeItem('ulangan_rangkuman_kode');
+              localStorage.removeItem('ulangan_rangkuman_nama');
+              localStorage.removeItem('ulangan_rangkuman_kelas');
+              alert('Data pengerjaan tidak ditemukan di server atau telah dihapus oleh guru.');
+              window.location.href = window.location.pathname;
+            }
+            return;
+          }
           const result = await res.json();
-          if (!res.ok || !result.success || !result.data) return;
+          if (!result.success || !result.data) return;
 
           const p = result.data;
           if (p.is_selesai) {
@@ -4070,6 +4133,63 @@
       poll();
       rgkStatusPollInterval = setInterval(poll, 2000);
     }
+
+    window.manualRefreshRangkumanStatus = async function(btn = null) {
+      const pId = currentRangkumanPengerjaanId || localStorage.getItem('ulangan_rangkuman_pengerjaan_id');
+      if (!pId) {
+        alert('Tidak ada sesi pengerjaan rangkuman aktif untuk disegarkan.');
+        return;
+      }
+
+      let origText = '';
+      if (btn) {
+        origText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="inline-block animate-spin">⏳</span><span>Memperbarui...</span>';
+      }
+
+      try {
+        const res = await fetch(`/api/siswa/rangkuman/status/${pId}?t=${Date.now()}`);
+        if (!res.ok) {
+          if (res.status === 404) {
+            alert('Pengerjaan tidak ditemukan di server.');
+            localStorage.removeItem('ulangan_rangkuman_pengerjaan_id');
+            localStorage.removeItem('ulangan_rangkuman_kode');
+            window.location.href = window.location.pathname;
+            return;
+          }
+          throw new Error('Gagal mengambil status pengerjaan dari server');
+        }
+
+        const result = await res.json();
+        if (!result.success || !result.data) {
+          throw new Error(result.message || 'Data pengerjaan tidak valid');
+        }
+
+        const p = result.data;
+        if (p.is_selesai) {
+          if (rgkStatusPollInterval) {
+            clearInterval(rgkStatusPollInterval);
+            rgkStatusPollInterval = null;
+          }
+          renderRangkumanResult(p);
+        } else {
+          const waitingBox = document.getElementById('rgk-result-waiting-box');
+          const doneBox = document.getElementById('rgk-result-done-box');
+          if (waitingBox) waitingBox.classList.remove('hidden');
+          if (doneBox) doneBox.classList.add('hidden');
+          const posEl = document.getElementById('rgk-queue-pos');
+          if (posEl) posEl.textContent = `#${p.posisi_antrean || 1}`;
+        }
+      } catch (err) {
+        alert('⚠️ Gagal menyegarkan hasil: ' + err.message);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = origText;
+        }
+      }
+    };
 
     let lastRangkumanData = null;
 
@@ -4268,14 +4388,58 @@
       window.scrollTo(0, 0);
     };
 
+    window.salinTeksHasilRangkuman = function() {
+      const p = lastRangkumanData;
+      if (!p) {
+        alert('Data evaluasi rangkuman belum siap.');
+        return;
+      }
+
+      const score = p.skor_final !== null ? p.skor_final : (p.skor_ai !== null ? p.skor_ai : 0);
+      let text = `📄 LEMBAR HASIL TUGAS RANGKUMAN SISWA\n`;
+      text += `Mata Pelajaran : ${p.mata_pelajaran || '-'}\n`;
+      text += `Judul Tugas    : ${p.judul_tugas || '-'}\n`;
+      text += `Nama Siswa     : ${p.nama_siswa || '-'}\n`;
+      text += `Kelas          : ${p.kelas_siswa || '-'}\n`;
+      text += `Nilai          : ${Math.round(score)} / 100\n`;
+      text += `Jumlah Kata    : ${p.jumlah_kata || 0} kata\n`;
+      if (p.media_url) text += `Sumber Materi  : ${p.media_url}\n`;
+      text += `\n--- TEKS RANGKUMAN SISWA ---\n${p.teks_rangkuman || '-'}\n`;
+      text += `\n--- ULASAN & CATATAN AI ---\n${p.feedback_ai || '-'}\n`;
+
+      if (Array.isArray(p.detail_poin_ai) && p.detail_poin_ai.length > 0) {
+        text += `\n--- CHECKLIST POIN KUNCI ---\n`;
+        p.detail_poin_ai.forEach(pt => {
+          const tercakup = pt.tercakup === true || pt.tercakup === 1 || (typeof pt.skor === 'number' && pt.skor >= 60);
+          text += `${tercakup ? '[✓]' : '[✗]'} ${pt.poin || pt.nama || '-'}${pt.catatan ? ` (${pt.catatan})` : ''}\n`;
+        });
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          alert('✅ Seluruh teks laporan hasil rangkuman berhasil disalin ke clipboard!');
+        }).catch(() => {
+          prompt('Salin teks laporan rangkuman di bawah ini:', text);
+        });
+      } else {
+        prompt('Salin teks laporan rangkuman di bawah ini:', text);
+      }
+    };
+
     window.closeCetakRangkumanModal = function() {
       const modal = document.getElementById('modal-cetak-rangkuman');
       if (modal) modal.classList.add('hidden');
     };
 
     window.keluarDariRangkuman = function() {
+      const ok = confirm('Kembali ke beranda awal?\n\nCatatan: Anda tetap dapat melihat nilai dan mengunduh rangkuman ini kapan saja dengan memasukkan nama dan kelas Anda.');
+      if (!ok) return;
+
       if (rgkStatusPollInterval) clearInterval(rgkStatusPollInterval);
       localStorage.removeItem('ulangan_rangkuman_pengerjaan_id');
+      localStorage.removeItem('ulangan_rangkuman_kode');
+      localStorage.removeItem('ulangan_rangkuman_nama');
+      localStorage.removeItem('ulangan_rangkuman_kelas');
       localStorage.removeItem('ulangan_rangkuman_session');
       window.location.href = window.location.pathname;
     };
@@ -4305,6 +4469,9 @@
     <!-- Bottom Helper Bar -->
     <div class="py-2 px-3 bg-slate-900/80 border-t border-slate-800/80 text-[11px] text-slate-400 text-center flex items-center justify-center space-x-2">
       <span>💡 Geser (drag) gambar untuk memindahkan &bull; Gunakan tombol + / − atau scroll untuk zoom</span>
+    </div>
+  </div>
+
   <!-- MODAL CETAK & UNDUH HASIL RANGKUMAN (PDF / PRINT) -->
   <div id="modal-cetak-rangkuman" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto p-2 sm:p-4">
     <!-- Top Action Bar (Hanya tampil di layar monitor/HP, otomatis tersembunyi saat dicetak) -->
@@ -4317,11 +4484,15 @@
         </div>
       </div>
       <div class="flex items-center space-x-2">
-        <button type="button" onclick="window.print()" class="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center space-x-1.5 cursor-pointer">
+        <button type="button" onclick="window.print()" class="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center space-x-1.5 cursor-pointer active:scale-95">
           <span>🖨️</span>
           <span>Cetak / Simpan PDF</span>
         </button>
-        <button type="button" onclick="closeCetakRangkumanModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition cursor-pointer">
+        <button type="button" onclick="salinTeksHasilRangkuman()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold rounded-xl border border-slate-700 transition flex items-center space-x-1 cursor-pointer active:scale-95" title="Salin seluruh teks hasil laporan ke clipboard">
+          <span>📋</span>
+          <span>Salin Teks Laporan</span>
+        </button>
+        <button type="button" onclick="closeCetakRangkumanModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition cursor-pointer active:scale-95">
           Tutup ✕
         </button>
       </div>
