@@ -126,7 +126,7 @@
       <form id="form-masuk" class="space-y-4 max-w-md mx-auto">
         <div>
           <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Kode Akses Ulangan</label>
-          <input type="text" id="input-kode" required uppercase maxlength="10" placeholder="Contoh: BIO8A9"
+          <input type="text" id="input-kode" required uppercase maxlength="250" placeholder="Contoh: BIO8A9"
             class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-center font-mono font-bold tracking-widest text-lg uppercase transition">
           
           <div id="exam-found-info" class="hidden mt-2 p-2.5 bg-blue-50 rounded-xl text-xs text-blue-900 border border-blue-200 flex items-center justify-between">
@@ -924,6 +924,13 @@
 
     let currentPengerjaanId = localStorage.getItem('ulangan_pengerjaan_id');
 
+    // State Global Rangkuman (dideklarasikan di awal agar aman dari TDZ ReferenceError)
+    let currentRangkumanTask = null;
+    let currentRangkumanSession = null;
+    let currentRangkumanPengerjaanId = null;
+    let lastRangkumanData = null;
+    let rgkStatusPollInterval = null;
+
     const stepAuth = document.getElementById('step-auth');
     const stepExam = document.getElementById('step-exam');
     const stepResult = document.getElementById('step-result');
@@ -1007,48 +1014,26 @@
       }
     });
 
-    // Cek apakah siswa punya sesi pengerjaan yang tersimpan (Mendukung Resume Sesi & Anti-Refresh)
-    const directParamKode = (urlParams.get('kode') || urlParams.get('token') || '').trim().toUpperCase();
-    const isDirectParamKode = !!directParamKode;
-    const savedRgkPId = localStorage.getItem('ulangan_rangkuman_pengerjaan_id');
-    const savedRgkKode = (localStorage.getItem('ulangan_rangkuman_kode') || '').trim().toUpperCase();
-    const savedRgkSession = localStorage.getItem('ulangan_rangkuman_session');
-
-    let isSameRgkSession = false;
-    if (savedRgkSession) {
+    // Ekstraksi kode akses dari teks mentah atau tautan URL penuh
+    function extractCodeFromInput(raw) {
+      if (!raw) return '';
+      let str = String(raw).trim();
       try {
-        const parsed = JSON.parse(savedRgkSession);
-        if (parsed && parsed.task && parsed.nama && parsed.kelas) {
-          if (!isDirectParamKode || (directParamKode && parsed.task.kode_tugas && directParamKode === parsed.task.kode_tugas.toUpperCase())) {
-            isSameRgkSession = true;
-          }
+        if (str.includes('?') || str.startsWith('http://') || str.startsWith('https://')) {
+          const parsedUrl = new URL(str.startsWith('http') ? str : `http://dummy.com/${str}`);
+          const k = parsedUrl.searchParams.get('kode') || parsedUrl.searchParams.get('token');
+          if (k) return k.trim().toUpperCase();
         }
       } catch (e) {}
+      const matchRgk = str.match(/\b(RGK-[A-Za-z0-9]+)\b/i);
+      if (matchRgk) return matchRgk[1].toUpperCase();
+      return str.toUpperCase();
     }
 
-    // Siswa yang sudah mengumpulkan tugas rangkuman tetap berada di layar hasil saat di-refresh (Anti-Refresh)
-    const isSameSubmittedRgk = savedRgkPId && (!isDirectParamKode || !savedRgkKode || directParamKode === savedRgkKode);
-
-    if (isSameSubmittedRgk) {
-      startPollingRangkumanStatus(savedRgkPId);
-    } else if (currentPengerjaanId) {
-      stepAuth.classList.add('hidden');
-      const stepRes = document.getElementById('step-resuming');
-      if (stepRes) stepRes.classList.remove('hidden');
-      resumeOrCheckSession(currentPengerjaanId);
-    } else if (isSameRgkSession) {
-      try {
-        const parsed = JSON.parse(savedRgkSession);
-        startRangkumanMode(parsed.task, parsed.nama, parsed.kelas);
-      } catch (e) {}
-    }
-
-    // Cek kode ulangan otomatis dan isi dropdown kelas
+    // Elemen Input Form Masuk
     const inputKode = document.getElementById('input-kode');
     const inputKelas = document.getElementById('input-kelas');
     const examFoundInfo = document.getElementById('exam-found-info');
-
-    let currentRangkumanTask = null;
 
     function applyRangkumanTaskFound(task) {
       currentRangkumanTask = task;
@@ -1107,21 +1092,85 @@
     }
 
     let debounceTimer = null;
-    inputKode.addEventListener('input', () => {
-      clearTimeout(debounceTimer);
-      const kode = inputKode.value.trim().toUpperCase();
-      inputKode.value = kode;
+    if (inputKode) {
+      // Dukungan paste teks kode langsung atau tautan web lengkap
+      inputKode.addEventListener('paste', (e) => {
+        setTimeout(() => {
+          const raw = inputKode.value;
+          const extracted = extractCodeFromInput(raw);
+          if (extracted && extracted !== raw) {
+            inputKode.value = extracted;
+          }
+          inputKode.dispatchEvent(new Event('input'));
+        }, 0);
+      });
 
-      if (kode.length >= 6) {
-        debounceTimer = setTimeout(() => checkKodeUlangan(kode), 400);
-      } else {
-        currentRangkumanTask = null;
-        examFoundInfo.classList.add('hidden');
-        document.getElementById('kisi-kisi-container')?.classList.add('hidden');
-        inputKelas.innerHTML = '<option value="">-- Ketik kode ulangan di atas terlebih dahulu --</option>';
-        hideSubmissionLog();
+      inputKode.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        let rawVal = inputKode.value.trim();
+        let kode = extractCodeFromInput(rawVal);
+        if (kode && kode !== rawVal && kode.length <= 15) {
+          inputKode.value = kode;
+        } else {
+          kode = inputKode.value.trim().toUpperCase();
+          inputKode.value = kode;
+        }
+
+        if (kode.length >= 6) {
+          debounceTimer = setTimeout(() => checkKodeUlangan(kode), 300);
+        } else {
+          currentRangkumanTask = null;
+          examFoundInfo.classList.add('hidden');
+          document.getElementById('kisi-kisi-container')?.classList.add('hidden');
+          inputKelas.innerHTML = '<option value="">-- Ketik kode ulangan di atas terlebih dahulu --</option>';
+          hideSubmissionLog();
+        }
+      });
+    }
+
+    // Deteksi otomatis parameter direct link WhatsApp: ?kode=KODE atau ?token=KODE
+    const directParamKode = (urlParams.get('kode') || urlParams.get('token') || '').trim().toUpperCase();
+    if (directParamKode && inputKode) {
+      inputKode.value = directParamKode;
+      // Panggil verifikasi kode secara langsung agar info tugas tampil seketika
+      checkKodeUlangan(directParamKode);
+    }
+
+    // Pemulihan Sesi Pengerjaan Tersimpan (Anti-Refresh & Resume Pengerjaan)
+    try {
+      const savedRgkPId = localStorage.getItem('ulangan_rangkuman_pengerjaan_id');
+      const savedRgkKode = (localStorage.getItem('ulangan_rangkuman_kode') || '').trim().toUpperCase();
+      const savedRgkSession = localStorage.getItem('ulangan_rangkuman_session');
+
+      let isSameSubmittedRgk = false;
+      if (savedRgkPId) {
+        // Hanya otomatis tampilkan hasil jika memang siswa membuka tanpa kode di URL (refresh polos)
+        // ATAU kode di URL sama persis dengan kode pengerjaan tersimpan
+        if (!directParamKode) {
+          isSameSubmittedRgk = true;
+        } else if (savedRgkKode && directParamKode === savedRgkKode) {
+          isSameSubmittedRgk = true;
+        }
       }
-    });
+
+      if (isSameSubmittedRgk) {
+        startPollingRangkumanStatus(savedRgkPId);
+      } else if (currentPengerjaanId) {
+        stepAuth.classList.add('hidden');
+        const stepRes = document.getElementById('step-resuming');
+        if (stepRes) stepRes.classList.remove('hidden');
+        resumeOrCheckSession(currentPengerjaanId);
+      } else if (savedRgkSession) {
+        const parsed = JSON.parse(savedRgkSession);
+        if (parsed && parsed.task && parsed.nama && parsed.kelas) {
+          if (!directParamKode || (parsed.task.kode_tugas && directParamKode === parsed.task.kode_tugas.toUpperCase())) {
+            startRangkumanMode(parsed.task, parsed.nama, parsed.kelas);
+          }
+        }
+      }
+    } catch (errSession) {
+      console.warn('Gagal memulihkan sesi tersimpan:', errSession);
+    }
 
     async function checkKodeUlangan(kode) {
       if (kode.startsWith('RGK-')) {
@@ -1571,13 +1620,6 @@
         loadPortalData(currentPortalKode, true);
       }
     }, 12000);
-
-    // Deteksi parameter link WhatsApp: ?kode=KODE atau ?token=KODE
-    const directKode = urlParams.get('kode') || urlParams.get('token');
-    if (directKode) {
-      inputKode.value = directKode.trim().toUpperCase();
-      checkKodeUlangan(directKode.trim().toUpperCase());
-    }
 
     // Form Masuk Ujian
     document.getElementById('form-masuk').addEventListener('submit', async (e) => {
@@ -3693,8 +3735,6 @@
     // ================================================================
     // LOGIKA SISWA: FITUR TUGAS RANGKUMAN (SPLIT-SCREEN & ANTREAN AI)
     // ================================================================
-    let currentRangkumanSession = null;
-    let rgkStatusPollInterval = null;
 
     function countWordsClient(text) {
       if (!text || typeof text !== 'string') return 0;
@@ -4059,8 +4099,6 @@
       }
     }
 
-    let currentRangkumanPengerjaanId = null;
-
     function startPollingRangkumanStatus(pengerjaanId, initialPos = 1, initialEta = 10) {
       currentRangkumanPengerjaanId = pengerjaanId;
       localStorage.setItem('ulangan_rangkuman_pengerjaan_id', pengerjaanId);
@@ -4190,8 +4228,6 @@
         }
       }
     };
-
-    let lastRangkumanData = null;
 
     function renderRangkumanResult(p) {
       lastRangkumanData = p;

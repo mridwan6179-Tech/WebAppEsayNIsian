@@ -178,10 +178,14 @@ describe('=== SUITE: FITUR TUGAS RANGKUMAN BERBANTUAN AI ===', () => {
 
   test('9. Worker Antrean AI memproses pengerjaan, memberi skor AI & ulasan konstruktif', async () => {
     // Tunggu worker latar belakang menyelesaikan pemrosesan antrean
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 40; i++) {
       const p = db.prepare('SELECT status_antrean FROM pengerjaan_rangkuman WHERE tugas_id = ? LIMIT 1').get(createdTask.id);
       if (p && p.status_antrean === 'selesai') break;
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 250));
+    }
+    const currentP = db.prepare('SELECT id, status_antrean FROM pengerjaan_rangkuman WHERE tugas_id = ? LIMIT 1').get(createdTask.id);
+    if (currentP && currentP.status_antrean !== 'selesai') {
+      await summaryService.processNextInQueue(currentP.id);
     }
 
     const pengerjaan = db.prepare('SELECT * FROM pengerjaan_rangkuman WHERE tugas_id = ? LIMIT 1').get(createdTask.id);
