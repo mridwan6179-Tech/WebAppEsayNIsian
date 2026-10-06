@@ -1096,6 +1096,12 @@
           <button id="btn-open-ai-generator-bank" type="button" class="px-3.5 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 border border-purple-400/40">
             <span>✨ Buat Soal via AI</span>
           </button>
+          <button id="btn-open-ai-pg-bank" type="button" class="px-3.5 py-2 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 border border-teal-400/40" title="Generate soal Pilihan Ganda dengan AI langsung ke Bank Soal">
+            <span>🔘 Buat PG AI</span>
+          </button>
+          <button id="btn-open-coding-game-bank" type="button" class="px-3.5 py-2 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 border border-indigo-400/40" title="Rancang game koding berpikir komputasional tingkat SMP langsung ke Bank Soal">
+            <span>🎮 Game Koding</span>
+          </button>
           <button id="btn-open-ai-smart-pick" type="button" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5">
             <span>🤖 AI Smart Pick</span>
           </button>
@@ -1140,6 +1146,8 @@
               <option value="all">Semua Tipe</option>
               <option value="isian">Isian Singkat</option>
               <option value="essay">Essay (Uraian)</option>
+              <option value="pilihan_ganda">🔘 Pilihan Ganda (PG)</option>
+              <option value="koding_game">🎮 Game Koding (SMP)</option>
             </select>
           </div>
           <div>
@@ -2237,6 +2245,8 @@
             <select id="bank-jenis" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300">
               <option value="isian">Isian Singkat</option>
               <option value="essay">Essay (Uraian)</option>
+              <option value="pilihan_ganda">🔘 Pilihan Ganda (PG)</option>
+              <option value="koding_game">🎮 Game Koding (SMP)</option>
             </select>
           </div>
           <div>
@@ -2253,8 +2263,66 @@
           </div>
         </div>
         <div>
-          <label class="block font-semibold mb-1">Pertanyaan Soal <span class="text-red-500">*</span></label>
+          <label class="block font-semibold mb-1">Pertanyaan Soal / Misi Tantangan <span class="text-red-500">*</span></label>
           <textarea id="bank-pertanyaan" required rows="3" dir="auto" placeholder="Tuliskan pertanyaan... Mendukung KaTeX ($x^2$, $\sqrt{x}$)" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm"></textarea>
+        </div>
+
+        <!-- Opsi Pilihan Ganda (Khusus Jenis PG) -->
+        <div id="wrapper-bank-pg-box" class="hidden p-3.5 bg-teal-50/70 rounded-xl border border-teal-200 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-teal-900 text-xs">🔘 Konfigurasi Pilihan Ganda (PG)</span>
+            <span class="text-[10px] text-teal-700 font-medium">Isi opsi jawaban & tentukan kunci yang benar</span>
+          </div>
+          <div class="space-y-2">
+            <div>
+              <label class="block font-semibold text-teal-950 text-[11px] mb-0.5">Opsi A <span class="text-red-500">*</span></label>
+              <input type="text" id="bank-opsi-a" placeholder="Pilihan jawaban A" class="w-full px-2.5 py-1.5 rounded-lg border border-teal-300 text-xs bg-white">
+            </div>
+            <div>
+              <label class="block font-semibold text-teal-950 text-[11px] mb-0.5">Opsi B <span class="text-red-500">*</span></label>
+              <input type="text" id="bank-opsi-b" placeholder="Pilihan jawaban B" class="w-full px-2.5 py-1.5 rounded-lg border border-teal-300 text-xs bg-white">
+            </div>
+            <div>
+              <label class="block font-semibold text-teal-950 text-[11px] mb-0.5">Opsi C <span class="text-red-500">*</span></label>
+              <input type="text" id="bank-opsi-c" placeholder="Pilihan jawaban C" class="w-full px-2.5 py-1.5 rounded-lg border border-teal-300 text-xs bg-white">
+            </div>
+            <div>
+              <label class="block font-semibold text-teal-950 text-[11px] mb-0.5">Opsi D <span class="text-red-500">*</span></label>
+              <input type="text" id="bank-opsi-d" placeholder="Pilihan jawaban D" class="w-full px-2.5 py-1.5 rounded-lg border border-teal-300 text-xs bg-white">
+            </div>
+            <div>
+              <label class="block font-semibold text-teal-950 text-[11px] mb-0.5">Opsi E (Opsional SMA/SMK)</label>
+              <input type="text" id="bank-opsi-e" placeholder="Pilihan jawaban E (opsional)" class="w-full px-2.5 py-1.5 rounded-lg border border-teal-300 text-xs bg-white">
+            </div>
+          </div>
+          <div>
+            <label class="block font-semibold text-teal-950 text-[11px] mb-1">Kunci Jawaban PG yang Benar</label>
+            <select id="bank-kunci-pg" class="w-full px-2.5 py-1.5 rounded-lg border border-teal-300 text-xs bg-white font-bold text-teal-900">
+              <option value="A">Kunci A</option>
+              <option value="B">Kunci B</option>
+              <option value="C">Kunci C</option>
+              <option value="D">Kunci D</option>
+              <option value="E">Kunci E</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Konfigurasi Game Koding (Khusus Jenis Koding Game) -->
+        <div id="wrapper-bank-coding-box" class="hidden p-3.5 bg-indigo-50/70 rounded-xl border border-indigo-200 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-indigo-900 text-xs">🎮 Mode Permainan Koding (SMP)</span>
+            <span class="text-[10px] text-indigo-700 font-medium">Tantangan Algoritma & Berpikir Komputasional</span>
+          </div>
+          <p class="text-xs text-indigo-800">
+            Gunakan <strong>Level Builder Visual</strong> untuk merancang arena robot 2D, rintangan tembok, bintang poin, batas par balok, atau gunakan <strong>AI Generator Level Koding</strong>.
+          </p>
+          <div class="pt-1 flex items-center space-x-2">
+            <button type="button" id="btn-open-coding-builder-from-bank" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5 cursor-pointer">
+              <span>🚀 Buka Level Builder Visual Koding</span>
+            </button>
+            <span id="bank-coding-status-badge" class="text-[11px] text-slate-500 italic">Level preset standar aktif</span>
+          </div>
+          <input type="hidden" id="bank-game-data">
         </div>
 
         <!-- Gambar / Diagram Soal dengan Auto-Kompresi -->
@@ -2279,7 +2347,7 @@
           </div>
         </div>
 
-        <div>
+        <div id="wrapper-bank-kunci-manual">
           <label class="block font-semibold mb-1">Kunci Jawaban Guru</label>
           <textarea id="bank-kunci" rows="2" dir="auto" placeholder="Kunci jawaban acuan penilaian..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm"></textarea>
         </div>
@@ -8751,6 +8819,26 @@
             ? 'bg-red-100 text-red-700'
             : (item.tingkat_kesulitan === 'mudah' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700');
 
+          let badgeJenisClass = 'bg-blue-100 text-blue-700';
+          let badgeJenisLabel = item.jenis || 'ISIAN';
+          if (item.jenis === 'essay') {
+            badgeJenisClass = 'bg-indigo-100 text-indigo-700';
+            badgeJenisLabel = 'ESSAY';
+          } else if (item.jenis === 'pilihan_ganda') {
+            badgeJenisClass = 'bg-teal-100 text-teal-800';
+            badgeJenisLabel = '🔘 PILIHAN GANDA (PG)';
+          } else if (item.jenis === 'koding_game') {
+            badgeJenisClass = 'bg-violet-100 text-violet-800';
+            badgeJenisLabel = '🎮 GAME KODING (SMP)';
+          }
+
+          let gameConfig = null;
+          if (item.jenis === 'koding_game' && item.game_data) {
+            try {
+              gameConfig = typeof item.game_data === 'string' ? JSON.parse(item.game_data) : item.game_data;
+            } catch(e) {}
+          }
+
           card.innerHTML = `
             <div class="flex justify-between items-start gap-2">
               <div class="flex items-center space-x-2 flex-wrap gap-y-1">
@@ -8759,8 +8847,8 @@
                   📂 ${escapeHtml(item.kategori || 'Umum')}
                 </span>
                 ${item.sub_topik ? `<span class="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-medium">${escapeHtml(item.sub_topik)}</span>` : ''}
-                <span class="px-2 py-0.5 rounded-lg ${item.jenis === 'essay' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'} font-semibold text-[10px] uppercase">
-                  ${item.jenis}
+                <span class="px-2 py-0.5 rounded-lg ${badgeJenisClass} font-semibold text-[10px] uppercase">
+                  ${badgeJenisLabel}
                 </span>
                 <span class="px-2 py-0.5 rounded-lg ${diffBadge} font-semibold text-[10px] capitalize">
                   ${item.tingkat_kesulitan || 'Sedang'}
@@ -8783,6 +8871,45 @@
 
             <!-- Teks Pertanyaan -->
             <p class="font-medium text-slate-800 leading-relaxed text-sm" dir="auto">${item.pertanyaan}</p>
+
+            <!-- Khusus Soal Pilihan Ganda: Render Opsi Jawaban -->
+            ${item.jenis === 'pilihan_ganda' ? `
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 p-2.5 bg-teal-50/60 rounded-xl border border-teal-200 text-xs">
+                <div class="${(item.kunci_pg === 'A' || item.kunci_jawaban === 'A') ? 'font-bold text-teal-900 bg-teal-100 px-2 py-1 rounded border border-teal-300' : 'text-slate-700 px-2 py-1'}">
+                  <strong>A.</strong> ${escapeHtml(item.opsi_a || '-')}
+                </div>
+                <div class="${(item.kunci_pg === 'B' || item.kunci_jawaban === 'B') ? 'font-bold text-teal-900 bg-teal-100 px-2 py-1 rounded border border-teal-300' : 'text-slate-700 px-2 py-1'}">
+                  <strong>B.</strong> ${escapeHtml(item.opsi_b || '-')}
+                </div>
+                <div class="${(item.kunci_pg === 'C' || item.kunci_jawaban === 'C') ? 'font-bold text-teal-900 bg-teal-100 px-2 py-1 rounded border border-teal-300' : 'text-slate-700 px-2 py-1'}">
+                  <strong>C.</strong> ${escapeHtml(item.opsi_c || '-')}
+                </div>
+                <div class="${(item.kunci_pg === 'D' || item.kunci_jawaban === 'D') ? 'font-bold text-teal-900 bg-teal-100 px-2 py-1 rounded border border-teal-300' : 'text-slate-700 px-2 py-1'}">
+                  <strong>D.</strong> ${escapeHtml(item.opsi_d || '-')}
+                </div>
+                ${item.opsi_e ? `
+                  <div class="${(item.kunci_pg === 'E' || item.kunci_jawaban === 'E') ? 'font-bold text-teal-900 bg-teal-100 px-2 py-1 rounded border border-teal-300 sm:col-span-2' : 'text-slate-700 px-2 py-1 sm:col-span-2'}">
+                    <strong>E.</strong> ${escapeHtml(item.opsi_e)}
+                  </div>
+                ` : ''}
+              </div>
+            ` : ''}
+
+            <!-- Khusus Game Koding: Render Info Level & Tombol Uji Coba -->
+            ${item.jenis === 'koding_game' ? `
+              <div class="bg-indigo-50/80 border border-indigo-200 p-3 rounded-xl flex items-center justify-between gap-3 flex-wrap">
+                <div class="space-y-0.5">
+                  <div class="flex items-center space-x-2">
+                    <span class="font-bold text-indigo-950 text-xs">🎮 Mode: ${escapeHtml(gameConfig?.subtipe === 'scratch_puzzle' ? 'Teka-Teki Balok Logika' : 'Arena Robot Cilik 2D')}</span>
+                    <span class="px-2 py-0.5 bg-indigo-100 text-indigo-800 text-[10px] font-semibold rounded">Par: ${gameConfig?.par_limit || 6} Balok</span>
+                  </div>
+                  <p class="text-[11px] text-indigo-800">Arena ${gameConfig?.grid_width || 5}x${gameConfig?.grid_height || 5} grid dengan target pencapaian finish & bintang.</p>
+                </div>
+                <button type="button" onclick="previewCodingGameBank(${item.id})" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-sm transition flex items-center space-x-1.5 cursor-pointer text-xs">
+                  <span>🚀 Uji / Buka di Level Builder</span>
+                </button>
+              </div>
+            ` : ''}
 
             <!-- Audio Script / Listening Player -->
             ${item.is_listening && (item.audio_script || item.audio_url) ? `
@@ -8808,9 +8935,15 @@
             ` : ''}
 
             <!-- Kunci Jawaban -->
-            <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-slate-700" dir="auto">
-              <strong class="text-slate-500">Kunci Jawaban Guru:</strong> ${item.kunci_jawaban || '(Kosong)'}
-            </div>
+            ${item.jenis === 'pilihan_ganda' ? `
+              <div class="bg-teal-50 p-2.5 rounded-lg border border-teal-200 text-teal-900" dir="auto">
+                <strong class="text-teal-700">Kunci Jawaban PG:</strong> Pilihan <strong>${escapeHtml(item.kunci_pg || item.kunci_jawaban || 'A')}</strong>
+              </div>
+            ` : (item.jenis === 'koding_game' ? '' : `
+              <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-slate-700" dir="auto">
+                <strong class="text-slate-500">Kunci Jawaban Guru:</strong> ${item.kunci_jawaban || '(Kosong)'}
+              </div>
+            `)}
 
             <!-- Pembahasan Konsep Mendalam -->
             ${item.pembahasan ? `
@@ -8935,12 +9068,37 @@
       });
     }
 
+    function updateBankJenisUI() {
+      const j = document.getElementById('bank-jenis')?.value || 'isian';
+      const wrapperPg = document.getElementById('wrapper-bank-pg-box');
+      const wrapperCoding = document.getElementById('wrapper-bank-coding-box');
+      const wrapperKunci = document.getElementById('wrapper-bank-kunci-manual');
+
+      if (wrapperPg) wrapperPg.classList.toggle('hidden', j !== 'pilihan_ganda');
+      if (wrapperCoding) wrapperCoding.classList.toggle('hidden', j !== 'koding_game');
+      if (wrapperKunci) wrapperKunci.classList.toggle('hidden', j === 'pilihan_ganda' || j === 'koding_game');
+    }
+
+    document.getElementById('bank-jenis')?.addEventListener('change', updateBankJenisUI);
+    document.getElementById('btn-open-coding-builder-from-bank')?.addEventListener('click', () => {
+      modalBankSoal.classList.add('hidden');
+      openCodingGameModal('bank_soal');
+    });
+
     function openCreateBankSoalModal() {
       formBankSoal.reset();
       document.getElementById('bank-soal-id').value = '';
       document.getElementById('modal-bank-soal-title').textContent = 'Tambah Soal Baru ke Bank Soal';
       resetBankGambarForm();
       if (wrapperBankListening) wrapperBankListening.classList.add('hidden');
+      if (document.getElementById('bank-opsi-a')) document.getElementById('bank-opsi-a').value = '';
+      if (document.getElementById('bank-opsi-b')) document.getElementById('bank-opsi-b').value = '';
+      if (document.getElementById('bank-opsi-c')) document.getElementById('bank-opsi-c').value = '';
+      if (document.getElementById('bank-opsi-d')) document.getElementById('bank-opsi-d').value = '';
+      if (document.getElementById('bank-opsi-e')) document.getElementById('bank-opsi-e').value = '';
+      if (document.getElementById('bank-kunci-pg')) document.getElementById('bank-kunci-pg').value = 'A';
+      if (document.getElementById('bank-game-data')) document.getElementById('bank-game-data').value = '';
+      updateBankJenisUI();
       modalBankSoal.classList.remove('hidden');
     }
 
@@ -8948,14 +9106,20 @@
     document.getElementById('btn-close-modal-bank-soal')?.addEventListener('click', () => modalBankSoal.classList.add('hidden'));
     document.getElementById('btn-cancel-modal-bank-soal')?.addEventListener('click', () => modalBankSoal.classList.add('hidden'));
 
+    // Tombol toolbar Bank Soal: Buat PG AI & Game Koding langsung ke Bank Soal
+    document.getElementById('btn-open-ai-pg-bank')?.addEventListener('click', () => openAiPgGeneratorModal('bank_soal'));
+    document.getElementById('btn-open-coding-game-bank')?.addEventListener('click', () => openCodingGameModal('bank_soal'));
+
     if (formBankSoal) {
       formBankSoal.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = document.getElementById('bank-soal-id').value;
+        const jenis = document.getElementById('bank-jenis').value;
+
         const payload = {
           kategori: document.getElementById('bank-kategori').value.trim(),
           sub_topik: document.getElementById('bank-sub-topik').value.trim() || null,
-          jenis: document.getElementById('bank-jenis').value,
+          jenis: jenis,
           tingkat_kesulitan: document.getElementById('bank-kesulitan').value,
           bobot_standar: Number(document.getElementById('bank-bobot').value) || 10,
           pertanyaan: document.getElementById('bank-pertanyaan').value.trim(),
@@ -8968,6 +9132,25 @@
           audio_url: inputBankAudioUrl?.value?.trim() || null,
           gambar_url: inputBankGambarUrl?.value?.trim() || null
         };
+
+        if (jenis === 'pilihan_ganda') {
+          payload.opsi_a = document.getElementById('bank-opsi-a')?.value?.trim();
+          payload.opsi_b = document.getElementById('bank-opsi-b')?.value?.trim();
+          payload.opsi_c = document.getElementById('bank-opsi-c')?.value?.trim();
+          payload.opsi_d = document.getElementById('bank-opsi-d')?.value?.trim();
+          payload.opsi_e = document.getElementById('bank-opsi-e')?.value?.trim() || null;
+          payload.kunci_pg = document.getElementById('bank-kunci-pg')?.value || 'A';
+          payload.kunci_jawaban = payload.kunci_pg;
+
+          if (!payload.opsi_a || !payload.opsi_b || !payload.opsi_c || !payload.opsi_d) {
+            alert('Untuk soal Pilihan Ganda, opsi A sampai D wajib diisi!');
+            return;
+          }
+        } else if (jenis === 'koding_game') {
+          const gData = document.getElementById('bank-game-data')?.value;
+          payload.game_data = gData || (typeof cgCurrentConfig === 'object' ? JSON.stringify(cgCurrentConfig) : null);
+          payload.kunci_jawaban = 'Menyelesaikan misi koding dengan balok efisien';
+        }
 
         const method = id ? 'PUT' : 'POST';
         const url = id ? `/api/guru/bank-soal/${id}` : '/api/guru/bank-soal';
@@ -9010,6 +9193,16 @@
         document.getElementById('bank-rubrik').value = item.rubrik || '';
         document.getElementById('bank-pembahasan').value = item.pembahasan || '';
 
+        // Opsi PG & Koding Game
+        if (document.getElementById('bank-opsi-a')) document.getElementById('bank-opsi-a').value = item.opsi_a || '';
+        if (document.getElementById('bank-opsi-b')) document.getElementById('bank-opsi-b').value = item.opsi_b || '';
+        if (document.getElementById('bank-opsi-c')) document.getElementById('bank-opsi-c').value = item.opsi_c || '';
+        if (document.getElementById('bank-opsi-d')) document.getElementById('bank-opsi-d').value = item.opsi_d || '';
+        if (document.getElementById('bank-opsi-e')) document.getElementById('bank-opsi-e').value = item.opsi_e || '';
+        if (document.getElementById('bank-kunci-pg')) document.getElementById('bank-kunci-pg').value = item.kunci_pg || 'A';
+        if (document.getElementById('bank-game-data')) document.getElementById('bank-game-data').value = item.game_data || '';
+        updateBankJenisUI();
+
         resetBankGambarForm();
         if (item.gambar_url) {
           inputBankGambarUrl.value = item.gambar_url;
@@ -9027,6 +9220,33 @@
         modalBankSoal.classList.remove('hidden');
       } catch (err) {
         alert('Error: ' + err.message);
+      }
+    };
+
+    // Helper untuk buka/uji coba level Game Koding dari Bank Soal di modal builder
+    window.previewCodingGameBank = (soalId) => {
+      const soal = bankSoalCache.find(s => Number(s.id) === Number(soalId));
+      if (!soal || !soal.game_data) {
+        alert('Data level game koding tidak ditemukan pada butir soal ini.');
+        return;
+      }
+      try {
+        const data = typeof soal.game_data === 'string' ? JSON.parse(soal.game_data) : soal.game_data;
+        cgCurrentConfig = data;
+        const qInput = document.getElementById('cg-edit-pertanyaan');
+        const bInput = document.getElementById('cg-edit-bobot');
+        const dInput = document.getElementById('cg-edit-kesulitan');
+        const pInput = document.getElementById('cg-par-limit');
+        if (qInput) qInput.value = soal.pertanyaan || '';
+        if (bInput) bInput.value = soal.bobot_standar || 20;
+        if (dInput) dInput.value = soal.tingkat_kesulitan || 'sedang';
+        if (pInput) pInput.value = data.par_limit || 6;
+        cgSimBlocks = data.initial_blocks ? JSON.parse(JSON.stringify(data.initial_blocks)) : [];
+
+        openCodingGameModal('bank_soal');
+        switchCgTab('editor');
+      } catch (e) {
+        alert('Format data game koding tidak valid: ' + e.message);
       }
     };
 
@@ -11876,19 +12096,33 @@
     const aiPgItemsList = document.getElementById('ai-pg-items-list');
 
     let generatedAiPgList = [];
+    let aiPgTarget = 'ulangan'; // 'ulangan' | 'bank_soal'
 
-    function openAiPgGeneratorModal() {
-      if (!activeUlanganId) {
-        alert('Pilih paket ulangan terlebih dahulu sebelum membuat soal PG AI!');
-        return;
-      }
-      modalAiPgGenerator.classList.remove('hidden');
-      if (aiPgTopik && activeUlanganData) {
-        aiPgTopik.value = `${activeUlanganData.mata_pelajaran || ''} - ${activeUlanganData.judul || ''}`.trim();
+    function openAiPgGeneratorModal(target = 'ulangan') {
+      aiPgTarget = target || 'ulangan';
+      const btnSave = document.getElementById('btn-save-selected-ai-pg');
+
+      if (aiPgTarget === 'bank_soal') {
+        modalAiPgGenerator.classList.remove('hidden');
+        if (aiPgTopik) {
+          const cat = document.getElementById('bank-filter-kategori')?.value;
+          aiPgTopik.value = (cat && cat !== 'all') ? cat : 'Informatika & Pemrograman';
+        }
+        if (btnSave) btnSave.innerHTML = '<span>💾 Simpan Soal ke Bank Soal</span>';
+      } else {
+        if (!activeUlanganId) {
+          alert('Pilih paket ulangan terlebih dahulu sebelum membuat soal PG AI!');
+          return;
+        }
+        modalAiPgGenerator.classList.remove('hidden');
+        if (aiPgTopik && activeUlanganData) {
+          aiPgTopik.value = `${activeUlanganData.mata_pelajaran || ''} - ${activeUlanganData.judul || ''}`.trim();
+        }
+        if (btnSave) btnSave.innerHTML = '<span>💾 Masukkan Soal ke Ulangan</span>';
       }
     }
 
-    if (btnOpenAiPgGenerator) btnOpenAiPgGenerator.onclick = openAiPgGeneratorModal;
+    if (btnOpenAiPgGenerator) btnOpenAiPgGenerator.onclick = () => openAiPgGeneratorModal('ulangan');
     if (btnCloseAiPgModal) btnCloseAiPgModal.onclick = () => modalAiPgGenerator.classList.add('hidden');
 
     if (formGenerateAiPg) {
@@ -11911,7 +12145,7 @@
             instruksi_tambahan: aiPgInstruksi?.value?.trim() || ''
           };
 
-          const res = await guruFetch('/api/guru/ulangan/generate-pg-ai', {
+          const res = await guruFetch('/api/guru/generate-pg-ai', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -11919,7 +12153,7 @@
           const json = await res.json();
           if (!res.ok || !json.success) throw new Error(json.message || 'Gagal menghasilkan soal');
 
-          generatedAiPgList = json.data || [];
+          generatedAiPgList = json.questions || json.data || [];
           renderAiPgPreview();
         } catch (err) {
           alert('Error Generator AI: ' + err.message);
@@ -11982,10 +12216,63 @@
 
     if (btnSaveSelectedAiPg) {
       btnSaveSelectedAiPg.onclick = async () => {
-        if (!activeUlanganId) return;
         const checkedBoxes = Array.from(document.querySelectorAll('.chk-ai-pg:checked'));
         if (checkedBoxes.length === 0) {
-          alert('Pilih minimal 1 butir soal untuk dimasukkan ke ulangan.');
+          alert('Pilih minimal 1 butir soal untuk disimpan.');
+          return;
+        }
+
+        const selectedQuestions = checkedBoxes.map(cb => generatedAiPgList[Number(cb.value)]).filter(Boolean);
+
+        // Jika Target adalah Bank Soal Mandiri:
+        if (aiPgTarget === 'bank_soal') {
+          btnSaveSelectedAiPg.disabled = true;
+          btnSaveSelectedAiPg.textContent = 'Menyimpan ke Bank Soal...';
+
+          try {
+            const defaultKategori = aiPgTopik?.value?.trim() || 'Umum';
+            const bulkPayload = selectedQuestions.map(q => ({
+              kategori: q.kategori || defaultKategori,
+              sub_topik: null,
+              tingkat_kelas: 'SMP',
+              jenis: 'pilihan_ganda',
+              pertanyaan: q.pertanyaan,
+              kunci_jawaban: q.kunci_pg,
+              pembahasan: q.pembahasan || null,
+              tingkat_kesulitan: q.tingkat_kesulitan || 'sedang',
+              bobot_standar: Number(q.bobot || 10),
+              opsi_a: q.opsi_a,
+              opsi_b: q.opsi_b,
+              opsi_c: q.opsi_c,
+              opsi_d: q.opsi_d,
+              opsi_e: q.opsi_e || null,
+              kunci_pg: q.kunci_pg
+            }));
+
+            const res = await guruFetch('/api/guru/bank-soal/bulk', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ soal: bulkPayload })
+            });
+            const json = await res.json();
+            if (!res.ok || !json.success) throw new Error(json.message || 'Gagal menyimpan ke Bank Soal');
+
+            alert(`🎉 Sukses menyimpan ${bulkPayload.length} butir soal PG ke Bank Soal Mandiri!`);
+            modalAiPgGenerator.classList.add('hidden');
+            await loadBankCategories();
+            await loadBankSoal();
+          } catch (err) {
+            alert('Error menyimpan ke Bank Soal: ' + err.message);
+          } finally {
+            btnSaveSelectedAiPg.disabled = false;
+            btnSaveSelectedAiPg.innerHTML = '<span>💾 Simpan Soal ke Bank Soal</span>';
+          }
+          return;
+        }
+
+        // Jika Target adalah Paket Ulangan Aktif:
+        if (!activeUlanganId) {
+          alert('Pilih paket ulangan terlebih dahulu.');
           return;
         }
 
@@ -11993,7 +12280,6 @@
         btnSaveSelectedAiPg.textContent = 'Menyimpan ke Ulangan...';
 
         try {
-          const selectedQuestions = checkedBoxes.map(cb => generatedAiPgList[Number(cb.value)]).filter(Boolean);
           for (const q of selectedQuestions) {
             const payload = {
               jenis: 'pilihan_ganda',
@@ -12025,7 +12311,7 @@
           alert('Error menyimpan soal: ' + err.message);
         } finally {
           btnSaveSelectedAiPg.disabled = false;
-          btnSaveSelectedAiPg.textContent = '💾 Masukkan Soal ke Ulangan';
+          btnSaveSelectedAiPg.innerHTML = '<span>💾 Masukkan Soal ke Ulangan</span>';
         }
       };
     }
@@ -12067,11 +12353,20 @@
     let cgSimBlocks = [];
     let cgSimStepIndex = 0;
     let cgSimRunning = false;
+    let cgTarget = 'ulangan'; // 'ulangan' | 'bank_soal'
 
-    function openCodingGameModal() {
-      if (!activeUlanganId) {
-        alert('Silakan pilih atau buka salah satu ulangan terlebih dahulu sebelum merancang game koding.');
-        return;
+    function openCodingGameModal(target = 'ulangan') {
+      cgTarget = target || 'ulangan';
+      const btnSave = document.getElementById('btn-cg-save-to-exam');
+
+      if (cgTarget === 'bank_soal') {
+        if (btnSave) btnSave.innerHTML = '<span>💾 Simpan ke Bank Soal</span>';
+      } else {
+        if (!activeUlanganId) {
+          alert('Silakan pilih atau buka salah satu ulangan terlebih dahulu sebelum merancang game koding.');
+          return;
+        }
+        if (btnSave) btnSave.innerHTML = '<span>💾 Simpan sebagai Butir Soal Ulangan</span>';
       }
       modalCodingGameBuilder.classList.remove('hidden');
       switchCgTab('preset');
@@ -12084,7 +12379,7 @@
     }
 
     if (btnOpenCodingGameBuilder) {
-      btnOpenCodingGameBuilder.onclick = openCodingGameModal;
+      btnOpenCodingGameBuilder.onclick = () => openCodingGameModal('ulangan');
     }
     if (btnCloseCodingGameBuilder) {
       btnCloseCodingGameBuilder.onclick = closeCodingGameModal;
@@ -12760,13 +13055,8 @@
       };
     }
 
-    // Save Coding Game as Question to Active Exam
+    // Save Coding Game as Question to Active Exam or Bank Soal
     async function saveCodingGameToExam() {
-      if (!activeUlanganId) {
-        alert('Ulangan belum dipilih.');
-        return;
-      }
-
       const pertanyaan = document.getElementById('cg-edit-pertanyaan').value.trim();
       if (!pertanyaan) {
         alert('Teks pertanyaan / misi tantangan wajib diisi.');
@@ -12779,6 +13069,52 @@
 
       const btnSave = document.getElementById('btn-cg-save-to-exam');
       btnSave.disabled = true;
+
+      // Jika Target adalah Bank Soal Mandiri:
+      if (cgTarget === 'bank_soal') {
+        btnSave.textContent = 'Menyimpan ke Bank Soal...';
+        try {
+          const payload = {
+            kategori: document.getElementById('cg-ai-tema')?.value?.trim() || 'Informatika & Pemrograman',
+            sub_topik: `Misi ${cgCurrentConfig.subtipe === 'scratch_puzzle' ? 'Balok Logika' : 'Robot Grid'}`,
+            tingkat_kelas: 'SMP',
+            jenis: 'koding_game',
+            tingkat_kesulitan: kesulitan,
+            bobot_standar: bobot,
+            pertanyaan: pertanyaan,
+            kunci_jawaban: 'Menyelesaikan misi koding dengan balok efisien',
+            game_data: JSON.stringify(cgCurrentConfig),
+            pembahasan: `Misi koding logika berpikir komputasional dengan batas par ${cgCurrentConfig.par_limit} balok.`
+          };
+
+          const res = await guruFetch('/api/guru/bank-soal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const json = await res.json();
+          if (!res.ok || !json.success) throw new Error(json.message || 'Gagal menyimpan ke Bank Soal');
+
+          alert('🎉 Butir Soal Game Koding berhasil disimpan ke Bank Soal Mandiri!');
+          closeCodingGameModal();
+          await loadBankCategories();
+          await loadBankSoal();
+        } catch (err) {
+          alert('Error menyimpan ke Bank Soal: ' + err.message);
+        } finally {
+          btnSave.disabled = false;
+          btnSave.innerHTML = '<span>💾 Simpan ke Bank Soal</span>';
+        }
+        return;
+      }
+
+      // Jika Target adalah Ulangan Aktif:
+      if (!activeUlanganId) {
+        alert('Ulangan belum dipilih.');
+        btnSave.disabled = false;
+        return;
+      }
+
       btnSave.textContent = 'Menyimpan ke Ulangan...';
 
       try {

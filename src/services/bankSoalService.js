@@ -12,7 +12,7 @@ const bankSoalService = {
       params.push(filters.kategori.trim());
     }
 
-    if (filters.jenis && ['isian', 'essay'].includes(filters.jenis)) {
+    if (filters.jenis && ['isian', 'essay', 'pilihan_ganda', 'koding_game'].includes(filters.jenis)) {
       query += ' AND jenis = ?';
       params.push(filters.jenis);
     }
@@ -64,14 +64,15 @@ const bankSoalService = {
     const {
       kategori, sub_topik, tingkat_kelas, jenis, pertanyaan,
       kunci_jawaban, rubrik, pembahasan, tingkat_kesulitan,
-      bobot_standar, gambar_url, audio_url, audio_script, is_listening, bahasa
+      bobot_standar, gambar_url, audio_url, audio_script, is_listening, bahasa,
+      opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_pg, game_data
     } = data;
 
     if (!pertanyaan || !pertanyaan.trim()) {
       throw new Error('Pertanyaan wajib diisi');
     }
 
-    const cleanJenis = jenis === 'isian' ? 'isian' : 'essay';
+    const cleanJenis = ['isian', 'essay', 'pilihan_ganda', 'koding_game'].includes(jenis) ? jenis : 'essay';
     const cleanKategori = (kategori && kategori.trim()) ? kategori.trim() : 'Umum';
     const cleanKesulitan = ['mudah', 'sedang', 'sulit'].includes(tingkat_kesulitan) ? tingkat_kesulitan : 'sedang';
     const cleanBobot = (bobot_standar !== undefined && bobot_standar !== null && Number(bobot_standar) > 0) ? Number(bobot_standar) : 10;
@@ -79,13 +80,17 @@ const bankSoalService = {
     const cleanTampilkanTeks = (data.tampilkan_teks_listening !== undefined && data.tampilkan_teks_listening !== null && data.tampilkan_teks_listening !== '')
       ? (data.tampilkan_teks_listening ? 1 : 0)
       : 0;
+    const cleanKunciPg = kunci_pg ? String(kunci_pg).toUpperCase().trim() : (cleanJenis === 'pilihan_ganda' ? 'A' : null);
+    const cleanKunciJawaban = (cleanJenis === 'pilihan_ganda') ? (kunci_jawaban || cleanKunciPg) : (kunci_jawaban || null);
+    const cleanGameData = game_data ? (typeof game_data === 'string' ? game_data : JSON.stringify(game_data)) : null;
 
     const stmt = db.prepare(`
       INSERT INTO bank_soal (
         guru_id, kategori, sub_topik, tingkat_kelas, jenis,
         pertanyaan, kunci_jawaban, rubrik, pembahasan, tingkat_kesulitan,
-        bobot_standar, gambar_url, audio_url, audio_script, is_listening, bahasa, tampilkan_teks_listening
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        bobot_standar, gambar_url, audio_url, audio_script, is_listening, bahasa, tampilkan_teks_listening,
+        opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_pg, game_data
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const info = stmt.run(
@@ -95,7 +100,7 @@ const bankSoalService = {
       tingkat_kelas || null,
       cleanJenis,
       pertanyaan.trim(),
-      kunci_jawaban || null,
+      cleanKunciJawaban,
       rubrik || null,
       pembahasan || null,
       cleanKesulitan,
@@ -105,7 +110,14 @@ const bankSoalService = {
       audio_script || null,
       cleanListening,
       bahasa || null,
-      cleanTampilkanTeks
+      cleanTampilkanTeks,
+      opsi_a ? String(opsi_a).trim() : null,
+      opsi_b ? String(opsi_b).trim() : null,
+      opsi_c ? String(opsi_c).trim() : null,
+      opsi_d ? String(opsi_d).trim() : null,
+      opsi_e ? String(opsi_e).trim() : null,
+      cleanKunciPg,
+      cleanGameData
     );
 
     db.syncCloud();
@@ -138,7 +150,9 @@ const bankSoalService = {
     if (data.sub_topik !== undefined) { updates.push('sub_topik = ?'); params.push(data.sub_topik ? data.sub_topik.trim() : null); }
     if (data.tingkat_kelas !== undefined) { updates.push('tingkat_kelas = ?'); params.push(data.tingkat_kelas ? data.tingkat_kelas.trim() : null); }
     if (data.jenis !== undefined) {
-      if (!['isian', 'essay'].includes(data.jenis)) throw new Error('Jenis soal harus isian atau essay');
+      if (!['isian', 'essay', 'pilihan_ganda', 'koding_game'].includes(data.jenis)) {
+        throw new Error('Jenis soal harus isian, essay, pilihan_ganda, atau koding_game');
+      }
       updates.push('jenis = ?'); params.push(data.jenis);
     }
     if (data.pertanyaan !== undefined) {
@@ -164,6 +178,16 @@ const bankSoalService = {
     if (data.tampilkan_teks_listening !== undefined) {
       updates.push('tampilkan_teks_listening = ?');
       params.push(data.tampilkan_teks_listening ? 1 : 0);
+    }
+    if (data.opsi_a !== undefined) { updates.push('opsi_a = ?'); params.push(data.opsi_a ? String(data.opsi_a).trim() : null); }
+    if (data.opsi_b !== undefined) { updates.push('opsi_b = ?'); params.push(data.opsi_b ? String(data.opsi_b).trim() : null); }
+    if (data.opsi_c !== undefined) { updates.push('opsi_c = ?'); params.push(data.opsi_c ? String(data.opsi_c).trim() : null); }
+    if (data.opsi_d !== undefined) { updates.push('opsi_d = ?'); params.push(data.opsi_d ? String(data.opsi_d).trim() : null); }
+    if (data.opsi_e !== undefined) { updates.push('opsi_e = ?'); params.push(data.opsi_e ? String(data.opsi_e).trim() : null); }
+    if (data.kunci_pg !== undefined) { updates.push('kunci_pg = ?'); params.push(data.kunci_pg ? String(data.kunci_pg).toUpperCase().trim() : null); }
+    if (data.game_data !== undefined) {
+      const gd = data.game_data ? (typeof data.game_data === 'string' ? data.game_data : JSON.stringify(data.game_data)) : null;
+      updates.push('game_data = ?'); params.push(gd);
     }
 
     if (updates.length === 0) return existing;
@@ -231,7 +255,14 @@ const bankSoalService = {
       audio_script: row.audio_script,
       is_listening: row.is_listening,
       bahasa: row.bahasa,
-      tampilkan_teks_listening: row.tampilkan_teks_listening
+      tampilkan_teks_listening: row.tampilkan_teks_listening,
+      opsi_a: row.opsi_a,
+      opsi_b: row.opsi_b,
+      opsi_c: row.opsi_c,
+      opsi_d: row.opsi_d,
+      opsi_e: row.opsi_e,
+      kunci_pg: row.kunci_pg,
+      game_data: row.game_data
     });
   },
 
@@ -294,7 +325,14 @@ const bankSoalService = {
         audio_script: row.audio_script,
         is_listening: row.is_listening,
         bahasa: row.bahasa,
-        tampilkan_teks_listening: row.tampilkan_teks_listening
+        tampilkan_teks_listening: row.tampilkan_teks_listening,
+        opsi_a: row.opsi_a,
+        opsi_b: row.opsi_b,
+        opsi_c: row.opsi_c,
+        opsi_d: row.opsi_d,
+        opsi_e: row.opsi_e,
+        kunci_pg: row.kunci_pg,
+        game_data: row.game_data
       });
       existingBankMap.set(mapKey, created);
       createdList.push(created);
@@ -352,7 +390,14 @@ const bankSoalService = {
         is_listening: bSoal.is_listening || 0,
         bahasa: bSoal.bahasa || null,
         kategori: bSoal.kategori || null,
-        tampilkan_teks_listening: bSoal.tampilkan_teks_listening
+        tampilkan_teks_listening: bSoal.tampilkan_teks_listening,
+        opsi_a: bSoal.opsi_a || null,
+        opsi_b: bSoal.opsi_b || null,
+        opsi_c: bSoal.opsi_c || null,
+        opsi_d: bSoal.opsi_d || null,
+        opsi_e: bSoal.opsi_e || null,
+        kunci_pg: bSoal.kunci_pg || null,
+        game_data: bSoal.game_data || null
       });
       createdSoalList.push(newSoal);
     }
@@ -369,6 +414,8 @@ const bankSoalService = {
       jumlah_soal,
       jumlah_isian,
       jumlah_essay,
+      jumlah_pg,
+      jumlah_koding,
       tingkat_kesulitan,
       is_listening,
       auto_import
@@ -395,6 +442,8 @@ const bankSoalService = {
 
     const isianPool = pool.filter(q => q.jenis === 'isian');
     const essayPool = pool.filter(q => q.jenis === 'essay');
+    const pgPool = pool.filter(q => q.jenis === 'pilihan_ganda');
+    const codingPool = pool.filter(q => q.jenis === 'koding_game');
 
     const shuffle = (arr) => {
       const res = [...arr];
@@ -409,17 +458,25 @@ const bankSoalService = {
 
     const reqIsian = (jumlah_isian !== undefined && jumlah_isian !== null && jumlah_isian !== '') ? Number(jumlah_isian) : null;
     const reqEssay = (jumlah_essay !== undefined && jumlah_essay !== null && jumlah_essay !== '') ? Number(jumlah_essay) : null;
+    const reqPg = (jumlah_pg !== undefined && jumlah_pg !== null && jumlah_pg !== '') ? Number(jumlah_pg) : null;
+    const reqCoding = (jumlah_koding !== undefined && jumlah_koding !== null && jumlah_koding !== '') ? Number(jumlah_koding) : null;
     const reqTotal = (jumlah_soal !== undefined && jumlah_soal !== null && jumlah_soal !== '') ? Number(jumlah_soal) : null;
 
-    if (reqIsian !== null || reqEssay !== null) {
+    if (reqIsian !== null || reqEssay !== null || reqPg !== null || reqCoding !== null) {
       const takeIsian = Math.min(reqIsian || 0, isianPool.length);
       const takeEssay = Math.min(reqEssay || 0, essayPool.length);
+      const takePg = Math.min(reqPg || 0, pgPool.length);
+      const takeCoding = Math.min(reqCoding || 0, codingPool.length);
 
       const shuffledIsian = shuffle(isianPool);
       const shuffledEssay = shuffle(essayPool);
+      const shuffledPg = shuffle(pgPool);
+      const shuffledCoding = shuffle(codingPool);
 
       selected.push(...shuffledIsian.slice(0, takeIsian));
       selected.push(...shuffledEssay.slice(0, takeEssay));
+      selected.push(...shuffledPg.slice(0, takePg));
+      selected.push(...shuffledCoding.slice(0, takeCoding));
 
       if (reqTotal && selected.length < reqTotal) {
         const remainingIds = new Set(selected.map(s => s.id));

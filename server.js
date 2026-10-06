@@ -1455,27 +1455,41 @@ app.get('/api/guru/ulangan/:id/packages/:name/printable', requireGuru, (req, res
 });
 
 // 4. Generator Soal Pilihan Ganda Berbantuan AI
-app.post('/api/guru/ulangan/generate-pg-ai', requireGuru, async (req, res) => {
+const handleGeneratePgAi = async (req, res) => {
   try {
-    const { topik, tingkatKelas, jumlahSoal, opsiCount, materiTeks, fileBase64, fileName } = req.body || {};
+    const b = req.body || {};
+    const topik = b.topik || b.topic;
+    const tingkatKelas = b.tingkatKelas || b.tingkat_kelas || 'SMP';
+    const jumlahSoal = Number(b.jumlahSoal || b.jumlah_soal) || 10;
+    const opsiCount = Number(b.opsiCount || b.opsi_count) === 5 ? 5 : 4;
+    const materiTeks = b.materiTeks || b.materi_teks || b.instruksi_tambahan || '';
+    const fileBase64 = b.fileBase64 || b.file_base64;
+    const fileName = b.fileName || b.file_name;
+    const tingkatKesulitan = b.tingkatKesulitan || b.tingkat_kesulitan || 'sedang';
+    const bahasa = b.bahasa || 'Bahasa Indonesia';
+
     if (!topik && !materiTeks && !fileBase64) {
       return res.status(400).json({ success: false, message: 'Topik atau materi bacaan wajib diisi' });
     }
     const questions = await geminiService.generateMultipleChoiceQuestions({
       topik: topik || 'Materi Pembelajaran',
-      tingkatKelas: tingkatKelas || 'SMP',
-      jumlahSoal: Number(jumlahSoal) || 10,
-      opsiCount: Number(opsiCount) === 5 ? 5 : 4,
+      tingkatKelas,
+      jumlahSoal,
+      opsiCount,
       materiTeks,
       fileBase64,
-      fileName
+      fileName,
+      tingkatKesulitan,
+      bahasa
     });
-    res.json({ success: true, questions });
+    res.json({ success: true, questions, data: questions });
   } catch (err) {
     console.error('Error generate PG AI:', err);
     res.status(500).json({ success: false, message: err.message });
   }
-});
+};
+app.post('/api/guru/ulangan/generate-pg-ai', requireGuru, handleGeneratePgAi);
+app.post('/api/guru/generate-pg-ai', requireGuru, handleGeneratePgAi);
 
 // 5. Simpan Hasil Scan Kamera OMR Siswa (Client-side / Instant Canvas)
 app.post('/api/guru/ulangan/:id/omr/scan-result', requireGuru, (req, res) => {
