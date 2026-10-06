@@ -17,6 +17,8 @@ const fileParserService = require('./src/services/fileParserService');
 const waitingRoomService = require('./src/services/waitingRoomService');
 const bankSoalService = require('./src/services/bankSoalService');
 const summaryService = require('./src/services/summaryService');
+const packageService = require('./src/services/packageService');
+const omrService = require('./src/services/omrService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1413,6 +1415,111 @@ app.post('/api/guru/rangkuman/:id/generate-broadcast', requireGuru, async (req, 
   } catch (err) {
     console.error('Error generate rangkuman broadcast:', err);
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ==========================================
+// FITUR BARU: MULTI-PAKET & OMR SCANNER LJK
+// ==========================================
+
+// 1. Generate / Regenerate Paket Soal (A, B, C, D)
+app.post('/api/guru/ulangan/:id/packages/generate', requireGuru, (req, res) => {
+  try {
+    const { packageCount } = req.body || {};
+    const result = packageService.generatePackages(req.params.id, { packageCount });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// 2. Ambil Daftar Paket Soal & Kunci Jawaban
+app.get('/api/guru/ulangan/:id/packages', requireGuru, (req, res) => {
+  try {
+    const packages = packageService.getPackagesByUlangan(req.params.id);
+    res.json({ success: true, packages });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// 3. Ambil Naskah Soal Terformat per Paket untuk Dicetak
+app.get('/api/guru/ulangan/:id/packages/:name/printable', requireGuru, (req, res) => {
+  try {
+    const data = packageService.getPrintableQuestionsByPackage(req.params.id, req.params.name);
+    res.json({ success: true, ...data });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// 4. Generator Soal Pilihan Ganda Berbantuan AI
+app.post('/api/guru/ulangan/generate-pg-ai', requireGuru, async (req, res) => {
+  try {
+    const { topik, tingkatKelas, jumlahSoal, opsiCount, materiTeks, fileBase64, fileName } = req.body || {};
+    if (!topik && !materiTeks && !fileBase64) {
+      return res.status(400).json({ success: false, message: 'Topik atau materi bacaan wajib diisi' });
+    }
+    const questions = await geminiService.generateMultipleChoiceQuestions({
+      topik: topik || 'Materi Pembelajaran',
+      tingkatKelas: tingkatKelas || 'SMP',
+      jumlahSoal: Number(jumlahSoal) || 10,
+      opsiCount: Number(opsiCount) === 5 ? 5 : 4,
+      materiTeks,
+      fileBase64,
+      fileName
+    });
+    res.json({ success: true, questions });
+  } catch (err) {
+    console.error('Error generate PG AI:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 5. Simpan Hasil Scan Kamera OMR Siswa (Client-side / Instant Canvas)
+app.post('/api/guru/ulangan/:id/omr/scan-result', requireGuru, (req, res) => {
+  try {
+    const { namaSiswa, kelas, paket, answersMap, imageData } = req.body || {};
+    const result = omrService.saveScannedResult({
+      ulanganId: req.params.id,
+      namaSiswa,
+      kelas,
+      paket: paket || 'A',
+      answersMap: answersMap || {},
+      imageData
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// 6. Evaluasi Gambar LJK via Gemini Vision AI Fallback
+app.post('/api/guru/ulangan/:id/omr/scan-ai', requireGuru, async (req, res) => {
+  try {
+    const { imageBase64, mimeType } = req.body || {};
+    if (!imageBase64) {
+      return res.status(400).json({ success: false, message: 'Data gambar LJK wajib disertakan' });
+    }
+    const result = await omrService.evaluateOmrImageWithAI({
+      ulanganId: req.params.id,
+      imageBase64,
+      mimeType: mimeType || 'image/jpeg'
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('Error OMR AI scan:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 7. Riwayat Scan Log OMR
+app.get('/api/guru/ulangan/:id/omr/logs', requireGuru, (req, res) => {
+  try {
+    const logs = omrService.getScanLogs(req.params.id);
+    res.json({ success: true, logs });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
   }
 });
 

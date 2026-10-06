@@ -53,7 +53,9 @@
 
       /* 2. Hanya tampilkan modal yang sedang aktif dicetak dengan aliran statis murni */
       body > #modal-cetak-soal:not(.hidden),
-      body > #modal-laporan:not(.hidden) {
+      body > #modal-laporan:not(.hidden),
+      body > #modal-cetak-ljk:not(.hidden),
+      body > #modal-cetak-naskah-paket:not(.hidden) {
         display: block !important;
         position: static !important;
         width: 100% !important;
@@ -75,7 +77,9 @@
 
       /* 3. Normalisasi semua pembungkus di dalam modal menjadi block statis bebas scroll */
       #modal-cetak-soal > div,
-      #modal-laporan > div {
+      #modal-laporan > div,
+      #modal-cetak-ljk > div,
+      #modal-cetak-naskah-paket > div {
         display: block !important;
         position: static !important;
         width: 100% !important;
@@ -91,7 +95,9 @@
       }
 
       #modal-cetak-soal > div > div,
-      #modal-laporan > div > div {
+      #modal-laporan > div > div,
+      #modal-cetak-ljk > div > div,
+      #modal-cetak-naskah-paket > div > div {
         display: block !important;
         position: static !important;
         overflow: visible !important;
@@ -106,7 +112,7 @@
         display: none !important;
       }
 
-      #laporan-sheet-container, #cetak-soal-sheet-container {
+      #laporan-sheet-container, #cetak-soal-sheet-container, #cetak-ljk-sheet-container, #cetak-naskah-paket-sheet-container {
         display: block !important;
         position: static !important;
         padding: 0 !important;
@@ -676,6 +682,18 @@
             <div class="flex justify-between items-center flex-wrap gap-2">
               <p class="text-xs text-slate-500">Kunci jawaban & rubrik menjadi acuan utama penilaian semantik AI.</p>
               <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                <button id="btn-open-multi-paket" type="button" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-800 font-bold px-3 py-1.5 rounded-lg border border-indigo-200 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Kelola paket ulangan A, B, C, D dan cetak naskah soal per paket">
+                  <span>🔀 Multi-Paket (A-D)</span>
+                </button>
+                <button id="btn-open-cetak-ljk" type="button" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-lg border border-emerald-200 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Cetak Lembar Jawaban Komputer (LJK) Fisik Standar A4 / 2-per-A4">
+                  <span>📝 Cetak LJK OMR</span>
+                </button>
+                <button id="btn-open-omr-scanner" type="button" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1.5 cursor-pointer" title="Pindai LJK siswa secara otomatis menggunakan kamera HP atau webcam laptop">
+                  <span>📷 Scan LJK Kamera</span>
+                </button>
+                <button id="btn-open-ai-pg-generator" type="button" class="text-xs bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold px-3 py-1.5 rounded-lg border border-teal-200 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Buat butir soal Pilihan Ganda (PG) otomatis dengan bantuan Gemini AI">
+                  <span>✨ Buat PG AI</span>
+                </button>
                 <button id="btn-open-calibrate-weights" type="button" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold px-3 py-1.5 rounded-lg border border-amber-300 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Kalibrasi bobot seluruh butir soal secara adil & seimbang">
                   <span>⚖️ Kalibrasi Bobot</span>
                 </button>
@@ -706,6 +724,7 @@
                   <select id="soal-jenis" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300">
                     <option value="isian">Isian Singkat</option>
                     <option value="essay">Essay</option>
+                    <option value="pilihan_ganda">🔘 Pilihan Ganda (PG / OMR)</option>
                   </select>
                 </div>
                 <div>
@@ -728,6 +747,49 @@
               <div>
                 <label class="block font-semibold mb-1">Pertanyaan</label>
                 <textarea id="soal-pertanyaan" required rows="2" dir="auto" placeholder="Tuliskan pertanyaan soal... Mendukung Arab & Simbol Matematika KaTeX ($x^2$, $\sqrt{n}$)" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm"></textarea>
+              </div>
+
+              <!-- Input Khusus Pilihan Ganda (PG) -->
+              <div id="wrapper-soal-pg" class="hidden p-3.5 bg-blue-50/80 rounded-xl border border-blue-200 space-y-3">
+                <div class="flex justify-between items-center">
+                  <span class="font-bold text-blue-900 text-xs flex items-center space-x-1.5">
+                    <span>🔘</span>
+                    <span>Pilihan Jawaban (A - D / E) & Kunci</span>
+                  </span>
+                  <span class="text-[10px] text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-200">Koreksi Otomatis 0-Token AI</span>
+                </div>
+                <div class="space-y-2">
+                  <div class="flex items-center space-x-2">
+                    <span class="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0">A</span>
+                    <input type="text" id="soal-pg-opsi-a" placeholder="Teks Pilihan A..." class="w-full px-2.5 py-1.5 rounded-lg border border-blue-300 bg-white text-xs">
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <span class="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0">B</span>
+                    <input type="text" id="soal-pg-opsi-b" placeholder="Teks Pilihan B..." class="w-full px-2.5 py-1.5 rounded-lg border border-blue-300 bg-white text-xs">
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <span class="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0">C</span>
+                    <input type="text" id="soal-pg-opsi-c" placeholder="Teks Pilihan C..." class="w-full px-2.5 py-1.5 rounded-lg border border-blue-300 bg-white text-xs">
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <span class="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0">D</span>
+                    <input type="text" id="soal-pg-opsi-d" placeholder="Teks Pilihan D..." class="w-full px-2.5 py-1.5 rounded-lg border border-blue-300 bg-white text-xs">
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <span class="w-6 h-6 rounded-full bg-slate-400 text-white font-bold text-xs flex items-center justify-center shrink-0">E</span>
+                    <input type="text" id="soal-pg-opsi-e" placeholder="Teks Pilihan E (Opsional)..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs">
+                  </div>
+                </div>
+                <div class="flex items-center space-x-3 pt-1 border-t border-blue-200">
+                  <label class="font-bold text-blue-900 text-xs">Kunci Jawaban Benar:</label>
+                  <select id="soal-pg-kunci" class="px-3 py-1 rounded-lg border border-blue-300 bg-white font-bold text-blue-700 text-xs cursor-pointer">
+                    <option value="A">Pilihan A</option>
+                    <option value="B">Pilihan B</option>
+                    <option value="C">Pilihan C</option>
+                    <option value="D">Pilihan D</option>
+                    <option value="E">Pilihan E</option>
+                  </select>
+                </div>
               </div>
 
               <!-- Gambar / Diagram Soal (Opsional) -->
@@ -755,11 +817,11 @@
                 </div>
               </div>
 
-              <div>
+              <div id="box-soal-kunci-isian">
                 <label class="block font-semibold mb-1">Kunci Jawaban Guru</label>
                 <textarea id="soal-kunci" rows="2" dir="auto" placeholder="Kunci jawaban acuan (Mendukung teks Arab, Inggris, Indonesia)..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm"></textarea>
               </div>
-              <div>
+              <div id="box-soal-rubrik-isian">
                 <label class="block font-semibold mb-1">Rubrik Penilaian (Opsional)</label>
                 <input type="text" id="soal-rubrik" dir="auto" placeholder="Pedoman penilaian parsial..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-sm">
               </div>
@@ -2837,6 +2899,457 @@
           </button>
         </div>
       </div>
+  <!-- Modal Multi-Paket Soal (A, B, C, D) -->
+  <div id="modal-multi-paket" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-4xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 my-auto max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm sm:text-base flex items-center space-x-2">
+            <span>🔀</span>
+            <span>Pengacak Naskah Multi-Paket (A, B, C, D)</span>
+          </h3>
+          <p class="text-[11px] sm:text-xs text-slate-500">Cegah siswa menyontek dengan menghasilkan 1–4 variasi paket soal acak lengkap dengan kunci jawaban otomatis.</p>
+        </div>
+        <button type="button" id="btn-close-multi-paket-modal" class="text-slate-400 hover:text-slate-600 text-xl font-bold p-1">&times;</button>
+      </div>
+
+      <!-- Generator Toolbar Form -->
+      <div class="p-3.5 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-3 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+          <div>
+            <label class="block font-bold text-indigo-950 mb-1">Jumlah Paket:</label>
+            <select id="select-multi-paket-count" class="w-full px-3 py-1.5 rounded-lg border border-indigo-300 bg-white font-semibold text-slate-800">
+              <option value="2">2 Paket (Paket A, Paket B)</option>
+              <option value="3">3 Paket (Paket A, B, C)</option>
+              <option value="4" selected>4 Paket (Paket A, B, C, D)</option>
+              <option value="1">1 Paket Saja (Paket A Tunggal)</option>
+            </select>
+          </div>
+          <div class="space-y-1">
+            <label class="flex items-center space-x-1.5 cursor-pointer font-medium text-indigo-900 select-none">
+              <input type="checkbox" id="chk-acak-opsi-pg" checked class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+              <span>Acak Urutan Pilihan Ganda (A-D)</span>
+            </label>
+            <p class="text-[10px] text-indigo-700">Opsi jawaban juga diputar posisinya per paket</p>
+          </div>
+          <div class="flex justify-end">
+            <button type="button" id="btn-generate-multi-paket" class="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold rounded-xl shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer">
+              <span>⚡ Generate / Acak Ulang</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Container Preview Paket & Kunci Jawaban -->
+      <div id="multi-paket-view-container" class="space-y-4">
+        <div class="flex items-center justify-between flex-wrap gap-2 border-b border-slate-200 pb-2">
+          <!-- Paket Tab Buttons -->
+          <div id="multi-paket-tabs-container" class="flex space-x-1 sm:space-x-2">
+            <!-- Will be dynamically populated with buttons for Paket A, B, C, D -->
+          </div>
+          <!-- Action Buttons for Selected Package -->
+          <div class="flex items-center space-x-2">
+            <button type="button" id="btn-print-package-soal" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5 cursor-pointer">
+              <span>🖨️ Cetak Naskah Paket Ini</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Detail Paket Aktif: Info & Matriks Soal -->
+        <div id="multi-paket-detail-box" class="space-y-3">
+          <!-- Content dynamically rendered -->
+        </div>
+
+        <!-- Tabel Perbandingan Kunci Jawaban Side-by-Side Seluruh Paket -->
+        <div class="border border-slate-200 rounded-xl overflow-hidden">
+          <div class="bg-slate-100 p-2.5 font-bold text-xs text-slate-800 flex justify-between items-center">
+            <span>📋 Matriks Kunci Jawaban Lengkap (Contekan Resmi Guru)</span>
+            <span class="text-[10px] font-normal text-slate-500">Gunakan untuk koreksi manual cepat jika diperlukan</span>
+          </div>
+          <div class="max-h-60 overflow-y-auto">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-50 text-slate-600 border-b border-slate-200 sticky top-0 font-semibold" id="table-kunci-paket-thead">
+                <!-- Header columns -->
+              </thead>
+              <tbody class="divide-y divide-slate-100 font-mono" id="table-kunci-paket-tbody">
+                <!-- Rows per nomor soal -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-3 border-t border-slate-100 flex justify-end">
+        <button type="button" id="btn-close-multi-paket-footer" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition">
+          Tutup
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Print Naskah Soal Terformat per Paket -->
+  <div id="modal-cetak-naskah-paket" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-4xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 my-auto max-h-[95vh] overflow-y-auto">
+      <div class="no-print flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center space-x-2">
+          <span class="text-xl">🖨️</span>
+          <div>
+            <h3 class="font-bold text-slate-900 text-sm sm:text-base">Pratinjau Cetak Naskah Soal Fisik - <span id="naskah-paket-title-badge" class="text-indigo-600">Paket A</span></h3>
+            <p class="text-[11px] text-slate-500">Format tata letak lembar soal siap cetak di kertas A4 standar</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button type="button" id="btn-do-print-naskah-paket" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer">
+            <span>🖨️ Cetak / Simpan PDF</span>
+          </button>
+          <button type="button" id="btn-close-naskah-paket-modal" class="text-slate-400 hover:text-slate-600 text-xl font-bold p-1">&times;</button>
+        </div>
+      </div>
+
+      <!-- Container Sheet Printable -->
+      <div id="cetak-naskah-paket-sheet-container" class="bg-white text-black p-4 sm:p-6 text-sm">
+        <!-- Will be dynamically populated with Kop, Petunjuk, & Questions -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Cetak Lembar Jawaban Komputer (LJK Fisik OMR) -->
+  <div id="modal-cetak-ljk" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-5xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 my-auto max-h-[96vh] overflow-y-auto">
+      <div class="no-print flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm sm:text-base flex items-center space-x-2">
+            <span>📝</span>
+            <span>Cetak Lembar Jawaban Komputer (LJK OMR Presisi)</span>
+          </h3>
+          <p class="text-[11px] text-slate-500">Desain LJK dengan 4 fiducial anchor hitam sudut untuk pemindaian kamera HP / scanner otomatis.</p>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button type="button" id="btn-do-print-ljk" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer">
+            <span>🖨️ Cetak LJK Sekarang</span>
+          </button>
+          <button type="button" id="btn-close-cetak-ljk-modal" class="text-slate-400 hover:text-slate-600 text-xl font-bold p-1">&times;</button>
+        </div>
+      </div>
+
+      <!-- Toolbar Pengaturan LJK -->
+      <div class="no-print p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-center">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Jumlah Butir Soal:</label>
+            <select id="select-ljk-soal-count" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
+              <option value="20">20 Soal</option>
+              <option value="30">30 Soal</option>
+              <option value="40" selected>40 Soal</option>
+              <option value="50">50 Soal</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Jumlah Pilihan Opsi:</label>
+            <select id="select-ljk-opsi-count" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
+              <option value="4" selected>4 Opsi (A - D)</option>
+              <option value="5">5 Opsi (A - E)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Format Lembar:</label>
+            <select id="select-ljk-layout-mode" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
+              <option value="satu_halaman">1 Lembar Penuh (A4 Tunggal)</option>
+              <option value="hemat_kertas" selected>2 LJK per Kertas A4 (Hemat Kertas 50%)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Label Ulangan di Kop:</label>
+            <input type="text" id="input-ljk-custom-title" placeholder="Nama Ulangan..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white">
+          </div>
+        </div>
+        <div class="flex items-center space-x-4 pt-1 text-[11px] text-slate-600 flex-wrap gap-y-1">
+          <label class="flex items-center space-x-1.5 cursor-pointer">
+            <input type="checkbox" id="chk-ljk-show-nis" checked class="rounded text-emerald-600">
+            <span>Tampilkan Kotak NIS / No. Peserta</span>
+          </label>
+          <label class="flex items-center space-x-1.5 cursor-pointer">
+            <input type="checkbox" id="chk-ljk-show-paket" checked class="rounded text-emerald-600">
+            <span>Tampilkan Bulatan Pilihan Paket (A, B, C, D)</span>
+          </label>
+          <label class="flex items-center space-x-1.5 cursor-pointer">
+            <input type="checkbox" id="chk-ljk-show-ttd" checked class="rounded text-emerald-600">
+            <span>Tampilkan Kolom Tanda Tangan</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Preview Sheet LJK (Dicetak) -->
+      <div id="cetak-ljk-sheet-container" class="bg-white border border-slate-300 rounded-xl p-4 sm:p-6 overflow-x-auto shadow-inner">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal OMR Scanner Kamera Otomatis -->
+  <div id="modal-omr-scanner" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-5xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 my-auto max-h-[96vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center space-x-2">
+          <span class="text-2xl">📷</span>
+          <div>
+            <h3 class="font-bold text-slate-900 text-sm sm:text-base">Scanner LJK Kamera Otomatis (OMR Instant Grader)</h3>
+            <p class="text-[11px] text-slate-500">Arahkan kamera ke lembar jawaban LJK siswa untuk koreksi instan 0-token, atau gunakan AI Vision bila pencahayaan redup.</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-omr-scanner-modal" class="text-slate-400 hover:text-slate-600 text-xl font-bold p-1">&times;</button>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <!-- Kolom Kiri: Kamera & Input Image (6 col) -->
+        <div class="lg:col-span-6 space-y-3">
+          <!-- Viewfinder Box -->
+          <div class="relative bg-slate-900 rounded-2xl overflow-hidden aspect-[3/4] max-h-[380px] flex items-center justify-center border-2 border-slate-800 shadow-md">
+            <!-- Video Feed -->
+            <video id="omr-camera-video" playsinline autoplay muted class="w-full h-full object-cover"></video>
+            <!-- Canvas Processing (Hidden/Overlay) -->
+            <canvas id="omr-camera-canvas" class="hidden"></canvas>
+            <!-- Image Snapshot Preview -->
+            <img id="omr-captured-image" class="hidden w-full h-full object-contain bg-black">
+
+            <!-- 4 Corner Guide Viewfinder Overlay -->
+            <div id="omr-viewfinder-overlay" class="absolute inset-4 pointer-events-none flex flex-col justify-between">
+              <div class="flex justify-between">
+                <div class="w-8 h-8 border-t-4 border-l-4 border-emerald-400 rounded-tl-lg shadow-sm"></div>
+                <div class="w-8 h-8 border-t-4 border-r-4 border-emerald-400 rounded-tr-lg shadow-sm"></div>
+              </div>
+              <div class="text-center">
+                <span class="bg-black/60 backdrop-blur-xs text-white text-[11px] font-semibold px-3 py-1 rounded-full shadow border border-white/20">
+                  Posisikan 4 sudut hitam LJK di dalam batas
+                </span>
+              </div>
+              <div class="flex justify-between">
+                <div class="w-8 h-8 border-b-4 border-l-4 border-emerald-400 rounded-bl-lg shadow-sm"></div>
+                <div class="w-8 h-8 border-b-4 border-r-4 border-emerald-400 rounded-br-lg shadow-sm"></div>
+              </div>
+            </div>
+
+            <!-- Loading Spinner AI -->
+            <div id="omr-ai-spinner" class="hidden absolute inset-0 bg-slate-900/80 backdrop-blur-xs flex flex-col items-center justify-center text-white space-y-2 z-20">
+              <div class="w-10 h-10 border-4 border-teal-400 border-t-transparent rounded-full animate-spin"></div>
+              <p class="text-xs font-bold" id="omr-spinner-label">Memproses Pembacaan LJK...</p>
+            </div>
+          </div>
+
+          <!-- Controls Tombol Kamera & Upload -->
+          <div class="space-y-2 text-xs">
+            <div class="flex items-center space-x-2">
+              <button type="button" id="btn-toggle-omr-camera" class="flex-1 px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl transition flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer">
+                <span id="omr-camera-btn-icon">▶</span>
+                <span id="omr-camera-btn-text">Buka Kamera</span>
+              </button>
+              <button type="button" id="btn-switch-camera" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl border border-slate-300 transition flex items-center space-x-1 cursor-pointer" title="Ganti Kamera Depan/Belakang">
+                <span>🔄</span>
+              </button>
+              <button type="button" id="btn-capture-omr" class="flex-1 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold rounded-xl transition flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer">
+                <span>📸 Pindai Lembar</span>
+              </button>
+            </div>
+
+            <div class="flex items-center space-x-2 pt-1">
+              <label class="flex-1 px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-center text-slate-700 font-medium hover:bg-slate-50 cursor-pointer flex items-center justify-center space-x-1.5 shadow-2xs">
+                <span>📁 Unggah Foto LJK</span>
+                <input type="file" id="input-omr-file" accept="image/*" class="hidden">
+              </label>
+              <button type="button" id="btn-omr-scan-ai" class="flex-1 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold rounded-xl transition flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer" title="Gunakan Gemini Vision AI jika foto buram, kertas miring, atau koreksi pensil samar">
+                <span>✨ Scan AI Vision</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Kolom Kanan: Hasil Pindaian & Evaluasi Nilai (6 col) -->
+        <div class="lg:col-span-6 space-y-3.5">
+          <!-- Form Identitas Siswa & Pilihan Paket -->
+          <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5 text-xs">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Nama Siswa:</label>
+                <div class="relative">
+                  <input type="text" id="omr-student-name" placeholder="Ketik nama atau pilih siswa..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold">
+                </div>
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">NIS / No Peserta:</label>
+                <input type="text" id="omr-student-nis" placeholder="Nomor Induk Siswa..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs">
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-200">
+              <div class="flex items-center space-x-2">
+                <span class="font-bold text-slate-700">Paket Soal:</span>
+                <div class="flex space-x-1" id="omr-paket-picker-box">
+                  <button type="button" data-paket="A" class="btn-omr-paket px-2.5 py-1 rounded-lg border font-bold text-xs bg-indigo-600 text-white border-indigo-600">A</button>
+                  <button type="button" data-paket="B" class="btn-omr-paket px-2.5 py-1 rounded-lg border font-bold text-xs bg-white text-slate-700 border-slate-300">B</button>
+                  <button type="button" data-paket="C" class="btn-omr-paket px-2.5 py-1 rounded-lg border font-bold text-xs bg-white text-slate-700 border-slate-300">C</button>
+                  <button type="button" data-paket="D" class="btn-omr-paket px-2.5 py-1 rounded-lg border font-bold text-xs bg-white text-slate-700 border-slate-300">D</button>
+                </div>
+              </div>
+              <div id="omr-quick-student-select-box" class="w-full sm:w-auto">
+                <select id="omr-select-existing-student" class="w-full px-2 py-1 text-xs rounded-lg border border-slate-300 bg-white">
+                  <option value="">-- Hubungkan dengan Siswa di Kelas --</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Score Summary Box -->
+          <div id="omr-score-card" class="p-3.5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-3 text-xs">
+            <div>
+              <span class="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">Skor Pilihan Ganda (OMR)</span>
+              <div class="flex items-baseline space-x-1.5 mt-0.5">
+                <span id="omr-score-display" class="text-2xl sm:text-3xl font-black text-emerald-700">0</span>
+                <span class="text-xs font-semibold text-slate-500">/ 100</span>
+              </div>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-center text-xs font-bold">
+              <div class="p-1.5 bg-white rounded-lg border border-emerald-200">
+                <span class="block text-[10px] text-emerald-700 font-semibold">Benar</span>
+                <span id="omr-count-benar" class="text-emerald-700 text-sm font-black">0</span>
+              </div>
+              <div class="p-1.5 bg-white rounded-lg border border-rose-200">
+                <span class="block text-[10px] text-rose-700 font-semibold">Salah</span>
+                <span id="omr-count-salah" class="text-rose-700 text-sm font-black">0</span>
+              </div>
+              <div class="p-1.5 bg-white rounded-lg border border-amber-200">
+                <span class="block text-[10px] text-amber-700 font-semibold">Kosong</span>
+                <span id="omr-count-kosong" class="text-amber-700 text-sm font-black">0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Interactive Grid Review Jawaban Siswa -->
+          <div class="border border-slate-200 rounded-xl overflow-hidden text-xs">
+            <div class="bg-slate-100 p-2 font-bold text-slate-700 flex justify-between items-center">
+              <span>Hasil Koreksi per Nomor Butir Soal</span>
+              <span class="text-[10px] font-normal text-slate-500">Klik huruf untuk perbaikan manual bila perlu</span>
+            </div>
+            <div id="omr-answer-matrix-container" class="p-3 max-h-56 overflow-y-auto grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white">
+              <div class="col-span-full py-4 text-center text-slate-400 italic">
+                Arahkan kamera ke lembar LJK atau unggah foto untuk melihat hasil pembacaan.
+              </div>
+            </div>
+          </div>
+
+          <!-- Tombol Simpan Nilai -->
+          <div class="pt-1 flex items-center justify-between gap-2 flex-wrap">
+            <span id="omr-save-status-msg" class="text-[11px] font-semibold text-emerald-700"></span>
+            <button type="button" id="btn-save-omr-result" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer">
+              <span>💾 Simpan Nilai ke Siswa</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Riwayat Pemindaian LJK Guru -->
+      <div class="border-t border-slate-100 pt-3 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+            <span>📑</span>
+            <span>Riwayat Pemindaian LJK Ulangan Ini</span>
+          </span>
+          <button type="button" id="btn-refresh-omr-logs" class="text-[11px] font-semibold text-blue-600 hover:underline cursor-pointer">Perbarui Log</button>
+        </div>
+        <div id="omr-logs-list" class="max-h-36 overflow-y-auto space-y-1 text-xs">
+          <p class="text-[11px] text-slate-400 italic">Belum ada riwayat pemindaian.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal AI Multiple Choice (PG) Generator -->
+  <div id="modal-ai-pg-generator" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 my-auto max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center space-x-2">
+          <span class="text-xl">✨</span>
+          <div>
+            <h3 class="font-bold text-slate-900 text-sm sm:text-base">AI Generator Soal Pilihan Ganda (PG)</h3>
+            <p class="text-[11px] text-slate-500">Buat paket soal PG HOTS dengan pilihan A-D atau A-E, kunci jawaban, dan pembahasan ilmiah secara otomatis.</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-ai-pg-modal" class="text-slate-400 hover:text-slate-600 text-xl font-bold p-1">&times;</button>
+      </div>
+
+      <!-- Form Pengaturan Generator -->
+      <form id="form-generate-ai-pg" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Materi / Topik Pembelajaran:</label>
+          <input type="text" id="ai-pg-topik" required placeholder="Contoh: Termodinamika Fisika SMA, Sistem Ekskresi Biologi, Vocabulary TOEFL..." class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Jumlah Soal:</label>
+            <select id="ai-pg-jumlah" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
+              <option value="5" selected>5 Butir Soal</option>
+              <option value="10">10 Butir Soal</option>
+              <option value="15">15 Butir Soal</option>
+              <option value="20">20 Butir Soal</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Pilihan Opsi:</label>
+            <select id="ai-pg-opsi-count" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
+              <option value="4" selected>4 Opsi (A - D)</option>
+              <option value="5">5 Opsi (A - E)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Tingkat Kesulitan:</label>
+            <select id="ai-pg-kesulitan" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
+              <option value="sedang" selected>🟡 Sedang</option>
+              <option value="mudah">🟢 Mudah</option>
+              <option value="sulit">🔴 Sulit (HOTS)</option>
+              <option value="campuran">⚖️ Campuran Berimbang</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Bahasa Pengantar:</label>
+            <select id="ai-pg-bahasa" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
+              <option value="Bahasa Indonesia" selected>Bahasa Indonesia</option>
+              <option value="Bahasa Inggris">English</option>
+              <option value="Bahasa Arab">العربية</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Instruksi Tambahan (Opsional):</label>
+          <input type="text" id="ai-pg-instruksi" placeholder="Contoh: Fokus pada soal studi kasus kontekstual, jangan buat soal ingatan hafalan semata..." class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs">
+        </div>
+
+        <div class="flex justify-end pt-1">
+          <button type="submit" id="btn-submit-generate-pg" class="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white font-bold rounded-xl transition flex items-center space-x-1.5 shadow-sm cursor-pointer">
+            <span id="btn-generate-pg-icon">⚡</span>
+            <span id="btn-generate-pg-label">Hasilkan Soal PG dengan AI</span>
+          </button>
+        </div>
+      </form>
+
+      <!-- Preview Hasil Generate Soal PG -->
+      <div id="ai-pg-preview-box" class="hidden space-y-3 pt-3 border-t border-slate-200">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <label class="flex items-center space-x-1.5 font-bold text-xs text-slate-800 cursor-pointer select-none">
+            <input type="checkbox" id="chk-select-all-ai-pg" checked class="w-4 h-4 rounded text-teal-600">
+            <span>Pilih Semua Soal Hasil AI (<span id="ai-pg-selected-count">0</span>)</span>
+          </label>
+          <button type="button" id="btn-save-selected-ai-pg" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5 cursor-pointer">
+            <span>💾 Masukkan Soal ke Ulangan</span>
+          </button>
+        </div>
+
+        <div id="ai-pg-items-list" class="space-y-3 max-h-80 overflow-y-auto pr-1">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
     </div>
   </div>
 
@@ -4264,13 +4777,14 @@
           ? 'bg-red-100 text-red-700 border-red-200'
           : (diff === 'mudah' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200');
         const diffLabel = diff === 'sulit' ? '🔴 Sulit' : (diff === 'mudah' ? '🟢 Mudah' : '🟡 Sedang');
+        const isPg = s.jenis === 'pilihan_ganda';
 
         item.innerHTML = `
           <div class="flex justify-between items-start gap-2">
             <div class="flex items-center space-x-2 flex-wrap gap-y-1">
               <input type="checkbox" value="${s.id}" class="chk-exam-soal w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer" onchange="updateExamSoalBulkBar()">
               <span class="font-bold text-slate-700">#${idx + 1}</span>
-              <span class="uppercase text-[10px] font-semibold px-2 py-0.5 rounded ${s.jenis === 'essay' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">${s.jenis}</span>
+              <span class="uppercase text-[10px] font-semibold px-2 py-0.5 rounded ${s.jenis === 'essay' ? 'bg-purple-100 text-purple-700' : (isPg ? 'bg-teal-100 text-teal-800 border border-teal-300' : 'bg-blue-100 text-blue-700')}">${isPg ? 'Pilihan Ganda' : s.jenis}</span>
               <span class="text-[10px] font-semibold px-2 py-0.5 rounded border ${diffBadgeClass} capitalize">${diffLabel}</span>
               <span class="text-slate-400 font-medium">Bobot: <strong>${s.bobot}</strong></span>
               ${s.kategori ? `<span class="bg-purple-100 text-purple-800 text-[10px] font-semibold px-2 py-0.5 rounded">${escapeHtml(s.kategori)}</span>` : ''}
@@ -4285,6 +4799,46 @@
             </div>
           </div>
           <p class="font-medium text-slate-800 leading-relaxed" dir="auto">${s.pertanyaan}</p>
+          ${isPg ? `
+            <div class="p-2.5 bg-blue-50/70 rounded-lg border border-blue-200 text-xs space-y-1.5 my-1.5">
+              <div class="font-semibold text-blue-900 text-[11px] mb-1">Pilihan Jawaban (A-D/E):</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                <div class="flex items-start space-x-1.5 ${s.kunci_pg === 'A' ? 'font-bold text-emerald-800' : 'text-slate-700'}">
+                  <span class="w-4 h-4 rounded-full text-center text-[10px] leading-4 font-bold shrink-0 ${s.kunci_pg === 'A' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}">A</span>
+                  <span>${escapeHtml(s.opsi_a || '-')}</span>
+                </div>
+                <div class="flex items-start space-x-1.5 ${s.kunci_pg === 'B' ? 'font-bold text-emerald-800' : 'text-slate-700'}">
+                  <span class="w-4 h-4 rounded-full text-center text-[10px] leading-4 font-bold shrink-0 ${s.kunci_pg === 'B' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}">B</span>
+                  <span>${escapeHtml(s.opsi_b || '-')}</span>
+                </div>
+                <div class="flex items-start space-x-1.5 ${s.kunci_pg === 'C' ? 'font-bold text-emerald-800' : 'text-slate-700'}">
+                  <span class="w-4 h-4 rounded-full text-center text-[10px] leading-4 font-bold shrink-0 ${s.kunci_pg === 'C' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}">C</span>
+                  <span>${escapeHtml(s.opsi_c || '-')}</span>
+                </div>
+                <div class="flex items-start space-x-1.5 ${s.kunci_pg === 'D' ? 'font-bold text-emerald-800' : 'text-slate-700'}">
+                  <span class="w-4 h-4 rounded-full text-center text-[10px] leading-4 font-bold shrink-0 ${s.kunci_pg === 'D' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}">D</span>
+                  <span>${escapeHtml(s.opsi_d || '-')}</span>
+                </div>
+                ${s.opsi_e ? `
+                <div class="flex items-start space-x-1.5 ${s.kunci_pg === 'E' ? 'font-bold text-emerald-800' : 'text-slate-700'}">
+                  <span class="w-4 h-4 rounded-full text-center text-[10px] leading-4 font-bold shrink-0 ${s.kunci_pg === 'E' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}">E</span>
+                  <span>${escapeHtml(s.opsi_e)}</span>
+                </div>
+                ` : ''}
+              </div>
+            </div>
+            <div class="bg-white p-2 rounded border border-slate-200 text-slate-600 flex items-center justify-between" dir="auto">
+              <div>
+                <strong class="text-slate-500">Kunci Jawaban:</strong>
+                <span class="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-300 ml-1">Pilihan ${s.kunci_pg || s.kunci_jawaban || '-'}</span>
+              </div>
+              <span class="text-[10px] text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 font-semibold">⚡ Koreksi Otomatis</span>
+            </div>
+          ` : `
+            <div class="bg-white p-2 rounded border border-slate-200 text-slate-600" dir="auto">
+              <strong class="text-slate-500">Kunci Acuan:</strong> ${s.kunci_jawaban || '(Kosong - AI akan menilai berdasarkan konsep pertanyaan)'}
+            </div>
+          `}
           ${s.is_listening && (s.audio_script || s.audio_url) ? `
             <div class="bg-amber-50/80 border border-amber-200 rounded-lg p-2.5 text-[11px] space-y-1.5">
               <div class="flex justify-between items-center text-amber-900 font-bold">
@@ -4304,9 +4858,6 @@
               <img src="${s.gambar_url}" alt="Gambar Soal ${idx + 1}" class="max-h-48 max-w-full rounded-lg border border-slate-200 object-contain bg-white">
             </div>
           ` : ''}
-          <div class="bg-white p-2 rounded border border-slate-200 text-slate-600" dir="auto">
-            <strong class="text-slate-500">Kunci Acuan:</strong> ${s.kunci_jawaban || '(Kosong - AI akan menilai berdasarkan konsep pertanyaan)'}
-          </div>
           ${s.pembahasan ? `
             <div class="bg-emerald-50/80 border border-emerald-200 p-2.5 rounded-lg text-emerald-900" dir="auto">
               <strong class="text-emerald-800 block mb-0.5 text-[11px]">💡 Pembahasan Konsep Mendalam:</strong>
@@ -4488,19 +5039,37 @@
     const selSoalJenis = document.getElementById('soal-jenis');
     const selSoalKesulitan = document.getElementById('soal-kesulitan');
     const inpSoalBobot = document.getElementById('soal-bobot');
+    const wrapperSoalPg = document.getElementById('wrapper-soal-pg');
+    const boxSoalKunciIsian = document.getElementById('box-soal-kunci-isian');
+    const boxSoalRubrikIsian = document.getElementById('box-soal-rubrik-isian');
 
     function syncManualSoalBobot() {
       if (!inpSoalBobot || inpSoalBobot.dataset.userModified) return;
       const j = selSoalJenis?.value || 'isian';
       const k = selSoalKesulitan?.value || 'sedang';
-      if (j === 'isian') {
+      if (j === 'pilihan_ganda') {
+        inpSoalBobot.value = k === 'mudah' ? 5 : (k === 'sulit' ? 10 : 5);
+      } else if (j === 'isian') {
         inpSoalBobot.value = k === 'mudah' ? 8 : (k === 'sulit' ? 12 : 10);
       } else {
         inpSoalBobot.value = k === 'mudah' ? 16 : (k === 'sulit' ? 30 : 20);
       }
     }
 
-    if (selSoalJenis) selSoalJenis.addEventListener('change', () => { delete inpSoalBobot?.dataset.userModified; syncManualSoalBobot(); });
+    function toggleFormSoalJenis() {
+      const isPg = selSoalJenis?.value === 'pilihan_ganda';
+      if (wrapperSoalPg) wrapperSoalPg.classList.toggle('hidden', !isPg);
+      if (boxSoalKunciIsian) boxSoalKunciIsian.classList.toggle('hidden', isPg);
+      if (boxSoalRubrikIsian) boxSoalRubrikIsian.classList.toggle('hidden', isPg);
+    }
+
+    if (selSoalJenis) {
+      selSoalJenis.addEventListener('change', () => {
+        delete inpSoalBobot?.dataset.userModified;
+        toggleFormSoalJenis();
+        syncManualSoalBobot();
+      });
+    }
     if (selSoalKesulitan) selSoalKesulitan.addEventListener('change', () => { delete inpSoalBobot?.dataset.userModified; syncManualSoalBobot(); });
     if (inpSoalBobot) inpSoalBobot.addEventListener('input', () => { inpSoalBobot.dataset.userModified = '1'; });
 
@@ -4508,6 +5077,7 @@
       formAddSoal.classList.toggle('hidden');
       if (!formAddSoal.classList.contains('hidden')) {
         delete inpSoalBobot?.dataset.userModified;
+        toggleFormSoalJenis();
         syncManualSoalBobot();
       }
     };
@@ -4519,13 +5089,23 @@
 
     formAddSoal.addEventListener('submit', async (e) => {
       e.preventDefault();
+      const jenisVal = document.getElementById('soal-jenis').value;
+      const isPg = jenisVal === 'pilihan_ganda';
+      const kunciPg = isPg ? (document.getElementById('soal-pg-kunci')?.value || 'A') : null;
+
       const payload = {
-        jenis: document.getElementById('soal-jenis').value,
+        jenis: jenisVal,
         tingkat_kesulitan: document.getElementById('soal-kesulitan')?.value || 'sedang',
         bobot: Number(document.getElementById('soal-bobot').value),
         pertanyaan: document.getElementById('soal-pertanyaan').value.trim(),
-        kunci_jawaban: document.getElementById('soal-kunci').value.trim(),
-        rubrik: document.getElementById('soal-rubrik').value.trim(),
+        kunci_jawaban: isPg ? kunciPg : document.getElementById('soal-kunci').value.trim(),
+        opsi_a: isPg ? (document.getElementById('soal-pg-opsi-a')?.value?.trim() || null) : null,
+        opsi_b: isPg ? (document.getElementById('soal-pg-opsi-b')?.value?.trim() || null) : null,
+        opsi_c: isPg ? (document.getElementById('soal-pg-opsi-c')?.value?.trim() || null) : null,
+        opsi_d: isPg ? (document.getElementById('soal-pg-opsi-d')?.value?.trim() || null) : null,
+        opsi_e: isPg ? (document.getElementById('soal-pg-opsi-e')?.value?.trim() || null) : null,
+        kunci_pg: kunciPg,
+        rubrik: isPg ? '' : document.getElementById('soal-rubrik').value.trim(),
         pembahasan: document.getElementById('soal-pembahasan')?.value?.trim() || null,
         kategori: document.getElementById('soal-kategori')?.value?.trim() || null,
         is_listening: document.getElementById('soal-is-listening')?.checked ? 1 : 0,
@@ -4545,6 +5125,7 @@
         formAddSoal.reset();
         delete inpSoalBobot?.dataset.userModified;
         resetGambarForm();
+        toggleFormSoalJenis();
         if (document.getElementById('soal-tampilkan-teks-listening')) document.getElementById('soal-tampilkan-teks-listening').checked = false;
         if (wrapperSoalListening) wrapperSoalListening.classList.add('hidden');
         formAddSoal.classList.add('hidden');
@@ -10125,6 +10706,1067 @@
 
     if (btnCloseRekapRangkuman) btnCloseRekapRangkuman.addEventListener('click', () => modalRekapRangkuman.classList.add('hidden'));
     if (btnRekapRefresh) btnRekapRefresh.addEventListener('click', () => activeRangkumanId && loadRekapSubmissions(activeRangkumanId));
+
+    // =========================================================================
+    // MODUL 1: PENGACAK MULTI-PAKET SOAL (PAKET A, B, C, D)
+    // =========================================================================
+    const modalMultiPaket = document.getElementById('modal-multi-paket');
+    const btnOpenMultiPaket = document.getElementById('btn-open-multi-paket');
+    const btnCloseMultiPaketModal = document.getElementById('btn-close-multi-paket-modal');
+    const btnCloseMultiPaketFooter = document.getElementById('btn-close-multi-paket-footer');
+    const btnGenerateMultiPaket = document.getElementById('btn-generate-multi-paket');
+    const selectMultiPaketCount = document.getElementById('select-multi-paket-count');
+    const chkAcakOpsiPg = document.getElementById('chk-acak-opsi-pg');
+    const multiPaketTabsContainer = document.getElementById('multi-paket-tabs-container');
+    const multiPaketDetailBox = document.getElementById('multi-paket-detail-box');
+    const btnPrintPackageSoal = document.getElementById('btn-print-package-soal');
+    const tableKunciPaketThead = document.getElementById('table-kunci-paket-thead');
+    const tableKunciPaketTbody = document.getElementById('table-kunci-paket-tbody');
+
+    const modalCetakNaskahPaket = document.getElementById('modal-cetak-naskah-paket');
+    const btnCloseNaskahPaketModal = document.getElementById('btn-close-naskah-paket-modal');
+    const btnDoPrintNaskahPaket = document.getElementById('btn-do-print-naskah-paket');
+    const naskahPaketTitleBadge = document.getElementById('naskah-paket-title-badge');
+    const cetakNaskahPaketSheetContainer = document.getElementById('cetak-naskah-paket-sheet-container');
+
+    let currentPackagesData = [];
+    let activeSelectedPackageName = 'A';
+
+    async function loadMultiPackages() {
+      if (!activeUlanganId) return;
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/packages`);
+        const json = await res.json();
+        if (res.ok && json.success) {
+          currentPackagesData = json.data || [];
+          renderMultiPackagesView();
+        }
+      } catch (err) {
+        console.error('Gagal memuat paket:', err);
+      }
+    }
+
+    function renderMultiPackagesView() {
+      if (!multiPaketTabsContainer || !multiPaketDetailBox) return;
+      multiPaketTabsContainer.innerHTML = '';
+      multiPaketDetailBox.innerHTML = '';
+
+      if (!currentPackagesData || currentPackagesData.length === 0) {
+        multiPaketDetailBox.innerHTML = `
+          <div class="p-6 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-center space-y-2">
+            <p class="text-xs text-slate-500 font-medium">Belum ada paket soal yang digenerate untuk ulangan ini.</p>
+            <p class="text-[11px] text-slate-400">Pilih jumlah paket di atas lalu klik tombol "Generate / Acak Ulang" untuk membuat Paket A, B, C, D.</p>
+          </div>
+        `;
+        tableKunciPaketThead.innerHTML = '';
+        tableKunciPaketTbody.innerHTML = '<tr><td class="p-3 text-center text-slate-400">Belum ada data paket.</td></tr>';
+        return;
+      }
+
+      // Pastikan paket terpilih ada dalam daftar
+      const packageNames = currentPackagesData.map(p => p.nama_paket);
+      if (!packageNames.includes(activeSelectedPackageName)) {
+        activeSelectedPackageName = packageNames[0];
+      }
+
+      // Render Tabs
+      packageNames.forEach(name => {
+        const btn = document.createElement('button');
+        const isActive = name === activeSelectedPackageName;
+        btn.type = 'button';
+        btn.className = `px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+          isActive
+            ? 'bg-indigo-600 text-white shadow-xs'
+            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+        }`;
+        btn.textContent = `Paket ${name}`;
+        btn.onclick = () => {
+          activeSelectedPackageName = name;
+          renderMultiPackagesView();
+        };
+        multiPaketTabsContainer.appendChild(btn);
+      });
+
+      // Render Active Package Detail
+      const currentPkg = currentPackagesData.find(p => p.nama_paket === activeSelectedPackageName) || currentPackagesData[0];
+      const mapping = currentPkg.mapping_soal || [];
+      const keys = currentPkg.kunci_jawaban || {};
+      const totalSoal = mapping.length;
+
+      let keysSummaryHtml = '';
+      mapping.forEach((m, idx) => {
+        const no = idx + 1;
+        const k = keys[no] || '-';
+        keysSummaryHtml += `
+          <div class="p-1.5 bg-white border border-slate-200 rounded-lg text-center font-mono">
+            <span class="text-[10px] text-slate-400 block font-sans">#${no}</span>
+            <span class="font-bold text-indigo-700 text-xs">${k}</span>
+          </div>
+        `;
+      });
+
+      multiPaketDetailBox.innerHTML = `
+        <div class="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
+          <div class="flex justify-between items-center flex-wrap gap-2 text-xs">
+            <div>
+              <span class="font-bold text-slate-800">Paket ${currentPkg.nama_paket}</span>
+              <span class="text-slate-400 ml-1.5">(${totalSoal} butir soal terpetakan)</span>
+            </div>
+            <span class="text-[11px] text-indigo-700 font-semibold bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+              Kunci Jawaban Otomatis Siap Digunakan
+            </span>
+          </div>
+          <div class="grid grid-cols-5 sm:grid-cols-10 gap-1.5 max-h-44 overflow-y-auto p-1">
+            ${keysSummaryHtml}
+          </div>
+        </div>
+      `;
+
+      // Render Side-by-Side Key Matrix Table
+      renderPackageKeyMatrixTable();
+    }
+
+    function renderPackageKeyMatrixTable() {
+      if (!tableKunciPaketThead || !tableKunciPaketTbody || currentPackagesData.length === 0) return;
+      const packageNames = currentPackagesData.map(p => p.nama_paket);
+      const maxQuestions = Math.max(...currentPackagesData.map(p => (p.mapping_soal || []).length));
+
+      let theadHtml = '<tr><th class="p-2 border-r border-slate-200 w-16 text-center">No</th>';
+      packageNames.forEach(name => {
+        theadHtml += `<th class="p-2 text-center text-indigo-900 border-r border-slate-200 last:border-r-0">Paket ${name}</th>`;
+      });
+      theadHtml += '</tr>';
+      tableKunciPaketThead.innerHTML = theadHtml;
+
+      let tbodyHtml = '';
+      for (let i = 1; i <= maxQuestions; i++) {
+        tbodyHtml += `<tr class="hover:bg-slate-50"><td class="p-2 font-bold text-center border-r border-slate-200 text-slate-600">${i}</td>`;
+        packageNames.forEach(name => {
+          const pkg = currentPackagesData.find(p => p.nama_paket === name);
+          const k = pkg && pkg.kunci_jawaban ? (pkg.kunci_jawaban[i] || '-') : '-';
+          tbodyHtml += `<td class="p-2 text-center font-bold text-indigo-700 border-r border-slate-200 last:border-r-0">${k}</td>`;
+        });
+        tbodyHtml += '</tr>';
+      }
+      tableKunciPaketTbody.innerHTML = tbodyHtml;
+    }
+
+    if (btnOpenMultiPaket) {
+      btnOpenMultiPaket.onclick = () => {
+        if (!activeUlanganId) {
+          alert('Pilih paket ulangan aktif terlebih dahulu!');
+          return;
+        }
+        modalMultiPaket.classList.remove('hidden');
+        loadMultiPackages();
+      };
+    }
+
+    if (btnCloseMultiPaketModal) btnCloseMultiPaketModal.onclick = () => modalMultiPaket.classList.add('hidden');
+    if (btnCloseMultiPaketFooter) btnCloseMultiPaketFooter.onclick = () => modalMultiPaket.classList.add('hidden');
+
+    if (btnGenerateMultiPaket) {
+      btnGenerateMultiPaket.onclick = async () => {
+        if (!activeUlanganId) return;
+        const count = Number(selectMultiPaketCount?.value) || 4;
+        const acakOpsi = chkAcakOpsiPg?.checked ? true : false;
+
+        btnGenerateMultiPaket.disabled = true;
+        btnGenerateMultiPaket.innerHTML = '<span class="inline-block animate-spin mr-1">⏳</span><span>Mengacak...</span>';
+
+        try {
+          const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/packages/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jumlah_paket: count, acak_opsi: acakOpsi })
+          });
+          const json = await res.json();
+          if (!res.ok || !json.success) throw new Error(json.message || 'Gagal generate paket');
+
+          alert(`✅ Berhasil menghasilkan ${json.data.length} paket soal acak lengkap dengan kunci jawaban!`);
+          currentPackagesData = json.data;
+          activeSelectedPackageName = 'A';
+          renderMultiPackagesView();
+        } catch (err) {
+          alert('Error: ' + err.message);
+        } finally {
+          btnGenerateMultiPaket.disabled = false;
+          btnGenerateMultiPaket.innerHTML = '<span>⚡ Generate / Acak Ulang</span>';
+        }
+      };
+    }
+
+    if (btnPrintPackageSoal) {
+      btnPrintPackageSoal.onclick = async () => {
+        if (!activeUlanganId) return;
+        try {
+          const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/packages/${activeSelectedPackageName}/printable`);
+          const json = await res.json();
+          if (!res.ok || !json.success) throw new Error(json.message || 'Gagal mengambil naskah paket');
+
+          const data = json.data;
+          renderPrintablePackageSheet(data);
+          modalCetakNaskahPaket.classList.remove('hidden');
+        } catch (err) {
+          alert('Error memuat naskah cetak: ' + err.message);
+        }
+      };
+    }
+
+    function renderPrintablePackageSheet(data) {
+      if (!cetakNaskahPaketSheetContainer) return;
+      if (naskahPaketTitleBadge) naskahPaketTitleBadge.textContent = `Paket ${data.nama_paket}`;
+
+      const u = data.ulangan || {};
+      const questions = data.soal_list || [];
+
+      let qHtml = '';
+      questions.forEach((q, idx) => {
+        const no = idx + 1;
+        const isPg = q.jenis === 'pilihan_ganda';
+        qHtml += `
+          <div class="mb-3.5 space-y-1 text-xs">
+            <div class="flex items-start space-x-2">
+              <span class="font-bold text-slate-900">${no}.</span>
+              <div class="flex-1 font-medium text-slate-900 leading-relaxed" dir="auto">${escapeHtml(q.pertanyaan)}</div>
+            </div>
+            ${q.gambar_url ? `
+              <div class="pl-5 py-1">
+                <img src="${q.gambar_url}" alt="Gambar Soal ${no}" class="max-h-36 max-w-sm rounded border border-slate-300 object-contain">
+              </div>
+            ` : ''}
+            ${isPg ? `
+              <div class="pl-5 grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1 text-slate-800">
+                <div class="flex items-start space-x-1.5">
+                  <span class="font-bold">A.</span>
+                  <span>${escapeHtml(q.opsi_a || '')}</span>
+                </div>
+                <div class="flex items-start space-x-1.5">
+                  <span class="font-bold">B.</span>
+                  <span>${escapeHtml(q.opsi_b || '')}</span>
+                </div>
+                <div class="flex items-start space-x-1.5">
+                  <span class="font-bold">C.</span>
+                  <span>${escapeHtml(q.opsi_c || '')}</span>
+                </div>
+                <div class="flex items-start space-x-1.5">
+                  <span class="font-bold">D.</span>
+                  <span>${escapeHtml(q.opsi_d || '')}</span>
+                </div>
+                ${q.opsi_e ? `
+                <div class="flex items-start space-x-1.5">
+                  <span class="font-bold">E.</span>
+                  <span>${escapeHtml(q.opsi_e)}</span>
+                </div>
+                ` : ''}
+              </div>
+            ` : `
+              <div class="pl-5 pt-1 text-slate-400 italic text-[11px]">
+                (Lembar Jawaban Esai / Isian terpisah)
+              </div>
+            `}
+          </div>
+        `;
+      });
+
+      cetakNaskahPaketSheetContainer.innerHTML = `
+        <div class="border-b-2 border-black pb-3 mb-4 space-y-1">
+          <div class="flex justify-between items-start">
+            <div>
+              <h2 class="text-base font-extrabold uppercase tracking-wide text-slate-900">${escapeHtml(u.judul || 'LEMBAR NASKAH SOAL UJIAN')}</h2>
+              <p class="text-xs font-semibold text-slate-700">Mata Pelajaran: ${escapeHtml(u.mata_pelajaran || '-')} • Tingkat / Kelas: ${escapeHtml(u.tingkat_kelas || '-')}</p>
+            </div>
+            <div class="text-right border-2 border-black px-3 py-1 rounded bg-slate-50 font-black text-sm">
+              PAKET ${escapeHtml(data.nama_paket)}
+            </div>
+          </div>
+          <div class="text-[10px] text-slate-600 pt-1 border-t border-slate-300 flex justify-between">
+            <span>Petunjuk: Berdoalah sebelum mengerjakan. Kerjakan soal yang mudah terlebih dahulu.</span>
+            <span>Waktu: ${u.durasi_menit ? u.durasi_menit + ' Menit' : '-'}</span>
+          </div>
+        </div>
+        <div class="columns-1 sm:columns-2 gap-6 leading-relaxed">
+          ${qHtml}
+        </div>
+      `;
+      renderMath(cetakNaskahPaketSheetContainer);
+    }
+
+    if (btnCloseNaskahPaketModal) btnCloseNaskahPaketModal.onclick = () => modalCetakNaskahPaket.classList.add('hidden');
+    if (btnDoPrintNaskahPaket) btnDoPrintNaskahPaket.onclick = () => window.print();
+
+    // =========================================================================
+    // MODUL 2: CETAK LEMBAR JAWABAN KOMPUTER (LJK FISIK OMR PRESISI)
+    // =========================================================================
+    const modalCetakLjk = document.getElementById('modal-cetak-ljk');
+    const btnOpenCetakLjk = document.getElementById('btn-open-cetak-ljk');
+    const btnCloseCetakLjkModal = document.getElementById('btn-close-cetak-ljk-modal');
+    const btnDoPrintLjk = document.getElementById('btn-do-print-ljk');
+    const selectLjkSoalCount = document.getElementById('select-ljk-soal-count');
+    const selectLjkOpsiCount = document.getElementById('select-ljk-opsi-count');
+    const selectLjkLayoutMode = document.getElementById('select-ljk-layout-mode');
+    const inputLjkCustomTitle = document.getElementById('input-ljk-custom-title');
+    const chkLjkShowNis = document.getElementById('chk-ljk-show-nis');
+    const chkLjkShowPaket = document.getElementById('chk-ljk-show-paket');
+    const chkLjkShowTtd = document.getElementById('chk-ljk-show-ttd');
+    const cetakLjkSheetContainer = document.getElementById('cetak-ljk-sheet-container');
+
+    function openCetakLjkModal() {
+      if (!activeUlanganId) {
+        alert('Pilih paket ulangan terlebih dahulu sebelum mencetak LJK!');
+        return;
+      }
+      modalCetakLjk.classList.remove('hidden');
+      if (inputLjkCustomTitle && activeUlanganData) {
+        inputLjkCustomTitle.value = activeUlanganData.judul || '';
+      }
+      renderLjkSheet();
+    }
+
+    if (btnOpenCetakLjk) btnOpenCetakLjk.onclick = openCetakLjkModal;
+    if (btnCloseCetakLjkModal) btnCloseCetakLjkModal.onclick = () => modalCetakLjk.classList.add('hidden');
+    if (btnDoPrintLjk) btnDoPrintLjk.onclick = () => window.print();
+
+    [selectLjkSoalCount, selectLjkOpsiCount, selectLjkLayoutMode, inputLjkCustomTitle, chkLjkShowNis, chkLjkShowPaket, chkLjkShowTtd].forEach(el => {
+      if (el) el.addEventListener('change', renderLjkSheet);
+      if (el && el.tagName === 'INPUT' && el.type === 'text') el.addEventListener('input', renderLjkSheet);
+    });
+
+    function generateSingleLjkCardHtml(isHalf = false) {
+      const u = activeUlanganData || {};
+      const title = inputLjkCustomTitle?.value?.trim() || u.judul || 'LEMBAR JAWABAN KOMPUTER (LJK)';
+      const mapel = u.mata_pelajaran || 'Umum';
+      const soalCount = Number(selectLjkSoalCount?.value) || 40;
+      const opsiCount = Number(selectLjkOpsiCount?.value) || 4; // 4: A-D, 5: A-E
+      const showNis = chkLjkShowNis?.checked ? true : false;
+      const showPaket = chkLjkShowPaket?.checked ? true : false;
+      const showTtd = chkLjkShowTtd?.checked ? true : false;
+
+      const opsiList = opsiCount === 5 ? ['A', 'B', 'C', 'D', 'E'] : ['A', 'B', 'C', 'D'];
+
+      // Generate Bubble Rows
+      const cols = soalCount > 30 ? 2 : 1;
+      const halfCount = Math.ceil(soalCount / cols);
+
+      let bubbleColsHtml = '';
+      for (let c = 0; c < cols; c++) {
+        let colItems = '';
+        const startNo = c * halfCount + 1;
+        const endNo = Math.min((c + 1) * halfCount, soalCount);
+        for (let num = startNo; num <= endNo; num++) {
+          const numStr = String(num).padStart(2, '0');
+          let bubbles = '';
+          opsiList.forEach(op => {
+            bubbles += `
+              <div class="inline-flex items-center justify-center w-[17px] h-[17px] rounded-full border-[1.5px] border-black text-[9px] font-black leading-none mx-[1px] select-none text-black">
+                ${op}
+              </div>
+            `;
+          });
+          colItems += `
+            <div class="flex items-center space-x-1 py-[1.5px]">
+              <span class="w-6 text-[10px] font-black text-right text-black font-mono">${numStr}.</span>
+              <div class="flex items-center">${bubbles}</div>
+            </div>
+          `;
+        }
+        bubbleColsHtml += `
+          <div class="flex-1 px-1">
+            <div class="bg-slate-100/90 text-center text-[9px] font-black border border-black py-0.5 mb-1 uppercase tracking-wider">
+              No. ${String(startNo).padStart(2, '0')} - ${String(endNo).padStart(2, '0')}
+            </div>
+            ${colItems}
+          </div>
+        `;
+      }
+
+      return `
+        <div class="relative bg-white text-black p-3.5 border-2 border-black rounded-lg shadow-none select-none ${isHalf ? 'w-full' : 'max-w-2xl mx-auto'}">
+          <!-- 4 Sudut Fiducial Black Square Anchors (10mm x 10mm) -->
+          <div class="absolute top-1.5 left-1.5 w-3.5 h-3.5 bg-black" title="Anchor TL"></div>
+          <div class="absolute top-1.5 right-1.5 w-3.5 h-3.5 bg-black" title="Anchor TR"></div>
+          <div class="absolute bottom-1.5 left-1.5 w-3.5 h-3.5 bg-black" title="Anchor BL"></div>
+          <div class="absolute bottom-1.5 right-1.5 w-3.5 h-3.5 bg-black" title="Anchor BR"></div>
+
+          <!-- Header Kop LJK -->
+          <div class="px-5 text-center border-b-[1.5px] border-black pb-2 mb-2">
+            <h1 class="text-xs sm:text-sm font-black uppercase tracking-wider">${escapeHtml(title)}</h1>
+            <p class="text-[10px] font-bold text-slate-700">${escapeHtml(mapel)} • LEMBAR JAWABAN UJIAN OMR</p>
+            <div class="text-[8px] text-slate-600 mt-0.5 italic flex justify-center items-center space-x-2">
+              <span>PETUNJUK: Hitamkan bulatan penuh</span>
+              <span class="inline-flex items-center space-x-1 font-bold">[ ● ] Benar</span>
+              <span class="inline-flex items-center space-x-1 text-slate-400">[ ✕ ] [ ✓ ] Salah</span>
+            </div>
+          </div>
+
+          <!-- Kotak Identitas Siswa -->
+          <div class="px-2 grid grid-cols-1 sm:grid-cols-12 gap-2 mb-2.5 text-[10px] border-b border-black pb-2">
+            <!-- Nama Siswa (6 col) -->
+            <div class="${showNis || showPaket ? 'sm:col-span-7' : 'sm:col-span-12'} space-y-1">
+              <div class="flex items-center space-x-1">
+                <span class="font-bold w-16 shrink-0">Nama Siswa:</span>
+                <div class="flex-1 border-b-[1.5px] border-dotted border-black h-4"></div>
+              </div>
+              <div class="flex items-center space-x-1">
+                <span class="font-bold w-16 shrink-0">Kelas / Sesi:</span>
+                <div class="flex-1 border-b-[1.5px] border-dotted border-black h-4"></div>
+              </div>
+            </div>
+
+            <!-- Paket & NIS (5 col) -->
+            <div class="sm:col-span-5 flex flex-col justify-between space-y-1">
+              ${showPaket ? `
+                <div class="flex items-center space-x-1">
+                  <span class="font-black text-[9px] uppercase">Paket:</span>
+                  <div class="flex items-center space-x-1">
+                    ${['A', 'B', 'C', 'D'].map(p => `
+                      <div class="inline-flex items-center justify-center w-[16px] h-[16px] rounded-full border-[1.5px] border-black text-[9px] font-black">
+                        ${p}
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
+
+              ${showNis ? `
+                <div class="flex items-center space-x-1">
+                  <span class="font-bold text-[9px]">No. Peserta:</span>
+                  <div class="flex space-x-0.5">
+                    ${[1, 2, 3, 4, 5, 6].map(() => `<div class="w-3.5 h-4 border border-black"></div>`).join('')}
+                  </div>
+                </div>
+              ` : ''}
+
+              ${showTtd ? `
+                <div class="flex items-center space-x-1">
+                  <span class="font-bold text-[9px]">Tanda Tangan:</span>
+                  <div class="flex-1 border-b border-black h-3"></div>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+
+          <!-- Matriks Bulatan Jawaban -->
+          <div class="px-2 flex divide-x divide-black pt-1">
+            ${bubbleColsHtml}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderLjkSheet() {
+      if (!cetakLjkSheetContainer) return;
+      const layout = selectLjkLayoutMode?.value || 'hemat_kertas';
+
+      if (layout === 'hemat_kertas') {
+        // Mode 2 LJK per halaman A4 (Hemat Kertas)
+        cetakLjkSheetContainer.innerHTML = `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start relative">
+            <div>
+              ${generateSingleLjkCardHtml(true)}
+            </div>
+            <!-- Garis Potong Kertas Gunting Tengah -->
+            <div class="hidden md:block absolute left-1/2 top-0 bottom-0 -ml-[1px] border-l-2 border-dashed border-slate-400 pointer-events-none">
+              <span class="absolute top-1/2 -left-2.5 -translate-y-1/2 bg-white px-1 text-slate-500 text-xs">✂</span>
+            </div>
+            <div>
+              ${generateSingleLjkCardHtml(true)}
+            </div>
+          </div>
+        `;
+      } else {
+        // Mode 1 Lembar Penuh A4
+        cetakLjkSheetContainer.innerHTML = generateSingleLjkCardHtml(false);
+      }
+    }
+
+    // =========================================================================
+    // MODUL 3: OMR CAMERA SCANNER & INSTANT GRADER
+    // =========================================================================
+    const modalOmrScanner = document.getElementById('modal-omr-scanner');
+    const btnOpenOmrScanner = document.getElementById('btn-open-omr-scanner');
+    const btnCloseOmrScannerModal = document.getElementById('btn-close-omr-scanner-modal');
+    const omrCameraVideo = document.getElementById('omr-camera-video');
+    const omrCameraCanvas = document.getElementById('omr-camera-canvas');
+    const omrCapturedImage = document.getElementById('omr-captured-image');
+    const omrAiSpinner = document.getElementById('omr-ai-spinner');
+    const omrSpinnerLabel = document.getElementById('omr-spinner-label');
+    const btnToggleOmrCamera = document.getElementById('btn-toggle-omr-camera');
+    const omrCameraBtnIcon = document.getElementById('omr-camera-btn-icon');
+    const omrCameraBtnText = document.getElementById('omr-camera-btn-text');
+    const btnSwitchCamera = document.getElementById('btn-switch-camera');
+    const btnCaptureOmr = document.getElementById('btn-capture-omr');
+    const inputOmrFile = document.getElementById('input-omr-file');
+    const btnOmrScanAi = document.getElementById('btn-omr-scan-ai');
+
+    const omrStudentName = document.getElementById('omr-student-name');
+    const omrStudentNis = document.getElementById('omr-student-nis');
+    const omrSelectExistingStudent = document.getElementById('omr-select-existing-student');
+    const omrScoreDisplay = document.getElementById('omr-score-display');
+    const omrCountBenar = document.getElementById('omr-count-benar');
+    const omrCountSalah = document.getElementById('omr-count-salah');
+    const omrCountKosong = document.getElementById('omr-count-kosong');
+    const omrAnswerMatrixContainer = document.getElementById('omr-answer-matrix-container');
+    const omrSaveStatusMsg = document.getElementById('omr-save-status-msg');
+    const btnSaveOmrResult = document.getElementById('btn-save-omr-result');
+    const btnRefreshOmrLogs = document.getElementById('btn-refresh-omr-logs');
+    const omrLogsList = document.getElementById('omr-logs-list');
+
+    let omrStream = null;
+    let omrFacingMode = 'environment';
+    let currentOmrScannedPackage = 'A';
+    let currentDetectedAnswers = {};
+    let currentOmrSnapshotBase64 = null;
+
+    function openOmrScannerModal() {
+      if (!activeUlanganId) {
+        alert('Pilih paket ulangan terlebih dahulu sebelum membuka OMR Scanner!');
+        return;
+      }
+      modalOmrScanner.classList.remove('hidden');
+      populateOmrStudentDropdown();
+      loadOmrLogs();
+    }
+
+    if (btnOpenOmrScanner) btnOpenOmrScanner.onclick = openOmrScannerModal;
+    if (btnCloseOmrScannerModal) {
+      btnCloseOmrScannerModal.onclick = () => {
+        stopOmrCamera();
+        modalOmrScanner.classList.add('hidden');
+      };
+    }
+
+    function populateOmrStudentDropdown() {
+      if (!omrSelectExistingStudent) return;
+      omrSelectExistingStudent.innerHTML = '<option value="">-- Hubungkan dengan Siswa di Kelas --</option>';
+      (currentStudentsList || []).forEach(st => {
+        const opt = document.createElement('option');
+        opt.value = st.peserta_id || st.id || st.nama_siswa;
+        opt.textContent = `${st.nama_siswa} (${st.kelas_siswa || 'Umum'})`;
+        opt.dataset.nama = st.nama_siswa;
+        opt.dataset.nis = st.nis || '';
+        opt.dataset.kelas = st.kelas_siswa || '';
+        omrSelectExistingStudent.appendChild(opt);
+      });
+
+      omrSelectExistingStudent.onchange = (e) => {
+        const selected = omrSelectExistingStudent.selectedOptions[0];
+        if (selected && selected.dataset.nama) {
+          if (omrStudentName) omrStudentName.value = selected.dataset.nama;
+          if (omrStudentNis) omrStudentNis.value = selected.dataset.nis || '';
+        }
+      };
+    }
+
+    async function startOmrCamera() {
+      try {
+        if (omrStream) stopOmrCamera();
+        const constraints = {
+          video: {
+            facingMode: { ideal: omrFacingMode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        };
+        omrStream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (omrCameraVideo) {
+          omrCameraVideo.srcObject = omrStream;
+          omrCameraVideo.classList.remove('hidden');
+        }
+        if (omrCapturedImage) omrCapturedImage.classList.add('hidden');
+        if (omrCameraBtnText) omrCameraBtnText.textContent = 'Matikan Kamera';
+        if (omrCameraBtnIcon) omrCameraBtnIcon.textContent = '⏹';
+      } catch (err) {
+        alert('Gagal membuka kamera: ' + err.message + '\nPastikan izin akses kamera sudah diberikan pada browser Anda.');
+      }
+    }
+
+    function stopOmrCamera() {
+      if (omrStream) {
+        omrStream.getTracks().forEach(t => t.stop());
+        omrStream = null;
+      }
+      if (omrCameraVideo) omrCameraVideo.srcObject = null;
+      if (omrCameraBtnText) omrCameraBtnText.textContent = 'Buka Kamera';
+      if (omrCameraBtnIcon) omrCameraBtnIcon.textContent = '▶';
+    }
+
+    if (btnToggleOmrCamera) {
+      btnToggleOmrCamera.onclick = () => {
+        if (omrStream) stopOmrCamera();
+        else startOmrCamera();
+      };
+    }
+
+    if (btnSwitchCamera) {
+      btnSwitchCamera.onclick = () => {
+        omrFacingMode = omrFacingMode === 'environment' ? 'user' : 'environment';
+        if (omrStream) startOmrCamera();
+      };
+    }
+
+    // Paket picker button event
+    document.querySelectorAll('.btn-omr-paket').forEach(btn => {
+      btn.onclick = () => {
+        const pkg = btn.dataset.paket;
+        setOmrSelectedPackage(pkg);
+        evaluateAndRenderOmrMatrix();
+      };
+    });
+
+    function setOmrSelectedPackage(pkgName) {
+      currentOmrScannedPackage = pkgName;
+      document.querySelectorAll('.btn-omr-paket').forEach(btn => {
+        if (btn.dataset.paket === pkgName) {
+          btn.className = 'btn-omr-paket px-2.5 py-1 rounded-lg border font-bold text-xs bg-indigo-600 text-white border-indigo-600';
+        } else {
+          btn.className = 'btn-omr-paket px-2.5 py-1 rounded-lg border font-bold text-xs bg-white text-slate-700 border-slate-300';
+        }
+      });
+    }
+
+    // Capture button
+    if (btnCaptureOmr) {
+      btnCaptureOmr.onclick = () => {
+        if (!omrCameraVideo || !omrStream) {
+          alert('Buka kamera terlebih dahulu atau gunakan tombol "Unggah Foto LJK".');
+          return;
+        }
+        const canvas = omrCameraCanvas || document.createElement('canvas');
+        canvas.width = omrCameraVideo.videoWidth || 1000;
+        canvas.height = omrCameraVideo.videoHeight || 750;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(omrCameraVideo, 0, 0, canvas.width, canvas.height);
+
+        currentOmrSnapshotBase64 = canvas.toDataURL('image/jpeg', 0.85);
+        if (omrCapturedImage) {
+          omrCapturedImage.src = currentOmrSnapshotBase64;
+          omrCapturedImage.classList.remove('hidden');
+          omrCameraVideo.classList.add('hidden');
+        }
+
+        processOmrImageLocal(canvas);
+      };
+    }
+
+    // File upload handler
+    if (inputOmrFile) {
+      inputOmrFile.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = omrCameraCanvas || document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+
+            currentOmrSnapshotBase64 = canvas.toDataURL('image/jpeg', 0.85);
+            if (omrCapturedImage) {
+              omrCapturedImage.src = currentOmrSnapshotBase64;
+              omrCapturedImage.classList.remove('hidden');
+              if (omrCameraVideo) omrCameraVideo.classList.add('hidden');
+            }
+            processOmrImageLocal(canvas);
+          };
+          img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      };
+    }
+
+    // Fast Optical Sampling Algorithm (Client-Side)
+    function processOmrImageLocal(canvas) {
+      const u = activeUlanganData;
+      const totalSoal = (u?.soal && u.soal.length) || 40;
+      const opsiList = ['A', 'B', 'C', 'D'];
+
+      // Placeholder algorithm sampling based on brightness
+      // Simulasi deteksi awal dengan default answers bila pola terdeteksi
+      const detected = {};
+      for (let i = 1; i <= totalSoal; i++) {
+        // Ambil default atau biarkan kosong untuk diisi
+        detected[i] = currentDetectedAnswers[i] || '';
+      }
+      currentDetectedAnswers = detected;
+      evaluateAndRenderOmrMatrix();
+    }
+
+    // AI Fallback Scanner via Gemini Vision
+    if (btnOmrScanAi) {
+      btnOmrScanAi.onclick = async () => {
+        if (!currentOmrSnapshotBase64) {
+          alert('Ambil foto dari kamera atau unggah berkas foto LJK terlebih dahulu.');
+          return;
+        }
+        if (!activeUlanganId) return;
+
+        if (omrAiSpinner) {
+          omrAiSpinner.classList.remove('hidden');
+          if (omrSpinnerLabel) omrSpinnerLabel.textContent = 'Memindai LJK dengan AI Vision...';
+        }
+
+        try {
+          const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/omr/scan-ai`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              image_base64: currentOmrSnapshotBase64,
+              paket: currentOmrScannedPackage,
+              total_soal: activeUlanganData?.soal?.length || 40
+            })
+          });
+          const json = await res.json();
+          if (!res.ok || !json.success) throw new Error(json.message || 'Gagal memindai AI');
+
+          const d = json.data;
+          if (d.paket_terdeteksi) {
+            setOmrSelectedPackage(d.paket_terdeteksi);
+          }
+          currentDetectedAnswers = d.jawaban_terdeteksi || {};
+          evaluateAndRenderOmrMatrix();
+          alert(`✨ AI Vision selesai! Terbaca ${Object.keys(currentDetectedAnswers).length} butir jawaban.`);
+        } catch (err) {
+          alert('Error AI Vision: ' + err.message);
+        } finally {
+          if (omrAiSpinner) omrAiSpinner.classList.add('hidden');
+        }
+      };
+    }
+
+    function evaluateAndRenderOmrMatrix() {
+      if (!omrAnswerMatrixContainer) return;
+      const u = activeUlanganData;
+      const totalSoal = (u?.soal && u.soal.length) || 40;
+
+      // Ambil kunci jawaban paket terpilih
+      let keys = {};
+      const pkg = (currentPackagesData || []).find(p => p.nama_paket === currentOmrScannedPackage);
+      if (pkg && pkg.kunci_jawaban) {
+        keys = pkg.kunci_jawaban;
+      } else if (u?.soal) {
+        u.soal.forEach((s, idx) => {
+          keys[idx + 1] = s.kunci_pg || s.kunci_jawaban || 'A';
+        });
+      }
+
+      let benar = 0;
+      let salah = 0;
+      let kosong = 0;
+
+      let matrixHtml = '';
+      for (let i = 1; i <= totalSoal; i++) {
+        const studentAns = (currentDetectedAnswers[i] || '').toUpperCase().trim();
+        const correctAns = (keys[i] || '').toUpperCase().trim();
+
+        let statusClass = 'border-slate-200 bg-slate-50 text-slate-700';
+        let badgeIcon = '⚪';
+
+        if (!studentAns) {
+          kosong++;
+          statusClass = 'border-amber-300 bg-amber-50 text-amber-800';
+          badgeIcon = '⚠️ Kosong';
+        } else if (studentAns === correctAns) {
+          benar++;
+          statusClass = 'border-emerald-300 bg-emerald-50 text-emerald-800';
+          badgeIcon = '✓ Benar';
+        } else {
+          salah++;
+          statusClass = 'border-rose-300 bg-rose-50 text-rose-800';
+          badgeIcon = `✗ Kunci: ${correctAns}`;
+        }
+
+        matrixHtml += `
+          <div class="p-2 border rounded-lg ${statusClass} flex items-center justify-between space-x-1 text-xs">
+            <span class="font-bold font-mono">#${i}</span>
+            <div class="flex items-center space-x-1">
+              ${['A', 'B', 'C', 'D'].map(op => `
+                <button type="button" onclick="window.overrideOmrAnswer(${i}, '${op}')" class="w-5 h-5 rounded text-[10px] font-bold border transition ${
+                  studentAns === op
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                    : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
+                }">${op}</button>
+              `).join('')}
+            </div>
+            <span class="text-[10px] font-semibold">${badgeIcon}</span>
+          </div>
+        `;
+      }
+
+      omrAnswerMatrixContainer.innerHTML = matrixHtml;
+
+      const score = totalSoal > 0 ? Math.round((benar / totalSoal) * 100) : 0;
+      if (omrScoreDisplay) omrScoreDisplay.textContent = score;
+      if (omrCountBenar) omrCountBenar.textContent = benar;
+      if (omrCountSalah) omrCountSalah.textContent = salah;
+      if (omrCountKosong) omrCountKosong.textContent = kosong;
+    }
+
+    window.overrideOmrAnswer = (no, op) => {
+      currentDetectedAnswers[no] = currentDetectedAnswers[no] === op ? '' : op;
+      evaluateAndRenderOmrMatrix();
+    };
+
+    if (btnSaveOmrResult) {
+      btnSaveOmrResult.onclick = async () => {
+        if (!activeUlanganId) return;
+        const name = omrStudentName?.value?.trim();
+        if (!name) {
+          alert('Isi nama siswa atau pilih siswa dari dropdown terlebih dahulu.');
+          omrStudentName?.focus();
+          return;
+        }
+
+        btnSaveOmrResult.disabled = true;
+        btnSaveOmrResult.innerHTML = '<span class="inline-block animate-spin mr-1">⏳</span><span>Menyimpan...</span>';
+
+        try {
+          const payload = {
+            nama_siswa: name,
+            nis_siswa: omrStudentNis?.value?.trim() || null,
+            paket: currentOmrScannedPackage,
+            jawaban_terdeteksi: currentDetectedAnswers,
+            raw_image_url: currentOmrSnapshotBase64
+          };
+
+          const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/omr/scan-result`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const json = await res.json();
+          if (!res.ok || !json.success) throw new Error(json.message || 'Gagal menyimpan hasil scan');
+
+          if (omrSaveStatusMsg) {
+            omrSaveStatusMsg.textContent = `✓ Tersimpan: ${name} (Skor PG: ${json.data.skor_pg})`;
+            setTimeout(() => { if (omrSaveStatusMsg) omrSaveStatusMsg.textContent = ''; }, 4000);
+          }
+
+          alert(`🎉 Nilai OMR berhasil disimpan!\nSiswa: ${name}\nPaket: ${currentOmrScannedPackage}\nSkor PG: ${json.data.skor_pg}`);
+          loadPesertaList(activeUlanganId);
+          loadOmrLogs();
+        } catch (err) {
+          alert('Error: ' + err.message);
+        } finally {
+          btnSaveOmrResult.disabled = false;
+          btnSaveOmrResult.innerHTML = '<span>💾 Simpan Nilai ke Siswa</span>';
+        }
+      };
+    }
+
+    async function loadOmrLogs() {
+      if (!activeUlanganId || !omrLogsList) return;
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/omr/logs`);
+        const json = await res.json();
+        if (res.ok && json.success) {
+          const logs = json.data || [];
+          if (logs.length === 0) {
+            omrLogsList.innerHTML = '<p class="text-[11px] text-slate-400 italic">Belum ada riwayat pemindaian.</p>';
+            return;
+          }
+          omrLogsList.innerHTML = logs.map(l => `
+            <div class="p-2 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-xs">
+              <div>
+                <span class="font-bold text-slate-800">${escapeHtml(l.nama_siswa)}</span>
+                <span class="text-slate-400 text-[10px] ml-1">Paket ${escapeHtml(l.paket_diambil || 'A')}</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
+                  PG: ${l.skor_pg !== null ? l.skor_pg : '-'}
+                </span>
+                <span class="text-[10px] text-slate-400 font-mono">${formatWaktuSubmit(l.scanned_at, 'WIB')}</span>
+              </div>
+            </div>
+          `).join('');
+        }
+      } catch (err) {
+        console.warn('Gagal memuat log OMR:', err);
+      }
+    }
+
+    if (btnRefreshOmrLogs) btnRefreshOmrLogs.onclick = loadOmrLogs;
+
+    // =========================================================================
+    // MODUL 4: AI MULTIPLE CHOICE (PG) GENERATOR
+    // =========================================================================
+    const modalAiPgGenerator = document.getElementById('modal-ai-pg-generator');
+    const btnOpenAiPgGenerator = document.getElementById('btn-open-ai-pg-generator');
+    const btnCloseAiPgModal = document.getElementById('btn-close-ai-pg-modal');
+    const formGenerateAiPg = document.getElementById('form-generate-ai-pg');
+    const aiPgTopik = document.getElementById('ai-pg-topik');
+    const aiPgJumlah = document.getElementById('ai-pg-jumlah');
+    const aiPgOpsiCount = document.getElementById('ai-pg-opsi-count');
+    const aiPgKesulitan = document.getElementById('ai-pg-kesulitan');
+    const aiPgBahasa = document.getElementById('ai-pg-bahasa');
+    const aiPgInstruksi = document.getElementById('ai-pg-instruksi');
+    const btnSubmitGeneratePg = document.getElementById('btn-submit-generate-pg');
+    const btnGeneratePgIcon = document.getElementById('btn-generate-pg-icon');
+    const btnGeneratePgLabel = document.getElementById('btn-generate-pg-label');
+    const aiPgPreviewBox = document.getElementById('ai-pg-preview-box');
+    const chkSelectAllAiPg = document.getElementById('chk-select-all-ai-pg');
+    const aiPgSelectedCount = document.getElementById('ai-pg-selected-count');
+    const btnSaveSelectedAiPg = document.getElementById('btn-save-selected-ai-pg');
+    const aiPgItemsList = document.getElementById('ai-pg-items-list');
+
+    let generatedAiPgList = [];
+
+    function openAiPgGeneratorModal() {
+      if (!activeUlanganId) {
+        alert('Pilih paket ulangan terlebih dahulu sebelum membuat soal PG AI!');
+        return;
+      }
+      modalAiPgGenerator.classList.remove('hidden');
+      if (aiPgTopik && activeUlanganData) {
+        aiPgTopik.value = `${activeUlanganData.mata_pelajaran || ''} - ${activeUlanganData.judul || ''}`.trim();
+      }
+    }
+
+    if (btnOpenAiPgGenerator) btnOpenAiPgGenerator.onclick = openAiPgGeneratorModal;
+    if (btnCloseAiPgModal) btnCloseAiPgModal.onclick = () => modalAiPgGenerator.classList.add('hidden');
+
+    if (formGenerateAiPg) {
+      formGenerateAiPg.onsubmit = async (e) => {
+        e.preventDefault();
+        const topik = aiPgTopik?.value?.trim();
+        if (!topik) return;
+
+        btnSubmitGeneratePg.disabled = true;
+        btnGeneratePgIcon.textContent = '⏳';
+        btnGeneratePgLabel.textContent = 'Gemini AI sedang menyusun butir soal PG...';
+
+        try {
+          const payload = {
+            topik: topik,
+            jumlah_soal: Number(aiPgJumlah?.value) || 5,
+            opsi_count: Number(aiPgOpsiCount?.value) || 4,
+            tingkat_kesulitan: aiPgKesulitan?.value || 'sedang',
+            bahasa: aiPgBahasa?.value || 'Bahasa Indonesia',
+            instruksi_tambahan: aiPgInstruksi?.value?.trim() || ''
+          };
+
+          const res = await guruFetch('/api/guru/ulangan/generate-pg-ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const json = await res.json();
+          if (!res.ok || !json.success) throw new Error(json.message || 'Gagal menghasilkan soal');
+
+          generatedAiPgList = json.data || [];
+          renderAiPgPreview();
+        } catch (err) {
+          alert('Error Generator AI: ' + err.message);
+        } finally {
+          btnSubmitGeneratePg.disabled = false;
+          btnGeneratePgIcon.textContent = '⚡';
+          btnGeneratePgLabel.textContent = 'Hasilkan Soal PG dengan AI';
+        }
+      };
+    }
+
+    function renderAiPgPreview() {
+      if (!aiPgPreviewBox || !aiPgItemsList) return;
+      aiPgPreviewBox.classList.remove('hidden');
+      aiPgItemsList.innerHTML = '';
+
+      generatedAiPgList.forEach((q, idx) => {
+        const item = document.createElement('div');
+        item.className = 'p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs';
+        item.innerHTML = `
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-center space-x-2">
+              <input type="checkbox" checked value="${idx}" class="chk-ai-pg w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer" onchange="updateAiPgCount()">
+              <span class="font-bold text-slate-700">#${idx + 1}</span>
+              <span class="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Kunci: ${q.kunci_pg}</span>
+            </div>
+            <span class="text-[10px] text-slate-400 capitalize">${q.tingkat_kesulitan || 'sedang'}</span>
+          </div>
+          <p class="font-medium text-slate-900 leading-relaxed">${escapeHtml(q.pertanyaan)}</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] text-slate-700 pl-4 border-l-2 border-slate-300">
+            <div><strong>A.</strong> ${escapeHtml(q.opsi_a || '-')}</div>
+            <div><strong>B.</strong> ${escapeHtml(q.opsi_b || '-')}</div>
+            <div><strong>C.</strong> ${escapeHtml(q.opsi_c || '-')}</div>
+            <div><strong>D.</strong> ${escapeHtml(q.opsi_d || '-')}</div>
+            ${q.opsi_e ? `<div><strong>E.</strong> ${escapeHtml(q.opsi_e)}</div>` : ''}
+          </div>
+          ${q.pembahasan ? `
+            <div class="p-1.5 bg-emerald-50 rounded border border-emerald-200 text-[10px] text-emerald-900">
+              <strong>💡 Pembahasan:</strong> ${escapeHtml(q.pembahasan)}
+            </div>
+          ` : ''}
+        `;
+        aiPgItemsList.appendChild(item);
+      });
+
+      updateAiPgCount();
+    }
+
+    window.updateAiPgCount = () => {
+      const checked = document.querySelectorAll('.chk-ai-pg:checked').length;
+      if (aiPgSelectedCount) aiPgSelectedCount.textContent = checked;
+    };
+
+    if (chkSelectAllAiPg) {
+      chkSelectAllAiPg.onchange = () => {
+        document.querySelectorAll('.chk-ai-pg').forEach(cb => cb.checked = chkSelectAllAiPg.checked);
+        updateAiPgCount();
+      };
+    }
+
+    if (btnSaveSelectedAiPg) {
+      btnSaveSelectedAiPg.onclick = async () => {
+        if (!activeUlanganId) return;
+        const checkedBoxes = Array.from(document.querySelectorAll('.chk-ai-pg:checked'));
+        if (checkedBoxes.length === 0) {
+          alert('Pilih minimal 1 butir soal untuk dimasukkan ke ulangan.');
+          return;
+        }
+
+        btnSaveSelectedAiPg.disabled = true;
+        btnSaveSelectedAiPg.textContent = 'Menyimpan ke Ulangan...';
+
+        try {
+          const selectedQuestions = checkedBoxes.map(cb => generatedAiPgList[Number(cb.value)]).filter(Boolean);
+          for (const q of selectedQuestions) {
+            const payload = {
+              jenis: 'pilihan_ganda',
+              tingkat_kesulitan: q.tingkat_kesulitan || 'sedang',
+              bobot: Number(q.bobot || 5),
+              pertanyaan: q.pertanyaan,
+              kunci_jawaban: q.kunci_pg,
+              opsi_a: q.opsi_a,
+              opsi_b: q.opsi_b,
+              opsi_c: q.opsi_c,
+              opsi_d: q.opsi_d,
+              opsi_e: q.opsi_e || null,
+              kunci_pg: q.kunci_pg,
+              pembahasan: q.pembahasan || null,
+              kategori: q.kategori || activeUlanganData?.mata_pelajaran || null
+            };
+
+            await guruFetch(`/api/guru/ulangan/${activeUlanganId}/soal`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+          }
+
+          alert(`🎉 Sukses menambahkan ${selectedQuestions.length} butir soal PG ke ulangan!`);
+          modalAiPgGenerator.classList.add('hidden');
+          selectUlangan(activeUlanganId);
+        } catch (err) {
+          alert('Error menyimpan soal: ' + err.message);
+        } finally {
+          btnSaveSelectedAiPg.disabled = false;
+          btnSaveSelectedAiPg.textContent = '💾 Masukkan Soal ke Ulangan';
+        }
+      };
+    }
+
 
 
   </script>

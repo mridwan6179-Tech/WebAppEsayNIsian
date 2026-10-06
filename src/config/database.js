@@ -458,6 +458,102 @@ function initDatabase() {
     `);
   } catch (e) {}
 
+  safeAddColumn('ulangan', 'jenis_ulangan', "TEXT DEFAULT 'campuran'");
+  safeAddColumn('ulangan', 'jumlah_paket', 'INTEGER DEFAULT 1');
+  safeAddColumn('ulangan', 'bobot_pg', 'REAL DEFAULT 60');
+  safeAddColumn('ulangan', 'bobot_essay', 'REAL DEFAULT 40');
+  safeAddColumn('ulangan', 'opsi_pg_count', 'INTEGER DEFAULT 4');
+  safeAddColumn('ulangan', 'jumlah_soal_pg', 'INTEGER DEFAULT NULL');
+
+  safeAddColumn('soal', 'opsi_a', 'TEXT DEFAULT NULL');
+  safeAddColumn('soal', 'opsi_b', 'TEXT DEFAULT NULL');
+  safeAddColumn('soal', 'opsi_c', 'TEXT DEFAULT NULL');
+  safeAddColumn('soal', 'opsi_d', 'TEXT DEFAULT NULL');
+  safeAddColumn('soal', 'opsi_e', 'TEXT DEFAULT NULL');
+  safeAddColumn('soal', 'kunci_pg', 'TEXT DEFAULT NULL');
+
+  safeAddColumn('bank_soal', 'opsi_a', 'TEXT DEFAULT NULL');
+  safeAddColumn('bank_soal', 'opsi_b', 'TEXT DEFAULT NULL');
+  safeAddColumn('bank_soal', 'opsi_c', 'TEXT DEFAULT NULL');
+  safeAddColumn('bank_soal', 'opsi_d', 'TEXT DEFAULT NULL');
+  safeAddColumn('bank_soal', 'opsi_e', 'TEXT DEFAULT NULL');
+  safeAddColumn('bank_soal', 'kunci_pg', 'TEXT DEFAULT NULL');
+
+  safeAddColumn('pengerjaan', 'paket_diambil', "TEXT DEFAULT 'A'");
+  safeAddColumn('pengerjaan', 'skor_pg', 'REAL DEFAULT NULL');
+  safeAddColumn('pengerjaan', 'skor_essay', 'REAL DEFAULT NULL');
+  safeAddColumn('pengerjaan', 'metode_koreksi_pg', "TEXT DEFAULT 'online'");
+
+  // Tabel Baru: Multi-Paket Soal & Log Scan Kamera LJK
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS paket_soal (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ulangan_id INTEGER NOT NULL,
+        nama_paket TEXT NOT NULL,
+        urutan_soal_ids TEXT NOT NULL,
+        kunci_jawaban_map TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (ulangan_id) REFERENCES ulangan(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_paket_soal_ulangan ON paket_soal(ulangan_id);
+
+      CREATE TABLE IF NOT EXISTS omr_scan_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ulangan_id INTEGER NOT NULL,
+        pengerjaan_id INTEGER DEFAULT NULL,
+        nama_siswa TEXT,
+        kelas TEXT,
+        paket TEXT DEFAULT 'A',
+        skor_pg REAL,
+        total_soal INTEGER,
+        total_benar INTEGER,
+        raw_answers TEXT,
+        image_data TEXT DEFAULT NULL,
+        scanned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (ulangan_id) REFERENCES ulangan(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_omr_scan_ulangan ON omr_scan_log(ulangan_id);
+    `);
+  } catch (e) {
+    console.warn('⚠️ Gagal inisialisasi tabel paket_soal / omr_scan_log:', e.message);
+  }
+
+  // Update CHECK constraint soal & bank_soal agar mendukung 'pilihan_ganda'
+  try {
+    const soalSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='soal'").get()?.sql;
+    if (soalSql && soalSql.includes("jenis IN ('isian', 'essay')")) {
+      db.exec('PRAGMA foreign_keys = OFF;');
+      const newSql = soalSql.replace("jenis IN ('isian', 'essay')", "jenis IN ('isian', 'essay', 'pilihan_ganda')")
+                            .replace("CREATE TABLE soal (", "CREATE TABLE soal_new (")
+                            .replace('CREATE TABLE "soal" (', 'CREATE TABLE "soal_new" (');
+      db.exec(newSql);
+      db.exec("INSERT INTO soal_new SELECT * FROM soal;");
+      db.exec("DROP TABLE soal;");
+      db.exec("ALTER TABLE soal_new RENAME TO soal;");
+      db.exec('PRAGMA foreign_keys = ON;');
+    }
+  } catch (e) {
+    console.warn('⚠️ Notice migration check constraint soal:', e.message);
+  }
+
+  try {
+    const bankSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='bank_soal'").get()?.sql;
+    if (bankSql && bankSql.includes("jenis IN ('isian', 'essay')")) {
+      db.exec('PRAGMA foreign_keys = OFF;');
+      const newBankSql = bankSql.replace("jenis IN ('isian', 'essay')", "jenis IN ('isian', 'essay', 'pilihan_ganda')")
+                                .replace("CREATE TABLE bank_soal (", "CREATE TABLE bank_soal_new (")
+                                .replace('CREATE TABLE "bank_soal" (', 'CREATE TABLE "bank_soal_new" (');
+      db.exec(newBankSql);
+      db.exec("INSERT INTO bank_soal_new SELECT * FROM bank_soal;");
+      db.exec("DROP TABLE bank_soal;");
+      db.exec("ALTER TABLE bank_soal_new RENAME TO bank_soal;");
+      db.exec('PRAGMA foreign_keys = ON;');
+    }
+  } catch (e) {
+    console.warn('⚠️ Notice migration check constraint bank_soal:', e.message);
+  }
+
   // Tambahkan UNIQUE index agar tidak akan pernah ada duplikasi butir soal per pengerjaan
   try {
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_jawaban_pengerjaan_soal ON jawaban(pengerjaan_id, soal_id);");

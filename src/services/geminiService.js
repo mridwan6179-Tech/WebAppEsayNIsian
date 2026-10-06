@@ -1820,7 +1820,151 @@ Kembalikan HANYA teks sebaran pesan WhatsApp siap kirim tanpa penjelasan pembuka
     }
 
     return defaultText;
+  },
+
+  // Helper Vision AI untuk membaca gambar (misal scan LJK lembar kertas)
+  async callVisionJsonPrompt(prompt, imageBase64, mimeType = 'image/jpeg', options = {}) {
+    const temperature = options.temperature ?? 0.1;
+    const timeoutMs = options.timeout ?? 20000;
+    const availableKeys = (options.apiKey !== null && options.apiKey !== undefined && String(options.apiKey).trim())
+      ? [{ id: 0, label: 'Manual Key', key: String(options.apiKey).trim() }]
+      : this.getAllActiveApiKeys();
+
+    if (availableKeys.length === 0) {
+      throw new Error('Tidak ada API Key Gemini yang aktif');
+    }
+
+    // Bersihkan base64 data jika ada header data:image/...;base64,
+    let cleanBase64 = imageBase64;
+    if (cleanBase64.includes('base64,')) {
+      const parts = cleanBase64.split('base64,');
+      cleanBase64 = parts[1];
+    }
+
+    const payload = {
+      contents: [{
+        parts: [
+          { text: prompt },
+          {
+            inline_data: {
+              mime_type: mimeType || 'image/jpeg',
+              data: cleanBase64.trim()
+            }
+          }
+        ]
+      }],
+      generationConfig: {
+        temperature,
+        response_mime_type: 'application/json'
+      }
+    };
+
+    let lastError = null;
+
+    for (const keyObj of availableKeys) {
+      const activeKey = keyObj.key;
+      const candidateList = await this.getOrderedCandidateModels(activeKey);
+
+      for (const model of candidateList) {
+        // Lewati model yang sedang cooldown
+        if (this.isModelInCooldown(model)) continue;
+
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`;
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: AbortSignal.timeout(timeoutMs),
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            const errBody = await response.text().catch(() => '');
+            if (response.status === 429) {
+              this.markModelCooldown(model, 180000);
+            }
+            lastError = new Error(`HTTP ${response.status}: ${errBody.slice(0, 200)}`);
+            continue;
+          }
+
+          const data = await response.json();
+          const candidate = data.candidates?.[0];
+          const rawText = candidate?.content?.parts?.[0]?.text;
+          if (rawText) {
+            this.clearModelCooldown(model);
+            const parsed = this.cleanJsonOutput(rawText);
+            return parsed;
+          }
+        } catch (err) {
+          lastError = err;
+          continue;
+        }
+      }
+    }
+
+    throw lastError || new Error('Gagal memproses gambar LJK dengan model AI yang tersedia');
+  },
+
+  // Generator Soal Pilihan Ganda Berbantuan AI
+  async generateMultipleChoiceQuestions({ topik, tingkatKelas = 'SMP', jumlahSoal = 10, opsiCount = 4, materiTeks = '', fileBase64 = null, fileName = '' }) {
+    let contextMateri = `Topik: ${topik}\nJenjang/Kelas: ${tingkatKelas}\nJumlah Soal Diminta: ${jumlahSoal}\n`;
+    if (materiTeks && materiTeks.trim()) {
+      contextMateri += `\nBahan Bacaan Materi:\n${materiTeks.slice(0, 15000)}\n`;
+    }
+
+    const opsiLetters = opsiCount === 5 ? 'A, B, C, D, dan E' : 'A, B, C, dan D';
+    const jsonExample = opsiCount === 5 ? `
+{
+  "questions": [
+    {
+      "pertanyaan": "Teks pertanyaan nomor 1...",
+      "opsi_a": "Pilihan A...",
+      "opsi_b": "Pilihan B...",
+      "opsi_c": "Pilihan C...",
+      "opsi_d": "Pilihan D...",
+      "opsi_e": "Pilihan E...",
+      "kunci_pg": "C",
+      "pembahasan": "Penjelasan singkat mengapa C benar..."
+    }
+  ]
+}` : `
+{
+  "questions": [
+    {
+      "pertanyaan": "Teks pertanyaan nomor 1...",
+      "opsi_a": "Pilihan A...",
+      "opsi_b": "Pilihan B...",
+      "opsi_c": "Pilihan C...",
+      "opsi_d": "Pilihan D...",
+      "kunci_pg": "B",
+      "pembahasan": "Penjelasan singkat mengapa B benar..."
+    }
+  ]
+}`;
+
+    const prompt = `Anda adalah Pakar Kurikulum dan Pembuat Soal Asesmen Standar Nasional.
+Tugas Anda adalah membuat naskah soal Pilihan Ganda (PG) berkualitas tinggi sesuai kaidah penulisan soal yang valid, HOTS (Higher Order Thinking Skills), serta terbebas dari bias.
+
+DATA PEMBELAJARAN:
+${contextMateri}
+
+INSTRUKSI WAJIB:
+1. Buat tepat ${jumlahSoal} butir soal pilihan ganda.
+2. Setiap soal WAJIB memiliki ${opsiCount} opsi jawaban (${opsiLetters}).
+3. Kunci jawaban WAJIB akurat dan merujuk pada konsep ilmiah/faktual yang benar. Opsi pengecoh (distractor) harus masuk akal dan relevan.
+4. Distribusikan kunci jawaban secara proporsional dan acak (jangan sampai sebagian besar terkumpul di satu huruf).
+5. Sertakan pembahasan singkat yang jelas untuk setiap butir soal.
+6. Kembalikan HASIL HANYA dalam format JSON valid sesuai skema berikut tanpa teks pembuka/penutup markdown:
+${jsonExample}
+`;
+
+    const result = await this.callJsonPrompt(prompt, { temperature: 0.3, timeout: 25000 });
+    if (!result || !Array.isArray(result.questions)) {
+      throw new Error('Format output generator soal tidak valid');
+    }
+    return result.questions;
   }
 };
 
 module.exports = geminiService;
+

@@ -446,7 +446,7 @@ const reviewService = {
   recalculatePengerjaanTotal(pengerjaanId) {
     const jawabanItems = db.prepare(`
       SELECT j.id as jawaban_id, j.status_penilaian, j.skor_rekomendasi, j.skor_maksimum,
-             s.bobot, rg.id as rg_id, rg.skor_final
+             s.bobot, s.jenis, rg.id as rg_id, rg.skor_final
       FROM jawaban j
       JOIN soal s ON j.soal_id = s.id
       LEFT JOIN review_guru rg ON j.id = rg.jawaban_id
@@ -485,27 +485,75 @@ const reviewService = {
       }
     }
 
-    // Hitung total rekomendasi AI
-    const aiItems = jawabanItems.map(item => ({
-      bobot: item.bobot,
-      skor_maksimum: item.skor_maksimum,
-      skor_final: item.skor_rekomendasi ?? 0
-    }));
-    const totalAiScore = examService.calculateNormalizedScore(aiItems);
+    // Cek konfigurasi jenis ulangan dan bobot campuran (PG + Esai)
+    const ulanganInfo = db.prepare(`
+      SELECT u.jenis_ulangan, u.bobot_pg, u.bobot_essay 
+      FROM pengerjaan p 
+      JOIN ulangan u ON p.ulangan_id = u.id 
+      WHERE p.id = ?
+    `).get(pengerjaanId);
 
-    // Hitung total nilai final guru (jika belum direview, gunakan skor AI sebagai default)
-    const finalItems = jawabanItems.map(item => ({
-      bobot: item.bobot,
-      skor_maksimum: item.skor_maksimum,
-      skor_final: item.skor_final ?? item.skor_rekomendasi ?? 0
-    }));
-    const totalFinalScore = examService.calculateNormalizedScore(finalItems);
+    const pgItems = jawabanItems.filter(item => item.jenis === 'pilihan_ganda');
+    const essayItems = jawabanItems.filter(item => item.jenis !== 'pilihan_ganda');
+
+    let totalAiScore = 0;
+    let totalFinalScore = 0;
+    let skorPg = null;
+    let skorEssay = null;
+
+    const existingPengerjaan = db.prepare('SELECT skor_pg FROM pengerjaan WHERE id = ?').get(pengerjaanId);
+    const recordedSkorPg = (existingPengerjaan && existingPengerjaan.skor_pg !== null && existingPengerjaan.skor_pg !== undefined) ? Number(existingPengerjaan.skor_pg) : null;
+
+    if (ulanganInfo && ulanganInfo.jenis_ulangan === 'campuran' && (pgItems.length > 0 || recordedSkorPg !== null) && essayItems.length > 0) {
+      const bPg = Number(ulanganInfo.bobot_pg) || 60;
+      const bEs = Number(ulanganInfo.bobot_essay) || 40;
+
+      const aiPg = pgItems.length > 0
+        ? examService.calculateNormalizedScore(pgItems.map(p => ({ bobot: p.bobot, skor_maksimum: p.skor_maksimum, skor_final: p.skor_rekomendasi ?? 0 })))
+        : (recordedSkorPg ?? 0);
+      const aiEs = examService.calculateNormalizedScore(essayItems.map(p => ({ bobot: p.bobot, skor_maksimum: p.skor_maksimum, skor_final: p.skor_rekomendasi ?? 0 })));
+      totalAiScore = Math.round(((aiPg * bPg / 100) + (aiEs * bEs / 100)) * 10) / 10;
+
+      const finPg = pgItems.length > 0
+        ? examService.calculateNormalizedScore(pgItems.map(p => ({ bobot: p.bobot, skor_maksimum: p.skor_maksimum, skor_final: p.skor_final ?? p.skor_rekomendasi ?? 0 })))
+        : (recordedSkorPg ?? 0);
+      const finEs = examService.calculateNormalizedScore(essayItems.map(p => ({ bobot: p.bobot, skor_maksimum: p.skor_maksimum, skor_final: p.skor_final ?? p.skor_rekomendasi ?? 0 })));
+      totalFinalScore = Math.round(((finPg * bPg / 100) + (finEs * bEs / 100)) * 10) / 10;
+
+      skorPg = finPg;
+      skorEssay = finEs;
+    } else {
+      // Hitung total rekomendasi AI standar
+      const aiItems = jawabanItems.map(item => ({
+        bobot: item.bobot,
+        skor_maksimum: item.skor_maksimum,
+        skor_final: item.skor_rekomendasi ?? 0
+      }));
+      totalAiScore = examService.calculateNormalizedScore(aiItems);
+
+      // Hitung total nilai final guru (jika belum direview, gunakan skor AI sebagai default)
+      const finalItems = jawabanItems.map(item => ({
+        bobot: item.bobot,
+        skor_maksimum: item.skor_maksimum,
+        skor_final: item.skor_final ?? item.skor_rekomendasi ?? 0
+      }));
+      totalFinalScore = examService.calculateNormalizedScore(finalItems);
+
+      if (pgItems.length > 0) {
+        skorPg = examService.calculateNormalizedScore(pgItems.map(p => ({ bobot: p.bobot, skor_maksimum: p.skor_maksimum, skor_final: p.skor_final ?? p.skor_rekomendasi ?? 0 })));
+      }
+      if (essayItems.length > 0) {
+        skorEssay = examService.calculateNormalizedScore(essayItems.map(p => ({ bobot: p.bobot, skor_maksimum: p.skor_maksimum, skor_final: p.skor_final ?? p.skor_rekomendasi ?? 0 })));
+      }
+    }
 
     db.prepare(`
       UPDATE pengerjaan 
-      SET nilai_ai = ?, nilai_final = ? 
+      SET nilai_ai = ?, nilai_final = ?,
+          skor_pg = COALESCE(?, skor_pg),
+          skor_essay = COALESCE(?, skor_essay)
       WHERE id = ?
-    `).run(totalAiScore, totalFinalScore, pengerjaanId);
+    `).run(totalAiScore, totalFinalScore, skorPg, skorEssay, pengerjaanId);
 
     if (hasHealed && typeof db.syncCloud === 'function') {
       db.syncCloud(true);

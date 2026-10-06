@@ -121,15 +121,30 @@ const examService = {
     const tampilkanKisiKisi = (data.tampilkan_kisi_kisi !== undefined && data.tampilkan_kisi_kisi !== null) ? (data.tampilkan_kisi_kisi ? 1 : 0) : (cleanLinkKisiKisi ? 1 : 0);
     const tampilkanTeksListening = data.tampilkan_teks_listening ? 1 : 0;
 
+    const cleanJenisUlangan = (data.jenis_ulangan && ['pg_saja', 'essay_saja', 'campuran'].includes(data.jenis_ulangan)) ? data.jenis_ulangan : 'campuran';
+    const cleanJumlahPaket = Math.max(1, Math.min(4, Number(data.jumlah_paket) || 1));
+    const cleanBobotPg = (data.bobot_pg !== undefined && data.bobot_pg !== null && data.bobot_pg !== '') ? Math.max(0, Math.min(100, Number(data.bobot_pg))) : (cleanJenisUlangan === 'pg_saja' ? 100 : 60);
+    const cleanBobotEssay = (data.bobot_essay !== undefined && data.bobot_essay !== null && data.bobot_essay !== '') ? Math.max(0, Math.min(100, Number(data.bobot_essay))) : (cleanJenisUlangan === 'pg_saja' ? 0 : 40);
+    const cleanOpsiPgCount = Number(data.opsi_pg_count) === 5 ? 5 : 4;
+    const cleanJumlahSoalPg = (data.jumlah_soal_pg !== undefined && data.jumlah_soal_pg !== null && data.jumlah_soal_pg !== '') ? Math.max(0, Number(data.jumlah_soal_pg)) : null;
+
     const stmt = db.prepare(`
-      INSERT INTO ulangan (guru_id, judul, mata_pelajaran, tingkat_kelas, deskripsi, kode_ujian, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, instruksi_remedial, link_remedial, zona_waktu, izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus, tampilkan_simbol, link_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening)
-      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO ulangan (
+        guru_id, judul, mata_pelajaran, tingkat_kelas, deskripsi, kode_ujian, status,
+        jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, acak_soal,
+        tanggal_mulai, tanggal_selesai, durasi_menit, kkm, instruksi_remedial, link_remedial, zona_waktu,
+        izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus, tampilkan_simbol,
+        link_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening,
+        jenis_ulangan, jumlah_paket, bobot_pg, bobot_essay, opsi_pg_count, jumlah_soal_pg
+      )
+      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
       guruId, judul, mata_pelajaran, tingkat_kelas, deskripsi || '', kode_ujian,
       limitSoal, cleanIsian, cleanEssay, cleanListening, isAcak, cleanTanggalMulai, cleanTanggalSelesai, cleanDurasi,
       cleanKkm, cleanInstruksiRemedial, cleanLinkRemedial, cleanZonaWaktu,
-      izinkanSingkatan, izinkanInformal, toleransiTypo, cleanInstruksiKhusus, tampilkanSimbol, cleanLinkKisiKisi, tampilkanKisiKisi, tampilkanTeksListening
+      izinkanSingkatan, izinkanInformal, toleransiTypo, cleanInstruksiKhusus, tampilkanSimbol, cleanLinkKisiKisi, tampilkanKisiKisi, tampilkanTeksListening,
+      cleanJenisUlangan, cleanJumlahPaket, cleanBobotPg, cleanBobotEssay, cleanOpsiPgCount, cleanJumlahSoalPg
     );
     const ulanganId = info.lastInsertRowid;
 
@@ -354,6 +369,36 @@ const examService = {
       updates.push('tampilkan_teks_listening = ?');
       params.push(data.tampilkan_teks_listening ? 1 : 0);
     }
+    if (data.jenis_ulangan !== undefined) {
+      const ju = ['pg_saja', 'essay_saja', 'campuran'].includes(data.jenis_ulangan) ? data.jenis_ulangan : 'campuran';
+      updates.push('jenis_ulangan = ?');
+      params.push(ju);
+    }
+    if (data.jumlah_paket !== undefined) {
+      const jp = Math.max(1, Math.min(4, Number(data.jumlah_paket) || 1));
+      updates.push('jumlah_paket = ?');
+      params.push(jp);
+    }
+    if (data.bobot_pg !== undefined) {
+      const bpg = Math.max(0, Math.min(100, Number(data.bobot_pg) || 0));
+      updates.push('bobot_pg = ?');
+      params.push(bpg);
+    }
+    if (data.bobot_essay !== undefined) {
+      const be = Math.max(0, Math.min(100, Number(data.bobot_essay) || 0));
+      updates.push('bobot_essay = ?');
+      params.push(be);
+    }
+    if (data.opsi_pg_count !== undefined) {
+      const opc = Number(data.opsi_pg_count) === 5 ? 5 : 4;
+      updates.push('opsi_pg_count = ?');
+      params.push(opc);
+    }
+    if (data.jumlah_soal_pg !== undefined) {
+      const jsp = (data.jumlah_soal_pg !== null && data.jumlah_soal_pg !== '') ? Math.max(0, Number(data.jumlah_soal_pg)) : null;
+      updates.push('jumlah_soal_pg = ?');
+      params.push(jsp);
+    }
     if (status !== undefined) {
       if (!['draft', 'dibuka', 'ditutup', 'selesai'].includes(status)) {
         throw new Error('Status tidak valid');
@@ -412,14 +457,18 @@ const examService = {
 
   // FR-04: Buat Soal
   createSoal(ulanganId, data) {
-    const { pertanyaan, jenis, bobot, kunci_jawaban, rubrik, tingkat_kelas, tingkat_kesulitan, gambar_url, pembahasan, audio_url, audio_script, is_listening, bahasa, kategori } = data;
+    const {
+      pertanyaan, jenis, bobot, kunci_jawaban, rubrik, tingkat_kelas, tingkat_kesulitan,
+      gambar_url, pembahasan, audio_url, audio_script, is_listening, bahasa, kategori,
+      opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_pg
+    } = data;
 
     if (!pertanyaan || !jenis || bobot === undefined) {
       throw new Error('Pertanyaan, jenis soal, dan bobot wajib diisi');
     }
 
-    if (!['isian', 'essay'].includes(jenis)) {
-      throw new Error('Jenis soal harus isian atau essay');
+    if (!['isian', 'essay', 'pilihan_ganda'].includes(jenis)) {
+      throw new Error('Jenis soal harus isian, essay, atau pilihan_ganda');
     }
 
     const numBobot = Number(bobot);
@@ -433,8 +482,13 @@ const examService = {
     const nextUrutan = (maxOrder?.max_u || 0) + 1;
 
     const stmt = db.prepare(`
-      INSERT INTO soal (ulangan_id, nomor, jenis, pertanyaan, gambar_url, kunci_jawaban, rubrik, bobot, tingkat_kelas, tingkat_kesulitan, urutan, pembahasan, audio_url, audio_script, is_listening, bahasa, kategori, tampilkan_teks_listening)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO soal (
+        ulangan_id, nomor, jenis, pertanyaan, gambar_url, kunci_jawaban, rubrik, bobot,
+        tingkat_kelas, tingkat_kesulitan, urutan, pembahasan, audio_url, audio_script,
+        is_listening, bahasa, kategori, tampilkan_teks_listening,
+        opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_pg
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const cleanTampilkanTeks = (data.tampilkan_teks_listening !== undefined && data.tampilkan_teks_listening !== null && data.tampilkan_teks_listening !== '')
@@ -447,7 +501,7 @@ const examService = {
       jenis,
       pertanyaan,
       gambar_url || null,
-      kunci_jawaban || '',
+      kunci_jawaban || (jenis === 'pilihan_ganda' ? (kunci_pg || 'A') : ''),
       rubrik || '',
       numBobot,
       tingkat_kelas || '',
@@ -459,7 +513,13 @@ const examService = {
       is_listening ? 1 : 0,
       bahasa || null,
       kategori || null,
-      cleanTampilkanTeks
+      cleanTampilkanTeks,
+      opsi_a ? String(opsi_a).trim() : null,
+      opsi_b ? String(opsi_b).trim() : null,
+      opsi_c ? String(opsi_c).trim() : null,
+      opsi_d ? String(opsi_d).trim() : null,
+      opsi_e ? String(opsi_e).trim() : null,
+      kunci_pg ? String(kunci_pg).toUpperCase().trim() : (jenis === 'pilihan_ganda' ? 'A' : null)
     );
 
     return db.prepare('SELECT * FROM soal WHERE id = ?').get(info.lastInsertRowid);
@@ -489,7 +549,7 @@ const examService = {
     if (data.pertanyaan !== undefined) { updates.push('pertanyaan = ?'); params.push(data.pertanyaan); }
     if (data.gambar_url !== undefined) { updates.push('gambar_url = ?'); params.push(data.gambar_url); }
     if (data.jenis !== undefined) {
-      if (!['isian', 'essay'].includes(data.jenis)) throw new Error('Jenis soal harus isian atau essay');
+      if (!['isian', 'essay', 'pilihan_ganda'].includes(data.jenis)) throw new Error('Jenis soal harus isian, essay, atau pilihan_ganda');
       updates.push('jenis = ?');
       params.push(data.jenis);
     }
@@ -511,6 +571,12 @@ const examService = {
     if (data.is_listening !== undefined) { updates.push('is_listening = ?'); params.push(data.is_listening ? 1 : 0); }
     if (data.bahasa !== undefined) { updates.push('bahasa = ?'); params.push(data.bahasa || null); }
     if (data.kategori !== undefined) { updates.push('kategori = ?'); params.push(data.kategori || null); }
+    if (data.opsi_a !== undefined) { updates.push('opsi_a = ?'); params.push(data.opsi_a ? String(data.opsi_a).trim() : null); }
+    if (data.opsi_b !== undefined) { updates.push('opsi_b = ?'); params.push(data.opsi_b ? String(data.opsi_b).trim() : null); }
+    if (data.opsi_c !== undefined) { updates.push('opsi_c = ?'); params.push(data.opsi_c ? String(data.opsi_c).trim() : null); }
+    if (data.opsi_d !== undefined) { updates.push('opsi_d = ?'); params.push(data.opsi_d ? String(data.opsi_d).trim() : null); }
+    if (data.opsi_e !== undefined) { updates.push('opsi_e = ?'); params.push(data.opsi_e ? String(data.opsi_e).trim() : null); }
+    if (data.kunci_pg !== undefined) { updates.push('kunci_pg = ?'); params.push(data.kunci_pg ? String(data.kunci_pg).toUpperCase().trim() : null); }
     if (data.tampilkan_teks_listening !== undefined) {
       const cleanTampilkanTeks = (data.tampilkan_teks_listening !== null && data.tampilkan_teks_listening !== '')
         ? (data.tampilkan_teks_listening ? 1 : 0)
