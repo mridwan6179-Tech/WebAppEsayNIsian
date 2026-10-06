@@ -139,7 +139,7 @@ function initDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       ulangan_id INTEGER NOT NULL,
       nomor INTEGER NOT NULL,
-      jenis TEXT CHECK(jenis IN ('isian', 'essay')) NOT NULL,
+      jenis TEXT CHECK(jenis IN ('isian', 'essay', 'pilihan_ganda', 'koding_game')) NOT NULL,
       pertanyaan TEXT NOT NULL,
       gambar_url TEXT DEFAULT NULL,
       kunci_jawaban TEXT,
@@ -285,7 +285,7 @@ function initDatabase() {
       kategori TEXT NOT NULL,
       sub_topik TEXT DEFAULT NULL,
       tingkat_kelas TEXT DEFAULT NULL,
-      jenis TEXT CHECK(jenis IN ('isian', 'essay')) NOT NULL,
+      jenis TEXT CHECK(jenis IN ('isian', 'essay', 'pilihan_ganda', 'koding_game')) NOT NULL,
       pertanyaan TEXT NOT NULL,
       kunci_jawaban TEXT DEFAULT NULL,
       rubrik TEXT DEFAULT NULL,
@@ -482,7 +482,13 @@ function initDatabase() {
   safeAddColumn('pengerjaan', 'paket_diambil', "TEXT DEFAULT 'A'");
   safeAddColumn('pengerjaan', 'skor_pg', 'REAL DEFAULT NULL');
   safeAddColumn('pengerjaan', 'skor_essay', 'REAL DEFAULT NULL');
+  safeAddColumn('pengerjaan', 'skor_koding', 'REAL DEFAULT NULL');
   safeAddColumn('pengerjaan', 'metode_koreksi_pg', "TEXT DEFAULT 'online'");
+
+  safeAddColumn('ulangan', 'bobot_koding', 'REAL DEFAULT 0');
+  safeAddColumn('soal', 'game_data', 'TEXT DEFAULT NULL');
+  safeAddColumn('bank_soal', 'game_data', 'TEXT DEFAULT NULL');
+  safeAddColumn('jawaban', 'jawaban_koding', 'TEXT DEFAULT NULL');
 
   // Tabel Baru: Multi-Paket Soal & Log Scan Kamera LJK
   try {
@@ -519,14 +525,19 @@ function initDatabase() {
     console.warn('⚠️ Gagal inisialisasi tabel paket_soal / omr_scan_log:', e.message);
   }
 
-  // Update CHECK constraint soal & bank_soal agar mendukung 'pilihan_ganda'
+  // Update CHECK constraint soal & bank_soal agar mendukung 'pilihan_ganda' dan 'koding_game'
   try {
     const soalSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='soal'").get()?.sql;
-    if (soalSql && soalSql.includes("jenis IN ('isian', 'essay')")) {
+    if (soalSql && !soalSql.includes("'koding_game'")) {
       db.exec('PRAGMA foreign_keys = OFF;');
-      const newSql = soalSql.replace("jenis IN ('isian', 'essay')", "jenis IN ('isian', 'essay', 'pilihan_ganda')")
-                            .replace("CREATE TABLE soal (", "CREATE TABLE soal_new (")
-                            .replace('CREATE TABLE "soal" (', 'CREATE TABLE "soal_new" (');
+      let newSql = soalSql;
+      if (newSql.includes("jenis IN ('isian', 'essay', 'pilihan_ganda')")) {
+        newSql = newSql.replace("jenis IN ('isian', 'essay', 'pilihan_ganda')", "jenis IN ('isian', 'essay', 'pilihan_ganda', 'koding_game')");
+      } else if (newSql.includes("jenis IN ('isian', 'essay')")) {
+        newSql = newSql.replace("jenis IN ('isian', 'essay')", "jenis IN ('isian', 'essay', 'pilihan_ganda', 'koding_game')");
+      }
+      newSql = newSql.replace("CREATE TABLE soal (", "CREATE TABLE soal_new (")
+                     .replace('CREATE TABLE "soal" (', 'CREATE TABLE "soal_new" (');
       db.exec(newSql);
       db.exec("INSERT INTO soal_new SELECT * FROM soal;");
       db.exec("DROP TABLE soal;");
@@ -534,16 +545,21 @@ function initDatabase() {
       db.exec('PRAGMA foreign_keys = ON;');
     }
   } catch (e) {
-    console.warn('⚠️ Notice migration check constraint soal:', e.message);
+    console.warn('⚠️ Notice migration check constraint soal koding_game:', e.message);
   }
 
   try {
     const bankSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='bank_soal'").get()?.sql;
-    if (bankSql && bankSql.includes("jenis IN ('isian', 'essay')")) {
+    if (bankSql && !bankSql.includes("'koding_game'")) {
       db.exec('PRAGMA foreign_keys = OFF;');
-      const newBankSql = bankSql.replace("jenis IN ('isian', 'essay')", "jenis IN ('isian', 'essay', 'pilihan_ganda')")
-                                .replace("CREATE TABLE bank_soal (", "CREATE TABLE bank_soal_new (")
-                                .replace('CREATE TABLE "bank_soal" (', 'CREATE TABLE "bank_soal_new" (');
+      let newBankSql = bankSql;
+      if (newBankSql.includes("jenis IN ('isian', 'essay', 'pilihan_ganda')")) {
+        newBankSql = newBankSql.replace("jenis IN ('isian', 'essay', 'pilihan_ganda')", "jenis IN ('isian', 'essay', 'pilihan_ganda', 'koding_game')");
+      } else if (newBankSql.includes("jenis IN ('isian', 'essay')")) {
+        newBankSql = newBankSql.replace("jenis IN ('isian', 'essay')", "jenis IN ('isian', 'essay', 'pilihan_ganda', 'koding_game')");
+      }
+      newBankSql = newBankSql.replace("CREATE TABLE bank_soal (", "CREATE TABLE bank_soal_new (")
+                             .replace('CREATE TABLE "bank_soal" (', 'CREATE TABLE "bank_soal_new" (');
       db.exec(newBankSql);
       db.exec("INSERT INTO bank_soal_new SELECT * FROM bank_soal;");
       db.exec("DROP TABLE bank_soal;");
@@ -551,7 +567,7 @@ function initDatabase() {
       db.exec('PRAGMA foreign_keys = ON;');
     }
   } catch (e) {
-    console.warn('⚠️ Notice migration check constraint bank_soal:', e.message);
+    console.warn('⚠️ Notice migration check constraint bank_soal koding_game:', e.message);
   }
 
   // Tambahkan UNIQUE index agar tidak akan pernah ada duplikasi butir soal per pengerjaan

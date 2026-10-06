@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const examService = require('./examService');
+const codingGameService = require('./codingGameService');
 
 function maskStudentName(name) {
   if (!name || typeof name !== 'string') return '-';
@@ -218,7 +219,7 @@ const studentService = {
       // Siswa sudah memulai sebelumnya: muat soal yang sama persis (persisten / anti-refresh)
       const placeholders = assignedQuestionIds.map(() => '?').join(',');
       const rows = db.prepare(`
-        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa, tampilkan_teks_listening, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e
+        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa, tampilkan_teks_listening, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, game_data
         FROM soal
         WHERE id IN (${placeholders})
       `).all(...assignedQuestionIds);
@@ -228,7 +229,7 @@ const studentService = {
     } else {
       // Pengerjaan baru: ambil semua soal dari bank soal
       const allQuestions = db.prepare(`
-        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa, tampilkan_teks_listening, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e
+        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa, tampilkan_teks_listening, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, game_data
         FROM soal
         WHERE ulangan_id = ?
         ORDER BY urutan ASC, nomor ASC
@@ -608,22 +609,25 @@ const studentService = {
 
     let totalPg = 0;
     let benarPg = 0;
+    let totalKoding = 0;
+    let sumKodingScorePct = 0;
+    let computedSkorKoding = null;
     let hasEssayOrIsian = false;
     let computedSkorPg = null;
 
     // Transaksi penyimpanan jawaban agar atomik
     const insertOrUpdateJawaban = db.transaction(() => {
       const checkStmt = db.prepare('SELECT id, jawaban_siswa FROM jawaban WHERE pengerjaan_id = ? AND soal_id = ?');
-      const soalInfoStmt = db.prepare('SELECT id, bobot, jenis, kunci_pg FROM soal WHERE id = ?');
+      const soalInfoStmt = db.prepare('SELECT id, bobot, jenis, kunci_pg, game_data FROM soal WHERE id = ?');
 
       const upsertStmt = db.prepare(`
         INSERT INTO jawaban (pengerjaan_id, soal_id, jawaban_siswa, skor_maksimum, status_penilaian, paste_count)
         VALUES (?, ?, ?, ?, 'menunggu', ?)
         ON CONFLICT(pengerjaan_id, soal_id) DO UPDATE 
         SET jawaban_siswa = excluded.jawaban_siswa,
-            skor_maksimum = excluded.skor_maksimum,
-            status_penilaian = 'menunggu',
-            paste_count = MAX(COALESCE(jawaban.paste_count, 0), excluded.paste_count)
+             skor_maksimum = excluded.skor_maksimum,
+             status_penilaian = 'menunggu',
+             paste_count = MAX(COALESCE(jawaban.paste_count, 0), excluded.paste_count)
       `);
 
       const upsertPgStmt = db.prepare(`
@@ -631,12 +635,12 @@ const studentService = {
         VALUES (?, ?, ?, ?, ?, ?, 'selesai', ?, ?)
         ON CONFLICT(pengerjaan_id, soal_id) DO UPDATE 
         SET jawaban_siswa = excluded.jawaban_siswa,
-            skor_maksimum = excluded.skor_maksimum,
-            skor_rekomendasi = excluded.skor_rekomendasi,
-            status_jawaban = excluded.status_jawaban,
-            status_penilaian = 'selesai',
-            alasan_ai = excluded.alasan_ai,
-            paste_count = MAX(COALESCE(jawaban.paste_count, 0), excluded.paste_count)
+             skor_maksimum = excluded.skor_maksimum,
+             skor_rekomendasi = excluded.skor_rekomendasi,
+             status_jawaban = excluded.status_jawaban,
+             status_penilaian = 'selesai',
+             alasan_ai = excluded.alasan_ai,
+             paste_count = MAX(COALESCE(jawaban.paste_count, 0), excluded.paste_count)
       `);
 
       for (const [soalId, bobot] of soalMap.entries()) {
@@ -666,6 +670,19 @@ const studentService = {
           const skorRek = isBenar ? Number(bobot) : 0;
           const alasan = isBenar ? 'Pilihan jawaban tepat sesuai kunci.' : `Pilihan salah. Kunci jawaban: ${kunci}`;
           upsertPgStmt.run(pengerjaanId, soalId, finalJawaban, bobot, skorRek, statusJwb, alasan, itemPaste);
+        } else if (sInfo && sInfo.jenis === 'koding_game') {
+          totalKoding++;
+          const evalResult = codingGameService.evaluateSolution(sInfo.game_data, finalJawaban);
+          sumKodingScorePct += evalResult.score;
+          const skorRek = Math.round(((evalResult.score / 100) * Number(bobot)) * 100) / 100;
+          const statusJwb = evalResult.starsEarned >= 2 ? 'benar' : (evalResult.starsEarned === 1 ? 'sebagian' : 'salah');
+          const alasan = evalResult.mode === 'scratch_puzzle'
+            ? `Cocok: ${evalResult.correctCount}/${evalResult.total} pasangan. Bintang: ${evalResult.starsEarned}/3.`
+            : `Bintang: ${evalResult.starsEarned}/3. ${evalResult.isFinished ? 'Robot sampai finish!' : 'Robot belum sampai finish.'} Blok: ${evalResult.blockCount}/${evalResult.parLimit}. Skor: ${evalResult.score}%.`;
+          upsertPgStmt.run(pengerjaanId, soalId, finalJawaban, bobot, skorRek, statusJwb, alasan, itemPaste);
+          try {
+            db.prepare('UPDATE jawaban SET jawaban_koding = ? WHERE pengerjaan_id = ? AND soal_id = ?').run(finalJawaban, pengerjaanId, soalId);
+          } catch (e) {}
         } else {
           hasEssayOrIsian = true;
           upsertStmt.run(pengerjaanId, soalId, finalJawaban, bobot, itemPaste);
@@ -673,14 +690,24 @@ const studentService = {
       }
 
       computedSkorPg = totalPg > 0 ? Math.round((benarPg / totalPg) * 100 * 10) / 10 : null;
+      computedSkorKoding = totalKoding > 0 ? Math.round((sumKodingScorePct / totalKoding) * 10) / 10 : null;
 
-      // Jika seluruh soal adalah pilihan ganda (tidak ada esai/isian), hitung nilai akhir seketika
+      // Jika seluruh soal adalah pilihan ganda / koding (tidak ada esai/isian), hitung nilai akhir seketika
       let nilaiFinal = null;
-      if (!hasEssayOrIsian && computedSkorPg !== null) {
-        nilaiFinal = computedSkorPg;
+      if (!hasEssayOrIsian && (computedSkorPg !== null || computedSkorKoding !== null)) {
+        const ulInfo = db.prepare('SELECT bobot_pg, bobot_koding FROM ulangan WHERE id = ?').get(pengerjaan.ulangan_id);
+        const bPg = (computedSkorPg !== null) ? (Number(ulInfo?.bobot_pg) || (computedSkorKoding !== null ? 50 : 100)) : 0;
+        const bKod = (computedSkorKoding !== null) ? (Number(ulInfo?.bobot_koding) || (computedSkorPg !== null ? 50 : 100)) : 0;
+        const totalB = bPg + bKod;
+        if (totalB > 0) {
+          const weightedSum = ((computedSkorPg || 0) * bPg) + ((computedSkorKoding || 0) * bKod);
+          nilaiFinal = Math.round((weightedSum / totalB) * 10) / 10;
+        } else {
+          nilaiFinal = computedSkorPg ?? computedSkorKoding ?? 0;
+        }
       }
 
-      // Update status pengerjaan ke submitted & catat skor_pg, nilai_final, paste_count
+      // Update status pengerjaan ke submitted & catat skor_pg, skor_koding, nilai_final, paste_count
       const nowIso = new Date().toISOString();
       const pasteDetailsStr = pasteDetails && typeof pasteDetails === 'object' ? JSON.stringify(pasteDetails) : null;
       db.prepare(`
@@ -688,9 +715,10 @@ const studentService = {
         SET status = 'submitted', submitted_at = ?, paste_count = MAX(COALESCE(paste_count, 0), ?),
             auto_submitted = ?, paste_details = COALESCE(?, paste_details),
             skor_pg = ?,
+            skor_koding = ?,
             nilai_final = COALESCE(?, nilai_final)
         WHERE id = ?
-      `).run(nowIso, Number(pasteCount) || 0, isAutoSubmit ? 1 : 0, pasteDetailsStr, computedSkorPg, nilaiFinal, pengerjaanId);
+      `).run(nowIso, Number(pasteCount) || 0, isAutoSubmit ? 1 : 0, pasteDetailsStr, computedSkorPg, computedSkorKoding, nilaiFinal, pengerjaanId);
     });
 
     insertOrUpdateJawaban();
@@ -704,6 +732,8 @@ const studentService = {
       skor_pg: computedSkorPg,
       total_pg: totalPg,
       benar_pg: benarPg,
+      skor_koding: computedSkorKoding,
+      total_koding: totalKoding,
       has_essay: hasEssayOrIsian
     };
   },

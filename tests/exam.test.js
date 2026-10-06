@@ -47,7 +47,7 @@ test('T-02: CRUD Ulangan dan Soal, Normalisasi Nilai (FR-02 - FR-05)', async (t)
         jenis: 'invalid_type', // Tidak valid
         bobot: 10
       });
-    }, /Jenis soal harus isian, essay, atau pilihan_ganda/);
+    }, /Jenis soal harus isian, essay, pilihan_ganda, atau koding_game/);
 
     assert.throws(() => {
       examService.createSoal(ulanganId, {

@@ -485,43 +485,70 @@ const reviewService = {
       }
     }
 
-    // Cek konfigurasi jenis ulangan dan bobot campuran (PG + Esai)
+    // Cek konfigurasi jenis ulangan dan bobot campuran (PG + Esai + Koding)
     const ulanganInfo = db.prepare(`
-      SELECT u.jenis_ulangan, u.bobot_pg, u.bobot_essay 
+      SELECT u.jenis_ulangan, u.bobot_pg, u.bobot_essay, u.bobot_koding 
       FROM pengerjaan p 
       JOIN ulangan u ON p.ulangan_id = u.id 
       WHERE p.id = ?
     `).get(pengerjaanId);
 
     const pgItems = jawabanItems.filter(item => item.jenis === 'pilihan_ganda');
-    const essayItems = jawabanItems.filter(item => item.jenis !== 'pilihan_ganda');
+    const kodingItems = jawabanItems.filter(item => item.jenis === 'koding_game');
+    const essayItems = jawabanItems.filter(item => item.jenis !== 'pilihan_ganda' && item.jenis !== 'koding_game');
 
     let totalAiScore = 0;
     let totalFinalScore = 0;
     let skorPg = null;
+    let skorKoding = null;
     let skorEssay = null;
 
-    const existingPengerjaan = db.prepare('SELECT skor_pg FROM pengerjaan WHERE id = ?').get(pengerjaanId);
+    const existingPengerjaan = db.prepare('SELECT skor_pg, skor_koding FROM pengerjaan WHERE id = ?').get(pengerjaanId);
     const recordedSkorPg = (existingPengerjaan && existingPengerjaan.skor_pg !== null && existingPengerjaan.skor_pg !== undefined) ? Number(existingPengerjaan.skor_pg) : null;
+    const recordedSkorKoding = (existingPengerjaan && existingPengerjaan.skor_koding !== null && existingPengerjaan.skor_koding !== undefined) ? Number(existingPengerjaan.skor_koding) : null;
 
-    if (ulanganInfo && ulanganInfo.jenis_ulangan === 'campuran' && (pgItems.length > 0 || recordedSkorPg !== null) && essayItems.length > 0) {
-      const bPg = Number(ulanganInfo.bobot_pg) || 60;
-      const bEs = Number(ulanganInfo.bobot_essay) || 40;
+    const hasMultiComponents = [
+      pgItems.length > 0 || recordedSkorPg !== null,
+      kodingItems.length > 0 || recordedSkorKoding !== null,
+      essayItems.length > 0
+    ].filter(Boolean).length > 1;
+
+    if (ulanganInfo && (ulanganInfo.jenis_ulangan === 'campuran' || hasMultiComponents)) {
+      const bPg = Number(ulanganInfo.bobot_pg) || 0;
+      const bEs = Number(ulanganInfo.bobot_essay) || 0;
+      const bKod = Number(ulanganInfo.bobot_koding) || 0;
 
       const aiPg = pgItems.length > 0
         ? examService.calculateNormalizedScore(pgItems.map(p => ({ bobot: p.bobot, skor_maksimum: p.skor_maksimum, skor_final: p.skor_rekomendasi ?? 0 })))
         : (recordedSkorPg ?? 0);
-      const aiEs = examService.calculateNormalizedScore(essayItems.map(p => ({ bobot: p.bobot, skor_maksimum: p.skor_maksimum, skor_final: p.skor_rekomendasi ?? 0 })));
-      totalAiScore = Math.round(((aiPg * bPg / 100) + (aiEs * bEs / 100)) * 10) / 10;
+      const aiKod = kodingItems.length > 0
+        ? examService.calculateNormalizedScore(kodingItems.map(p => ({ bobot: p.bobot, skor_maksimum: p.skor_maksimum, skor_final: p.skor_rekomendasi ?? 0 })))
+        : (recordedSkorKoding ?? 0);
+      const aiEs = essayItems.length > 0
+        ? examService.calculateNormalizedScore(essayItems.map(p => ({ bobot: p.bobot, skor_maksimum: p.skor_maksimum, skor_final: p.skor_rekomendasi ?? 0 })))
+        : 0;
 
       const finPg = pgItems.length > 0
         ? examService.calculateNormalizedScore(pgItems.map(p => ({ bobot: p.bobot, skor_maksimum: p.skor_maksimum, skor_final: p.skor_final ?? p.skor_rekomendasi ?? 0 })))
         : (recordedSkorPg ?? 0);
-      const finEs = examService.calculateNormalizedScore(essayItems.map(p => ({ bobot: p.bobot, skor_maksimum: p.skor_maksimum, skor_final: p.skor_final ?? p.skor_rekomendasi ?? 0 })));
-      totalFinalScore = Math.round(((finPg * bPg / 100) + (finEs * bEs / 100)) * 10) / 10;
+      const finKod = kodingItems.length > 0
+        ? examService.calculateNormalizedScore(kodingItems.map(p => ({ bobot: p.bobot, skor_maksimum: p.skor_maksimum, skor_final: p.skor_final ?? p.skor_rekomendasi ?? 0 })))
+        : (recordedSkorKoding ?? 0);
+      const finEs = essayItems.length > 0
+        ? examService.calculateNormalizedScore(essayItems.map(p => ({ bobot: p.bobot, skor_maksimum: p.skor_maksimum, skor_final: p.skor_final ?? p.skor_rekomendasi ?? 0 })))
+        : 0;
 
-      skorPg = finPg;
-      skorEssay = finEs;
+      const effBPg = (pgItems.length > 0 || recordedSkorPg !== null) ? bPg : 0;
+      const effBKod = (kodingItems.length > 0 || recordedSkorKoding !== null) ? bKod : 0;
+      const effBEs = essayItems.length > 0 ? bEs : 0;
+      const totalWeight = effBPg + effBKod + effBEs || 100;
+
+      totalAiScore = Math.round((((aiPg * effBPg) + (aiKod * effBKod) + (aiEs * effBEs)) / totalWeight) * 100) / 100;
+      totalFinalScore = Math.round((((finPg * effBPg) + (finKod * effBKod) + (finEs * effBEs)) / totalWeight) * 100) / 100;
+
+      skorPg = (pgItems.length > 0 || recordedSkorPg !== null) ? finPg : null;
+      skorKoding = (kodingItems.length > 0 || recordedSkorKoding !== null) ? finKod : null;
+      skorEssay = essayItems.length > 0 ? finEs : null;
     } else {
       // Hitung total rekomendasi AI standar
       const aiItems = jawabanItems.map(item => ({
@@ -542,6 +569,9 @@ const reviewService = {
       if (pgItems.length > 0) {
         skorPg = examService.calculateNormalizedScore(pgItems.map(p => ({ bobot: p.bobot, skor_maksimum: p.skor_maksimum, skor_final: p.skor_final ?? p.skor_rekomendasi ?? 0 })));
       }
+      if (kodingItems.length > 0) {
+        skorKoding = examService.calculateNormalizedScore(kodingItems.map(p => ({ bobot: p.bobot, skor_maksimum: p.skor_maksimum, skor_final: p.skor_final ?? p.skor_rekomendasi ?? 0 })));
+      }
       if (essayItems.length > 0) {
         skorEssay = examService.calculateNormalizedScore(essayItems.map(p => ({ bobot: p.bobot, skor_maksimum: p.skor_maksimum, skor_final: p.skor_final ?? p.skor_rekomendasi ?? 0 })));
       }
@@ -551,9 +581,10 @@ const reviewService = {
       UPDATE pengerjaan 
       SET nilai_ai = ?, nilai_final = ?,
           skor_pg = COALESCE(?, skor_pg),
+          skor_koding = COALESCE(?, skor_koding),
           skor_essay = COALESCE(?, skor_essay)
       WHERE id = ?
-    `).run(totalAiScore, totalFinalScore, skorPg, skorEssay, pengerjaanId);
+    `).run(totalAiScore, totalFinalScore, skorPg, skorKoding, skorEssay, pengerjaanId);
 
     if (hasHealed && typeof db.syncCloud === 'function') {
       db.syncCloud(true);

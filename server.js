@@ -19,6 +19,7 @@ const bankSoalService = require('./src/services/bankSoalService');
 const summaryService = require('./src/services/summaryService');
 const packageService = require('./src/services/packageService');
 const omrService = require('./src/services/omrService');
+const codingGameService = require('./src/services/codingGameService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1518,6 +1519,46 @@ app.get('/api/guru/ulangan/:id/omr/logs', requireGuru, (req, res) => {
   try {
     const logs = omrService.getScanLogs(req.params.id);
     res.json({ success: true, logs });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// ==========================================
+// ENDPOINT MODE PERMAINAN KODING (SMP)
+// ==========================================
+
+// 1. Ambil Preset Level Game Koding Bawaan
+app.get('/api/guru/coding-game/presets', requireGuru, (req, res) => {
+  try {
+    const presets = codingGameService.getPresets();
+    res.json({ success: true, presets });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 2. Generator Level Game Baru Berbantuan AI
+app.post('/api/guru/coding-game/generate-ai', requireGuru, async (req, res) => {
+  try {
+    const { topic, difficulty, mode } = req.body || {};
+    const level = await codingGameService.generateLevelAI(topic, difficulty, mode);
+    res.json({ success: true, level });
+  } catch (err) {
+    console.error('Error generate coding level AI:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 3. Test Run Simulasi Balok (Verifikasi / Uji Coba Guru)
+app.post('/api/guru/coding-game/test-run', requireGuru, (req, res) => {
+  try {
+    const { levelData, blocks } = req.body || {};
+    if (!levelData) {
+      return res.status(400).json({ success: false, message: 'Data level wajib disertakan' });
+    }
+    const result = codingGameService.evaluateSolution(levelData, blocks || []);
+    res.json({ success: true, result });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }

@@ -121,10 +121,11 @@ const examService = {
     const tampilkanKisiKisi = (data.tampilkan_kisi_kisi !== undefined && data.tampilkan_kisi_kisi !== null) ? (data.tampilkan_kisi_kisi ? 1 : 0) : (cleanLinkKisiKisi ? 1 : 0);
     const tampilkanTeksListening = data.tampilkan_teks_listening ? 1 : 0;
 
-    const cleanJenisUlangan = (data.jenis_ulangan && ['pg_saja', 'essay_saja', 'campuran'].includes(data.jenis_ulangan)) ? data.jenis_ulangan : 'campuran';
+    const cleanJenisUlangan = (data.jenis_ulangan && ['pg_saja', 'essay_saja', 'campuran', 'koding_saja'].includes(data.jenis_ulangan)) ? data.jenis_ulangan : 'campuran';
     const cleanJumlahPaket = Math.max(1, Math.min(4, Number(data.jumlah_paket) || 1));
     const cleanBobotPg = (data.bobot_pg !== undefined && data.bobot_pg !== null && data.bobot_pg !== '') ? Math.max(0, Math.min(100, Number(data.bobot_pg))) : (cleanJenisUlangan === 'pg_saja' ? 100 : 60);
     const cleanBobotEssay = (data.bobot_essay !== undefined && data.bobot_essay !== null && data.bobot_essay !== '') ? Math.max(0, Math.min(100, Number(data.bobot_essay))) : (cleanJenisUlangan === 'pg_saja' ? 0 : 40);
+    const cleanBobotKoding = (data.bobot_koding !== undefined && data.bobot_koding !== null && data.bobot_koding !== '') ? Math.max(0, Math.min(100, Number(data.bobot_koding))) : 0;
     const cleanOpsiPgCount = Number(data.opsi_pg_count) === 5 ? 5 : 4;
     const cleanJumlahSoalPg = (data.jumlah_soal_pg !== undefined && data.jumlah_soal_pg !== null && data.jumlah_soal_pg !== '') ? Math.max(0, Number(data.jumlah_soal_pg)) : null;
 
@@ -135,16 +136,16 @@ const examService = {
         tanggal_mulai, tanggal_selesai, durasi_menit, kkm, instruksi_remedial, link_remedial, zona_waktu,
         izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus, tampilkan_simbol,
         link_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening,
-        jenis_ulangan, jumlah_paket, bobot_pg, bobot_essay, opsi_pg_count, jumlah_soal_pg
+        jenis_ulangan, jumlah_paket, bobot_pg, bobot_essay, bobot_koding, opsi_pg_count, jumlah_soal_pg
       )
-      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
       guruId, judul, mata_pelajaran, tingkat_kelas, deskripsi || '', kode_ujian,
       limitSoal, cleanIsian, cleanEssay, cleanListening, isAcak, cleanTanggalMulai, cleanTanggalSelesai, cleanDurasi,
       cleanKkm, cleanInstruksiRemedial, cleanLinkRemedial, cleanZonaWaktu,
       izinkanSingkatan, izinkanInformal, toleransiTypo, cleanInstruksiKhusus, tampilkanSimbol, cleanLinkKisiKisi, tampilkanKisiKisi, tampilkanTeksListening,
-      cleanJenisUlangan, cleanJumlahPaket, cleanBobotPg, cleanBobotEssay, cleanOpsiPgCount, cleanJumlahSoalPg
+      cleanJenisUlangan, cleanJumlahPaket, cleanBobotPg, cleanBobotEssay, cleanBobotKoding, cleanOpsiPgCount, cleanJumlahSoalPg
     );
     const ulanganId = info.lastInsertRowid;
 
@@ -389,6 +390,11 @@ const examService = {
       updates.push('bobot_essay = ?');
       params.push(be);
     }
+    if (data.bobot_koding !== undefined) {
+      const bk = Math.max(0, Math.min(100, Number(data.bobot_koding) || 0));
+      updates.push('bobot_koding = ?');
+      params.push(bk);
+    }
     if (data.opsi_pg_count !== undefined) {
       const opc = Number(data.opsi_pg_count) === 5 ? 5 : 4;
       updates.push('opsi_pg_count = ?');
@@ -467,8 +473,8 @@ const examService = {
       throw new Error('Pertanyaan, jenis soal, dan bobot wajib diisi');
     }
 
-    if (!['isian', 'essay', 'pilihan_ganda'].includes(jenis)) {
-      throw new Error('Jenis soal harus isian, essay, atau pilihan_ganda');
+    if (!['isian', 'essay', 'pilihan_ganda', 'koding_game'].includes(jenis)) {
+      throw new Error('Jenis soal harus isian, essay, pilihan_ganda, atau koding_game');
     }
 
     const numBobot = Number(bobot);
@@ -481,14 +487,16 @@ const examService = {
     const nextNomor = (maxOrder?.max_n || 0) + 1;
     const nextUrutan = (maxOrder?.max_u || 0) + 1;
 
+    const gameDataStr = data.game_data ? (typeof data.game_data === 'object' ? JSON.stringify(data.game_data) : String(data.game_data)) : null;
+
     const stmt = db.prepare(`
       INSERT INTO soal (
         ulangan_id, nomor, jenis, pertanyaan, gambar_url, kunci_jawaban, rubrik, bobot,
         tingkat_kelas, tingkat_kesulitan, urutan, pembahasan, audio_url, audio_script,
         is_listening, bahasa, kategori, tampilkan_teks_listening,
-        opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_pg
+        opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_pg, game_data
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const cleanTampilkanTeks = (data.tampilkan_teks_listening !== undefined && data.tampilkan_teks_listening !== null && data.tampilkan_teks_listening !== '')
@@ -519,7 +527,8 @@ const examService = {
       opsi_c ? String(opsi_c).trim() : null,
       opsi_d ? String(opsi_d).trim() : null,
       opsi_e ? String(opsi_e).trim() : null,
-      kunci_pg ? String(kunci_pg).toUpperCase().trim() : (jenis === 'pilihan_ganda' ? 'A' : null)
+      kunci_pg ? String(kunci_pg).toUpperCase().trim() : (jenis === 'pilihan_ganda' ? 'A' : null),
+      gameDataStr
     );
 
     return db.prepare('SELECT * FROM soal WHERE id = ?').get(info.lastInsertRowid);
@@ -549,9 +558,14 @@ const examService = {
     if (data.pertanyaan !== undefined) { updates.push('pertanyaan = ?'); params.push(data.pertanyaan); }
     if (data.gambar_url !== undefined) { updates.push('gambar_url = ?'); params.push(data.gambar_url); }
     if (data.jenis !== undefined) {
-      if (!['isian', 'essay', 'pilihan_ganda'].includes(data.jenis)) throw new Error('Jenis soal harus isian, essay, atau pilihan_ganda');
+      if (!['isian', 'essay', 'pilihan_ganda', 'koding_game'].includes(data.jenis)) throw new Error('Jenis soal harus isian, essay, pilihan_ganda, atau koding_game');
       updates.push('jenis = ?');
       params.push(data.jenis);
+    }
+    if (data.game_data !== undefined) {
+      const gd = data.game_data ? (typeof data.game_data === 'object' ? JSON.stringify(data.game_data) : String(data.game_data)) : null;
+      updates.push('game_data = ?');
+      params.push(gd);
     }
     if (data.bobot !== undefined) {
       const b = Number(data.bobot);

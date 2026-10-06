@@ -691,6 +691,9 @@
                 <button id="btn-open-omr-scanner" type="button" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1.5 cursor-pointer" title="Pindai LJK siswa secara otomatis menggunakan kamera HP atau webcam laptop">
                   <span>📷 Scan LJK Kamera</span>
                 </button>
+                <button id="btn-open-coding-game-builder" type="button" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1.5 cursor-pointer" title="Rancang dan tambahkan permainan koding berpikir komputasional tingkat SMP">
+                  <span>🎮 Game Koding (SMP)</span>
+                </button>
                 <button id="btn-open-ai-pg-generator" type="button" class="text-xs bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold px-3 py-1.5 rounded-lg border border-teal-200 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Buat butir soal Pilihan Ganda (PG) otomatis dengan bantuan Gemini AI">
                   <span>✨ Buat PG AI</span>
                 </button>
@@ -725,6 +728,7 @@
                     <option value="isian">Isian Singkat</option>
                     <option value="essay">Essay</option>
                     <option value="pilihan_ganda">🔘 Pilihan Ganda (PG / OMR)</option>
+                    <option value="koding_game">🎮 Game Koding (SMP)</option>
                   </select>
                 </div>
                 <div>
@@ -3350,6 +3354,231 @@
       </div>
     </div>
   </div>
+
+  <!-- Modal Builder & Simulator Game Koding SMP -->
+  <div id="modal-coding-game-builder" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
+      <!-- Modal Header -->
+      <div class="px-5 py-3.5 bg-gradient-to-r from-indigo-700 via-indigo-800 to-purple-800 text-white flex items-center justify-between shrink-0">
+        <div class="flex items-center space-x-2.5">
+          <span class="text-2xl p-1.5 bg-white/10 rounded-xl">🎮</span>
+          <div>
+            <h3 class="font-extrabold text-base tracking-wide flex items-center space-x-2">
+              <span>Game Koding & Berpikir Komputasional (SMP)</span>
+              <span class="text-[10px] bg-amber-400 text-slate-900 font-black px-2 py-0.5 rounded-full uppercase tracking-wider">0-Token Auto Skor</span>
+            </h3>
+            <p class="text-xs text-indigo-200">Rancang level simulasi logika (Algoritma, Loop, If-Else, Debugging, Scratch Puzzle)</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-coding-game-builder" class="text-white/80 hover:text-white hover:bg-white/10 p-1.5 rounded-xl transition text-lg cursor-pointer">✕</button>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="flex items-center border-b border-slate-200 bg-slate-50 px-5 pt-2 shrink-0 overflow-x-auto gap-2">
+        <button type="button" id="tab-cg-preset" onclick="switchCgTab('preset')" class="tab-cg-btn px-4 py-2 text-xs font-bold rounded-t-xl border-b-2 border-indigo-600 text-indigo-700 bg-white transition flex items-center space-x-1.5 cursor-pointer">
+          <span>📚 Template Preset Resmi (5 Jenis)</span>
+        </button>
+        <button type="button" id="tab-cg-ai" onclick="switchCgTab('ai')" class="tab-cg-btn px-4 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-transparent text-slate-600 hover:text-indigo-600 transition flex items-center space-x-1.5 cursor-pointer">
+          <span>✨ Buat Level dengan AI</span>
+        </button>
+        <button type="button" id="tab-cg-editor" onclick="switchCgTab('editor')" class="tab-cg-btn px-4 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-transparent text-slate-600 hover:text-indigo-600 transition flex items-center space-x-1.5 cursor-pointer">
+          <span>🛠️ Editor Visual & Uji Coba</span>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-5 overflow-y-auto flex-1 space-y-5 text-xs text-slate-700">
+        <!-- TAB 1: PRESET -->
+        <div id="cg-content-preset" class="space-y-4">
+          <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-indigo-900 flex items-start space-x-2.5">
+            <span class="text-xl">💡</span>
+            <div class="space-y-0.5">
+              <p class="font-bold">Pilih salah satu dari 5 konsep dasar Berpikir Komputasional SMP:</p>
+              <p class="text-[11px] text-indigo-800">Semua template telah dikalibrasi sesuai silabus Informatika SMP, langsung siap diujikan atau dimodifikasi sesuai kebutuhan.</p>
+            </div>
+          </div>
+          <div id="cg-preset-grid" class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            <!-- Rendered by JS: 5 preset cards -->
+          </div>
+        </div>
+
+        <!-- TAB 2: AI GENERATOR -->
+        <div id="cg-content-ai" class="hidden space-y-4">
+          <div class="bg-purple-50 border border-purple-200 rounded-xl p-3 text-purple-900 flex items-start space-x-2.5">
+            <span class="text-xl">🤖</span>
+            <div class="space-y-0.5">
+              <p class="font-bold">AI Generator Level Game Koding</p>
+              <p class="text-[11px] text-purple-800">Biarkan AI Gemini merancang arena labirin, tantangan logika, atau teka-teki Scratch berdasarkan tema cerita yang Anda tentukan.</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Jenis Tantangan Game:</label>
+              <select id="cg-ai-subtipe" class="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white text-xs">
+                <option value="grid_robot">🚀 Grid Robot Runner (Algoritma Sekuensial)</option>
+                <option value="loop_master">🔁 Loop Master (Pola & Perulangan / Looping)</option>
+                <option value="decision_gate">⚖️ Decision Gate (Logika Percabangan If-Else)</option>
+                <option value="bug_doctor">🩺 Bug Doctor (Tracing & Debugging Kode)</option>
+                <option value="scratch_puzzle">🧩 Scratch Mini Puzzle (Event & Aksi)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Tingkat Kesulitan SMP:</label>
+              <select id="cg-ai-kesulitan" class="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white text-xs">
+                <option value="mudah">🟢 Mudah (Kelas 7 SMP - Pengenalan Dasar)</option>
+                <option value="sedang" selected>🟡 Sedang (Kelas 8 SMP - Menengah)</option>
+                <option value="sulit">🔴 Sulit (Kelas 9 SMP - Kompleks & Efisien)</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Tema / Cerita / Konteks Misi (Opsional):</label>
+            <input type="text" id="cg-ai-tema" placeholder="Contoh: Robot Pengantar Surat Masuk Kompleks Rumah, Pembersih Sampah Pantai, dsb." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs">
+          </div>
+          <div class="flex justify-end pt-1">
+            <button type="button" id="btn-cg-run-ai" class="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-2 cursor-pointer">
+              <span>✨ Generate Level dengan AI</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- TAB 3: VISUAL EDITOR & TEST SIMULATOR -->
+        <div id="cg-content-editor" class="hidden space-y-4">
+          <!-- Form Header Level Settings -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+            <div class="sm:col-span-2">
+              <label class="block font-bold text-slate-700 mb-1">Teks Pertanyaan / Misi untuk Siswa:</label>
+              <textarea id="cg-edit-pertanyaan" rows="2" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Instruksi tantangan untuk siswa..."></textarea>
+            </div>
+            <div class="space-y-2">
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Bobot Soal:</label>
+                <input type="number" id="cg-edit-bobot" value="20" min="1" max="100" class="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs">
+              </div>
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Tingkat Kesulitan:</label>
+                <select id="cg-edit-kesulitan" class="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs">
+                  <option value="mudah">Mudah</option>
+                  <option value="sedang" selected>Sedang</option>
+                  <option value="sulit">Sulit</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bagian Tipe: Grid Based vs Scratch Puzzle -->
+          <div id="cg-grid-config-container" class="space-y-3">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+              <div class="flex items-center space-x-2">
+                <span class="font-bold text-slate-800">Ukuran Arena:</span>
+                <select id="cg-grid-size" onchange="changeCgGridDimensions()" class="px-2 py-1 border border-slate-300 rounded-lg bg-white text-xs">
+                  <option value="4x4">4 x 4 Kotak</option>
+                  <option value="5x5" selected>5 x 5 Kotak (Standar)</option>
+                  <option value="6x6">6 x 6 Kotak</option>
+                </select>
+                <span class="text-slate-400">|</span>
+                <span class="font-bold text-slate-800">Par Limit Blok:</span>
+                <input type="number" id="cg-par-limit" value="6" min="1" max="30" class="w-14 px-2 py-1 border border-slate-300 rounded-lg text-center font-bold">
+              </div>
+              <div class="flex items-center space-x-1.5 bg-slate-100 p-1 rounded-lg">
+                <span class="text-[11px] font-bold text-slate-600 px-1">Brush:</span>
+                <button type="button" onclick="setCgBrush('start')" id="cg-brush-start" class="cg-brush-btn px-2 py-1 bg-white rounded shadow-2xs font-semibold text-indigo-700 border border-indigo-200">🚀 Mulai</button>
+                <button type="button" onclick="setCgBrush('finish')" id="cg-brush-finish" class="cg-brush-btn px-2 py-1 bg-white rounded shadow-2xs font-semibold text-emerald-700 border border-slate-200">🏁 Finish</button>
+                <button type="button" onclick="setCgBrush('wall')" id="cg-brush-wall" class="cg-brush-btn px-2 py-1 bg-white rounded shadow-2xs font-semibold text-slate-700 border border-slate-200">🧱 Tembok</button>
+                <button type="button" onclick="setCgBrush('star')" id="cg-brush-star" class="cg-brush-btn px-2 py-1 bg-white rounded shadow-2xs font-semibold text-amber-600 border border-slate-200">⭐ Bintang</button>
+                <button type="button" onclick="setCgBrush('empty')" id="cg-brush-empty" class="cg-brush-btn px-2 py-1 bg-white rounded shadow-2xs font-semibold text-slate-500 border border-slate-200">⬜ Kosong</button>
+              </div>
+            </div>
+
+            <!-- Interaktif Editor Arena Grid & Simulator Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+              <!-- Arena Grid Visual -->
+              <div class="md:col-span-6 bg-slate-900 p-3 rounded-2xl flex flex-col items-center justify-center min-h-[260px] shadow-inner">
+                <div class="text-[11px] text-slate-300 mb-2 flex items-center justify-between w-full px-2">
+                  <span>🗺️ Klik kotak untuk menerapkan brush</span>
+                  <span id="cg-grid-info-badge" class="bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded border border-indigo-700/60 font-mono">5x5</span>
+                </div>
+                <div id="cg-interactive-grid" class="grid gap-1.5 p-2 bg-slate-800 rounded-xl border border-slate-700 shadow-md">
+                  <!-- Rendered dynamically -->
+                </div>
+                <div class="text-[10px] text-slate-400 mt-2 flex items-center space-x-3">
+                  <span>🚀 Awal</span>
+                  <span>🏁 Akhir</span>
+                  <span>⭐ Bintang</span>
+                  <span>🧱 Dinding</span>
+                </div>
+              </div>
+
+              <!-- Simulator / Code Blocks Tester -->
+              <div class="md:col-span-6 flex flex-col space-y-2.5 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-slate-800">🧪 Simulator Uji Coba Koding:</span>
+                  <div class="flex items-center space-x-1">
+                    <button type="button" onclick="runCgTestSim()" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-2xs transition flex items-center space-x-1 cursor-pointer">
+                      <span>▶</span><span>Jalankan</span>
+                    </button>
+                    <button type="button" onclick="stepCgTestSim()" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-2xs transition flex items-center space-x-1 cursor-pointer" title="Langkah per langkah">
+                      <span>⏭</span>
+                    </button>
+                    <button type="button" onclick="resetCgTestSim()" class="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition cursor-pointer" title="Reset posisi robot">
+                      <span>🔄</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Palet Balok Tester -->
+                <div class="flex flex-wrap gap-1.5 bg-white p-2 rounded-xl border border-slate-200">
+                  <span class="text-[10px] font-bold text-slate-400 self-center mr-1">Tambah Balok:</span>
+                  <button type="button" onclick="addCgTestBlock('MAJU')" class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded font-bold text-[11px] shadow-2xs cursor-pointer">⬆ Maju</button>
+                  <button type="button" onclick="addCgTestBlock('BELOK_KIRI')" class="px-2 py-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded font-bold text-[11px] shadow-2xs cursor-pointer">↩ Belok Kiri</button>
+                  <button type="button" onclick="addCgTestBlock('BELOK_KANAN')" class="px-2 py-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded font-bold text-[11px] shadow-2xs cursor-pointer">↪ Belok Kanan</button>
+                  <button type="button" onclick="addCgTestBlock('ULANGI', 2)" class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-bold text-[11px] shadow-2xs cursor-pointer">🔁 Ulangi (2x)</button>
+                  <button type="button" onclick="addCgTestBlock('JIKA_RINTANGAN')" class="px-2 py-1 bg-purple-500 hover:bg-purple-600 text-white rounded font-bold text-[11px] shadow-2xs cursor-pointer">⚖️ Jika Rintangan</button>
+                </div>
+
+                <!-- Workspace Daftar Balok Tester -->
+                <div class="flex-1 min-h-[110px] max-h-[140px] overflow-y-auto bg-white p-2 rounded-xl border border-slate-200 space-y-1" id="cg-test-workspace">
+                  <!-- Balok rendered here -->
+                </div>
+
+                <!-- Hasil Uji Coba Status Log -->
+                <div id="cg-test-status-box" class="p-2 rounded-xl bg-slate-100 border border-slate-200 text-[11px] flex items-center justify-between">
+                  <span id="cg-test-status-text" class="text-slate-600 font-medium">Susun balok lalu klik "Jalankan" untuk menguji kelayakan level.</span>
+                  <span id="cg-test-score-badge" class="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 hidden">⭐ 0 Bintang</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Scratch Puzzle Pair Editor (Muncul jika jenis adalah scratch_puzzle) -->
+          <div id="cg-scratch-config-container" class="hidden space-y-3 bg-purple-50/70 p-3 rounded-2xl border border-purple-200">
+            <div class="flex items-center justify-between">
+              <div>
+                <h4 class="font-bold text-purple-950">Pasangan Balok Event & Action Scratch:</h4>
+                <p class="text-[11px] text-purple-800">Tentukan pasangan kejadian (event) dan aksi balok yang benar untuk dicocokkan siswa.</p>
+              </div>
+              <button type="button" onclick="addCgScratchPairRow()" class="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-xs shadow-2xs cursor-pointer">
+                + Tambah Pasangan
+              </button>
+            </div>
+            <div id="cg-scratch-pairs-table" class="space-y-2">
+              <!-- Rendered rows -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+        <button type="button" onclick="closeCodingGameModal()" class="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold rounded-xl transition cursor-pointer">
+          Batal
+        </button>
+        <button type="button" id="btn-cg-save-to-exam" onclick="saveCodingGameToExam()" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer">
+          <span>💾 Simpan sebagai Butir Soal Ulangan</span>
+        </button>
+      </div>
+    </div>
+  </div>
     </div>
   </div>
 
@@ -4778,13 +5007,20 @@
           : (diff === 'mudah' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200');
         const diffLabel = diff === 'sulit' ? '🔴 Sulit' : (diff === 'mudah' ? '🟢 Mudah' : '🟡 Sedang');
         const isPg = s.jenis === 'pilihan_ganda';
+        const isCoding = s.jenis === 'koding_game';
+        let parsedGameData = null;
+        if (isCoding && s.game_data) {
+          try {
+            parsedGameData = typeof s.game_data === 'string' ? JSON.parse(s.game_data) : s.game_data;
+          } catch (e) {}
+        }
 
         item.innerHTML = `
           <div class="flex justify-between items-start gap-2">
             <div class="flex items-center space-x-2 flex-wrap gap-y-1">
               <input type="checkbox" value="${s.id}" class="chk-exam-soal w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer" onchange="updateExamSoalBulkBar()">
               <span class="font-bold text-slate-700">#${idx + 1}</span>
-              <span class="uppercase text-[10px] font-semibold px-2 py-0.5 rounded ${s.jenis === 'essay' ? 'bg-purple-100 text-purple-700' : (isPg ? 'bg-teal-100 text-teal-800 border border-teal-300' : 'bg-blue-100 text-blue-700')}">${isPg ? 'Pilihan Ganda' : s.jenis}</span>
+              <span class="uppercase text-[10px] font-semibold px-2 py-0.5 rounded ${s.jenis === 'essay' ? 'bg-purple-100 text-purple-700' : (isPg ? 'bg-teal-100 text-teal-800 border border-teal-300' : (isCoding ? 'bg-indigo-100 text-indigo-800 border border-indigo-300 font-bold' : 'bg-blue-100 text-blue-700'))}">${isPg ? 'Pilihan Ganda' : (isCoding ? '🎮 Game Koding' : s.jenis)}</span>
               <span class="text-[10px] font-semibold px-2 py-0.5 rounded border ${diffBadgeClass} capitalize">${diffLabel}</span>
               <span class="text-slate-400 font-medium">Bobot: <strong>${s.bobot}</strong></span>
               ${s.kategori ? `<span class="bg-purple-100 text-purple-800 text-[10px] font-semibold px-2 py-0.5 rounded">${escapeHtml(s.kategori)}</span>` : ''}
@@ -4799,7 +5035,28 @@
             </div>
           </div>
           <p class="font-medium text-slate-800 leading-relaxed" dir="auto">${s.pertanyaan}</p>
-          ${isPg ? `
+          ${isCoding ? `
+            <div class="p-3 bg-indigo-50/80 rounded-xl border border-indigo-200 text-xs space-y-2 my-1.5">
+              <div class="flex items-center justify-between flex-wrap gap-2">
+                <div class="flex items-center space-x-2">
+                  <span class="font-extrabold text-indigo-900 text-xs uppercase tracking-wide">
+                    ${parsedGameData?.subtipe === 'loop_master' ? '🔁 Loop Master' : (parsedGameData?.subtipe === 'decision_gate' ? '⚖️ Decision Gate' : (parsedGameData?.subtipe === 'bug_doctor' ? '🩺 Bug Doctor' : (parsedGameData?.subtipe === 'scratch_puzzle' ? '🧩 Scratch Puzzle' : '🚀 Grid Robot Runner')))}
+                  </span>
+                  <span class="bg-indigo-200 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    Par Limit: ${parsedGameData?.par_limit || '-'} Balok
+                  </span>
+                  ${parsedGameData?.grid_width ? `<span class="bg-indigo-100 text-indigo-700 text-[10px] font-mono px-1.5 py-0.5 rounded">Ukuran ${parsedGameData.grid_width}x${parsedGameData.grid_height}</span>` : ''}
+                </div>
+                <button type="button" onclick="previewCodingGameInModal(${s.id})" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[11px] shadow-2xs transition flex items-center space-x-1 cursor-pointer">
+                  <span>🎮 Uji / Pratinjau Level</span>
+                </button>
+              </div>
+              <div class="text-[11px] text-indigo-950 flex items-center space-x-2">
+                <span class="font-medium text-indigo-700">Tantangan Siswa:</span>
+                <span>${parsedGameData?.subtipe === 'scratch_puzzle' ? 'Mencocokkan balok kejadian Scratch dengan balok aksi yang tepat.' : 'Mengarahkan robot menuju titik finish dengan langkah efisien.'}</span>
+              </div>
+            </div>
+          ` : (isPg ? `
             <div class="p-2.5 bg-blue-50/70 rounded-lg border border-blue-200 text-xs space-y-1.5 my-1.5">
               <div class="font-semibold text-blue-900 text-[11px] mb-1">Pilihan Jawaban (A-D/E):</div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -4838,7 +5095,7 @@
             <div class="bg-white p-2 rounded border border-slate-200 text-slate-600" dir="auto">
               <strong class="text-slate-500">Kunci Acuan:</strong> ${s.kunci_jawaban || '(Kosong - AI akan menilai berdasarkan konsep pertanyaan)'}
             </div>
-          `}
+          `)}
           ${s.is_listening && (s.audio_script || s.audio_url) ? `
             <div class="bg-amber-50/80 border border-amber-200 rounded-lg p-2.5 text-[11px] space-y-1.5">
               <div class="flex justify-between items-center text-amber-900 font-bold">
@@ -5066,6 +5323,12 @@
     if (selSoalJenis) {
       selSoalJenis.addEventListener('change', () => {
         delete inpSoalBobot?.dataset.userModified;
+        if (selSoalJenis.value === 'koding_game') {
+          openCodingGameModal();
+          selSoalJenis.value = 'isian';
+          toggleFormSoalJenis();
+          return;
+        }
         toggleFormSoalJenis();
         syncManualSoalBobot();
       });
@@ -11765,6 +12028,805 @@
           btnSaveSelectedAiPg.textContent = '💾 Masukkan Soal ke Ulangan';
         }
       };
+    // =========================================================================
+    // MODUL 5: GAME KODING SMP (BUILDER, AI GENERATOR & TEST SIMULATOR)
+    // =========================================================================
+    const modalCodingGameBuilder = document.getElementById('modal-coding-game-builder');
+    const btnOpenCodingGameBuilder = document.getElementById('btn-open-coding-game-builder');
+    const btnCloseCodingGameBuilder = document.getElementById('btn-close-coding-game-builder');
+
+    let cgCurrentTab = 'preset';
+    let cgCurrentBrush = 'start';
+    let cgPresetsData = [];
+    let cgCurrentConfig = {
+      subtipe: 'grid_robot',
+      grid_width: 5,
+      grid_height: 5,
+      grid: [
+        ['empty', 'empty', 'empty', 'empty', 'finish'],
+        ['empty', 'wall',  'empty', 'wall',  'empty'],
+        ['empty', 'empty', 'star',  'empty', 'empty'],
+        ['wall',  'empty', 'empty', 'empty', 'empty'],
+        ['start', 'empty', 'empty', 'wall',  'empty']
+      ],
+      start_pos: { x: 0, y: 4 },
+      start_dir: 'N',
+      finish_pos: { x: 4, y: 0 },
+      stars: [{ x: 2, y: 2 }],
+      par_limit: 6,
+      max_steps: 30,
+      allowed_blocks: ['MAJU', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'],
+      initial_blocks: [],
+      target_pairs: []
+    };
+
+    let cgSimRobot = { x: 0, y: 4, dir: 'N' };
+    let cgSimCollectedStars = new Set();
+    let cgSimBlocks = [];
+    let cgSimStepIndex = 0;
+    let cgSimRunning = false;
+
+    function openCodingGameModal() {
+      if (!activeUlanganId) {
+        alert('Silakan pilih atau buka salah satu ulangan terlebih dahulu sebelum merancang game koding.');
+        return;
+      }
+      modalCodingGameBuilder.classList.remove('hidden');
+      switchCgTab('preset');
+      loadCodingGamePresets();
+    }
+
+    function closeCodingGameModal() {
+      modalCodingGameBuilder.classList.add('hidden');
+      cgSimRunning = false;
+    }
+
+    if (btnOpenCodingGameBuilder) {
+      btnOpenCodingGameBuilder.onclick = openCodingGameModal;
+    }
+    if (btnCloseCodingGameBuilder) {
+      btnCloseCodingGameBuilder.onclick = closeCodingGameModal;
+    }
+
+    function switchCgTab(tab) {
+      cgCurrentTab = tab;
+      const tabs = ['preset', 'ai', 'editor'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`tab-cg-${t}`);
+        const content = document.getElementById(`cg-content-${t}`);
+        if (t === tab) {
+          btn.className = 'tab-cg-btn px-4 py-2 text-xs font-bold rounded-t-xl border-b-2 border-indigo-600 text-indigo-700 bg-white transition flex items-center space-x-1.5 cursor-pointer';
+          content.classList.remove('hidden');
+        } else {
+          btn.className = 'tab-cg-btn px-4 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-transparent text-slate-600 hover:text-indigo-600 transition flex items-center space-x-1.5 cursor-pointer';
+          content.classList.add('hidden');
+        }
+      });
+
+      if (tab === 'editor') {
+        renderCgEditorUI();
+      }
+    }
+
+    async function loadCodingGamePresets() {
+      const container = document.getElementById('cg-preset-grid');
+      if (!container) return;
+      if (cgPresetsData && cgPresetsData.length > 0) {
+        renderCodingPresetsUI();
+        return;
+      }
+
+      container.innerHTML = '<div class="col-span-2 text-center py-8 text-slate-400">Memuat template resmi SMP...</div>';
+      try {
+        const res = await guruFetch('/api/guru/coding-game/presets');
+        if (res && res.success && res.data) {
+          cgPresetsData = res.data;
+          renderCodingPresetsUI();
+        } else {
+          container.innerHTML = '<div class="col-span-2 text-center py-6 text-red-500">Gagal memuat template koding.</div>';
+        }
+      } catch (err) {
+        container.innerHTML = `<div class="col-span-2 text-center py-6 text-red-500">Error: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function renderCodingPresetsUI() {
+      const container = document.getElementById('cg-preset-grid');
+      if (!container) return;
+      container.innerHTML = '';
+
+      cgPresetsData.forEach((preset, pIdx) => {
+        const card = document.createElement('div');
+        card.className = 'bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-400 hover:shadow-md transition space-y-2 flex flex-col justify-between';
+        
+        const badgeDiff = preset.tingkat_kesulitan === 'sulit' ? 'bg-red-100 text-red-700' : (preset.tingkat_kesulitan === 'mudah' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700');
+        
+        card.innerHTML = `
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-black uppercase text-indigo-700 tracking-wider">#${pIdx + 1} ${escapeHtml(preset.nama)}</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded ${badgeDiff} capitalize">${escapeHtml(preset.tingkat_kesulitan)}</span>
+            </div>
+            <p class="font-bold text-slate-800 text-xs">${escapeHtml(preset.deskripsi)}</p>
+            <p class="text-[11px] text-slate-500 leading-relaxed">${escapeHtml(preset.pertanyaan)}</p>
+            <div class="flex items-center space-x-2 pt-1 text-[10px] text-slate-400">
+              <span class="bg-slate-100 px-2 py-0.5 rounded font-mono">🎯 Par: ${preset.par_limit || '-'} Balok</span>
+              <span class="bg-slate-100 px-2 py-0.5 rounded font-mono">Bobot: ${preset.bobot || 20}</span>
+              ${preset.subtipe === 'scratch_puzzle' ? '<span class="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold">Event & Aksi</span>' : '<span class="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">Simulasi Grid</span>'}
+            </div>
+          </div>
+          <div class="pt-2">
+            <button type="button" onclick="applyCodingGamePreset('${escapeHtml(preset.key)}')" class="w-full py-2 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 font-bold rounded-xl border border-indigo-200 transition text-xs flex items-center justify-center space-x-1 cursor-pointer">
+              <span>🚀 Gunakan Template Ini</span>
+            </button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function applyCodingGamePreset(presetKey) {
+      const found = cgPresetsData.find(p => p.key === presetKey);
+      if (!found) return;
+
+      cgCurrentConfig = {
+        subtipe: found.subtipe,
+        grid_width: found.grid_width || 5,
+        grid_height: found.grid_height || 5,
+        grid: found.grid ? JSON.parse(JSON.stringify(found.grid)) : null,
+        start_pos: found.start_pos ? { ...found.start_pos } : { x: 0, y: 4 },
+        start_dir: found.start_dir || 'N',
+        finish_pos: found.finish_pos ? { ...found.finish_pos } : { x: 4, y: 0 },
+        stars: found.stars ? JSON.parse(JSON.stringify(found.stars)) : [],
+        par_limit: found.par_limit || 6,
+        max_steps: found.max_steps || 30,
+        allowed_blocks: found.allowed_blocks ? [...found.allowed_blocks] : ['MAJU', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'],
+        initial_blocks: found.initial_blocks ? JSON.parse(JSON.stringify(found.initial_blocks)) : [],
+        target_pairs: found.target_pairs ? JSON.parse(JSON.stringify(found.target_pairs)) : []
+      };
+
+      document.getElementById('cg-edit-pertanyaan').value = found.pertanyaan || '';
+      document.getElementById('cg-edit-bobot').value = found.bobot || 20;
+      document.getElementById('cg-edit-kesulitan').value = found.tingkat_kesulitan || 'sedang';
+      document.getElementById('cg-par-limit').value = found.par_limit || 6;
+
+      const sizeSel = document.getElementById('cg-grid-size');
+      if (sizeSel && found.grid_width) {
+        sizeSel.value = `${found.grid_width}x${found.grid_height}`;
+      }
+
+      // Pre-fill simulator tester dengan initial blocks jika ada
+      cgSimBlocks = found.initial_blocks ? JSON.parse(JSON.stringify(found.initial_blocks)) : [];
+
+      switchCgTab('editor');
+    }
+
+    function renderCgEditorUI() {
+      const isScratch = cgCurrentConfig.subtipe === 'scratch_puzzle';
+      const gridContainer = document.getElementById('cg-grid-config-container');
+      const scratchContainer = document.getElementById('cg-scratch-config-container');
+
+      if (isScratch) {
+        if (gridContainer) gridContainer.classList.add('hidden');
+        if (scratchContainer) scratchContainer.classList.remove('hidden');
+        renderCgScratchPairsTable();
+      } else {
+        if (gridContainer) gridContainer.classList.remove('hidden');
+        if (scratchContainer) scratchContainer.classList.add('hidden');
+        renderCgInteractiveGrid();
+        renderCgTestWorkspace();
+        resetCgTestSim();
+      }
+    }
+
+    function setCgBrush(brush) {
+      cgCurrentBrush = brush;
+      const brushes = ['start', 'finish', 'wall', 'star', 'empty'];
+      brushes.forEach(b => {
+        const btn = document.getElementById(`cg-brush-${b}`);
+        if (!btn) return;
+        if (b === brush) {
+          btn.className = 'cg-brush-btn px-2 py-1 bg-indigo-600 text-white rounded shadow-2xs font-bold border border-indigo-600';
+        } else {
+          btn.className = 'cg-brush-btn px-2 py-1 bg-white text-slate-700 rounded shadow-2xs font-semibold border border-slate-200';
+        }
+      });
+    }
+
+    function changeCgGridDimensions() {
+      const val = document.getElementById('cg-grid-size').value;
+      const [w, h] = val.split('x').map(Number);
+      cgCurrentConfig.grid_width = w;
+      cgCurrentConfig.grid_height = h;
+
+      // Inisialisasi grid baru berukuran W x H
+      const newGrid = [];
+      for (let y = 0; y < h; y++) {
+        const row = [];
+        for (let x = 0; x < w; x++) {
+          row.push('empty');
+        }
+        newGrid.push(row);
+      }
+      // Tempatkan start di kiri-bawah dan finish di kanan-atas default
+      cgCurrentConfig.start_pos = { x: 0, y: h - 1 };
+      cgCurrentConfig.start_dir = 'N';
+      cgCurrentConfig.finish_pos = { x: w - 1, y: 0 };
+      newGrid[h - 1][0] = 'start';
+      newGrid[0][w - 1] = 'finish';
+      cgCurrentConfig.stars = [];
+      cgCurrentConfig.grid = newGrid;
+
+      renderCgInteractiveGrid();
+      resetCgTestSim();
+    }
+
+    function renderCgInteractiveGrid() {
+      const container = document.getElementById('cg-interactive-grid');
+      const badge = document.getElementById('cg-grid-info-badge');
+      if (!container) return;
+
+      const w = cgCurrentConfig.grid_width || 5;
+      const h = cgCurrentConfig.grid_height || 5;
+      if (badge) badge.textContent = `${w}x${h}`;
+
+      container.style.gridTemplateColumns = `repeat(${w}, minmax(0, 1fr))`;
+      container.innerHTML = '';
+
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const cell = document.createElement('div');
+          cell.className = 'w-10 h-10 sm:w-11 sm:h-11 rounded-lg border flex items-center justify-center font-bold text-sm cursor-pointer select-none transition-all';
+          
+          const isRobot = (cgSimRobot.x === x && cgSimRobot.y === y);
+          const isStart = (cgCurrentConfig.start_pos.x === x && cgCurrentConfig.start_pos.y === y);
+          const isFinish = (cgCurrentConfig.finish_pos.x === x && cgCurrentConfig.finish_pos.y === y);
+          const isStar = (cgCurrentConfig.stars || []).some(s => s.x === x && s.y === y);
+          const isWall = (cgCurrentConfig.grid && cgCurrentConfig.grid[y] && cgCurrentConfig.grid[y][x] === 'wall');
+
+          if (isRobot) {
+            cell.classList.add('bg-indigo-600', 'border-indigo-400', 'text-white', 'shadow-md', 'scale-105');
+            const rot = cgSimRobot.dir === 'E' ? 'rotate-90' : (cgSimRobot.dir === 'S' ? 'rotate-180' : (cgSimRobot.dir === 'W' ? '-rotate-90' : 'rotate-0'));
+            cell.innerHTML = `<span class="inline-block transform ${rot} transition-transform">🚀</span>`;
+          } else if (isFinish) {
+            cell.classList.add('bg-emerald-900/60', 'border-emerald-500', 'text-emerald-300');
+            cell.innerHTML = '🏁';
+          } else if (isWall) {
+            cell.classList.add('bg-slate-700', 'border-slate-600', 'text-slate-400');
+            cell.innerHTML = '🧱';
+          } else if (isStar && !cgSimCollectedStars.has(`${x},${y}`)) {
+            cell.classList.add('bg-amber-950/60', 'border-amber-500', 'text-amber-400');
+            cell.innerHTML = '⭐';
+          } else if (isStart) {
+            cell.classList.add('bg-blue-950/60', 'border-blue-500', 'text-blue-300');
+            cell.innerHTML = '🚩';
+          } else {
+            cell.classList.add('bg-slate-800/80', 'border-slate-700/60', 'hover:bg-slate-700/60');
+            cell.innerHTML = '';
+          }
+
+          cell.onclick = () => handleCgCellClick(x, y);
+          container.appendChild(cell);
+        }
+      }
+    }
+
+    function handleCgCellClick(x, y) {
+      const w = cgCurrentConfig.grid_width;
+      const h = cgCurrentConfig.grid_height;
+      if (!cgCurrentConfig.grid) {
+        cgCurrentConfig.grid = Array(h).fill(0).map(() => Array(w).fill('empty'));
+      }
+
+      if (cgCurrentBrush === 'start') {
+        // Hapus start lama
+        const oldS = cgCurrentConfig.start_pos;
+        if (oldS && cgCurrentConfig.grid[oldS.y]) {
+          cgCurrentConfig.grid[oldS.y][oldS.x] = 'empty';
+        }
+        cgCurrentConfig.start_pos = { x, y };
+        cgCurrentConfig.grid[y][x] = 'start';
+      } else if (cgCurrentBrush === 'finish') {
+        const oldF = cgCurrentConfig.finish_pos;
+        if (oldF && cgCurrentConfig.grid[oldF.y]) {
+          cgCurrentConfig.grid[oldF.y][oldF.x] = 'empty';
+        }
+        cgCurrentConfig.finish_pos = { x, y };
+        cgCurrentConfig.grid[y][x] = 'finish';
+      } else if (cgCurrentBrush === 'wall') {
+        cgCurrentConfig.grid[y][x] = (cgCurrentConfig.grid[y][x] === 'wall') ? 'empty' : 'wall';
+        // Hapus dari bintang jika ada
+        cgCurrentConfig.stars = (cgCurrentConfig.stars || []).filter(s => !(s.x === x && s.y === y));
+      } else if (cgCurrentBrush === 'star') {
+        const starIdx = (cgCurrentConfig.stars || []).findIndex(s => s.x === x && s.y === y);
+        if (starIdx >= 0) {
+          cgCurrentConfig.stars.splice(starIdx, 1);
+          cgCurrentConfig.grid[y][x] = 'empty';
+        } else {
+          cgCurrentConfig.stars.push({ x, y });
+          cgCurrentConfig.grid[y][x] = 'star';
+        }
+      } else if (cgCurrentBrush === 'empty') {
+        cgCurrentConfig.grid[y][x] = 'empty';
+        cgCurrentConfig.stars = (cgCurrentConfig.stars || []).filter(s => !(s.x === x && s.y === y));
+      }
+
+      renderCgInteractiveGrid();
+      resetCgTestSim();
+    }
+
+    function renderCgScratchPairsTable() {
+      const container = document.getElementById('cg-scratch-pairs-table');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (!cgCurrentConfig.target_pairs || cgCurrentConfig.target_pairs.length === 0) {
+        cgCurrentConfig.target_pairs = [
+          { event: 'Saat Tombol Spasi Ditekan', action: 'Karakter Melompat ke Atas' },
+          { event: 'Saat Bendera Hijau Diklik', action: 'Mulai Permainan dari Titik Awal' },
+          { event: 'Saat Menyentuh Tepi Layar', action: 'Pantulkan Balik Arah Karakter' }
+        ];
+      }
+
+      cgCurrentConfig.target_pairs.forEach((pair, idx) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center space-x-2 bg-white p-2 rounded-xl border border-purple-200';
+        row.innerHTML = `
+          <span class="w-6 h-6 rounded-md bg-purple-100 text-purple-800 font-bold text-xs flex items-center justify-center shrink-0">#${idx + 1}</span>
+          <div class="flex-1">
+            <input type="text" value="${escapeHtml(pair.event)}" oninput="updateCgScratchPair(${idx}, 'event', this.value)" placeholder="Kejadian (Event)..." class="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800">
+          </div>
+          <span class="text-purple-600 font-bold shrink-0">➔</span>
+          <div class="flex-1">
+            <input type="text" value="${escapeHtml(pair.action)}" oninput="updateCgScratchPair(${idx}, 'action', this.value)" placeholder="Aksi (Action)..." class="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-indigo-800">
+          </div>
+          <button type="button" onclick="removeCgScratchPairRow(${idx})" class="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition shrink-0 cursor-pointer" title="Hapus pasangan">✕</button>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function updateCgScratchPair(idx, field, val) {
+      if (cgCurrentConfig.target_pairs[idx]) {
+        cgCurrentConfig.target_pairs[idx][field] = val;
+      }
+    }
+
+    function addCgScratchPairRow() {
+      if (!cgCurrentConfig.target_pairs) cgCurrentConfig.target_pairs = [];
+      cgCurrentConfig.target_pairs.push({ event: '', action: '' });
+      renderCgScratchPairsTable();
+    }
+
+    function removeCgScratchPairRow(idx) {
+      if (cgCurrentConfig.target_pairs && cgCurrentConfig.target_pairs.length > 1) {
+        cgCurrentConfig.target_pairs.splice(idx, 1);
+        renderCgScratchPairsTable();
+      } else {
+        alert('Minimal harus ada 1 pasangan Event & Action.');
+      }
+    }
+
+    // Tester Balok Controller
+    function addCgTestBlock(type, count = 2) {
+      if (type === 'ULANGI') {
+        cgSimBlocks.push({
+          type: 'ULANGI',
+          count: count,
+          body: [{ type: 'MAJU' }]
+        });
+      } else if (type === 'JIKA_RINTANGAN') {
+        cgSimBlocks.push({
+          type: 'JIKA_RINTANGAN',
+          condition: 'tembok_di_depan',
+          then_body: [{ type: 'BELOK_KANAN' }],
+          else_body: [{ type: 'MAJU' }]
+        });
+      } else {
+        cgSimBlocks.push({ type: type });
+      }
+      renderCgTestWorkspace();
+    }
+
+    function removeCgTestBlock(idx) {
+      cgSimBlocks.splice(idx, 1);
+      renderCgTestWorkspace();
+    }
+
+    function clearCgTestBlocks() {
+      cgSimBlocks = [];
+      renderCgTestWorkspace();
+      resetCgTestSim();
+    }
+
+    function renderCgTestWorkspace() {
+      const ws = document.getElementById('cg-test-workspace');
+      if (!ws) return;
+      ws.innerHTML = '';
+
+      if (cgSimBlocks.length === 0) {
+        ws.innerHTML = `
+          <div class="h-full flex flex-col items-center justify-center text-slate-400 py-4 text-[11px]">
+            <span>Belum ada balok instruksi. Klik tombol balok di atas untuk mencoba.</span>
+          </div>
+        `;
+        return;
+      }
+
+      cgSimBlocks.forEach((b, idx) => {
+        const item = document.createElement('div');
+        item.className = 'flex items-center justify-between px-2.5 py-1.5 rounded-lg text-white font-bold text-[11px] shadow-2xs select-none';
+
+        if (b.type === 'MAJU') {
+          item.classList.add('bg-blue-600');
+          item.innerHTML = `<span>⬆ Maju 1 Petak</span>`;
+        } else if (b.type === 'BELOK_KIRI') {
+          item.classList.add('bg-indigo-600');
+          item.innerHTML = `<span>↩ Belok Kiri</span>`;
+        } else if (b.type === 'BELOK_KANAN') {
+          item.classList.add('bg-indigo-600');
+          item.innerHTML = `<span>↪ Belok Kanan</span>`;
+        } else if (b.type === 'ULANGI') {
+          item.classList.add('bg-amber-600');
+          item.innerHTML = `<span>🔁 Ulangi (${b.count}x): [${(b.body || []).map(x => x.type).join(', ')}]</span>`;
+        } else if (b.type === 'JIKA_RINTANGAN') {
+          item.classList.add('bg-purple-600');
+          item.innerHTML = `<span>⚖️ Jika Rintangan ➔ Belok, Lainnya ➔ Maju</span>`;
+        }
+
+        const btnDel = document.createElement('button');
+        btnDel.type = 'button';
+        btnDel.className = 'text-white/80 hover:text-white ml-2 text-xs cursor-pointer';
+        btnDel.innerHTML = '✕';
+        btnDel.onclick = () => removeCgTestBlock(idx);
+        item.appendChild(btnDel);
+
+        ws.appendChild(item);
+      });
+    }
+
+    // Client-side Deterministic Simulation Runner
+    function resetCgTestSim() {
+      cgSimRobot = {
+        x: cgCurrentConfig.start_pos.x,
+        y: cgCurrentConfig.start_pos.y,
+        dir: cgCurrentConfig.start_dir || 'N'
+      };
+      cgSimCollectedStars.clear();
+      cgSimStepIndex = 0;
+      cgSimRunning = false;
+      renderCgInteractiveGrid();
+
+      const statusText = document.getElementById('cg-test-status-text');
+      const badge = document.getElementById('cg-test-score-badge');
+      if (statusText) statusText.textContent = 'Robot berada di posisi start. Susun balok lalu klik "Jalankan".';
+      if (badge) badge.classList.add('hidden');
+    }
+
+    function expandCgBlocksToOps(blocks) {
+      const ops = [];
+      for (const b of blocks) {
+        if (b.type === 'MAJU' || b.type === 'BELOK_KIRI' || b.type === 'BELOK_KANAN') {
+          ops.push(b.type);
+        } else if (b.type === 'ULANGI') {
+          const count = Math.min(10, Math.max(1, Number(b.count) || 2));
+          for (let i = 0; i < count; i++) {
+            if (Array.isArray(b.body)) {
+              for (const sub of b.body) {
+                if (sub.type) ops.push(sub.type);
+              }
+            }
+          }
+        } else if (b.type === 'JIKA_RINTANGAN') {
+          ops.push('JIKA_RINTANGAN');
+        }
+      }
+      return ops;
+    }
+
+    async function runCgTestSim() {
+      if (cgSimBlocks.length === 0) {
+        alert('Tambahkan balok instruksi terlebih dahulu untuk menjalankan robot.');
+        return;
+      }
+      resetCgTestSim();
+      cgSimRunning = true;
+
+      const ops = expandCgBlocksToOps(cgSimBlocks);
+      const dirs = ['N', 'E', 'S', 'W'];
+      const deltas = {
+        N: { dx: 0, dy: -1 },
+        E: { dx: 1, dy: 0 },
+        S: { dx: 0, dy: 1 },
+        W: { dx: -1, dy: 0 }
+      };
+
+      const w = cgCurrentConfig.grid_width;
+      const h = cgCurrentConfig.grid_height;
+      const grid = cgCurrentConfig.grid || [];
+
+      for (let i = 0; i < ops.length; i++) {
+        if (!cgSimRunning) break;
+        let op = ops[i];
+
+        if (op === 'JIKA_RINTANGAN') {
+          // Periksa apakah di depan robot ada tembok atau batas grid
+          const delta = deltas[cgSimRobot.dir];
+          const nx = cgSimRobot.x + delta.dx;
+          const ny = cgSimRobot.y + delta.dy;
+          const hasObstacle = (nx < 0 || nx >= w || ny < 0 || ny >= h || (grid[ny] && grid[ny][nx] === 'wall'));
+          op = hasObstacle ? 'BELOK_KANAN' : 'MAJU';
+        }
+
+        if (op === 'BELOK_KIRI') {
+          const curIdx = dirs.indexOf(cgSimRobot.dir);
+          cgSimRobot.dir = dirs[(curIdx + 3) % 4];
+        } else if (op === 'BELOK_KANAN') {
+          const curIdx = dirs.indexOf(cgSimRobot.dir);
+          cgSimRobot.dir = dirs[(curIdx + 1) % 4];
+        } else if (op === 'MAJU') {
+          const delta = deltas[cgSimRobot.dir];
+          const nx = cgSimRobot.x + delta.dx;
+          const ny = cgSimRobot.y + delta.dy;
+
+          if (nx < 0 || nx >= w || ny < 0 || ny >= h || (grid[ny] && grid[ny][nx] === 'wall')) {
+            renderCgInteractiveGrid();
+            updateCgSimResult(false, '💥 Robot menabrak rintangan atau keluar arena!');
+            cgSimRunning = false;
+            return;
+          }
+          cgSimRobot.x = nx;
+          cgSimRobot.y = ny;
+
+          // Periksa bintang
+          const isStar = (cgCurrentConfig.stars || []).some(s => s.x === nx && s.y === ny);
+          if (isStar) {
+            cgSimCollectedStars.add(`${nx},${ny}`);
+          }
+        }
+
+        renderCgInteractiveGrid();
+        await new Promise(r => setTimeout(r, 200));
+
+        // Cek finish
+        if (cgSimRobot.x === cgCurrentConfig.finish_pos.x && cgSimRobot.y === cgCurrentConfig.finish_pos.y) {
+          updateCgSimResult(true, '🎉 Robot berhasil mencapai Garis Finish!');
+          cgSimRunning = false;
+          return;
+        }
+      }
+
+      updateCgSimResult(false, '⚠️ Robot kehabisan langkah dan belum mencapai finish.');
+      cgSimRunning = false;
+    }
+
+    function stepCgTestSim() {
+      const ops = expandCgBlocksToOps(cgSimBlocks);
+      if (cgSimStepIndex >= ops.length) {
+        alert('Semua langkah balok telah selesai.');
+        return;
+      }
+
+      const dirs = ['N', 'E', 'S', 'W'];
+      const deltas = {
+        N: { dx: 0, dy: -1 },
+        E: { dx: 1, dy: 0 },
+        S: { dx: 0, dy: 1 },
+        W: { dx: -1, dy: 0 }
+      };
+
+      const w = cgCurrentConfig.grid_width;
+      const h = cgCurrentConfig.grid_height;
+      const grid = cgCurrentConfig.grid || [];
+
+      let op = ops[cgSimStepIndex];
+      cgSimStepIndex++;
+
+      if (op === 'JIKA_RINTANGAN') {
+        const delta = deltas[cgSimRobot.dir];
+        const nx = cgSimRobot.x + delta.dx;
+        const ny = cgSimRobot.y + delta.dy;
+        const hasObstacle = (nx < 0 || nx >= w || ny < 0 || ny >= h || (grid[ny] && grid[ny][nx] === 'wall'));
+        op = hasObstacle ? 'BELOK_KANAN' : 'MAJU';
+      }
+
+      if (op === 'BELOK_KIRI') {
+        const curIdx = dirs.indexOf(cgSimRobot.dir);
+        cgSimRobot.dir = dirs[(curIdx + 3) % 4];
+      } else if (op === 'BELOK_KANAN') {
+        const curIdx = dirs.indexOf(cgSimRobot.dir);
+        cgSimRobot.dir = dirs[(curIdx + 1) % 4];
+      } else if (op === 'MAJU') {
+        const delta = deltas[cgSimRobot.dir];
+        const nx = cgSimRobot.x + delta.dx;
+        const ny = cgSimRobot.y + delta.dy;
+
+        if (nx < 0 || nx >= w || ny < 0 || ny >= h || (grid[ny] && grid[ny][nx] === 'wall')) {
+          renderCgInteractiveGrid();
+          updateCgSimResult(false, '💥 Robot menabrak rintangan atau keluar arena!');
+          return;
+        }
+        cgSimRobot.x = nx;
+        cgSimRobot.y = ny;
+
+        const isStar = (cgCurrentConfig.stars || []).some(s => s.x === nx && s.y === ny);
+        if (isStar) {
+          cgSimCollectedStars.add(`${nx},${ny}`);
+        }
+      }
+
+      renderCgInteractiveGrid();
+
+      if (cgSimRobot.x === cgCurrentConfig.finish_pos.x && cgSimRobot.y === cgCurrentConfig.finish_pos.y) {
+        updateCgSimResult(true, '🎉 Robot berhasil mencapai Garis Finish!');
+      }
+    }
+
+    function updateCgSimResult(success, msg) {
+      const statusText = document.getElementById('cg-test-status-text');
+      const badge = document.getElementById('cg-test-score-badge');
+      if (!statusText || !badge) return;
+
+      statusText.textContent = msg;
+
+      if (success) {
+        const totalStars = (cgCurrentConfig.stars || []).length;
+        const collected = cgSimCollectedStars.size;
+        const parLimit = Number(cgCurrentConfig.par_limit) || 6;
+        const blockCount = cgSimBlocks.length;
+
+        let starsCount = 1;
+        if (collected === totalStars && blockCount <= parLimit) {
+          starsCount = 3;
+        } else if (collected > 0 || blockCount <= parLimit + 2) {
+          starsCount = 2;
+        }
+
+        badge.className = 'font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300';
+        badge.textContent = `⭐ ${starsCount} Bintang (Sukses)`;
+        badge.classList.remove('hidden');
+      } else {
+        badge.className = 'font-bold text-red-800 bg-red-50 px-2 py-0.5 rounded border border-red-300';
+        badge.textContent = 'Gagal';
+        badge.classList.remove('hidden');
+      }
+    }
+
+    // AI Level Generator Caller
+    const btnRunCgAi = document.getElementById('btn-cg-run-ai');
+    if (btnRunCgAi) {
+      btnRunCgAi.onclick = async () => {
+        const subtipe = document.getElementById('cg-ai-subtipe').value;
+        const kesulitan = document.getElementById('cg-ai-kesulitan').value;
+        const tema = document.getElementById('cg-ai-tema').value.trim();
+
+        btnRunCgAi.disabled = true;
+        btnRunCgAi.innerHTML = '<span>⏳ Sedang Merancang Level...</span>';
+
+        try {
+          const res = await guruFetch('/api/guru/coding-game/generate-ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              subtipe: subtipe,
+              tingkat_kesulitan: kesulitan,
+              tema: tema || 'Petualangan Robot Cilik'
+            })
+          });
+
+          if (res && res.success && res.data) {
+            const lvl = res.data;
+            cgCurrentConfig = {
+              subtipe: lvl.subtipe || subtipe,
+              grid_width: lvl.grid_width || 5,
+              grid_height: lvl.grid_height || 5,
+              grid: lvl.grid || null,
+              start_pos: lvl.start_pos || { x: 0, y: 4 },
+              start_dir: lvl.start_dir || 'N',
+              finish_pos: lvl.finish_pos || { x: 4, y: 0 },
+              stars: lvl.stars || [],
+              par_limit: lvl.par_limit || 6,
+              max_steps: lvl.max_steps || 30,
+              allowed_blocks: lvl.allowed_blocks || ['MAJU', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'],
+              initial_blocks: lvl.initial_blocks || [],
+              target_pairs: lvl.target_pairs || []
+            };
+
+            document.getElementById('cg-edit-pertanyaan').value = lvl.pertanyaan || lvl.deskripsi || '';
+            document.getElementById('cg-edit-bobot').value = lvl.bobot || 20;
+            document.getElementById('cg-edit-kesulitan').value = lvl.tingkat_kesulitan || kesulitan;
+            document.getElementById('cg-par-limit').value = lvl.par_limit || 6;
+
+            const sizeSel = document.getElementById('cg-grid-size');
+            if (sizeSel && lvl.grid_width) {
+              sizeSel.value = `${lvl.grid_width}x${lvl.grid_height}`;
+            }
+
+            cgSimBlocks = lvl.initial_blocks ? JSON.parse(JSON.stringify(lvl.initial_blocks)) : [];
+
+            alert('✨ Level Game Koding berhasil dibuat oleh AI! Anda sekarang dapat memeriksa dan mengujinya.');
+            switchCgTab('editor');
+          } else {
+            alert('Gagal generate level: ' + (res?.error || 'Respon tidak valid'));
+          }
+        } catch (err) {
+          alert('Error generate AI level: ' + err.message);
+        } finally {
+          btnRunCgAi.disabled = false;
+          btnRunCgAi.innerHTML = '<span>✨ Generate Level dengan AI</span>';
+        }
+      };
+    }
+
+    // Save Coding Game as Question to Active Exam
+    async function saveCodingGameToExam() {
+      if (!activeUlanganId) {
+        alert('Ulangan belum dipilih.');
+        return;
+      }
+
+      const pertanyaan = document.getElementById('cg-edit-pertanyaan').value.trim();
+      if (!pertanyaan) {
+        alert('Teks pertanyaan / misi tantangan wajib diisi.');
+        return;
+      }
+
+      const bobot = Number(document.getElementById('cg-edit-bobot').value) || 20;
+      const kesulitan = document.getElementById('cg-edit-kesulitan').value || 'sedang';
+      cgCurrentConfig.par_limit = Number(document.getElementById('cg-par-limit').value) || 6;
+
+      const btnSave = document.getElementById('btn-cg-save-to-exam');
+      btnSave.disabled = true;
+      btnSave.textContent = 'Menyimpan ke Ulangan...';
+
+      try {
+        const payload = {
+          jenis: 'koding_game',
+          tingkat_kesulitan: kesulitan,
+          bobot: bobot,
+          pertanyaan: pertanyaan,
+          kunci_jawaban: 'Menyelesaikan misi koding dengan balok efisien',
+          game_data: JSON.stringify(cgCurrentConfig),
+          kategori: activeUlanganData?.mata_pelajaran || 'Informatika'
+        };
+
+        const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/soal`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        alert('🎉 Butir Soal Game Koding berhasil disimpan ke dalam ulangan!');
+        closeCodingGameModal();
+        selectUlangan(activeUlanganId);
+      } catch (err) {
+        alert('Error menyimpan butir soal game koding: ' + err.message);
+      } finally {
+        btnSave.disabled = false;
+        btnSave.innerHTML = '<span>💾 Simpan sebagai Butir Soal Ulangan</span>';
+      }
+    }
+
+    // Helper untuk preview level dari daftar soal guru
+    function previewCodingGameInModal(soalId) {
+      if (!activeUlanganData || !activeUlanganData.soal) return;
+      const soal = activeUlanganData.soal.find(s => Number(s.id) === Number(soalId));
+      if (!soal || !soal.game_data) return;
+
+      try {
+        const data = typeof soal.game_data === 'string' ? JSON.parse(soal.game_data) : soal.game_data;
+        cgCurrentConfig = data;
+        document.getElementById('cg-edit-pertanyaan').value = soal.pertanyaan || '';
+        document.getElementById('cg-edit-bobot').value = soal.bobot || 20;
+        document.getElementById('cg-edit-kesulitan').value = soal.tingkat_kesulitan || 'sedang';
+        document.getElementById('cg-par-limit').value = data.par_limit || 6;
+        cgSimBlocks = data.initial_blocks ? JSON.parse(JSON.stringify(data.initial_blocks)) : [];
+
+        modalCodingGameBuilder.classList.remove('hidden');
+        switchCgTab('editor');
+      } catch (e) {
+        alert('Format data game koding tidak valid.');
+      }
     }
 
 

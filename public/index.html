@@ -782,6 +782,16 @@
           </div>
           <p id="pg-instant-score-desc" class="text-[11px] text-teal-700">Jawaban pilihan ganda dinilai secara otomatis seketika.</p>
         </div>
+
+        <!-- Kartu Skor Game Koding Instan (0-Token Auto-Koreksi) -->
+        <div id="coding-instant-score-card" class="hidden p-4 bg-indigo-50 border border-indigo-200 rounded-xl text-indigo-900 text-xs text-center space-y-1">
+          <span class="text-[11px] font-bold text-indigo-800 uppercase tracking-wider block">Skor Game Koding (Koreksi Instan)</span>
+          <div class="flex items-baseline justify-center space-x-1">
+            <span id="coding-instant-score-val" class="text-3xl font-black text-indigo-700">0</span>
+            <span class="text-xs font-semibold text-slate-500">/ 100</span>
+          </div>
+          <p id="coding-instant-score-desc" class="text-[11px] text-indigo-700">Tantangan koding & berpikir komputasional dinilai secara instan otomatis.</p>
+        </div>
         <div class="pt-1">
           <button id="btn-refresh-status-nilai" type="button" class="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition shadow-2xs cursor-pointer">
             <span>🔄</span>
@@ -2277,6 +2287,630 @@
       }
     };
 
+    // =========================================================================
+    // === GAME KODING & BERPIKIR KOMPUTASIONAL (SMP) RUNNER ===
+    // =========================================================================
+    window.initStudentCodingGame = function(soal, initialAnswer) {
+      const container = document.getElementById(`coding-game-container-${soal.id}`);
+      const hiddenInput = document.getElementById(`input_soal_${soal.id}`);
+      if (!container || !hiddenInput) return;
+
+      let cfg = {};
+      try {
+        cfg = typeof soal.game_data === 'string' ? JSON.parse(soal.game_data) : (soal.game_data || {});
+      } catch (e) {
+        cfg = {};
+      }
+
+      let parsedSaved = null;
+      if (initialAnswer) {
+        try {
+          parsedSaved = typeof initialAnswer === 'string' ? JSON.parse(initialAnswer) : initialAnswer;
+        } catch (e) {}
+      }
+
+      const isScratch = (cfg.subtipe === 'scratch_puzzle');
+
+      if (isScratch) {
+        initStudentScratchPuzzle(container, hiddenInput, cfg, parsedSaved, soal.id);
+      } else {
+        initStudentGridRobotGame(container, hiddenInput, cfg, parsedSaved, soal.id);
+      }
+    };
+
+    function initStudentScratchPuzzle(container, hiddenInput, cfg, parsedSaved, soalId) {
+      const targetPairs = cfg.target_pairs || [
+        { event: 'Saat Tombol Spasi Ditekan', action: 'Karakter Melompat ke Atas' },
+        { event: 'Saat Bendera Hijau Diklik', action: 'Mulai Permainan dari Titik Awal' }
+      ];
+
+      // Kumpulkan pilihan aksi
+      const actionChoices = targetPairs.map(p => p.action).filter(Boolean);
+      // Buat pilihan aksi unik
+      const uniqueActions = [...new Set(actionChoices)];
+
+      // Pulihkan draft jika ada
+      let currentPairs = (parsedSaved && Array.isArray(parsedSaved.pairs))
+        ? parsedSaved.pairs
+        : targetPairs.map(p => ({ event: p.event, action: '' }));
+
+      const syncHiddenInput = () => {
+        hiddenInput.value = JSON.stringify({ pairs: currentPairs });
+        hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+
+      container.innerHTML = `
+        <div class="bg-purple-50/70 border border-purple-200 rounded-2xl p-3 sm:p-4 space-y-3 select-none">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center space-x-2">
+              <span class="p-1.5 bg-purple-600 text-white rounded-lg text-sm">🧩</span>
+              <div>
+                <span class="font-extrabold text-xs text-purple-950 uppercase tracking-wide">Scratch Mini Puzzle</span>
+                <p class="text-[11px] text-purple-700">Pasangkan Balok Kejadian (Event) dengan Balok Aksi (Action) yang tepat:</p>
+              </div>
+            </div>
+            <span id="scratch-status-badge-${soalId}" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+              Belum Lengkap
+            </span>
+          </div>
+
+          <div class="space-y-2.5 pt-1" id="scratch-pairs-list-${soalId}">
+            <!-- Rendered below -->
+          </div>
+        </div>
+      `;
+
+      const listElem = document.getElementById(`scratch-pairs-list-${soalId}`);
+      const statusBadge = document.getElementById(`scratch-status-badge-${soalId}`);
+
+      function renderRows() {
+        listElem.innerHTML = '';
+        let allFilled = true;
+
+        currentPairs.forEach((pair, idx) => {
+          if (!pair.action) allFilled = false;
+          const row = document.createElement('div');
+          row.className = 'flex flex-col sm:flex-row sm:items-center gap-2 p-2.5 bg-white rounded-xl border border-purple-200 shadow-2xs';
+          row.innerHTML = `
+            <div class="flex items-center space-x-2 sm:w-1/2">
+              <span class="w-6 h-6 rounded-md bg-amber-500 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">⚡</span>
+              <span class="text-xs font-bold text-amber-900 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200 flex-1 leading-snug">
+                ${escapeHtml(pair.event)}
+              </span>
+            </div>
+            <span class="hidden sm:inline font-bold text-purple-400">➔</span>
+            <div class="flex items-center space-x-2 sm:w-1/2">
+              <span class="w-6 h-6 rounded-md bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">▶</span>
+              <select class="scratch-action-select flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white text-indigo-900 focus:ring-2 focus:ring-purple-200 cursor-pointer" data-idx="${idx}">
+                <option value="">-- Pilih Balok Aksi --</option>
+                ${uniqueActions.map(act => `<option value="${escapeHtml(act)}" ${pair.action === act ? 'selected' : ''}>${escapeHtml(act)}</option>`).join('')}
+              </select>
+            </div>
+          `;
+
+          const sel = row.querySelector('.scratch-action-select');
+          sel.onchange = (e) => {
+            currentPairs[idx].action = e.target.value;
+            syncHiddenInput();
+            checkCompletion();
+          };
+
+          listElem.appendChild(row);
+        });
+
+        checkCompletion();
+      }
+
+      function checkCompletion() {
+        const isComplete = currentPairs.every(p => Boolean(p.action));
+        if (isComplete) {
+          statusBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300';
+          statusBadge.textContent = '✓ Semua Balok Terpasang';
+        } else {
+          statusBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300';
+          statusBadge.textContent = '⚠️ Belum Lengkap';
+        }
+      }
+
+      renderRows();
+      if (parsedSaved && parsedSaved.pairs) {
+        syncHiddenInput();
+      }
+    }
+
+    function initStudentGridRobotGame(container, hiddenInput, cfg, parsedSaved, soalId) {
+      const w = cfg.grid_width || 5;
+      const h = cfg.grid_height || 5;
+      const startPos = cfg.start_pos || { x: 0, y: h - 1 };
+      const startDir = cfg.start_dir || 'N';
+      const finishPos = cfg.finish_pos || { x: w - 1, y: 0 };
+      const stars = cfg.stars || [];
+      const parLimit = Number(cfg.par_limit) || 6;
+      const allowedBlocks = cfg.allowed_blocks || ['MAJU', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'];
+      const subtipe = cfg.subtipe || 'grid_robot';
+
+      // State Pengerjaan Siswa
+      let studentBlocks = [];
+      if (parsedSaved && Array.isArray(parsedSaved.blocks)) {
+        studentBlocks = parsedSaved.blocks;
+      } else if (cfg.initial_blocks && Array.isArray(cfg.initial_blocks) && cfg.initial_blocks.length > 0) {
+        studentBlocks = JSON.parse(JSON.stringify(cfg.initial_blocks));
+      }
+
+      let robotState = { x: startPos.x, y: startPos.y, dir: startDir };
+      let collectedStars = new Set();
+      let isSimRunning = false;
+      let stepIndex = 0;
+
+      const subtipeTitles = {
+        grid_robot: '🚀 Grid Robot Runner (Algoritma Sekuensial)',
+        loop_master: '🔁 Loop Master (Pengenalan Pola & Looping)',
+        decision_gate: '⚖️ Decision Gate (Percabangan Kondisi If-Else)',
+        bug_doctor: '🩺 Bug Doctor (Tracing & Debugging Kode)'
+      };
+
+      const syncHiddenInput = () => {
+        hiddenInput.value = JSON.stringify({ blocks: studentBlocks });
+        hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+        updateBlockCounter();
+      };
+
+      container.innerHTML = `
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-4 text-white space-y-3.5 select-none shadow-md">
+          <!-- Header Misi Game -->
+          <div class="flex items-center justify-between flex-wrap gap-2 border-b border-slate-800 pb-2.5">
+            <div class="flex items-center space-x-2">
+              <span class="text-lg p-1 bg-indigo-600/50 rounded-lg">🤖</span>
+              <div>
+                <span class="font-extrabold text-xs text-indigo-300 uppercase tracking-wide block">${subtipeTitles[subtipe] || 'Tantangan Robot Cilik'}</span>
+                <span class="text-[11px] text-slate-300">Arahkan robot ke finish 🏁 dan kumpulkan semua bintang ⭐</span>
+              </div>
+            </div>
+            <div class="flex items-center space-x-2 text-[10px]">
+              <span class="bg-indigo-950 text-indigo-300 border border-indigo-700/60 font-bold px-2 py-0.5 rounded-full">
+                🎯 Par Target: ${parLimit} Balok
+              </span>
+              <span id="cg-counter-${soalId}" class="bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-full">
+                0 Balok
+              </span>
+            </div>
+          </div>
+
+          <!-- Arena Grid & Simulator Section -->
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+            <!-- Canvas Grid Board -->
+            <div class="md:col-span-6 bg-slate-950 p-3 rounded-xl border border-slate-800 flex flex-col items-center justify-center min-h-[240px] shadow-inner">
+              <div id="cg-board-${soalId}" class="grid gap-1.5 p-1.5 bg-slate-900 rounded-lg border border-slate-800">
+                <!-- Rendered cells -->
+              </div>
+              <div class="text-[10px] text-slate-400 mt-2 flex items-center space-x-3">
+                <span class="flex items-center space-x-1"><span>🚀</span><span>Robot</span></span>
+                <span class="flex items-center space-x-1"><span>🏁</span><span>Finish</span></span>
+                <span class="flex items-center space-x-1"><span>⭐</span><span>Bintang</span></span>
+                <span class="flex items-center space-x-1"><span>🧱</span><span>Tembok</span></span>
+              </div>
+            </div>
+
+            <!-- Workspace Susun Balok -->
+            <div class="md:col-span-6 flex flex-col space-y-2 bg-slate-800/80 p-3 rounded-xl border border-slate-700/60">
+              <!-- Palet Balok Siswa -->
+              <div class="space-y-1">
+                <span class="text-[10px] font-bold text-slate-300 uppercase tracking-wider block">Pilih Balok Instruksi:</span>
+                <div class="flex flex-wrap gap-1.5">
+                  <button type="button" id="btn-add-maju-${soalId}" class="px-2 py-1 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-[11px] rounded-lg shadow-2xs transition cursor-pointer">
+                    ⬆ Maju
+                  </button>
+                  <button type="button" id="btn-add-kiri-${soalId}" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-[11px] rounded-lg shadow-2xs transition cursor-pointer">
+                    ↩ Belok Kiri
+                  </button>
+                  <button type="button" id="btn-add-kanan-${soalId}" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-[11px] rounded-lg shadow-2xs transition cursor-pointer">
+                    ↪ Belok Kanan
+                  </button>
+                  ${allowedBlocks.includes('ULANGI') ? `
+                  <button type="button" id="btn-add-loop-${soalId}" class="px-2 py-1 bg-amber-600 hover:bg-amber-500 active:scale-95 text-white font-bold text-[11px] rounded-lg shadow-2xs transition cursor-pointer">
+                    🔁 Ulangi (2x)
+                  </button>
+                  ` : ''}
+                  ${allowedBlocks.includes('JIKA_RINTANGAN') ? `
+                  <button type="button" id="btn-add-if-${soalId}" class="px-2 py-1 bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-bold text-[11px] rounded-lg shadow-2xs transition cursor-pointer">
+                    ⚖️ Jika Rintangan
+                  </button>
+                  ` : ''}
+                </div>
+              </div>
+
+              <!-- Daftar Balok Tersusun -->
+              <div class="flex-1 min-h-[110px] max-h-[140px] overflow-y-auto bg-slate-900/90 p-2 rounded-lg border border-slate-700/80 space-y-1.5" id="cg-workspace-${soalId}">
+                <!-- Rendered blocks -->
+              </div>
+
+              <!-- Tombol Kontrol Eksekusi -->
+              <div class="flex items-center justify-between pt-1">
+                <div class="flex items-center space-x-1.5">
+                  <button type="button" id="btn-run-${soalId}" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-xs transition flex items-center space-x-1 cursor-pointer">
+                    <span>▶</span><span>Jalankan</span>
+                  </button>
+                  <button type="button" id="btn-step-${soalId}" class="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center space-x-1 cursor-pointer" title="Langkah demi langkah">
+                    <span>⏭</span><span>Step</span>
+                  </button>
+                  <button type="button" id="btn-reset-${soalId}" class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 active:scale-95 text-slate-200 font-bold text-xs rounded-xl transition cursor-pointer" title="Reset robot ke titik awal">
+                    <span>🔄</span>
+                  </button>
+                </div>
+                <button type="button" id="btn-clear-${soalId}" class="text-[10px] text-red-400 hover:text-red-300 font-bold px-1.5 py-1 rounded hover:bg-red-950/40 transition cursor-pointer">
+                  🗑️ Bersihkan
+                </button>
+              </div>
+
+              <!-- Status Feedback Log -->
+              <div id="cg-status-box-${soalId}" class="p-2 rounded-lg bg-slate-950 border border-slate-800 text-[11px] flex items-center justify-between">
+                <span id="cg-status-text-${soalId}" class="text-slate-300">Susun balok lalu klik "Jalankan".</span>
+                <span id="cg-score-badge-${soalId}" class="font-bold text-emerald-400 hidden">⭐ 0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Helper Renderer Grid
+      const boardElem = document.getElementById(`cg-board-${soalId}`);
+      boardElem.style.gridTemplateColumns = `repeat(${w}, minmax(0, 1fr))`;
+
+      function renderGrid() {
+        boardElem.innerHTML = '';
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const cell = document.createElement('div');
+            cell.className = 'w-9 h-9 sm:w-10 sm:h-10 rounded-lg border flex items-center justify-center font-bold text-xs select-none transition-all';
+
+            const isRobot = (robotState.x === x && robotState.y === y);
+            const isFinish = (finishPos.x === x && finishPos.y === y);
+            const isWall = (cfg.grid && cfg.grid[y] && cfg.grid[y][x] === 'wall');
+            const isStar = stars.some(s => s.x === x && s.y === y);
+
+            if (isRobot) {
+              cell.classList.add('bg-indigo-600', 'border-indigo-400', 'text-white', 'shadow-md', 'scale-105');
+              const rot = robotState.dir === 'E' ? 'rotate-90' : (robotState.dir === 'S' ? 'rotate-180' : (robotState.dir === 'W' ? '-rotate-90' : 'rotate-0'));
+              cell.innerHTML = `<span class="inline-block transform ${rot} transition-transform">🚀</span>`;
+            } else if (isFinish) {
+              cell.classList.add('bg-emerald-950', 'border-emerald-500', 'text-emerald-300');
+              cell.innerHTML = '🏁';
+            } else if (isWall) {
+              cell.classList.add('bg-slate-700', 'border-slate-600', 'text-slate-400');
+              cell.innerHTML = '🧱';
+            } else if (isStar && !collectedStars.has(`${x},${y}`)) {
+              cell.classList.add('bg-amber-950', 'border-amber-500', 'text-amber-400');
+              cell.innerHTML = '⭐';
+            } else {
+              cell.classList.add('bg-slate-800/80', 'border-slate-700/60');
+              cell.innerHTML = '';
+            }
+
+            boardElem.appendChild(cell);
+          }
+        }
+      }
+
+      // Helper Renderer Workspace Balok
+      const workspaceElem = document.getElementById(`cg-workspace-${soalId}`);
+      function renderWorkspace() {
+        workspaceElem.innerHTML = '';
+        if (studentBlocks.length === 0) {
+          workspaceElem.innerHTML = `
+            <div class="h-full flex items-center justify-center text-slate-500 text-[11px] py-4">
+              Belum ada balok. Klik tombol instruksi di atas untuk menambahkan.
+            </div>
+          `;
+          return;
+        }
+
+        studentBlocks.forEach((b, idx) => {
+          const item = document.createElement('div');
+          item.className = 'flex items-center justify-between px-2.5 py-1 rounded-lg text-white font-bold text-[11px] shadow-2xs select-none';
+
+          if (b.type === 'MAJU') {
+            item.classList.add('bg-blue-600');
+            item.innerHTML = `<span>#${idx + 1} ⬆ Maju 1 Petak</span>`;
+          } else if (b.type === 'BELOK_KIRI') {
+            item.classList.add('bg-indigo-600');
+            item.innerHTML = `<span>#${idx + 1} ↩ Belok Kiri</span>`;
+          } else if (b.type === 'BELOK_KANAN') {
+            item.classList.add('bg-indigo-600');
+            item.innerHTML = `<span>#${idx + 1} ↪ Belok Kanan</span>`;
+          } else if (b.type === 'ULANGI') {
+            item.classList.add('bg-amber-600');
+            item.innerHTML = `<span>#${idx + 1} 🔁 Ulangi (${b.count}x): Maju</span>`;
+          } else if (b.type === 'JIKA_RINTANGAN') {
+            item.classList.add('bg-purple-600');
+            item.innerHTML = `<span>#${idx + 1} ⚖️ Jika Rintangan ➔ Belok, Lainnya ➔ Maju</span>`;
+          }
+
+          const btnDel = document.createElement('button');
+          btnDel.type = 'button';
+          btnDel.className = 'text-white/80 hover:text-white ml-2 text-xs cursor-pointer';
+          btnDel.innerHTML = '✕';
+          btnDel.onclick = () => {
+            studentBlocks.splice(idx, 1);
+            renderWorkspace();
+            syncHiddenInput();
+            resetSim();
+          };
+          item.appendChild(btnDel);
+
+          workspaceElem.appendChild(item);
+        });
+      }
+
+      function updateBlockCounter() {
+        const counter = document.getElementById(`cg-counter-${soalId}`);
+        if (!counter) return;
+        const count = studentBlocks.length;
+        counter.textContent = `${count} Balok`;
+        if (count > 0 && count <= parLimit) {
+          counter.className = 'bg-emerald-950 text-emerald-300 border border-emerald-700/60 font-bold px-2 py-0.5 rounded-full';
+        } else if (count > parLimit) {
+          counter.className = 'bg-amber-950 text-amber-300 border border-amber-700/60 font-bold px-2 py-0.5 rounded-full';
+        } else {
+          counter.className = 'bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-full';
+        }
+      }
+
+      function resetSim() {
+        robotState = { x: startPos.x, y: startPos.y, dir: startDir };
+        collectedStars.clear();
+        stepIndex = 0;
+        isSimRunning = false;
+        renderGrid();
+
+        const st = document.getElementById(`cg-status-text-${soalId}`);
+        const sb = document.getElementById(`cg-score-badge-${soalId}`);
+        if (st) st.textContent = 'Robot di posisi awal. Klik "Jalankan" untuk menguji.';
+        if (sb) sb.classList.add('hidden');
+      }
+
+      function expandStudentBlocks(blocks) {
+        const ops = [];
+        for (const b of blocks) {
+          if (b.type === 'MAJU' || b.type === 'BELOK_KIRI' || b.type === 'BELOK_KANAN') {
+            ops.push(b.type);
+          } else if (b.type === 'ULANGI') {
+            const count = Math.min(10, Math.max(1, Number(b.count) || 2));
+            for (let i = 0; i < count; i++) {
+              if (Array.isArray(b.body)) {
+                for (const sub of b.body) {
+                  if (sub.type) ops.push(sub.type);
+                }
+              } else {
+                ops.push('MAJU');
+              }
+            }
+          } else if (b.type === 'JIKA_RINTANGAN') {
+            ops.push('JIKA_RINTANGAN');
+          }
+        }
+        return ops;
+      }
+
+      async function runSim() {
+        if (studentBlocks.length === 0) {
+          alert('Tambahkan balok instruksi terlebih dahulu untuk menjalankan robot.');
+          return;
+        }
+        resetSim();
+        isSimRunning = true;
+
+        const ops = expandStudentBlocks(studentBlocks);
+        const dirs = ['N', 'E', 'S', 'W'];
+        const deltas = {
+          N: { dx: 0, dy: -1 },
+          E: { dx: 1, dy: 0 },
+          S: { dx: 0, dy: 1 },
+          W: { dx: -1, dy: 0 }
+        };
+        const grid = cfg.grid || [];
+
+        for (let i = 0; i < ops.length; i++) {
+          if (!isSimRunning) break;
+          let op = ops[i];
+
+          if (op === 'JIKA_RINTANGAN') {
+            const delta = deltas[robotState.dir];
+            const nx = robotState.x + delta.dx;
+            const ny = robotState.y + delta.dy;
+            const hasObstacle = (nx < 0 || nx >= w || ny < 0 || ny >= h || (grid[ny] && grid[ny][nx] === 'wall'));
+            op = hasObstacle ? 'BELOK_KANAN' : 'MAJU';
+          }
+
+          if (op === 'BELOK_KIRI') {
+            const curIdx = dirs.indexOf(robotState.dir);
+            robotState.dir = dirs[(curIdx + 3) % 4];
+          } else if (op === 'BELOK_KANAN') {
+            const curIdx = dirs.indexOf(robotState.dir);
+            robotState.dir = dirs[(curIdx + 1) % 4];
+          } else if (op === 'MAJU') {
+            const delta = deltas[robotState.dir];
+            const nx = robotState.x + delta.dx;
+            const ny = robotState.y + delta.dy;
+
+            if (nx < 0 || nx >= w || ny < 0 || ny >= h || (grid[ny] && grid[ny][nx] === 'wall')) {
+              renderGrid();
+              updateSimStatus(false, '💥 Robot menabrak rintangan atau keluar arena!');
+              isSimRunning = false;
+              return;
+            }
+            robotState.x = nx;
+            robotState.y = ny;
+
+            if (stars.some(s => s.x === nx && s.y === ny)) {
+              collectedStars.add(`${nx},${ny}`);
+            }
+          }
+
+          renderGrid();
+          await new Promise(r => setTimeout(r, 220));
+
+          if (robotState.x === finishPos.x && robotState.y === finishPos.y) {
+            updateSimStatus(true, '🎉 Robot sukses mencapai Garis Finish!');
+            isSimRunning = false;
+            return;
+          }
+        }
+
+        updateSimStatus(false, '⚠️ Robot kehabisan langkah dan belum mencapai finish.');
+        isSimRunning = false;
+      }
+
+      function stepSim() {
+        const ops = expandStudentBlocks(studentBlocks);
+        if (stepIndex >= ops.length) {
+          alert('Semua langkah balok telah selesai.');
+          return;
+        }
+
+        const dirs = ['N', 'E', 'S', 'W'];
+        const deltas = {
+          N: { dx: 0, dy: -1 },
+          E: { dx: 1, dy: 0 },
+          S: { dx: 0, dy: 1 },
+          W: { dx: -1, dy: 0 }
+        };
+        const grid = cfg.grid || [];
+
+        let op = ops[stepIndex];
+        stepIndex++;
+
+        if (op === 'JIKA_RINTANGAN') {
+          const delta = deltas[robotState.dir];
+          const nx = robotState.x + delta.dx;
+          const ny = robotState.y + delta.dy;
+          const hasObstacle = (nx < 0 || nx >= w || ny < 0 || ny >= h || (grid[ny] && grid[ny][nx] === 'wall'));
+          op = hasObstacle ? 'BELOK_KANAN' : 'MAJU';
+        }
+
+        if (op === 'BELOK_KIRI') {
+          const curIdx = dirs.indexOf(robotState.dir);
+          robotState.dir = dirs[(curIdx + 3) % 4];
+        } else if (op === 'BELOK_KANAN') {
+          const curIdx = dirs.indexOf(robotState.dir);
+          robotState.dir = dirs[(curIdx + 1) % 4];
+        } else if (op === 'MAJU') {
+          const delta = deltas[robotState.dir];
+          const nx = robotState.x + delta.dx;
+          const ny = robotState.y + delta.dy;
+
+          if (nx < 0 || nx >= w || ny < 0 || ny >= h || (grid[ny] && grid[ny][nx] === 'wall')) {
+            renderGrid();
+            updateSimStatus(false, '💥 Robot menabrak rintangan atau keluar arena!');
+            return;
+          }
+          robotState.x = nx;
+          robotState.y = ny;
+
+          if (stars.some(s => s.x === nx && s.y === ny)) {
+            collectedStars.add(`${nx},${ny}`);
+          }
+        }
+
+        renderGrid();
+
+        if (robotState.x === finishPos.x && robotState.y === finishPos.y) {
+          updateSimStatus(true, '🎉 Robot sukses mencapai Garis Finish!');
+        }
+      }
+
+      function updateSimStatus(success, msg) {
+        const st = document.getElementById(`cg-status-text-${soalId}`);
+        const sb = document.getElementById(`cg-score-badge-${soalId}`);
+        if (!st || !sb) return;
+
+        st.textContent = msg;
+        if (success) {
+          const totalStars = stars.length;
+          const collected = collectedStars.size;
+          const blockCount = studentBlocks.length;
+          let starsCount = 1;
+          if (collected === totalStars && blockCount <= parLimit) {
+            starsCount = 3;
+          } else if (collected > 0 || blockCount <= parLimit + 2) {
+            starsCount = 2;
+          }
+          sb.className = 'font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-700';
+          sb.textContent = `⭐ ${starsCount} Bintang`;
+          sb.classList.remove('hidden');
+        } else {
+          sb.className = 'font-bold text-rose-400 bg-rose-950 px-2 py-0.5 rounded border border-rose-700';
+          sb.textContent = 'Gagal';
+          sb.classList.remove('hidden');
+        }
+      }
+
+      // Event Listeners Tombol Balok
+      const btnAddMaju = document.getElementById(`btn-add-maju-${soalId}`);
+      if (btnAddMaju) {
+        btnAddMaju.onclick = () => {
+          studentBlocks.push({ type: 'MAJU' });
+          renderWorkspace();
+          syncHiddenInput();
+          resetSim();
+        };
+      }
+      const btnAddKiri = document.getElementById(`btn-add-kiri-${soalId}`);
+      if (btnAddKiri) {
+        btnAddKiri.onclick = () => {
+          studentBlocks.push({ type: 'BELOK_KIRI' });
+          renderWorkspace();
+          syncHiddenInput();
+          resetSim();
+        };
+      }
+      const btnAddKanan = document.getElementById(`btn-add-kanan-${soalId}`);
+      if (btnAddKanan) {
+        btnAddKanan.onclick = () => {
+          studentBlocks.push({ type: 'BELOK_KANAN' });
+          renderWorkspace();
+          syncHiddenInput();
+          resetSim();
+        };
+      }
+      const btnAddLoop = document.getElementById(`btn-add-loop-${soalId}`);
+      if (btnAddLoop) {
+        btnAddLoop.onclick = () => {
+          studentBlocks.push({ type: 'ULANGI', count: 2, body: [{ type: 'MAJU' }] });
+          renderWorkspace();
+          syncHiddenInput();
+          resetSim();
+        };
+      }
+      const btnAddIf = document.getElementById(`btn-add-if-${soalId}`);
+      if (btnAddIf) {
+        btnAddIf.onclick = () => {
+          studentBlocks.push({ type: 'JIKA_RINTANGAN' });
+          renderWorkspace();
+          syncHiddenInput();
+          resetSim();
+        };
+      }
+
+      // Event Listeners Kontrol Runner
+      document.getElementById(`btn-run-${soalId}`).onclick = runSim;
+      document.getElementById(`btn-step-${soalId}`).onclick = stepSim;
+      document.getElementById(`btn-reset-${soalId}`).onclick = resetSim;
+      document.getElementById(`btn-clear-${soalId}`).onclick = () => {
+        studentBlocks = [];
+        renderWorkspace();
+        syncHiddenInput();
+        resetSim();
+      };
+
+      // Inisialisasi Tampilan Awal
+      renderGrid();
+      renderWorkspace();
+      updateBlockCounter();
+      if (studentBlocks.length > 0) {
+        syncHiddenInput();
+      }
+    }
+
     // === MODAL FULL-SCREEN IMAGE ZOOM LIGHTBOX ===
     let modalZoomScale = 1.0;
     let modalPanX = 0;
@@ -2561,11 +3195,14 @@
 
       const showSymbols = (data.ulangan && data.ulangan.tampilkan_simbol !== 0);
 
-      // Cek apakah ulangan bertipe campuran (memiliki PG dan Esai/Isian)
+      // Cek apakah ulangan bertipe campuran (memiliki PG, Koding Game, atau Esai/Isian)
       const hasPg = data.soal.some(q => q.jenis === 'pilihan_ganda');
-      const hasNonPg = data.soal.some(q => q.jenis !== 'pilihan_ganda');
-      const isHybrid = hasPg && hasNonPg;
+      const hasCoding = data.soal.some(q => q.jenis === 'koding_game');
+      const hasEssayOrIsian = data.soal.some(q => q.jenis === 'essay' || q.jenis === 'isian');
+      const distinctTypes = (hasPg ? 1 : 0) + (hasCoding ? 1 : 0) + (hasEssayOrIsian ? 1 : 0);
+      const isHybrid = distinctTypes > 1;
       let renderedPgSectionHeader = false;
+      let renderedCodingSectionHeader = false;
       let renderedNonPgSectionHeader = false;
 
       // Cegah klik kanan pada teks pertanyaan agar sulit di-copy
@@ -2577,6 +3214,7 @@
 
       data.soal.forEach((s, idx) => {
         const isPg = s.jenis === 'pilihan_ganda';
+        const isCoding = s.jenis === 'koding_game';
         const isEssay = s.jenis === 'essay';
 
         if (isHybrid && isPg && !renderedPgSectionHeader) {
@@ -2591,14 +3229,26 @@
             </div>
           `;
           container.appendChild(sectionHeader);
-        } else if (isHybrid && !isPg && !renderedNonPgSectionHeader) {
+        } else if (isHybrid && isCoding && !renderedCodingSectionHeader) {
+          renderedCodingSectionHeader = true;
+          const sectionHeader = document.createElement('div');
+          sectionHeader.className = 'p-3.5 sm:p-4 bg-indigo-50 border-2 border-indigo-200 rounded-2xl flex items-center space-x-3 text-indigo-900 shadow-2xs mt-4';
+          sectionHeader.innerHTML = `
+            <span class="text-2xl">🎮</span>
+            <div>
+              <h3 class="font-extrabold text-xs sm:text-sm uppercase tracking-wide">BAGIAN: TANTANGAN PERMAINAN KODING (SMP)</h3>
+              <p class="text-[11px] text-indigo-700">Pecahkan tantangan berpikir komputasional dengan menyusun balok instruksi yang efisien.</p>
+            </div>
+          `;
+          container.appendChild(sectionHeader);
+        } else if (isHybrid && !isPg && !isCoding && !renderedNonPgSectionHeader) {
           renderedNonPgSectionHeader = true;
           const sectionHeader = document.createElement('div');
           sectionHeader.className = 'p-3.5 sm:p-4 bg-blue-50 border-2 border-blue-200 rounded-2xl flex items-center space-x-3 text-blue-900 shadow-2xs mt-4';
           sectionHeader.innerHTML = `
             <span class="text-2xl">✍️</span>
             <div>
-              <h3 class="font-extrabold text-xs sm:text-sm uppercase tracking-wide">BAGIAN II: ISIAN SINGKAT & ESAI</h3>
+              <h3 class="font-extrabold text-xs sm:text-sm uppercase tracking-wide">BAGIAN: ISIAN SINGKAT & ESAI</h3>
               <p class="text-[11px] text-blue-700">Tuliskan uraian jawaban Anda dengan jelas dan mandiri.</p>
             </div>
           `;
@@ -2622,8 +3272,8 @@
               <span class="w-6 h-6 rounded-md bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center">
                 ${idx + 1}
               </span>
-              <span class="text-[11px] sm:text-xs uppercase tracking-wider font-semibold px-2 py-0.5 rounded ${isEssay ? 'bg-purple-50 text-purple-700' : (isPg ? 'bg-teal-50 text-teal-800 border border-teal-200 font-bold' : 'bg-blue-50 text-blue-700')}">
-                ${isEssay ? 'Essay' : (isPg ? 'Pilihan Ganda' : 'Isian Singkat')}
+              <span class="text-[11px] sm:text-xs uppercase tracking-wider font-semibold px-2 py-0.5 rounded ${isEssay ? 'bg-purple-50 text-purple-700' : (isPg ? 'bg-teal-50 text-teal-800 border border-teal-200 font-bold' : (isCoding ? 'bg-indigo-50 text-indigo-800 border border-indigo-200 font-bold' : 'bg-blue-50 text-blue-700'))}">
+                ${isEssay ? 'Essay' : (isPg ? 'Pilihan Ganda' : (isCoding ? '🎮 Game Koding' : 'Isian Singkat'))}
               </span>
               <!-- Tanda Visual Status Terisi / Belum Terisi -->
               <span id="badge-soal-status-${s.id}" class="inline-flex items-center space-x-1 text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 transition-all">
@@ -2750,7 +3400,13 @@
             </div>
           ` : ''}
           <div class="space-y-1.5">
-            ${isPg ? `
+            ${isCoding ? `
+              <!-- Area Game Koding Siswa -->
+              <input type="hidden" name="soal_${s.id}" data-soal-id="${s.id}" id="input_soal_${s.id}" value="">
+              <div id="coding-game-container-${s.id}" class="mt-2 space-y-3">
+                <!-- Rendered dynamically by initStudentCodingGame -->
+              </div>
+            ` : (isPg ? `
               <input type="hidden" name="soal_${s.id}" data-soal-id="${s.id}" id="input_pg_${s.id}" value="">
               <div class="grid grid-cols-1 gap-2 pt-1 select-none" id="pg_options_container_${s.id}">
                 <button type="button" onclick="selectPgOption(${s.id}, 'A')" id="btn_pg_${s.id}_A" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-blue-300 hover:bg-slate-50 transition text-left cursor-pointer group">
@@ -2789,7 +3445,7 @@
                 ? `<textarea name="soal_${s.id}" data-soal-id="${s.id}" rows="3" dir="auto" placeholder="Ketik jawaban essay Anda di sini..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm sm:text-base transition leading-relaxed"></textarea>`
                 : `<input type="text" name="soal_${s.id}" data-soal-id="${s.id}" dir="auto" placeholder="Ketik jawaban singkat Anda..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm sm:text-base transition">`
               }
-            `}
+            `)}
           </div>
         `;
         container.appendChild(card);
@@ -2833,6 +3489,10 @@
         // Jika soal pilihan ganda, sinkronkan pilihan opsi aktif
         if (soalItem && soalItem.jenis === 'pilihan_ganda' && input.value) {
           window.selectPgOption(sId, input.value, false);
+        }
+        // Jika soal koding_game, inisialisasi controller interaktif koding
+        if (soalItem && soalItem.jenis === 'koding_game') {
+          window.initStudentCodingGame(soalItem, input.value);
         }
       });
 
@@ -3527,7 +4187,7 @@
           if (pgScoreVal) pgScoreVal.textContent = data.skor_pg;
           const pgDesc = document.getElementById('pg-instant-score-desc');
           if (pgDesc) {
-            const hasEssay = (data.jawaban || []).some(j => j.jenis !== 'pilihan_ganda');
+            const hasEssay = (data.jawaban || []).some(j => j.jenis !== 'pilihan_ganda' && j.jenis !== 'koding_game');
             if (hasEssay) {
               pgDesc.textContent = 'Bagian Pilihan Ganda telah dinilai seketika. Bagian Isian/Esai sedang diproses oleh Guru & AI.';
             } else {
@@ -3536,6 +4196,21 @@
           }
         } else {
           pgCard.classList.add('hidden');
+        }
+      }
+
+      const codingCard = document.getElementById('coding-instant-score-card');
+      if (codingCard) {
+        if (data.skor_koding !== null && data.skor_koding !== undefined) {
+          codingCard.classList.remove('hidden');
+          const cScoreVal = document.getElementById('coding-instant-score-val');
+          if (cScoreVal) cScoreVal.textContent = data.skor_koding;
+          const cDesc = document.getElementById('coding-instant-score-desc');
+          if (cDesc) {
+            cDesc.textContent = 'Tantangan game koding berpikir komputasional berhasil dievaluasi seketika.';
+          }
+        } else {
+          codingCard.classList.add('hidden');
         }
       }
 
@@ -3554,13 +4229,14 @@
           const item = document.createElement('div');
           item.className = 'p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-xs space-y-1.5';
           const isPg = j.jenis === 'pilihan_ganda';
+          const isCoding = j.jenis === 'koding_game';
           const studentAns = (j.jawaban_siswa || '').toUpperCase().trim();
           const correctKey = (j.kunci_pg || j.kunci_jawaban || '').toUpperCase().trim();
           const isCorrect = isPg ? (studentAns && studentAns === correctKey) : null;
 
           item.innerHTML = `
             <div class="flex justify-between font-semibold text-slate-700" dir="auto">
-              <span>Soal ${idx + 1} (${isPg ? 'Pilihan Ganda' : (j.jenis === 'essay' ? 'Essay' : 'Isian')}): ${j.pertanyaan}</span>
+              <span>Soal ${idx + 1} (${isCoding ? '🎮 Game Koding SMP' : (isPg ? 'Pilihan Ganda' : (j.jenis === 'essay' ? 'Essay' : 'Isian'))}): ${j.pertanyaan}</span>
               <span class="text-blue-600 font-bold">Skor: ${j.skor_final ?? j.skor_rekomendasi ?? 0} / ${j.skor_maksimum}</span>
             </div>
             ${j.gambar_url ? `
@@ -3568,7 +4244,12 @@
                 <img src="${j.gambar_url}" alt="Gambar Soal ${idx + 1}" class="max-h-48 max-w-full rounded-lg border border-slate-200 object-contain bg-white">
               </div>
             ` : ''}
-            ${isPg ? `
+            ${isCoding ? `
+              <div class="p-2 bg-indigo-50 rounded-lg border border-indigo-200 text-indigo-900 text-[11px] space-y-1">
+                <span class="font-bold">Logika & Eksekusi Koding Siswa:</span>
+                <p class="text-slate-600 font-mono break-all">${j.jawaban_siswa ? escapeHtml(j.jawaban_siswa) : '(Belum menyusun balok)'}</p>
+              </div>
+            ` : (isPg ? `
               <div class="flex items-center space-x-2 my-1 flex-wrap gap-y-1">
                 <span class="font-bold text-slate-700">Pilihan Jawaban Anda:</span>
                 <span class="font-mono font-bold px-2 py-0.5 rounded ${isCorrect ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-rose-100 text-rose-800 border border-rose-300'}">
@@ -3580,7 +4261,7 @@
               </div>
             ` : `
               <p class="text-slate-600" dir="auto"><strong class="text-slate-500">Jawaban Anda:</strong> ${j.jawaban_siswa || '(kosong)'}</p>
-            `}
+            `)}
             ${j.catatan_guru ? `<p class="text-emerald-700 bg-emerald-50 p-2 rounded border border-emerald-100 font-medium" dir="auto">Catatan Guru: ${j.catatan_guru}</p>` : ''}
           `;
           listContainer.appendChild(item);
