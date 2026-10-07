@@ -297,6 +297,66 @@ describe('=== SUITE: ULANGAN MODE PERMAINAN KODING (SMP) & HYBRID ===', () => {
     const presetJson = await presetRes.json();
     assert.strictEqual(presetRes.status, 200);
     assert.strictEqual(presetJson.success, true);
-    assert.strictEqual(presetJson.presets.length >= 5, true);
+    assert.strictEqual(presetJson.presets.length >= 8, true);
+    const subtipeList = presetJson.presets.map(p => p.subtipe);
+    assert.ok(subtipeList.includes('pattern_guesser'), 'Harus ada subtipe pattern_guesser');
+    assert.ok(subtipeList.includes('parsons_puzzle'), 'Harus ada subtipe parsons_puzzle');
+  });
+
+  test('10. Mode Tebak Pola (Pattern Guesser): Evaluasi jawaban tepat dan salah', () => {
+    const levelData = {
+      subtipe: 'pattern_guesser',
+      correct_answer: 'Maju 2 Kotak',
+      correct_option_id: 'opt_1',
+      options: [
+        { id: 'opt_1', label: 'Maju 2 Kotak' },
+        { id: 'opt_2', label: 'Mundur 1 Kotak' }
+      ]
+    };
+
+    // Jawaban benar via label
+    const resExact = codingGameService.evaluateSolution(levelData, { selected: 'Maju 2 Kotak' });
+    assert.strictEqual(resExact.isFinished, true);
+    assert.strictEqual(resExact.score, 100);
+    assert.strictEqual(resExact.starsEarned, 3);
+    assert.strictEqual(resExact.matched, true);
+
+    // Jawaban benar via option ID
+    const resId = codingGameService.evaluateSolution(levelData, { selected: 'opt_1' });
+    assert.strictEqual(resId.isFinished, true);
+    assert.strictEqual(resId.score, 100);
+
+    // Jawaban salah
+    const resWrong = codingGameService.evaluateSolution(levelData, { selected: 'opt_2' });
+    assert.strictEqual(resWrong.isFinished, false);
+    assert.strictEqual(resWrong.score, 0);
+    assert.strictEqual(resWrong.starsEarned, 0);
+  });
+
+  test('11. Mode Susun Algoritma (Parsons Problem): Evaluasi urutan eksak & parsial Kendall-tau', () => {
+    const levelData = {
+      subtipe: 'parsons_puzzle',
+      correct_order: ['s1', 's2', 's3', 's4'],
+      steps: [
+        { id: 's1', text: 'Nyalakan sensor' },
+        { id: 's2', text: 'Cek input' },
+        { id: 's3', text: 'Buka pintu' },
+        { id: 's4', text: 'Kunci pintu' }
+      ]
+    };
+
+    // Urutan 100% tepat
+    const resPerfect = codingGameService.evaluateSolution(levelData, { order: ['s1', 's2', 's3', 's4'] });
+    assert.strictEqual(resPerfect.isFinished, true);
+    assert.strictEqual(resPerfect.score, 100);
+    assert.strictEqual(resPerfect.starsEarned, 3);
+    assert.strictEqual(resPerfect.exactMatches, 4);
+
+    // Urutan sebagian (misal s1 dan s2 benar posisinya, s3 dan s4 terbalik)
+    const resPartial = codingGameService.evaluateSolution(levelData, { order: ['s1', 's2', 's4', 's3'] });
+    assert.strictEqual(resPartial.isFinished, false);
+    assert.strictEqual(resPartial.exactMatches, 2);
+    assert.ok(resPartial.score >= 50 && resPartial.score < 100, `Skor parsial harus realistis: ${resPartial.score}`);
+    assert.ok(resPartial.starsEarned >= 1);
   });
 });

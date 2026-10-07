@@ -306,6 +306,118 @@ class CodingGameService {
         difficulty: 'sedang',
         tingkat_kesulitan: 'sedang',
         bobot: 25
+      },
+      {
+        id: 'preset-pattern-guesser-1',
+        key: 'preset-pattern-guesser-1',
+        mode: 'pattern_guesser',
+        subtipe: 'pattern_guesser',
+        title: 'Tebak Pola: Gerak Patroli Drone Pengintai',
+        nama: 'Tebak Pola: Gerak Patroli Drone Pengintai',
+        description: 'Analisis urutan langkah drone dan temukan balok yang hilang dalam siklus patroli!',
+        deskripsi: 'Analisis urutan langkah drone dan temukan balok yang hilang dalam siklus patroli!',
+        pertanyaan: 'Drone pengintai bergerak mengikuti pola algoritma perulangan tertentu: [Maju 2 Kotak] ➔ [Belok Kanan 90°] ➔ [Maju 2 Kotak] ➔ [Belok Kanan 90°] ➔ [ ? ]. Balok manakah yang harus mengisi posisi [ ? ] agar drone menyelesaikan patroli persegi?',
+        theme: 'space',
+        pattern_type: 'loop_sequence',
+        sequence: [
+          { step: 1, label: 'Maju 2 Kotak', icon: '⬆️', desc: 'Langkah maju lurus' },
+          { step: 2, label: 'Belok Kanan 90°', icon: '↪️', desc: 'Putar arah patroli' },
+          { step: 3, label: 'Maju 2 Kotak', icon: '⬆️', desc: 'Langkah maju lurus' },
+          { step: 4, label: 'Belok Kanan 90°', icon: '↪️', desc: 'Putar arah patroli' },
+          { step: 5, label: '?', icon: '❓', is_missing: true, desc: 'Lengkapi balok ini!' }
+        ],
+        options: [
+          { id: 'opt_1', label: 'Maju 2 Kotak', icon: '⬆️', desc: 'Langkah maju lurus' },
+          { id: 'opt_2', label: 'Mundur 1 Kotak', icon: '⬇️', desc: 'Langkah mundur' },
+          { id: 'opt_3', label: 'Belok Kiri 90°', icon: '↩️', desc: 'Putar arah terbalik' },
+          { id: 'opt_4', label: 'Berhenti / Matikan Mesin', icon: '🛑', desc: 'Hentikan drone' }
+        ],
+        correct_answer: 'Maju 2 Kotak',
+        correct_option_id: 'opt_1',
+        explanation: 'Pola gerakan drone adalah perulangan persegi: Maju ➔ Belok Kanan ➔ Maju ➔ Belok Kanan ➔ Maju ➔ Belok Kanan. Balok ke-5 haruslah Maju 2 Kotak.',
+        difficulty: 'mudah',
+        tingkat_kesulitan: 'mudah',
+        bobot: 20
+      },
+      {
+        id: 'preset-pattern-guesser-2',
+        key: 'preset-pattern-guesser-2',
+        mode: 'pattern_guesser',
+        subtipe: 'pattern_guesser',
+        title: 'Tebak Pola: Sinyal Biner & Penggandaan Data',
+        nama: 'Tebak Pola: Sinyal Biner & Penggandaan Data',
+        description: 'Temukan aturan transformasi bilangan komputasi (Pengenalan Pola Algoritmik)!',
+        deskripsi: 'Temukan aturan transformasi bilangan komputasi (Pengenalan Pola Algoritmik)!',
+        pertanyaan: 'Sistem kompresi data memproses paket data dalam deret siklus: [2 MB] ➔ [4 MB] ➔ [8 MB] ➔ [16 MB] ➔ [ ? ]. Tentukan balok transformasi yang tepat untuk menghasilkan ukuran paket selanjutnya!',
+        theme: 'ocean',
+        pattern_type: 'math_sequence',
+        sequence: [
+          { step: 1, label: '2 MB (2¹)', icon: '📦', desc: 'Paket Awal' },
+          { step: 2, label: '4 MB (2²)', icon: '📦', desc: 'Siklus 2' },
+          { step: 3, label: '8 MB (2³)', icon: '📦', desc: 'Siklus 3' },
+          { step: 4, label: '16 MB (2⁴)', icon: '📦', desc: 'Siklus 4' },
+          { step: 5, label: '?', icon: '❓', is_missing: true, desc: 'Tentukan nilainya!' }
+        ],
+        options: [
+          { id: 'opt_1', label: '32 MB (Kalikan 2)', icon: '⚡', desc: 'Eksponensial 2⁵' },
+          { id: 'opt_2', label: '20 MB (Tambah 4)', icon: '➕', desc: 'Penambahan aritmatika' },
+          { id: 'opt_3', label: '24 MB (Tambah 8)', icon: '➕', desc: 'Penambahan genap' },
+          { id: 'opt_4', label: '18 MB (Tambah 2)', icon: '➕', desc: 'Penambahan tetap' }
+        ],
+        correct_answer: '32 MB (Kalikan 2)',
+        correct_option_id: 'opt_1',
+        explanation: 'Aturan algoritma adalah penggandaan nilai (perkalian 2 / eksponensial biner). 16 MB x 2 = 32 MB.',
+        difficulty: 'sedang',
+        tingkat_kesulitan: 'sedang',
+        bobot: 25
+      },
+      {
+        id: 'preset-parsons-puzzle-1',
+        key: 'preset-parsons-puzzle-1',
+        mode: 'parsons_puzzle',
+        subtipe: 'parsons_puzzle',
+        title: 'Susun Algoritma: Sistem Pintu Otomatis Mall',
+        nama: 'Susun Algoritma: Sistem Pintu Otomatis Mall',
+        description: 'Tata urutan balok logika agar sistem sensor pintu bekerja aman & tidak menjepit pengunjung!',
+        deskripsi: 'Tata urutan balok logika agar sistem sensor pintu bekerja aman & tidak menjepit pengunjung!',
+        pertanyaan: 'Sebuah mall memasang pintu geser otomatis berbasis microcontroller sensor IoT. Balok-balok kode berikut masih teracak! Susunlah balok dari langkah 1 sampai 5 agar alur algoritma berjalan benar dan aman.',
+        theme: 'forest',
+        steps: [
+          { id: 'step_1', text: '1. Aktifkan sensor gerak inframerah di atas pintu', icon: '📡', order: 1 },
+          { id: 'step_2', text: '2. Periksa apakah pengunjung terdeteksi mendekat?', icon: '👁️', order: 2 },
+          { id: 'step_3', text: '3. Jika Ya, nyalakan motor geser untuk membuka pintu', icon: '🚪', order: 3 },
+          { id: 'step_4', text: '4. Tunggu jeda 5 detik sampai pengunjung lewat', icon: '⏳', order: 4 },
+          { id: 'step_5', text: '5. Tutup kembali pintu geser perlahan', icon: '🔒', order: 5 }
+        ],
+        initial_order: ['step_3', 'step_1', 'step_5', 'step_2', 'step_4'],
+        correct_order: ['step_1', 'step_2', 'step_3', 'step_4', 'step_5'],
+        difficulty: 'mudah',
+        tingkat_kesulitan: 'mudah',
+        bobot: 25
+      },
+      {
+        id: 'preset-parsons-puzzle-2',
+        key: 'preset-parsons-puzzle-2',
+        mode: 'parsons_puzzle',
+        subtipe: 'parsons_puzzle',
+        title: 'Susun Algoritma: Autentikasi Login & Keamanan Akun',
+        nama: 'Susun Algoritma: Autentikasi Login & Keamanan Akun',
+        description: 'Urutkan alur logika pengecekan password dan perlindungan anti-bruteforce!',
+        deskripsi: 'Urutkan alur logika pengecekan password dan perlindungan anti-bruteforce!',
+        pertanyaan: 'Dalam pengembangan aplikasi web, algoritma verifikasi login harus runtut. Susunlah balok-balok kode berikut dari awal hingga keputusan akhir (Login berhasil atau akun terkunci).',
+        theme: 'pyramid',
+        steps: [
+          { id: 'auth_1', text: '1. Pengguna memasukkan username dan password', icon: '⌨️', order: 1 },
+          { id: 'auth_2', text: '2. Cari data akun di database berdasarkan username', icon: '🔍', order: 2 },
+          { id: 'auth_3', text: '3. Cocokkan hash password input dengan database', icon: '🔑', order: 3 },
+          { id: 'auth_4', text: '4. Jika cocok: Terbitkan token sesi dan buka Dashboard', icon: '✅', order: 4 },
+          { id: 'auth_5', text: '5. Jika salah 3x berturut-turut: Kunci akun sementara', icon: '🚨', order: 5 }
+        ],
+        initial_order: ['auth_4', 'auth_1', 'auth_5', 'auth_2', 'auth_3'],
+        correct_order: ['auth_1', 'auth_2', 'auth_3', 'auth_4', 'auth_5'],
+        difficulty: 'sedang',
+        tingkat_kesulitan: 'sedang',
+        bobot: 25
       }
     ];
   }
@@ -608,6 +720,100 @@ class CodingGameService {
   }
 
   /**
+   * Evaluasi Mode Tebak Pola Komputasional (Pattern Recognition)
+   */
+  evaluatePatternGuesser(levelData, studentAnswer) {
+    const rawVal = typeof studentAnswer === 'object' && studentAnswer !== null
+      ? (studentAnswer.selected || studentAnswer.answer || studentAnswer.option_id || '')
+      : String(studentAnswer || '');
+
+    const correct = String(levelData.correct_answer || '').trim().toLowerCase();
+    const correctOptId = String(levelData.correct_option_id || '').trim().toLowerCase();
+    const studentStr = String(rawVal).trim().toLowerCase();
+
+    const isMatch = Boolean(
+      (correct && studentStr === correct) ||
+      (correctOptId && studentStr === correctOptId) ||
+      (studentAnswer?.option_id && studentAnswer.option_id.toLowerCase() === correctOptId) ||
+      (studentAnswer?.selected && studentAnswer.selected.trim().toLowerCase() === correct)
+    );
+
+    const score = isMatch ? 100 : 0;
+    const starsEarned = isMatch ? 3 : 0;
+
+    return {
+      mode: 'pattern_guesser',
+      isFinished: isMatch,
+      matched: isMatch,
+      score,
+      starsEarned,
+      studentAnswer: rawVal,
+      correctAnswer: levelData.correct_answer,
+      explanation: levelData.explanation || 'Pengenalan pola algoritma & barisan berulang'
+    };
+  }
+
+  /**
+   * Evaluasi Mode Susun Urutan Algoritma (Parsons Programming Puzzle)
+   */
+  evaluateParsonsPuzzle(levelData, studentOrder) {
+    const order = Array.isArray(studentOrder)
+      ? studentOrder
+      : (studentOrder?.order || (studentOrder?.blocks ? studentOrder.blocks.map(b => b.id || b) : []));
+
+    const correctOrder = levelData.correct_order || (levelData.steps || []).sort((a, b) => a.order - b.order).map(s => s.id);
+    if (!correctOrder || correctOrder.length === 0) {
+      return { score: 100, starsEarned: 3, isFinished: true, exactMatches: 0, correctPositions: 0, totalSteps: 0 };
+    }
+
+    let exactMatches = 0;
+    let relativePairsCorrect = 0;
+    let totalPairs = 0;
+
+    for (let i = 0; i < correctOrder.length; i++) {
+      if (order[i] && String(order[i]).trim() === String(correctOrder[i]).trim()) {
+        exactMatches++;
+      }
+      for (let j = i + 1; j < correctOrder.length; j++) {
+        totalPairs++;
+        const posA = order.indexOf(correctOrder[i]);
+        const posB = order.indexOf(correctOrder[j]);
+        if (posA !== -1 && posB !== -1 && posA < posB) {
+          relativePairsCorrect++;
+        }
+      }
+    }
+
+    const isExact = (exactMatches === correctOrder.length);
+    const relRatio = totalPairs > 0 ? (relativePairsCorrect / totalPairs) : 1;
+    const posRatio = exactMatches / correctOrder.length;
+
+    let score = 0;
+    if (isExact) {
+      score = 100;
+    } else {
+      score = Math.round((relRatio * 60) + (posRatio * 40));
+    }
+
+    let starsEarned = 0;
+    if (score >= 95) starsEarned = 3;
+    else if (score >= 60) starsEarned = 2;
+    else if (score >= 30) starsEarned = 1;
+
+    return {
+      mode: 'parsons_puzzle',
+      isFinished: isExact,
+      score,
+      starsEarned,
+      exactMatches,
+      correctPositions: exactMatches,
+      totalSteps: correctOrder.length,
+      studentOrder: order,
+      correctOrder
+    };
+  }
+
+  /**
    * Evaluasi solusi siswa secara serbaguna
    */
   evaluateSolution(gameDataRaw, studentSubmission) {
@@ -625,16 +831,26 @@ class CodingGameService {
       try {
         submission = JSON.parse(submission);
       } catch (e) {
-        submission = [];
+        submission = studentSubmission;
       }
     }
 
-    if (levelData.mode === 'scratch_puzzle') {
+    const subtipe = levelData.subtipe || levelData.mode;
+
+    if (subtipe === 'scratch_puzzle') {
       const studentPairs = Array.isArray(submission) ? submission : (submission?.pairs || []);
       return this.evaluateScratchPuzzle(levelData, studentPairs);
     }
 
-    // Grid modes: grid_runner, loop_master, if_else, bug_doctor
+    if (subtipe === 'pattern_guesser') {
+      return this.evaluatePatternGuesser(levelData, submission);
+    }
+
+    if (subtipe === 'parsons_puzzle') {
+      return this.evaluateParsonsPuzzle(levelData, submission);
+    }
+
+    // Grid modes: grid_runner, loop_master, if_else, bug_doctor, grid_robot
     const blocks = Array.isArray(submission) ? submission : (submission?.blocks || []);
     return this.simulateGridExecution(levelData, blocks);
   }
@@ -653,12 +869,15 @@ Pilihan mode permainan yang harus dipatuhi:
 - "loop_master": Arena grid dengan pola gerakan berulang bertingkat, batas balok (parBlocks) ketat agar siswa harus menggunakan balok "repeat" (Ulangi).
 - "if_else": Arena dengan rintangan/sensor di depan jalur di mana robot harus memakai balok "if_obstacle" untuk belok menghindar.
 - "bug_doctor": Arena dengan "initialBlocks" yang sengaja dibuat SALAH (ada 1 balok yang membuat robot menabrak), dan siswa harus memperbaikinya.
-- "scratch_puzzle": Pasangan 3-4 pemicu (event) dengan aksi (action) logika game sederhana.
+- "scratch_puzzle": Pasangan 3-4 pemicu (event) dengan aksi (action) logika game sederhana dengan balok Scratch.
+- "pattern_guesser": Pengenalan pola komputasi (Pattern Recognition). Diberikan deret 4 langkah dan siswa harus menebak langkah ke-5 yang hilang [ ? ].
+- "parsons_puzzle": Parsons programming problem. 4-5 balok baris algoritma teracak yang harus diurutkan secara runtut.
 
 Wajib kembalikan format HANYA JSON murni tanpa markdown/penjelasan dengan struktur:
 Jika mode grid (grid_runner, loop_master, if_else, bug_doctor):
 {
   "mode": "${mode}",
+  "subtipe": "grid_robot",
   "title": "Judul tantangan yang menarik untuk anak SMP",
   "description": "Petunjuk pengerjaan ramah anak",
   "gridSize": { "rows": 5, "cols": 5 },
@@ -666,7 +885,8 @@ Jika mode grid (grid_runner, loop_master, if_else, bug_doctor):
   "finish": { "x": 4, "y": 4 },
   "obstacles": [ { "x": 1, "y": 1, "type": "wall" }, { "x": 2, "y": 3, "type": "rock" } ],
   "stars": [ { "x": 2, "y": 0 }, { "x": 4, "y": 2 } ],
-  "allowedBlocks": ["move", "turn_left", "turn_right", "collect", "repeat", "if_obstacle"],
+  "allowedBlocks": ["move", "move_back", "turn_left", "turn_right", "collect", "repeat", "if_obstacle"],
+  "allowed_blocks": ["MAJU", "MUNDUR", "BELOK_KIRI", "BELOK_KANAN", "ULANGI"],
   "initialBlocks": [],
   "parBlocks": 8,
   "difficulty": "${difficulty}"
@@ -675,14 +895,56 @@ Jika mode grid (grid_runner, loop_master, if_else, bug_doctor):
 Jika mode "scratch_puzzle":
 {
   "mode": "scratch_puzzle",
-  "title": "Judul tantangan",
-  "description": "Petunjuk",
-  "pairs": [
-    { "id": "p1", "event": "Saat Tombol Spasi Ditekan", "action": "Karakter Melompat" },
-    { "id": "p2", "event": "Saat Menyentuh Apel", "action": "Tambah Skor +10" },
-    { "id": "p3", "event": "Saat Menyentuh Duri", "action": "Kurangi Nyawa 1" }
+  "subtipe": "scratch_puzzle",
+  "title": "Judul tantangan Scratch",
+  "description": "Petunjuk pasangkan balok",
+  "target_pairs": [
+    { "event": "Saat Tombol Spasi Ditekan", "action": "Karakter Melompat ke Atas" },
+    { "event": "Saat Menyentuh Apel", "action": "Tambah Skor +10" },
+    { "event": "Saat Menyentuh Duri", "action": "Kurangi Nyawa 1" },
+    { "event": "Saat Bendera Hijau Diklik", "action": "Mulai Ulang Permainan" }
   ],
-  "distractors": ["Tembak Laser"],
+  "difficulty": "${difficulty}"
+}
+
+Jika mode "pattern_guesser":
+{
+  "mode": "pattern_guesser",
+  "subtipe": "pattern_guesser",
+  "title": "Tebak Pola Algoritma",
+  "description": "Temukan balok yang hilang untuk melengkapi pola",
+  "sequence": [
+    { "step": 1, "label": "Langkah A", "icon": "⬆️", "desc": "Aksi 1" },
+    { "step": 2, "label": "Langkah B", "icon": "↪️", "desc": "Aksi 2" },
+    { "step": 3, "label": "Langkah A", "icon": "⬆️", "desc": "Aksi 1" },
+    { "step": 4, "label": "Langkah B", "icon": "↪️", "desc": "Aksi 2" },
+    { "step": 5, "label": "?", "icon": "❓", "is_missing": true, "desc": "Lengkapi balok ini!" }
+  ],
+  "options": [
+    { "id": "opt_1", "label": "Langkah A", "icon": "⬆️", "desc": "Pilihan tepat" },
+    { "id": "opt_2", "label": "Langkah C", "icon": "⬇️", "desc": "Pengecoh" },
+    { "id": "opt_3", "label": "Berhenti", "icon": "🛑", "desc": "Pengecoh" }
+  ],
+  "correct_answer": "Langkah A",
+  "correct_option_id": "opt_1",
+  "explanation": "Penjelasan logika pola",
+  "difficulty": "${difficulty}"
+}
+
+Jika mode "parsons_puzzle":
+{
+  "mode": "parsons_puzzle",
+  "subtipe": "parsons_puzzle",
+  "title": "Susun Urutan Algoritma",
+  "description": "Urutkan langkah algoritma dari awal hingga akhir",
+  "steps": [
+    { "id": "s1", "text": "Langkah 1...", "icon": "1️⃣", "order": 1 },
+    { "id": "s2", "text": "Langkah 2...", "icon": "2️⃣", "order": 2 },
+    { "id": "s3", "text": "Langkah 3...", "icon": "3️⃣", "order": 3 },
+    { "id": "s4", "text": "Langkah 4...", "icon": "4️⃣", "order": 4 }
+  ],
+  "initial_order": ["s3", "s1", "s4", "s2"],
+  "correct_order": ["s1", "s2", "s3", "s4"],
   "difficulty": "${difficulty}"
 }`;
 
@@ -693,10 +955,11 @@ Jika mode "scratch_puzzle":
     } catch (e) {
       // Fallback ke preset terdekat jika json error
       const presets = this.getPresets();
-      parsed = presets.find(p => p.mode === mode) || presets[0];
+      parsed = presets.find(p => p.mode === mode || p.subtipe === mode) || presets[0];
     }
 
     if (!parsed.mode) parsed.mode = mode;
+    if (!parsed.subtipe) parsed.subtipe = mode === 'scratch_puzzle' ? 'scratch_puzzle' : (mode === 'pattern_guesser' ? 'pattern_guesser' : (mode === 'parsons_puzzle' ? 'parsons_puzzle' : 'grid_robot'));
     if (!parsed.title) parsed.title = `Tantangan Koding: ${topic}`;
     return parsed;
   }

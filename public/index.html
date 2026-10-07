@@ -2309,114 +2309,842 @@
         } catch (e) {}
       }
 
-      const isScratch = (cfg.subtipe === 'scratch_puzzle');
+      const sub = (cfg.subtipe || '').toLowerCase();
 
-      if (isScratch) {
+      if (sub === 'scratch_puzzle') {
         initStudentScratchPuzzle(container, hiddenInput, cfg, parsedSaved, soal.id);
+      } else if (sub === 'pattern_guesser') {
+        initStudentPatternGuesser(container, hiddenInput, cfg, parsedSaved, soal.id);
+      } else if (sub === 'parsons_puzzle') {
+        initStudentParsonsPuzzle(container, hiddenInput, cfg, parsedSaved, soal.id);
       } else {
         initStudentGridRobotGame(container, hiddenInput, cfg, parsedSaved, soal.id);
       }
     };
 
+    // =========================================================================
+    // 1. SCRATCH MINI PUZZLE (AUTHENTIC BLOCKS, DRAG & DROP, REORDER & SIM)
+    // =========================================================================
     function initStudentScratchPuzzle(container, hiddenInput, cfg, parsedSaved, soalId) {
-      const targetPairs = cfg.target_pairs || [
-        { event: 'Saat Tombol Spasi Ditekan', action: 'Karakter Melompat ke Atas' },
-        { event: 'Saat Bendera Hijau Diklik', action: 'Mulai Permainan dari Titik Awal' }
+      const targetPairs = cfg.target_pairs || cfg.pairs || [
+        { id: 'p1', event: 'Ketika tombol Spasi ditekan', action: 'Karakter melompat ke atas' },
+        { id: 'p2', event: 'Ketika bendera hijau diklik 🚩', action: 'Mulai game & reset posisi karakter' }
       ];
 
-      // Kumpulkan pilihan aksi
-      const actionChoices = targetPairs.map(p => p.action).filter(Boolean);
-      // Buat pilihan aksi unik
+      const distractors = Array.isArray(cfg.distractors) ? cfg.distractors : [];
+      const actionChoices = [
+        ...targetPairs.map(p => p.action),
+        ...distractors
+      ].filter(Boolean);
       const uniqueActions = [...new Set(actionChoices)];
 
-      // Pulihkan draft jika ada
+      // Pulihkan draf jawaban siswa
       let currentPairs = (parsedSaved && Array.isArray(parsedSaved.pairs))
-        ? parsedSaved.pairs
+        ? JSON.parse(JSON.stringify(parsedSaved.pairs))
         : targetPairs.map(p => ({ event: p.event, action: '' }));
 
+      // Pastikan semua event target ada di baris kerja
+      targetPairs.forEach(tp => {
+        if (!currentPairs.some(cp => cp.event === tp.event)) {
+          currentPairs.push({ event: tp.event, action: '' });
+        }
+      });
+
+      let selectedPaletteAction = null;
+
       const syncHiddenInput = () => {
-        const hasAnyAction = currentPairs.some(p => Boolean(p.action));
+        const hasAnyAction = currentPairs.some(p => Boolean(p.action && String(p.action).trim() !== ''));
         hiddenInput.value = hasAnyAction ? JSON.stringify({ pairs: currentPairs }) : '';
         hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+        checkCompletion();
       };
 
       container.innerHTML = `
-        <div class="bg-purple-50/70 border border-purple-200 rounded-2xl p-3 sm:p-4 space-y-3 select-none">
+        <div class="bg-gradient-to-b from-purple-50/90 to-indigo-50/70 border border-purple-200 rounded-2xl p-3 sm:p-4 space-y-3.5 select-none">
           <div class="flex items-center justify-between flex-wrap gap-2">
             <div class="flex items-center space-x-2">
-              <span class="p-1.5 bg-purple-600 text-white rounded-lg text-sm">🧩</span>
+              <span class="p-2 bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-xl text-base shadow-sm">🧩</span>
               <div>
-                <span class="font-extrabold text-xs text-purple-950 uppercase tracking-wide">Scratch Mini Puzzle</span>
-                <p class="text-[11px] text-purple-700">Pasangkan Balok Kejadian (Event) dengan Balok Aksi (Action) yang tepat:</p>
+                <span class="font-extrabold text-xs text-purple-950 uppercase tracking-wide">Scratch Visual Code Builder</span>
+                <p class="text-[11px] text-purple-700">Pasangkan Balok Kejadian (Event ⚡) dengan Balok Aksi (Action ▶) via drag-drop atau klik:</p>
               </div>
             </div>
-            <span id="scratch-status-badge-${soalId}" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-              Belum Lengkap
-            </span>
+            <div class="flex items-center space-x-2">
+              <span id="scratch-status-badge-${soalId}" class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                Belum Lengkap
+              </span>
+              <button type="button" id="scratch-run-sim-btn-${soalId}" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-[11px] rounded-lg shadow-sm transition flex items-center space-x-1 cursor-pointer">
+                <span>▶ Jalankan Skrip</span>
+              </button>
+            </div>
           </div>
 
-          <div class="space-y-2.5 pt-1" id="scratch-pairs-list-${soalId}">
-            <!-- Rendered below -->
+          <!-- Stacks Scratch Workspace -->
+          <div class="space-y-3 pt-1" id="scratch-pairs-list-${soalId}">
+            <!-- Rendered stacks -->
+          </div>
+
+          <!-- Palet Balok Aksi (Toolbox) -->
+          <div class="bg-white/95 p-3 rounded-xl border border-purple-200 space-y-2 shadow-2xs">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-indigo-950 flex items-center space-x-1">
+                <span>🧰</span>
+                <span>Palet Balok Aksi (Tarik atau Klik ke Slot Kosong):</span>
+              </span>
+              <span id="scratch-palette-hint-${soalId}" class="text-[10px] text-slate-500 font-medium">Klik balok lalu klik slot tujuan</span>
+            </div>
+            <div class="flex flex-wrap gap-2" id="scratch-palette-actions-${soalId}">
+              <!-- Rendered palette chips -->
+            </div>
+          </div>
+
+          <!-- Console Simulator Output -->
+          <div id="scratch-sim-console-${soalId}" class="hidden p-3 rounded-xl bg-slate-900 text-slate-100 border border-slate-800 text-[11px] font-mono space-y-1.5 shadow-md">
+            <div class="flex items-center justify-between text-[10px] text-slate-400 border-b border-slate-800 pb-1">
+              <span class="font-bold flex items-center space-x-1">
+                <span>🐱</span>
+                <span>Console Eksekusi Scratch Stage:</span>
+              </span>
+              <button type="button" id="scratch-sim-close-btn-${soalId}" class="hover:text-white cursor-pointer px-1">✕ Tutup</button>
+            </div>
+            <div id="scratch-sim-logs-${soalId}" class="space-y-1 max-h-36 overflow-y-auto pt-0.5"></div>
           </div>
         </div>
       `;
 
       const listElem = document.getElementById(`scratch-pairs-list-${soalId}`);
+      const paletteElem = document.getElementById(`scratch-palette-actions-${soalId}`);
       const statusBadge = document.getElementById(`scratch-status-badge-${soalId}`);
+      const runSimBtn = document.getElementById(`scratch-run-sim-btn-${soalId}`);
+      const consoleBox = document.getElementById(`scratch-sim-console-${soalId}`);
+      const logsElem = document.getElementById(`scratch-sim-logs-${soalId}`);
+      const closeConsoleBtn = document.getElementById(`scratch-sim-close-btn-${soalId}`);
 
-      function renderRows() {
+      if (closeConsoleBtn) {
+        closeConsoleBtn.onclick = () => consoleBox.classList.add('hidden');
+      }
+
+      function renderWorkspace() {
         listElem.innerHTML = '';
-        let allFilled = true;
 
         currentPairs.forEach((pair, idx) => {
-          if (!pair.action) allFilled = false;
-          const row = document.createElement('div');
-          row.className = 'flex flex-col sm:flex-row sm:items-center gap-2 p-2.5 bg-white rounded-xl border border-purple-200 shadow-2xs';
-          row.innerHTML = `
-            <div class="flex items-center space-x-2 sm:w-1/2">
-              <span class="w-6 h-6 rounded-md bg-amber-500 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">⚡</span>
-              <span class="text-xs font-bold text-amber-900 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200 flex-1 leading-snug">
-                ${escapeHtml(pair.event)}
-              </span>
-            </div>
-            <span class="hidden sm:inline font-bold text-purple-400">➔</span>
-            <div class="flex items-center space-x-2 sm:w-1/2">
-              <span class="w-6 h-6 rounded-md bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">▶</span>
-              <select class="scratch-action-select flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white text-indigo-900 focus:ring-2 focus:ring-purple-200 cursor-pointer" data-idx="${idx}">
-                <option value="">-- Pilih Balok Aksi --</option>
-                ${uniqueActions.map(act => `<option value="${escapeHtml(act)}" ${pair.action === act ? 'selected' : ''}>${escapeHtml(act)}</option>`).join('')}
-              </select>
+          const stack = document.createElement('div');
+          stack.className = `scratch-pair-stack p-2.5 bg-white/90 rounded-2xl border border-purple-200/80 shadow-2xs space-y-1.5 transition-all`;
+          stack.dataset.idx = idx;
+
+          // Event Hat Block (Scratch Style: Amber, Top Curve, Notched Tab)
+          const hatHtml = `
+            <div class="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-t-xl rounded-b-md shadow-xs border-t-2 border-amber-300">
+              <div class="flex items-center space-x-2">
+                <span class="text-sm">⚡</span>
+                <span class="font-black text-xs tracking-tight">${escapeHtml(pair.event)}</span>
+              </div>
+              <div class="flex items-center space-x-1">
+                <button type="button" class="btn-swap-up p-1 text-amber-100 hover:text-white hover:bg-amber-600/50 rounded text-[10px] cursor-pointer ${idx === 0 ? 'opacity-30 cursor-not-allowed' : ''}" title="Geser ke atas" data-idx="${idx}" ${idx === 0 ? 'disabled' : ''}>⬆</button>
+                <button type="button" class="btn-swap-down p-1 text-amber-100 hover:text-white hover:bg-amber-600/50 rounded text-[10px] cursor-pointer ${idx === currentPairs.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" title="Geser ke bawah" data-idx="${idx}" ${idx === currentPairs.length - 1 ? 'disabled' : ''}>⬇</button>
+              </div>
             </div>
           `;
 
-          const sel = row.querySelector('.scratch-action-select');
-          sel.onchange = (e) => {
-            currentPairs[idx].action = e.target.value;
-            syncHiddenInput();
-            checkCompletion();
+          // Action Slot (Scratch Style: Blue/Indigo connected block or Dashed Drop Zone)
+          let actionHtml = '';
+          if (pair.action) {
+            actionHtml = `
+              <div class="scratch-action-filled flex items-center justify-between px-3 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-b-xl rounded-t-sm shadow-xs border-l-4 border-indigo-400 group">
+                <div class="flex items-center space-x-2">
+                  <span class="text-xs">▶</span>
+                  <span class="font-bold text-xs">${escapeHtml(pair.action)}</span>
+                </div>
+                <div class="flex items-center space-x-1.5">
+                  <span class="text-[9px] text-indigo-200 font-mono hidden sm:inline">Terpasang</span>
+                  <button type="button" class="btn-detach-action px-2 py-0.5 bg-rose-500/80 hover:bg-rose-600 text-white rounded text-[10px] font-bold transition cursor-pointer" data-idx="${idx}" title="Lepas balok">✕ Lepas</button>
+                </div>
+              </div>
+            `;
+          } else {
+            actionHtml = `
+              <div class="scratch-action-empty flex items-center justify-between px-3 py-2.5 bg-purple-50/60 border-2 border-dashed border-purple-300 hover:border-indigo-400 hover:bg-purple-100/50 text-purple-600 rounded-b-xl rounded-t-sm transition cursor-pointer" data-idx="${idx}">
+                <div class="flex items-center space-x-2">
+                  <span class="text-xs text-purple-400">📥</span>
+                  <span class="font-semibold text-xs text-purple-700">Tarik / Klik Balok Aksi ke Sini</span>
+                </div>
+                <span class="text-[10px] font-bold text-purple-500 bg-white/80 px-2 py-0.5 rounded border border-purple-200">Pilih Aksi ▾</span>
+              </div>
+            `;
+          }
+
+          stack.innerHTML = hatHtml + actionHtml;
+
+          // Event Listeners Reorder
+          const btnUp = stack.querySelector('.btn-swap-up');
+          const btnDown = stack.querySelector('.btn-swap-down');
+          if (btnUp && idx > 0) {
+            btnUp.onclick = () => {
+              const tmp = currentPairs[idx];
+              currentPairs[idx] = currentPairs[idx - 1];
+              currentPairs[idx - 1] = tmp;
+              syncHiddenInput();
+              renderWorkspace();
+            };
+          }
+          if (btnDown && idx < currentPairs.length - 1) {
+            btnDown.onclick = () => {
+              const tmp = currentPairs[idx];
+              currentPairs[idx] = currentPairs[idx + 1];
+              currentPairs[idx + 1] = tmp;
+              syncHiddenInput();
+              renderWorkspace();
+            };
+          }
+
+          // Detach action
+          const btnDetach = stack.querySelector('.btn-detach-action');
+          if (btnDetach) {
+            btnDetach.onclick = () => {
+              currentPairs[idx].action = '';
+              syncHiddenInput();
+              renderWorkspace();
+              renderPalette();
+            };
+          }
+
+          // Drop target & click target on empty slot
+          const emptySlot = stack.querySelector('.scratch-action-empty');
+          if (emptySlot) {
+            emptySlot.ondragover = (e) => {
+              e.preventDefault();
+              emptySlot.classList.add('border-indigo-500', 'bg-indigo-50');
+            };
+            emptySlot.ondragleave = () => {
+              emptySlot.classList.remove('border-indigo-500', 'bg-indigo-50');
+            };
+            emptySlot.ondrop = (e) => {
+              e.preventDefault();
+              emptySlot.classList.remove('border-indigo-500', 'bg-indigo-50');
+              const act = e.dataTransfer.getData('text/plain');
+              if (act) {
+                currentPairs[idx].action = act;
+                selectedPaletteAction = null;
+                syncHiddenInput();
+                renderWorkspace();
+                renderPalette();
+              }
+            };
+            emptySlot.onclick = () => {
+              if (selectedPaletteAction) {
+                currentPairs[idx].action = selectedPaletteAction;
+                selectedPaletteAction = null;
+                syncHiddenInput();
+                renderWorkspace();
+                renderPalette();
+              } else {
+                // Tampilkan quick selection dropdown prompt
+                const chosen = prompt(`Pilih Aksi untuk:\n"${pair.event}"\n\nKetik nomor atau nama aksi:\n` + uniqueActions.map((a, i) => `${i + 1}. ${a}`).join('\n'));
+                if (chosen !== null) {
+                  const num = parseInt(chosen, 10);
+                  if (!isNaN(num) && uniqueActions[num - 1]) {
+                    currentPairs[idx].action = uniqueActions[num - 1];
+                  } else if (uniqueActions.includes(chosen.trim())) {
+                    currentPairs[idx].action = chosen.trim();
+                  }
+                  syncHiddenInput();
+                  renderWorkspace();
+                  renderPalette();
+                }
+              }
+            };
+          }
+
+          listElem.appendChild(stack);
+        });
+      }
+
+      function renderPalette() {
+        paletteElem.innerHTML = '';
+
+        uniqueActions.forEach((act) => {
+          const isUsed = currentPairs.some(p => p.action === act);
+          const isSelected = selectedPaletteAction === act;
+
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.draggable = true;
+          chip.className = `px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shadow-2xs ${
+            isSelected
+              ? 'bg-amber-500 text-white ring-2 ring-amber-300 scale-105'
+              : (isUsed
+                  ? 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200'
+                  : 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-600 hover:text-white')
+          }`;
+
+          chip.innerHTML = `
+            <span>▶</span>
+            <span>${escapeHtml(act)}</span>
+            ${isUsed ? '<span class="text-[9px] bg-slate-300 text-slate-700 px-1 rounded-sm">Dipakai</span>' : ''}
+          `;
+
+          chip.ondragstart = (e) => {
+            e.dataTransfer.setData('text/plain', act);
           };
 
-          listElem.appendChild(row);
-        });
+          chip.onclick = () => {
+            if (selectedPaletteAction === act) {
+              selectedPaletteAction = null;
+            } else {
+              selectedPaletteAction = act;
+              // Cari slot kosong pertama jika ada
+              const emptyIdx = currentPairs.findIndex(p => !p.action);
+              if (emptyIdx !== -1) {
+                currentPairs[emptyIdx].action = act;
+                selectedPaletteAction = null;
+                syncHiddenInput();
+                renderWorkspace();
+              }
+            }
+            renderPalette();
+          };
 
-        checkCompletion();
+          paletteElem.appendChild(chip);
+        });
       }
 
       function checkCompletion() {
-        const isComplete = currentPairs.every(p => Boolean(p.action));
+        const isComplete = currentPairs.length > 0 && currentPairs.every(p => Boolean(p.action && String(p.action).trim() !== ''));
         if (isComplete) {
-          statusBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300';
+          statusBadge.className = 'text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300';
           statusBadge.textContent = '✓ Semua Balok Terpasang';
         } else {
-          statusBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300';
+          statusBadge.className = 'text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300';
           statusBadge.textContent = '⚠️ Belum Lengkap';
         }
       }
 
-      renderRows();
+      // Simulator Scratch Script Runner
+      runSimBtn.onclick = async () => {
+        consoleBox.classList.remove('hidden');
+        logsElem.innerHTML = '';
+        runSimBtn.disabled = true;
+        runSimBtn.innerHTML = '<span>⚡ Menjalankan...</span>';
+
+        const stacks = listElem.querySelectorAll('.scratch-pair-stack');
+
+        for (let i = 0; i < currentPairs.length; i++) {
+          const pair = currentPairs[i];
+          const stackElem = stacks[i];
+
+          if (stackElem) {
+            stackElem.classList.add('ring-4', 'ring-emerald-400', 'bg-emerald-50/80');
+          }
+
+          const logRow = document.createElement('div');
+          logRow.className = 'text-[11px] leading-relaxed';
+
+          if (pair.action) {
+            logRow.innerHTML = `<span class="text-emerald-400 font-bold">[Step ${i + 1}]</span> <span class="text-amber-300 font-semibold">⚡ ${escapeHtml(pair.event)}</span> ➔ <span class="text-cyan-300 font-bold">▶ ${escapeHtml(pair.action)}</span> <span class="text-emerald-300">✓ Berhasil dieksekusi</span>`;
+          } else {
+            logRow.innerHTML = `<span class="text-rose-400 font-bold">[Step ${i + 1}]</span> <span class="text-amber-300 font-semibold">⚡ ${escapeHtml(pair.event)}</span> ➔ <span class="text-rose-400 italic">Slot balok aksi masih kosong!</span>`;
+          }
+          logsElem.appendChild(logRow);
+          logsElem.scrollTop = logsElem.scrollHeight;
+
+          await new Promise(r => setTimeout(r, 600));
+
+          if (stackElem) {
+            stackElem.classList.remove('ring-4', 'ring-emerald-400', 'bg-emerald-50/80');
+          }
+        }
+
+        const summaryRow = document.createElement('div');
+        summaryRow.className = 'pt-1 border-t border-slate-800 font-bold text-[10px] text-slate-300';
+        const allOk = currentPairs.every(p => Boolean(p.action));
+        summaryRow.innerHTML = allOk
+          ? '<span class="text-emerald-400">🎉 Skrip selesai dijalankan tanpa kesalahan sintaks!</span>'
+          : '<span class="text-amber-400">⚠️ Pasangkan semua balok aksi agar seluruh pemicu berjalan sempurna.</span>';
+        logsElem.appendChild(summaryRow);
+
+        runSimBtn.disabled = false;
+        runSimBtn.innerHTML = '<span>▶ Jalankan Skrip</span>';
+      };
+
+      renderWorkspace();
+      renderPalette();
+      checkCompletion();
       if (parsedSaved && parsedSaved.pairs) {
         syncHiddenInput();
       }
+    }
+
+    // =========================================================================
+    // 2. TEBAK POLA ALGORITMA (PATTERN RECOGNITION & SEQUENCE SCANNER)
+    // =========================================================================
+    function initStudentPatternGuesser(container, hiddenInput, cfg, parsedSaved, soalId) {
+      const sequence = Array.isArray(cfg.sequence) ? cfg.sequence : [
+        { step: 1, label: 'Langkah 1', icon: '⬆️' },
+        { step: 2, label: 'Langkah 2', icon: '↪️' },
+        { step: 3, label: '?', icon: '❓', is_missing: true }
+      ];
+      const options = Array.isArray(cfg.options) ? cfg.options : [];
+      const explanation = cfg.explanation || '';
+
+      let selectedVal = '';
+      if (parsedSaved) {
+        if (typeof parsedSaved === 'object') {
+          selectedVal = parsedSaved.selected || parsedSaved.answer || '';
+        } else if (typeof parsedSaved === 'string') {
+          selectedVal = parsedSaved;
+        }
+      }
+
+      const syncHiddenInput = () => {
+        hiddenInput.value = selectedVal ? JSON.stringify({ selected: selectedVal }) : '';
+        hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+        checkCompletion();
+      };
+
+      container.innerHTML = `
+        <div class="bg-gradient-to-b from-teal-50/90 to-cyan-50/70 border border-teal-200 rounded-2xl p-3 sm:p-4 space-y-3.5 select-none">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center space-x-2">
+              <span class="p-2 bg-gradient-to-br from-teal-500 to-cyan-600 text-white rounded-xl text-base shadow-sm">🔍</span>
+              <div>
+                <span class="font-extrabold text-xs text-teal-950 uppercase tracking-wide">Tebak Pola Algoritma (Pattern Recognition)</span>
+                <p class="text-[11px] text-teal-800">Analisis deret logika langkah dan lengkapi balok pada posisi [ ? ]:</p>
+              </div>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span id="pattern-status-badge-${soalId}" class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                ${selectedVal ? '✓ Sudah Dipilih' : 'Belum Dipilih'}
+              </span>
+              <button type="button" id="pattern-run-sim-btn-${soalId}" class="px-2.5 py-1 bg-cyan-700 hover:bg-cyan-800 active:scale-95 text-white font-extrabold text-[11px] rounded-lg shadow-sm transition flex items-center space-x-1 cursor-pointer">
+                <span>🔍 Uji Analisis Pola</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Pita Deret Pola (Sequence Track) -->
+          <div class="overflow-x-auto pb-1">
+            <div class="flex items-center space-x-2 min-w-max p-2.5 bg-white/95 rounded-2xl border border-teal-200/90 shadow-2xs" id="pattern-track-${soalId}">
+              <!-- Rendered sequence steps -->
+            </div>
+          </div>
+
+          <!-- Opsi Pilihan Balok (Palette Options) -->
+          <div class="bg-white/95 p-3 rounded-xl border border-teal-200 space-y-2 shadow-2xs">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-teal-950 flex items-center space-x-1">
+                <span>⚡</span>
+                <span>Pilihan Balok Pengisi Pola (Klik atau Tarik):</span>
+              </span>
+              <span class="text-[10px] text-slate-500">Pilih 1 jawaban yang paling konsisten</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2" id="pattern-options-grid-${soalId}">
+              <!-- Rendered option cards -->
+            </div>
+          </div>
+
+          <!-- Console Simulator Output -->
+          <div id="pattern-sim-console-${soalId}" class="hidden p-3 rounded-xl bg-slate-900 text-slate-100 border border-slate-800 text-[11px] font-mono space-y-1.5 shadow-md">
+            <div class="flex items-center justify-between text-[10px] text-slate-400 border-b border-slate-800 pb-1">
+              <span class="font-bold flex items-center space-x-1">
+                <span>📡</span>
+                <span>Scanner Analisis Pola Komputasional:</span>
+              </span>
+              <button type="button" id="pattern-sim-close-btn-${soalId}" class="hover:text-white cursor-pointer px-1">✕ Tutup</button>
+            </div>
+            <div id="pattern-sim-logs-${soalId}" class="space-y-1 max-h-36 overflow-y-auto pt-0.5"></div>
+          </div>
+        </div>
+      `;
+
+      const trackElem = document.getElementById(`pattern-track-${soalId}`);
+      const optionsElem = document.getElementById(`pattern-options-grid-${soalId}`);
+      const statusBadge = document.getElementById(`pattern-status-badge-${soalId}`);
+      const runSimBtn = document.getElementById(`pattern-run-sim-btn-${soalId}`);
+      const consoleBox = document.getElementById(`pattern-sim-console-${soalId}`);
+      const logsElem = document.getElementById(`pattern-sim-logs-${soalId}`);
+      const closeConsoleBtn = document.getElementById(`pattern-sim-close-btn-${soalId}`);
+
+      if (closeConsoleBtn) {
+        closeConsoleBtn.onclick = () => consoleBox.classList.add('hidden');
+      }
+
+      function renderTrack() {
+        trackElem.innerHTML = '';
+
+        sequence.forEach((item, idx) => {
+          const isMissing = Boolean(item.is_missing || item.label === '?');
+          const stepCard = document.createElement('div');
+          stepCard.className = 'pattern-step-card flex items-center space-x-2 transition-all';
+          stepCard.dataset.stepIdx = idx;
+
+          if (isMissing) {
+            // Missing Target Slot
+            const hasChosen = Boolean(selectedVal);
+            stepCard.innerHTML = `
+              <div id="pattern-missing-slot-${soalId}" class="w-28 sm:w-32 p-2.5 rounded-xl border-2 ${
+                hasChosen
+                  ? 'border-cyan-500 bg-cyan-50/80 shadow-xs'
+                  : 'border-dashed border-teal-400 bg-teal-50/50 hover:bg-teal-100/50 animate-pulse'
+              } flex flex-col items-center justify-center text-center cursor-pointer transition">
+                <span class="text-[9px] font-black uppercase text-teal-700">Langkah #${item.step || idx + 1}</span>
+                <span class="text-xl my-0.5">${hasChosen ? '💎' : '❓'}</span>
+                <span class="text-xs font-black ${hasChosen ? 'text-cyan-900' : 'text-teal-600'} line-clamp-1">
+                  ${hasChosen ? escapeHtml(selectedVal) : '[ Letakkan ]'}
+                </span>
+                ${hasChosen ? '<span class="text-[9px] text-cyan-600 font-bold underline mt-0.5">Ubah Pilihan</span>' : ''}
+              </div>
+            `;
+
+            const slot = stepCard.querySelector(`#pattern-missing-slot-${soalId}`);
+            if (slot) {
+              slot.ondragover = (e) => e.preventDefault();
+              slot.ondrop = (e) => {
+                e.preventDefault();
+                const val = e.dataTransfer.getData('text/plain');
+                if (val) {
+                  selectedVal = val;
+                  syncHiddenInput();
+                  renderTrack();
+                  renderOptions();
+                }
+              };
+            }
+          } else {
+            // Normal Sequence Step
+            stepCard.innerHTML = `
+              <div class="w-28 sm:w-32 p-2.5 rounded-xl border border-teal-200 bg-white shadow-2xs flex flex-col items-center justify-center text-center">
+                <span class="text-[9px] font-black uppercase text-teal-600">Langkah #${item.step || idx + 1}</span>
+                <span class="text-xl my-0.5">${item.icon || '📦'}</span>
+                <span class="text-xs font-bold text-slate-800 line-clamp-1">${escapeHtml(item.label)}</span>
+                <span class="text-[9px] text-slate-400 line-clamp-1">${escapeHtml(item.desc || '')}</span>
+              </div>
+            `;
+          }
+
+          trackElem.appendChild(stepCard);
+
+          // Arrow connector jika bukan item terakhir
+          if (idx < sequence.length - 1) {
+            const arrow = document.createElement('span');
+            arrow.className = 'text-teal-400 font-extrabold text-base select-none px-0.5';
+            arrow.textContent = '➔';
+            trackElem.appendChild(arrow);
+          }
+        });
+      }
+
+      function renderOptions() {
+        optionsElem.innerHTML = '';
+
+        options.forEach(opt => {
+          const isSelected = (selectedVal === opt.label || selectedVal === opt.id);
+          const optCard = document.createElement('div');
+          optCard.draggable = true;
+          optCard.className = `p-2.5 rounded-xl border transition flex items-center justify-between cursor-pointer ${
+            isSelected
+              ? 'border-cyan-500 bg-cyan-50 ring-2 ring-cyan-400 shadow-sm'
+              : 'border-slate-200 bg-white hover:border-teal-400 hover:bg-teal-50/40'
+          }`;
+
+          optCard.innerHTML = `
+            <div class="flex items-center space-x-2.5">
+              <span class="text-xl p-1 bg-teal-100 rounded-lg shrink-0">${opt.icon || '⚡'}</span>
+              <div>
+                <span class="font-bold text-xs text-slate-900 block leading-tight">${escapeHtml(opt.label)}</span>
+                <span class="text-[10px] text-slate-500 block">${escapeHtml(opt.desc || '')}</span>
+              </div>
+            </div>
+            <div class="shrink-0 pl-2">
+              <span class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-black ${
+                isSelected ? 'bg-cyan-600 text-white shadow-xs' : 'border border-slate-300 text-transparent'
+              }">✓</span>
+            </div>
+          `;
+
+          optCard.ondragstart = (e) => {
+            e.dataTransfer.setData('text/plain', opt.label);
+          };
+
+          optCard.onclick = () => {
+            selectedVal = opt.label;
+            syncHiddenInput();
+            renderTrack();
+            renderOptions();
+          };
+
+          optionsElem.appendChild(optCard);
+        });
+      }
+
+      function checkCompletion() {
+        if (selectedVal) {
+          statusBadge.className = 'text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300';
+          statusBadge.textContent = '✓ Jawaban Dipilih';
+        } else {
+          statusBadge.className = 'text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300';
+          statusBadge.textContent = '⚠️ Belum Dipilih';
+        }
+      }
+
+      // Scanner Simulation Runner
+      runSimBtn.onclick = async () => {
+        consoleBox.classList.remove('hidden');
+        logsElem.innerHTML = '';
+        runSimBtn.disabled = true;
+        runSimBtn.innerHTML = '<span>⚡ Memindai Deret...</span>';
+
+        const stepCards = trackElem.querySelectorAll('.pattern-step-card');
+
+        for (let i = 0; i < sequence.length; i++) {
+          const item = sequence[i];
+          const card = stepCards[i];
+
+          if (card) {
+            card.classList.add('ring-4', 'ring-cyan-400', 'scale-105', 'bg-cyan-50');
+          }
+
+          const logRow = document.createElement('div');
+          logRow.className = 'text-[11px] leading-relaxed';
+
+          if (item.is_missing || item.label === '?') {
+            if (selectedVal) {
+              logRow.innerHTML = `<span class="text-cyan-400 font-bold">[Step ${i + 1}]</span> <span class="text-cyan-300 font-bold">💎 Terisi: "${escapeHtml(selectedVal)}"</span> ➔ <span class="text-emerald-300">Pola terhubung!</span>`;
+            } else {
+              logRow.innerHTML = `<span class="text-rose-400 font-bold">[Step ${i + 1}]</span> <span class="text-rose-300 italic">Slot kosong! Scanner belum dapat mengonfirmasi pola.</span>`;
+            }
+          } else {
+            logRow.innerHTML = `<span class="text-teal-400 font-bold">[Step ${i + 1}]</span> <span class="text-slate-200">${item.icon || '📦'} ${escapeHtml(item.label)}</span> ➔ <span class="text-teal-300">Langkah terdeteksi</span>`;
+          }
+          logsElem.appendChild(logRow);
+          logsElem.scrollTop = logsElem.scrollHeight;
+
+          await new Promise(r => setTimeout(r, 500));
+
+          if (card) {
+            card.classList.remove('ring-4', 'ring-cyan-400', 'scale-105', 'bg-cyan-50');
+          }
+        }
+
+        const summaryRow = document.createElement('div');
+        summaryRow.className = 'pt-1 border-t border-slate-800 font-bold text-[10px] text-slate-300';
+        summaryRow.innerHTML = selectedVal
+          ? `<span class="text-cyan-400">🔍 Deret pola terisi dengan balok: "${escapeHtml(selectedVal)}". Pastikan sudah konsisten!</span>`
+          : '<span class="text-amber-400">⚠️ Klik salah satu pilihan balok di bawah untuk melengkapi pola.</span>';
+        logsElem.appendChild(summaryRow);
+
+        runSimBtn.disabled = false;
+        runSimBtn.innerHTML = '<span>🔍 Uji Analisis Pola</span>';
+      };
+
+      renderTrack();
+      renderOptions();
+      checkCompletion();
+      if (selectedVal) {
+        syncHiddenInput();
+      }
+    }
+
+    // =========================================================================
+    // 3. SUSUN ALGORITMA (PARSONS PROGRAMMING PROBLEMS & FLOW SIMULATOR)
+    // =========================================================================
+    function initStudentParsonsPuzzle(container, hiddenInput, cfg, parsedSaved, soalId) {
+      const steps = Array.isArray(cfg.steps) ? cfg.steps : [];
+      let currentOrder = [];
+
+      if (parsedSaved && Array.isArray(parsedSaved.order) && parsedSaved.order.length > 0) {
+        currentOrder = [...parsedSaved.order];
+      } else if (Array.isArray(cfg.initial_order) && cfg.initial_order.length > 0) {
+        currentOrder = [...cfg.initial_order];
+      } else {
+        currentOrder = steps.map(s => s.id);
+      }
+
+      // Pastikan semua step ID ada di currentOrder
+      steps.forEach(s => {
+        if (!currentOrder.includes(s.id)) currentOrder.push(s.id);
+      });
+
+      let draggedIdx = null;
+
+      const syncHiddenInput = () => {
+        hiddenInput.value = currentOrder.length > 0 ? JSON.stringify({ order: currentOrder }) : '';
+        hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+
+      container.innerHTML = `
+        <div class="bg-gradient-to-b from-indigo-50/90 to-blue-50/70 border border-indigo-200 rounded-2xl p-3 sm:p-4 space-y-3.5 select-none">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center space-x-2">
+              <span class="p-2 bg-gradient-to-br from-indigo-600 to-blue-700 text-white rounded-xl text-base shadow-sm">📋</span>
+              <div>
+                <span class="font-extrabold text-xs text-indigo-950 uppercase tracking-wide">Susun Urutan Algoritma (Parsons Problem)</span>
+                <p class="text-[11px] text-indigo-800">Urutkan balok prosedur agar alur algoritma berjalan benar menggunakan tombol ⬆ ⬇ atau drag:</p>
+              </div>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span id="parsons-status-badge-${soalId}" class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                ✓ Siap Diuji
+              </span>
+              <button type="button" id="parsons-run-sim-btn-${soalId}" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-[11px] rounded-lg shadow-sm transition flex items-center space-x-1 cursor-pointer">
+                <span>▶ Uji Alur Logika</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Daftar Balok Urutan Prosedural -->
+          <div class="space-y-2 pt-1" id="parsons-steps-list-${soalId}">
+            <!-- Rendered step cards -->
+          </div>
+
+          <!-- Console Simulator Output -->
+          <div id="parsons-sim-console-${soalId}" class="hidden p-3 rounded-xl bg-slate-900 text-slate-100 border border-slate-800 text-[11px] font-mono space-y-1.5 shadow-md">
+            <div class="flex items-center justify-between text-[10px] text-slate-400 border-b border-slate-800 pb-1">
+              <span class="font-bold flex items-center space-x-1">
+                <span>⚡</span>
+                <span>Trace Eksekusi Alur Prosedural:</span>
+              </span>
+              <button type="button" id="parsons-sim-close-btn-${soalId}" class="hover:text-white cursor-pointer px-1">✕ Tutup</button>
+            </div>
+            <div id="parsons-sim-logs-${soalId}" class="space-y-1 max-h-36 overflow-y-auto pt-0.5"></div>
+          </div>
+        </div>
+      `;
+
+      const listElem = document.getElementById(`parsons-steps-list-${soalId}`);
+      const runSimBtn = document.getElementById(`parsons-run-sim-btn-${soalId}`);
+      const consoleBox = document.getElementById(`parsons-sim-console-${soalId}`);
+      const logsElem = document.getElementById(`parsons-sim-logs-${soalId}`);
+      const closeConsoleBtn = document.getElementById(`parsons-sim-close-btn-${soalId}`);
+
+      if (closeConsoleBtn) {
+        closeConsoleBtn.onclick = () => consoleBox.classList.add('hidden');
+      }
+
+      function renderSteps() {
+        listElem.innerHTML = '';
+
+        currentOrder.forEach((stepId, idx) => {
+          const stepObj = steps.find(s => s.id === stepId) || { id: stepId, text: stepId, icon: '⚡' };
+          const card = document.createElement('div');
+          card.draggable = true;
+          card.className = 'parsons-step-item p-2.5 bg-white rounded-xl border border-indigo-200/90 shadow-2xs hover:shadow-md transition flex items-center justify-between gap-2 cursor-grab active:cursor-grabbing';
+          card.dataset.idx = idx;
+
+          card.innerHTML = `
+            <div class="flex items-center space-x-2.5 flex-1 min-w-0">
+              <span class="w-6 h-6 rounded-lg bg-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                ${idx + 1}
+              </span>
+              <span class="text-base shrink-0">${stepObj.icon || '⚡'}</span>
+              <span class="text-xs font-bold text-slate-800 leading-snug truncate sm:whitespace-normal">
+                ${escapeHtml(stepObj.text)}
+              </span>
+            </div>
+            <div class="flex items-center space-x-1 shrink-0">
+              <button type="button" class="btn-parsons-up p-1.5 bg-slate-100 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold transition cursor-pointer ${idx === 0 ? 'opacity-30 cursor-not-allowed' : ''}" title="Geser Naik" ${idx === 0 ? 'disabled' : ''}>
+                ⬆
+              </button>
+              <button type="button" class="btn-parsons-down p-1.5 bg-slate-100 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold transition cursor-pointer ${idx === currentOrder.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" title="Geser Turun" ${idx === currentOrder.length - 1 ? 'disabled' : ''}>
+                ⬇
+              </button>
+            </div>
+          `;
+
+          // Event Drag & Drop
+          card.ondragstart = () => {
+            draggedIdx = idx;
+            card.classList.add('opacity-50');
+          };
+          card.ondragend = () => {
+            draggedIdx = null;
+            card.classList.remove('opacity-50');
+          };
+          card.ondragover = (e) => {
+            e.preventDefault();
+            card.classList.add('border-indigo-500', 'bg-indigo-50/50');
+          };
+          card.ondragleave = () => {
+            card.classList.remove('border-indigo-500', 'bg-indigo-50/50');
+          };
+          card.ondrop = (e) => {
+            e.preventDefault();
+            card.classList.remove('border-indigo-500', 'bg-indigo-50/50');
+            if (draggedIdx !== null && draggedIdx !== idx) {
+              const movedItem = currentOrder.splice(draggedIdx, 1)[0];
+              currentOrder.splice(idx, 0, movedItem);
+              syncHiddenInput();
+              renderSteps();
+            }
+          };
+
+          // Buttons
+          const btnUp = card.querySelector('.btn-parsons-up');
+          const btnDown = card.querySelector('.btn-parsons-down');
+          if (btnUp && idx > 0) {
+            btnUp.onclick = () => {
+              const tmp = currentOrder[idx];
+              currentOrder[idx] = currentOrder[idx - 1];
+              currentOrder[idx - 1] = tmp;
+              syncHiddenInput();
+              renderSteps();
+            };
+          }
+          if (btnDown && idx < currentOrder.length - 1) {
+            btnDown.onclick = () => {
+              const tmp = currentOrder[idx];
+              currentOrder[idx] = currentOrder[idx + 1];
+              currentOrder[idx + 1] = tmp;
+              syncHiddenInput();
+              renderSteps();
+            };
+          }
+
+          listElem.appendChild(card);
+        });
+      }
+
+      // Simulator Flow Runner
+      runSimBtn.onclick = async () => {
+        consoleBox.classList.remove('hidden');
+        logsElem.innerHTML = '';
+        runSimBtn.disabled = true;
+        runSimBtn.innerHTML = '<span>⚡ Menjalankan Flow...</span>';
+
+        const stepItems = listElem.querySelectorAll('.parsons-step-item');
+
+        for (let i = 0; i < currentOrder.length; i++) {
+          const stepId = currentOrder[i];
+          const stepObj = steps.find(s => s.id === stepId) || { text: stepId, icon: '⚡' };
+          const card = stepItems[i];
+
+          if (card) {
+            card.classList.add('ring-4', 'ring-indigo-400', 'bg-indigo-50', 'scale-[1.01]');
+          }
+
+          const logRow = document.createElement('div');
+          logRow.className = 'text-[11px] leading-relaxed';
+          logRow.innerHTML = `<span class="text-indigo-400 font-bold">[Langkah ${i + 1}/${currentOrder.length}]</span> <span class="text-slate-200">${stepObj.icon || '⚡'} ${escapeHtml(stepObj.text)}</span> <span class="text-emerald-400">✓ Selesai</span>`;
+          logsElem.appendChild(logRow);
+          logsElem.scrollTop = logsElem.scrollHeight;
+
+          await new Promise(r => setTimeout(r, 600));
+
+          if (card) {
+            card.classList.remove('ring-4', 'ring-indigo-400', 'bg-indigo-50', 'scale-[1.01]');
+          }
+        }
+
+        const summaryRow = document.createElement('div');
+        summaryRow.className = 'pt-1 border-t border-slate-800 font-bold text-[10px] text-slate-300';
+        summaryRow.innerHTML = '<span class="text-emerald-400">🎉 Seluruh rangkaian langkah prosedur berhasil dieksekusi dari awal sampai akhir!</span>';
+        logsElem.appendChild(summaryRow);
+
+        runSimBtn.disabled = false;
+        runSimBtn.innerHTML = '<span>▶ Uji Alur Logika</span>';
+      };
+
+      renderSteps();
+      syncHiddenInput();
     }
 
     function initStudentGridRobotGame(container, hiddenInput, cfg, parsedSaved, soalId) {
@@ -3808,6 +4536,12 @@
           }
           if (parsed.pairs !== undefined) {
             return Array.isArray(parsed.pairs) && parsed.pairs.length > 0 && parsed.pairs.every(p => p.action && String(p.action).trim() !== '');
+          }
+          if (parsed.selected !== undefined) {
+            return String(parsed.selected).trim() !== '';
+          }
+          if (parsed.order !== undefined) {
+            return Array.isArray(parsed.order) && parsed.order.length > 0;
           }
         } catch (e) {}
       }

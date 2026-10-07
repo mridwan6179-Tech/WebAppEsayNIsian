@@ -3463,7 +3463,7 @@
       <!-- Navigation Tabs -->
       <div class="flex items-center border-b border-slate-200 bg-slate-50 px-5 pt-2 shrink-0 overflow-x-auto gap-2">
         <button type="button" id="tab-cg-preset" onclick="switchCgTab('preset')" class="tab-cg-btn px-4 py-2 text-xs font-bold rounded-t-xl border-b-2 border-indigo-600 text-indigo-700 bg-white transition flex items-center space-x-1.5 cursor-pointer">
-          <span>📚 Template Preset Resmi (5 Jenis)</span>
+          <span>📚 Template Preset Resmi (8 Jenis)</span>
         </button>
         <button type="button" id="tab-cg-ai" onclick="switchCgTab('ai')" class="tab-cg-btn px-4 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-transparent text-slate-600 hover:text-indigo-600 transition flex items-center space-x-1.5 cursor-pointer">
           <span>✨ Buat Level dengan AI</span>
@@ -3480,12 +3480,12 @@
           <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-indigo-900 flex items-start space-x-2.5">
             <span class="text-xl">💡</span>
             <div class="space-y-0.5">
-              <p class="font-bold">Pilih salah satu dari 5 konsep dasar Berpikir Komputasional SMP:</p>
+              <p class="font-bold">Pilih salah satu dari 8 konsep Berpikir Komputasional & Koding SMP:</p>
               <p class="text-[11px] text-indigo-800">Semua template telah dikalibrasi sesuai silabus Informatika SMP, langsung siap diujikan atau dimodifikasi sesuai kebutuhan.</p>
             </div>
           </div>
           <div id="cg-preset-grid" class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            <!-- Rendered by JS: 5 preset cards -->
+            <!-- Rendered by JS: 8 preset cards -->
           </div>
         </div>
 
@@ -3495,7 +3495,7 @@
             <span class="text-xl">🤖</span>
             <div class="space-y-0.5">
               <p class="font-bold">AI Generator Level Game Koding</p>
-              <p class="text-[11px] text-purple-800">Biarkan AI Gemini merancang arena labirin, tantangan logika, atau teka-teki Scratch berdasarkan tema cerita yang Anda tentukan.</p>
+              <p class="text-[11px] text-purple-800">Biarkan AI Gemini merancang arena labirin, tantangan logika, deret tebak pola, balok Scratch, atau algoritma Parsons berdasarkan tema cerita yang Anda tentukan.</p>
             </div>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -3507,6 +3507,8 @@
                 <option value="decision_gate">⚖️ Decision Gate (Logika Percabangan If-Else)</option>
                 <option value="bug_doctor">🩺 Bug Doctor (Tracing & Debugging Kode)</option>
                 <option value="scratch_puzzle">🧩 Scratch Mini Puzzle (Event & Aksi)</option>
+                <option value="pattern_guesser">🔍 Tebak Pola (Pattern Recognition / Deret Logika)</option>
+                <option value="parsons_puzzle">📋 Susun Algoritma (Parsons Problem / Flow Prosedur)</option>
               </select>
             </div>
             <div>
@@ -3651,6 +3653,28 @@
             </div>
             <div id="cg-scratch-pairs-table" class="space-y-2">
               <!-- Rendered rows -->
+            </div>
+          </div>
+
+          <!-- Pattern Guesser Editor (Muncul jika jenis adalah pattern_guesser) -->
+          <div id="cg-pattern-config-container" class="hidden space-y-3 bg-teal-50/70 p-3 rounded-2xl border border-teal-200">
+            <div>
+              <h4 class="font-bold text-teal-950">Pratinjau & Konfigurasi Tebak Pola:</h4>
+              <p class="text-[11px] text-teal-800">Pita urutan langkah deret komputasi dan pilihan balok jawaban yang akan diselesaikan siswa.</p>
+            </div>
+            <div id="cg-pattern-editor-content" class="space-y-2.5">
+              <!-- Rendered by JS -->
+            </div>
+          </div>
+
+          <!-- Parsons Puzzle Editor (Muncul jika jenis adalah parsons_puzzle) -->
+          <div id="cg-parsons-config-container" class="hidden space-y-3 bg-indigo-50/70 p-3 rounded-2xl border border-indigo-200">
+            <div>
+              <h4 class="font-bold text-indigo-950">Pratinjau & Konfigurasi Susun Algoritma (Parsons):</h4>
+              <p class="text-[11px] text-indigo-800">Balok langkah teracak yang harus disusun berurutan dari langkah awal sampai akhir oleh siswa.</p>
+            </div>
+            <div id="cg-parsons-editor-content" class="space-y-2.5">
+              <!-- Rendered by JS -->
             </div>
           </div>
         </div>
@@ -12604,6 +12628,15 @@
         
         const badgeDiff = preset.tingkat_kesulitan === 'sulit' ? 'bg-red-100 text-red-700' : (preset.tingkat_kesulitan === 'mudah' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700');
         
+        let typeBadge = '<span class="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">Simulasi Grid</span>';
+        if (preset.subtipe === 'scratch_puzzle') {
+          typeBadge = '<span class="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold">Balok Scratch</span>';
+        } else if (preset.subtipe === 'pattern_guesser') {
+          typeBadge = '<span class="bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded font-bold">Tebak Pola</span>';
+        } else if (preset.subtipe === 'parsons_puzzle') {
+          typeBadge = '<span class="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold">Susun Algoritma</span>';
+        }
+
         card.innerHTML = `
           <div class="space-y-1.5">
             <div class="flex items-center justify-between">
@@ -12615,7 +12648,7 @@
             <div class="flex items-center space-x-2 pt-1 text-[10px] text-slate-400">
               <span class="bg-slate-100 px-2 py-0.5 rounded font-mono">🎯 Par: ${preset.par_limit || '-'} Balok</span>
               <span class="bg-slate-100 px-2 py-0.5 rounded font-mono">Bobot: ${preset.bobot || 20}</span>
-              ${preset.subtipe === 'scratch_puzzle' ? '<span class="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold">Event & Aksi</span>' : '<span class="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">Simulasi Grid</span>'}
+              ${typeBadge}
             </div>
           </div>
           <div class="pt-2">
@@ -12647,7 +12680,15 @@
         max_steps: found.max_steps || 30,
         allowed_blocks: found.allowed_blocks || ['MAJU', 'MUNDUR', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'],
         initial_blocks: (found.initial_blocks || found.initialBlocks) ? JSON.parse(JSON.stringify(found.initial_blocks || found.initialBlocks)) : [],
-        target_pairs: (found.target_pairs || found.pairs) ? JSON.parse(JSON.stringify(found.target_pairs || found.pairs)) : []
+        target_pairs: (found.target_pairs || found.pairs) ? JSON.parse(JSON.stringify(found.target_pairs || found.pairs)) : [],
+        sequence: found.sequence ? JSON.parse(JSON.stringify(found.sequence)) : [],
+        options: found.options ? JSON.parse(JSON.stringify(found.options)) : [],
+        correct_answer: found.correct_answer || '',
+        correct_option_id: found.correct_option_id || '',
+        explanation: found.explanation || '',
+        steps: found.steps ? JSON.parse(JSON.stringify(found.steps)) : [],
+        initial_order: found.initial_order ? JSON.parse(JSON.stringify(found.initial_order)) : [],
+        correct_order: found.correct_order ? JSON.parse(JSON.stringify(found.correct_order)) : []
       };
 
       document.getElementById('cg-edit-pertanyaan').value = found.pertanyaan || found.description || found.title || '';
@@ -12667,21 +12708,97 @@
     }
 
     function renderCgEditorUI() {
-      const isScratch = cgCurrentConfig.subtipe === 'scratch_puzzle';
+      const sub = (cgCurrentConfig.subtipe || '').toLowerCase();
+      const isScratch = sub === 'scratch_puzzle';
+      const isPattern = sub === 'pattern_guesser';
+      const isParsons = sub === 'parsons_puzzle';
+
       const gridContainer = document.getElementById('cg-grid-config-container');
       const scratchContainer = document.getElementById('cg-scratch-config-container');
+      const patternContainer = document.getElementById('cg-pattern-config-container');
+      const parsonsContainer = document.getElementById('cg-parsons-config-container');
+
+      if (gridContainer) gridContainer.classList.add('hidden');
+      if (scratchContainer) scratchContainer.classList.add('hidden');
+      if (patternContainer) patternContainer.classList.add('hidden');
+      if (parsonsContainer) parsonsContainer.classList.add('hidden');
 
       if (isScratch) {
-        if (gridContainer) gridContainer.classList.add('hidden');
         if (scratchContainer) scratchContainer.classList.remove('hidden');
         renderCgScratchPairsTable();
+      } else if (isPattern) {
+        if (patternContainer) patternContainer.classList.remove('hidden');
+        renderCgPatternEditor();
+      } else if (isParsons) {
+        if (parsonsContainer) parsonsContainer.classList.remove('hidden');
+        renderCgParsonsEditor();
       } else {
         if (gridContainer) gridContainer.classList.remove('hidden');
-        if (scratchContainer) scratchContainer.classList.add('hidden');
         renderCgInteractiveGrid();
         renderCgTestWorkspace();
         resetCgTestSim();
       }
+    }
+
+    function renderCgPatternEditor() {
+      const container = document.getElementById('cg-pattern-editor-content');
+      if (!container) return;
+      const seq = Array.isArray(cgCurrentConfig.sequence) ? cgCurrentConfig.sequence : [];
+      const opts = Array.isArray(cgCurrentConfig.options) ? cgCurrentConfig.options : [];
+      const corr = cgCurrentConfig.correct_answer || '';
+
+      container.innerHTML = `
+        <div class="bg-white p-3 rounded-xl border border-teal-200 space-y-2">
+          <div class="font-bold text-xs text-teal-900">Pita Deret Langkah Pola:</div>
+          <div class="flex items-center space-x-2 overflow-x-auto pb-1">
+            ${seq.map((s, i) => `
+              <div class="p-2 rounded-lg border ${s.is_missing || s.label === '?' ? 'border-dashed border-cyan-500 bg-cyan-50 text-cyan-900 font-bold' : 'border-slate-200 bg-slate-50 text-slate-800'} text-center min-w-[70px] shrink-0">
+                <div class="text-[9px] text-slate-400">Step ${s.step || i + 1}</div>
+                <div class="text-sm">${s.icon || (s.is_missing ? '❓' : '📦')}</div>
+                <div class="text-[10px] font-bold truncate">${escapeHtml(s.label)}</div>
+              </div>
+            `).join('<span class="text-teal-400 font-bold">➔</span>')}
+          </div>
+        </div>
+
+        <div class="bg-white p-3 rounded-xl border border-teal-200 space-y-2">
+          <div class="font-bold text-xs text-teal-900">Pilihan Balok Jawaban (Kunci: <span class="text-emerald-600">${escapeHtml(corr)}</span>):</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            ${opts.map(o => `
+              <div class="p-2 rounded-lg border ${o.label === corr || o.id === cgCurrentConfig.correct_option_id ? 'border-emerald-500 bg-emerald-50 text-emerald-900 font-bold' : 'border-slate-200 bg-slate-50 text-slate-700'} flex items-center justify-between text-xs">
+                <span>${o.icon || '⚡'} ${escapeHtml(o.label)}</span>
+                ${o.label === corr || o.id === cgCurrentConfig.correct_option_id ? '<span class="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded font-bold">Kunci</span>' : ''}
+              </div>
+            `).join('')}
+          </div>
+          ${cgCurrentConfig.explanation ? `<p class="text-[10px] text-slate-500 italic pt-1">💡 Penjelasan: ${escapeHtml(cgCurrentConfig.explanation)}</p>` : ''}
+        </div>
+      `;
+    }
+
+    function renderCgParsonsEditor() {
+      const container = document.getElementById('cg-parsons-editor-content');
+      if (!container) return;
+      const steps = Array.isArray(cgCurrentConfig.steps) ? cgCurrentConfig.steps : [];
+      const correctOrder = Array.isArray(cgCurrentConfig.correct_order) ? cgCurrentConfig.correct_order : steps.map(s => s.id);
+
+      container.innerHTML = `
+        <div class="bg-white p-3 rounded-xl border border-indigo-200 space-y-2">
+          <div class="font-bold text-xs text-indigo-900">Urutan Algoritma yang Benar (Kunci):</div>
+          <div class="space-y-1.5">
+            ${correctOrder.map((stepId, idx) => {
+              const stepObj = steps.find(s => s.id === stepId) || { text: stepId, icon: '⚡' };
+              return `
+                <div class="p-2 rounded-lg bg-indigo-50 border border-indigo-200 flex items-center space-x-2 text-xs">
+                  <span class="w-5 h-5 rounded bg-indigo-600 text-white font-black text-[10px] flex items-center justify-center shrink-0">${idx + 1}</span>
+                  <span>${stepObj.icon || '⚡'}</span>
+                  <span class="font-bold text-indigo-950">${escapeHtml(stepObj.text)}</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
     }
 
     function setCgBrush(brush) {
@@ -13233,7 +13350,15 @@
               max_steps: lvl.max_steps || 30,
               allowed_blocks: lvl.allowed_blocks || ['MAJU', 'MUNDUR', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'],
               initial_blocks: lvl.initial_blocks || [],
-              target_pairs: lvl.target_pairs || []
+              target_pairs: lvl.target_pairs || lvl.pairs || [],
+              sequence: lvl.sequence || [],
+              options: lvl.options || [],
+              correct_answer: lvl.correct_answer || '',
+              correct_option_id: lvl.correct_option_id || '',
+              explanation: lvl.explanation || '',
+              steps: lvl.steps || [],
+              initial_order: lvl.initial_order || [],
+              correct_order: lvl.correct_order || []
             };
 
             document.getElementById('cg-edit-pertanyaan').value = lvl.pertanyaan || lvl.deskripsi || '';
@@ -13274,6 +13399,11 @@
       const kesulitan = document.getElementById('cg-edit-kesulitan').value || 'sedang';
       cgCurrentConfig.par_limit = Number(document.getElementById('cg-par-limit').value) || 6;
 
+      const sub = (cgCurrentConfig.subtipe || '').toLowerCase();
+      const subTopik = `Misi ${sub === 'scratch_puzzle' ? 'Balok Logika' : (sub === 'pattern_guesser' ? 'Tebak Pola' : (sub === 'parsons_puzzle' ? 'Susun Algoritma' : 'Robot Grid'))}`;
+      const kunci = cgCurrentConfig.correct_answer || (sub === 'parsons_puzzle' ? 'Urutan alur prosedur yang benar' : (sub === 'scratch_puzzle' ? 'Pasangan balok event dan aksi Scratch yang tepat' : 'Menyelesaikan misi koding dengan balok efisien'));
+      const pembahasan = cgCurrentConfig.explanation || `Tantangan koding berpikir komputasional mode ${sub || 'grid_robot'}.`;
+
       const btnSave = document.getElementById('btn-cg-save-to-exam');
       btnSave.disabled = true;
 
@@ -13283,15 +13413,15 @@
         try {
           const payload = {
             kategori: document.getElementById('cg-ai-tema')?.value?.trim() || 'Informatika & Pemrograman',
-            sub_topik: `Misi ${cgCurrentConfig.subtipe === 'scratch_puzzle' ? 'Balok Logika' : 'Robot Grid'}`,
+            sub_topik: subTopik,
             tingkat_kelas: 'SMP',
             jenis: 'koding_game',
             tingkat_kesulitan: kesulitan,
             bobot_standar: bobot,
             pertanyaan: pertanyaan,
-            kunci_jawaban: 'Menyelesaikan misi koding dengan balok efisien',
+            kunci_jawaban: kunci,
             game_data: JSON.stringify(cgCurrentConfig),
-            pembahasan: `Misi koding logika berpikir komputasional dengan batas par ${cgCurrentConfig.par_limit} balok.`
+            pembahasan: pembahasan
           };
 
           const res = await guruFetch('/api/guru/bank-soal', {
@@ -13330,7 +13460,7 @@
           tingkat_kesulitan: kesulitan,
           bobot: bobot,
           pertanyaan: pertanyaan,
-          kunci_jawaban: 'Menyelesaikan misi koding dengan balok efisien',
+          kunci_jawaban: kunci,
           game_data: JSON.stringify(cgCurrentConfig),
           kategori: activeUlanganData?.mata_pelajaran || 'Informatika'
         };

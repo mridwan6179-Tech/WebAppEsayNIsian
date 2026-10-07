@@ -710,9 +710,16 @@ const studentService = {
           sumKodingScorePct += evalResult.score;
           const skorRek = Math.round(((evalResult.score / 100) * Number(bobot)) * 100) / 100;
           const statusJwb = evalResult.starsEarned >= 2 ? 'benar' : (evalResult.starsEarned === 1 ? 'sebagian' : 'salah');
-          const alasan = evalResult.mode === 'scratch_puzzle'
-            ? `Cocok: ${evalResult.correctCount}/${evalResult.total} pasangan. Bintang: ${evalResult.starsEarned}/3.`
-            : `Bintang: ${evalResult.starsEarned}/3. ${evalResult.isFinished ? 'Robot sampai finish!' : 'Robot belum sampai finish.'} Blok: ${evalResult.blockCount}/${evalResult.parLimit}. Skor: ${evalResult.score}%.`;
+          let alasan = '';
+          if (evalResult.mode === 'scratch_puzzle') {
+            alasan = `Cocok: ${evalResult.correctCount}/${evalResult.total} pasangan balok. Bintang: ${evalResult.starsEarned}/3.`;
+          } else if (evalResult.mode === 'pattern_guesser') {
+            alasan = `Tebak Pola: ${evalResult.isFinished ? 'Pola berhasil dipecahkan dengan tepat!' : 'Pilihan pola belum sesuai.'} Bintang: ${evalResult.starsEarned}/3. ${evalResult.explanation || ''}`;
+          } else if (evalResult.mode === 'parsons_puzzle') {
+            alasan = `Susun Algoritma: ${evalResult.isFinished ? 'Seluruh alur prosedur runtut 100%!' : `Posisi tepat: ${evalResult.correctPositions}/${evalResult.totalSteps}`}. Bintang: ${evalResult.starsEarned}/3.`;
+          } else {
+            alasan = `Bintang: ${evalResult.starsEarned}/3. ${evalResult.isFinished ? 'Robot sampai finish!' : 'Robot belum sampai finish.'} Blok: ${evalResult.blockCount}/${evalResult.parLimit}. Skor: ${evalResult.score}%.`;
+          }
           upsertPgStmt.run(pengerjaanId, soalId, finalJawaban, bobot, skorRek, statusJwb, alasan, itemPaste);
           try {
             db.prepare('UPDATE jawaban SET jawaban_koding = ? WHERE pengerjaan_id = ? AND soal_id = ?').run(finalJawaban, pengerjaanId, soalId);
