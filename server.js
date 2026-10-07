@@ -245,14 +245,27 @@ app.get('/api/siswa/antrean/:ticketId', (req, res) => {
 });
 
 app.post('/api/siswa/submit', async (req, res) => {
+  const { pengerjaan_id, jawaban, paste_count, is_auto_submit, paste_details } = req.body;
   try {
-    const { pengerjaan_id, jawaban, paste_count, is_auto_submit, paste_details } = req.body;
     if (!pengerjaan_id) {
       return res.status(400).json({ success: false, message: 'pengerjaan_id wajib disertakan' });
     }
 
-    // Ambil ulangan_id untuk melepaskan slot antrean
-    const pengerjaanBefore = db.prepare('SELECT ulangan_id FROM pengerjaan WHERE id = ?').get(pengerjaan_id);
+    // Ambil data pengerjaan sebelum submit dengan sinkronisasi Turso yang andal
+    const pengerjaanBefore = studentService.findPengerjaanWithSync(pengerjaan_id);
+
+    // Jika pengerjaan ternyata sudah submitted (misal retry karena sinyal HP sempat putus), langsung kirim sukses
+    if (pengerjaanBefore && pengerjaanBefore.status === 'submitted') {
+      if (pengerjaanBefore.ulangan_id) {
+        waitingRoomService.releaseSlot(pengerjaanBefore.ulangan_id);
+      }
+      return res.json({
+        success: true,
+        message: 'Ulangan sudah pernah dikumpulkan sebelumnya',
+        alreadySubmitted: true,
+        submitted_at: pengerjaanBefore.submitted_at
+      });
+    }
 
     // Eksekusi submit melalui antrean penulisan aman dengan fallback eksekusi langsung
     let result;
@@ -272,6 +285,24 @@ app.post('/api/siswa/submit', async (req, res) => {
 
     res.json(result);
   } catch (err) {
+    // Rescue guard: Jika submit melempar error, cek apakah sesi sebenarnya sudah berhasil tersimpan sebagai submitted di database
+    try {
+      if (pengerjaan_id) {
+        const checkAfter = studentService.findPengerjaanWithSync(pengerjaan_id);
+        if (checkAfter && checkAfter.status === 'submitted') {
+          if (checkAfter.ulangan_id) {
+            waitingRoomService.releaseSlot(checkAfter.ulangan_id);
+          }
+          return res.json({
+            success: true,
+            message: 'Ulangan sudah berhasil dikumpulkan sebelumnya',
+            alreadySubmitted: true,
+            submitted_at: checkAfter.submitted_at
+          });
+        }
+      }
+    } catch (rescueErr) {}
+
     res.status(400).json({ success: false, message: err.message });
   }
 });

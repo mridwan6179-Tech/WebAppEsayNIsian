@@ -4002,6 +4002,38 @@
         // Ambil rincian hasil penilaian di latar belakang secara asinkron (dengan retry aman tanpa lempar balik ke soal)
         checkResultStatusWithRetry(currentPengerjaanId, 0);
       } catch (err) {
+        // RESCUE CHECK: Sebelum memunculkan alert gagal, cek apakah status ujian sebenarnya sudah submitted di server
+        if (currentPengerjaanId) {
+          try {
+            const rescueRes = await fetch(`/api/siswa/sesi/${currentPengerjaanId}`);
+            const rescueData = await rescueRes.json();
+            if (rescueRes.ok && rescueData.success && rescueData.data && rescueData.data.alreadySubmitted) {
+              // Terbukti ujian siswa sebenarnya SUDAH tersimpan dan berstatus submitted di server!
+              stopHeartbeat();
+              try {
+                localStorage.removeItem(`ulangan_draft_${currentPengerjaanId}`);
+                localStorage.removeItem(`ulangan_paste_${currentPengerjaanId}`);
+              } catch (e) {}
+              const overlay = document.getElementById('submit-loading-overlay');
+              if (overlay) overlay.classList.add('hidden');
+              stepAuth.classList.add('hidden');
+              stepExam.classList.add('hidden');
+              const stepResuming = document.getElementById('step-resuming');
+              if (stepResuming) stepResuming.classList.add('hidden');
+              stepResult.classList.remove('hidden');
+
+              const submitTime = rescueData.data.submittedAt || new Date().toISOString();
+              const submittedTimeInfo = document.getElementById('submitted-time-info');
+              if (submittedTimeInfo) {
+                submittedTimeInfo.textContent = `Waktu Pengumpulan: ${new Date(submitTime).toLocaleString('id-ID')}`;
+              }
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              checkResultStatusWithRetry(currentPengerjaanId, 0);
+              return;
+            }
+          } catch (rescueErr) {}
+        }
+
         const overlay = document.getElementById('submit-loading-overlay');
         if (overlay) overlay.classList.add('hidden');
         const errMsg = err.name === 'AbortError'

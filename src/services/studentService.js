@@ -386,6 +386,10 @@ const studentService = {
           VALUES (?, ?, 'mengerjakan', ?, ?, ?)
         `).run(ulanganId, peserta.id, soalIdsJson, nowIso, nowIso);
         pengerjaan = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(info.lastInsertRowid);
+        // Segera dorong pengerjaan baru ke Turso Cloud agar instance Vercel lain dapat langsung menemukannya
+        if (typeof db.sync === 'function') {
+          try { db.sync(); } catch (syncErr) {}
+        }
       } else {
         db.prepare('UPDATE pengerjaan SET soal_ids = ?, last_active_at = CURRENT_TIMESTAMP WHERE id = ?').run(soalIdsJson, pengerjaan.id);
         pengerjaan.soal_ids = soalIdsJson;
@@ -436,12 +440,27 @@ const studentService = {
   // Helper ambil pengerjaan dengan fallback sync replica Turso (mengatasi multi-instance cold start Vercel)
   findPengerjaanWithSync(id) {
     if (!id) return null;
-    let row = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(id);
-    if (!row && typeof db.sync === 'function') {
-      try { db.sync(); } catch (e) {}
-      row = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(id);
+    const numId = Number(id);
+    const cleanId = isNaN(numId) ? id : numId;
+    let row = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(cleanId);
+    if (row) return row;
+
+    if (typeof db.sync === 'function') {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          db.sync();
+        } catch (e) {
+          console.warn(`[findPengerjaanWithSync] Sync attempt ${attempt} warning:`, e.message);
+        }
+        row = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(cleanId);
+        if (row) return row;
+        if (attempt < 3) {
+          const waitTill = Date.now() + 120;
+          while (Date.now() < waitTill) {}
+        }
+      }
     }
-    return row;
+    return row || null;
   },
 
   // Auto-Save Draft Jawaban Siswa (Sinkronisasi berkala dari HP/Klien ke Server)
@@ -734,12 +753,17 @@ const studentService = {
 
     insertOrUpdateJawaban();
 
+    // Segera dorong jawaban dan status submitted ke Turso Cloud agar tersimpan permanen
+    if (typeof db.sync === 'function') {
+      try { db.sync(); } catch (syncErr) {}
+    }
+
     const updated = db.prepare('SELECT submitted_at FROM pengerjaan WHERE id = ?').get(pengerjaanId);
 
     return {
       success: true,
       message: 'Jawaban berhasil dikumpulkan',
-      submitted_at: updated.submitted_at,
+      submitted_at: updated ? updated.submitted_at : nowIso,
       skor_pg: computedSkorPg,
       total_pg: totalPg,
       benar_pg: benarPg,
@@ -915,10 +939,19 @@ const studentService = {
       JOIN peserta pes ON p.peserta_id = pes.id
       WHERE p.id = ?
     `;
-    let pengerjaan = db.prepare(query).get(pengerjaanId);
+    const numId = Number(pengerjaanId);
+    const cleanId = isNaN(numId) ? pengerjaanId : numId;
+    let pengerjaan = db.prepare(query).get(cleanId);
     if (!pengerjaan && typeof db.sync === 'function') {
-      try { db.sync(); } catch (e) {}
-      pengerjaan = db.prepare(query).get(pengerjaanId);
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try { db.sync(); } catch (e) {}
+        pengerjaan = db.prepare(query).get(cleanId);
+        if (pengerjaan) break;
+        if (attempt < 3) {
+          const waitTill = Date.now() + 120;
+          while (Date.now() < waitTill) {}
+        }
+      }
     }
 
     if (!pengerjaan) return null;
@@ -1085,7 +1118,9 @@ const studentService = {
   getActiveSession(pengerjaanId) {
     if (!pengerjaanId) return null;
 
-    const pengerjaan = db.prepare(`
+    const numId = Number(pengerjaanId);
+    const cleanId = isNaN(numId) ? pengerjaanId : numId;
+    const sessionQuery = `
       SELECT p.*, u.id as ulangan_id, u.judul, u.mata_pelajaran, u.tingkat_kelas, u.deskripsi,
              u.kode_ujian, u.durasi_menit, u.tanggal_mulai, u.tanggal_selesai, u.kkm, u.zona_waktu,
              u.tampilkan_simbol, u.link_kisi_kisi, u.tampilkan_kisi_kisi, u.jumlah_soal_listening, u.tampilkan_teks_listening, pes.id as peserta_id, pes.nama as nama_peserta, pes.kelas as kelas_peserta
@@ -1093,7 +1128,19 @@ const studentService = {
       JOIN ulangan u ON p.ulangan_id = u.id
       JOIN peserta pes ON p.peserta_id = pes.id
       WHERE p.id = ?
-    `).get(pengerjaanId);
+    `;
+    let pengerjaan = db.prepare(sessionQuery).get(cleanId);
+    if (!pengerjaan && typeof db.sync === 'function') {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try { db.sync(); } catch (e) {}
+        pengerjaan = db.prepare(sessionQuery).get(cleanId);
+        if (pengerjaan) break;
+        if (attempt < 3) {
+          const waitTill = Date.now() + 120;
+          while (Date.now() < waitTill) {}
+        }
+      }
+    }
 
     if (!pengerjaan) return null;
 
