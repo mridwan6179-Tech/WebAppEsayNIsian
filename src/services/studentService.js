@@ -696,14 +696,65 @@ const studentService = {
 
         if (sInfo && sInfo.jenis === 'pilihan_ganda') {
           totalPg++;
-          const kunci = (sInfo.kunci_pg || 'A').toUpperCase().trim();
-          const ans = (finalJawaban || '').toUpperCase().trim();
-          const isBenar = ans === kunci;
-          if (isBenar) benarPg++;
-          const statusJwb = isBenar ? 'benar' : 'salah';
-          const skorRek = isBenar ? Number(bobot) : 0;
-          const alasan = isBenar ? 'Pilihan jawaban tepat sesuai kunci.' : `Pilihan salah. Kunci jawaban: ${kunci}`;
-          upsertPgStmt.run(pengerjaanId, soalId, finalJawaban, bobot, skorRek, statusJwb, alasan, itemPaste);
+          const rawKunci = (sInfo.kunci_pg || 'A').toUpperCase().trim();
+          const rawAns = (finalJawaban || '').toUpperCase().trim();
+          const isKompleks = rawKunci.includes(',') || rawKunci.length > 1;
+
+          if (isKompleks) {
+            // Evaluasi Pilihan Ganda Kompleks (Multi-Select)
+            const correctSet = new Set(rawKunci.split(/[\s,]+/).filter(Boolean));
+            let studentOptions = [];
+            try {
+              if (rawAns.startsWith('[') && rawAns.endsWith(']')) {
+                studentOptions = JSON.parse(rawAns).map(x => String(x).toUpperCase().trim());
+              } else {
+                studentOptions = rawAns.split(/[\s,]+/).filter(Boolean);
+              }
+            } catch (e) {
+              studentOptions = rawAns.split(/[\s,]+/).filter(Boolean);
+            }
+            const studentSet = new Set(studentOptions);
+
+            const isExact = (correctSet.size === studentSet.size) && [...correctSet].every(k => studentSet.has(k));
+            let statusJwb = 'salah';
+            let skorRek = 0;
+            let alasan = '';
+
+            if (isExact) {
+              benarPg++;
+              statusJwb = 'benar';
+              skorRek = Number(bobot);
+              alasan = `Seluruh pilihan jawaban tepat (${[...correctSet].sort().join(', ')}).`;
+            } else {
+              let correctPicked = 0;
+              let wrongPicked = 0;
+              studentSet.forEach(a => {
+                if (correctSet.has(a)) correctPicked++;
+                else wrongPicked++;
+              });
+              const totalCorrect = correctSet.size || 1;
+              const ratio = Math.max(0, (correctPicked - wrongPicked) / totalCorrect);
+              if (ratio > 0) {
+                benarPg += ratio;
+                statusJwb = 'parsial';
+                skorRek = Math.round(ratio * Number(bobot) * 100) / 100;
+                alasan = `Pilihan sebagian tepat (${correctPicked}/${totalCorrect} benar). Kunci: ${[...correctSet].sort().join(', ')}.`;
+              } else {
+                statusJwb = 'salah';
+                skorRek = 0;
+                alasan = `Pilihan salah. Kunci jawaban: ${[...correctSet].sort().join(', ')}.`;
+              }
+            }
+            upsertPgStmt.run(pengerjaanId, soalId, finalJawaban, bobot, skorRek, statusJwb, alasan, itemPaste);
+          } else {
+            // Evaluasi Pilihan Ganda Tunggal
+            const isBenar = rawAns === rawKunci;
+            if (isBenar) benarPg++;
+            const statusJwb = isBenar ? 'benar' : 'salah';
+            const skorRek = isBenar ? Number(bobot) : 0;
+            const alasan = isBenar ? 'Pilihan jawaban tepat sesuai kunci.' : `Pilihan salah. Kunci jawaban: ${rawKunci}`;
+            upsertPgStmt.run(pengerjaanId, soalId, finalJawaban, bobot, skorRek, statusJwb, alasan, itemPaste);
+          }
         } else if (sInfo && sInfo.jenis === 'koding_game') {
           totalKoding++;
           const evalResult = codingGameService.evaluateSolution(sInfo.game_data, finalJawaban);

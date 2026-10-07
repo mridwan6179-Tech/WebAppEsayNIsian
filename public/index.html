@@ -2287,6 +2287,49 @@
       }
     };
 
+    // === PILIHAN GANDA KOMPLEKS (PG KOMPLEKS / MULTI-SELECT) HELPER ===
+    window.togglePgKompleksOption = function(soalId, optionVal, triggerInput = true) {
+      const input = document.getElementById(`input_pg_${soalId}`);
+      if (!input) return;
+      const raw = input.value || '';
+      let selected = raw.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      if (selected.includes(optionVal)) {
+        selected = selected.filter(s => s !== optionVal);
+      } else {
+        selected.push(optionVal);
+      }
+      selected.sort();
+      input.value = selected.join(', ');
+
+      window.syncPgKompleksUI(soalId, input.value);
+      if (triggerInput) {
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    };
+
+    window.syncPgKompleksUI = function(soalId, currentVal) {
+      const selected = (currentVal || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      ['A', 'B', 'C', 'D', 'E'].forEach(op => {
+        const btn = document.getElementById(`btn_pg_${soalId}_${op}`);
+        if (!btn) return;
+        const isChecked = selected.includes(op);
+        const chkBox = btn.querySelector('.btn-pg-checkbox');
+        if (isChecked) {
+          btn.className = 'btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-purple-600 bg-purple-50/80 ring-2 ring-purple-300 text-left cursor-pointer shadow-xs transition';
+          if (chkBox) {
+            chkBox.className = 'btn-pg-checkbox w-6 h-6 rounded-md bg-purple-600 border-2 border-purple-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs';
+            chkBox.innerHTML = '✓';
+          }
+        } else {
+          btn.className = 'btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-purple-300 hover:bg-slate-50 transition text-left cursor-pointer group';
+          if (chkBox) {
+            chkBox.className = 'btn-pg-checkbox w-6 h-6 rounded-md bg-white border-2 border-slate-300 text-transparent font-black text-xs flex items-center justify-center shrink-0';
+            chkBox.innerHTML = '';
+          }
+        }
+      });
+    };
+
     // =========================================================================
     // === GAME KODING & BERPIKIR KOMPUTASIONAL (SMP) RUNNER ===
     // =========================================================================
@@ -3458,8 +3501,16 @@
                 </div>
               `;
             } else if (isFinish) {
-              cell.className = `w-9 h-9 sm:w-10 sm:h-10 rounded-lg border flex items-center justify-center font-bold text-xs select-none transition-all relative ${theme.finishBg}`;
-              cell.innerHTML = theme.finishIcon;
+              const allStarsCollected = stars.length === 0 || collectedStars.size >= stars.length;
+              if (!allStarsCollected) {
+                cell.className = `w-9 h-9 sm:w-10 sm:h-10 rounded-lg border flex flex-col items-center justify-center font-bold text-xs select-none transition-all relative ${theme.finishBg} opacity-85`;
+                cell.innerHTML = `<span class="text-xs">🔒</span><span class="text-[7px] font-black text-amber-300 tracking-tight leading-none">KUNCI</span>`;
+                cell.title = `Finish Masih Terkunci! Kumpulkan semua ${stars.length} bintang (${collectedStars.size}/${stars.length}).`;
+              } else {
+                cell.className = `w-9 h-9 sm:w-10 sm:h-10 rounded-lg border flex items-center justify-center font-bold text-xs select-none transition-all relative ${theme.finishBg} ring-2 ring-emerald-400 animate-pulse`;
+                cell.innerHTML = theme.finishIcon;
+                cell.title = 'Finish Terbuka!';
+              }
             } else if (isWall) {
               cell.className = `w-9 h-9 sm:w-10 sm:h-10 rounded-lg border flex items-center justify-center font-bold text-xs select-none transition-all relative ${theme.wallBg}`;
               cell.innerHTML = theme.wallIcon;
@@ -3497,36 +3548,81 @@
 
           if (b.type === 'MAJU') {
             item.classList.add('bg-blue-600');
-            item.innerHTML = `<span>#${idx + 1} ⬆ Maju 1 Petak</span>`;
+            item.innerHTML = `<span class="truncate">#${idx + 1} ⬆ Maju 1 Petak</span>`;
           } else if (b.type === 'MUNDUR') {
             item.classList.add('bg-cyan-600');
-            item.innerHTML = `<span>#${idx + 1} ⬇ Mundur 1 Petak</span>`;
+            item.innerHTML = `<span class="truncate">#${idx + 1} ⬇ Mundur 1 Petak</span>`;
           } else if (b.type === 'BELOK_KIRI') {
             item.classList.add('bg-indigo-600');
-            item.innerHTML = `<span>#${idx + 1} ↩ Belok Kiri</span>`;
+            item.innerHTML = `<span class="truncate">#${idx + 1} ↩ Belok Kiri</span>`;
           } else if (b.type === 'BELOK_KANAN') {
             item.classList.add('bg-indigo-600');
-            item.innerHTML = `<span>#${idx + 1} ↪ Belok Kanan</span>`;
+            item.innerHTML = `<span class="truncate">#${idx + 1} ↪ Belok Kanan</span>`;
           } else if (b.type === 'ULANGI') {
             item.classList.add('bg-amber-600');
-            item.innerHTML = `<span>#${idx + 1} 🔁 Ulangi (${b.count}x): Maju</span>`;
+            item.innerHTML = `<span class="truncate">#${idx + 1} 🔁 Ulangi (${b.count}x): Maju</span>`;
           } else if (b.type === 'JIKA_RINTANGAN') {
             item.classList.add('bg-purple-600');
-            item.innerHTML = `<span>#${idx + 1} ⚖️ Jika Rintangan ➔ Belok, Lainnya ➔ Maju</span>`;
+            item.innerHTML = `<span class="truncate">#${idx + 1} ⚖️ Jika Rintangan ➔ Belok, Lainnya ➔ Maju</span>`;
           }
+
+          // Tombol Kontrol: Pindah Atas, Pindah Bawah, Hapus (Bisa tukar urutan tanpa hapus dari awal)
+          const btnGroup = document.createElement('div');
+          btnGroup.className = 'flex items-center space-x-1 shrink-0 ml-2';
+
+          const btnUp = document.createElement('button');
+          btnUp.type = 'button';
+          btnUp.className = `p-1 text-white/80 hover:text-white hover:bg-white/20 rounded text-[11px] cursor-pointer ${idx === 0 ? 'opacity-30 cursor-not-allowed' : ''}`;
+          btnUp.title = 'Pindahkan balok ke atas';
+          btnUp.innerHTML = '⬆';
+          btnUp.disabled = idx === 0;
+          btnUp.onclick = (e) => {
+            e.stopPropagation();
+            if (idx > 0) {
+              const temp = studentBlocks[idx];
+              studentBlocks[idx] = studentBlocks[idx - 1];
+              studentBlocks[idx - 1] = temp;
+              renderWorkspace();
+              syncHiddenInput();
+              resetSim();
+            }
+          };
+          btnGroup.appendChild(btnUp);
+
+          const btnDown = document.createElement('button');
+          btnDown.type = 'button';
+          btnDown.className = `p-1 text-white/80 hover:text-white hover:bg-white/20 rounded text-[11px] cursor-pointer ${idx === studentBlocks.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}`;
+          btnDown.title = 'Pindahkan balok ke bawah';
+          btnDown.innerHTML = '⬇';
+          btnDown.disabled = idx === studentBlocks.length - 1;
+          btnDown.onclick = (e) => {
+            e.stopPropagation();
+            if (idx < studentBlocks.length - 1) {
+              const temp = studentBlocks[idx];
+              studentBlocks[idx] = studentBlocks[idx + 1];
+              studentBlocks[idx + 1] = temp;
+              renderWorkspace();
+              syncHiddenInput();
+              resetSim();
+            }
+          };
+          btnGroup.appendChild(btnDown);
 
           const btnDel = document.createElement('button');
           btnDel.type = 'button';
-          btnDel.className = 'text-white/80 hover:text-white ml-2 text-xs cursor-pointer';
+          btnDel.className = 'p-1 text-red-200 hover:text-white hover:bg-red-500/30 rounded text-[11px] cursor-pointer ml-0.5';
+          btnDel.title = 'Hapus balok';
           btnDel.innerHTML = '✕';
-          btnDel.onclick = () => {
+          btnDel.onclick = (e) => {
+            e.stopPropagation();
             studentBlocks.splice(idx, 1);
             renderWorkspace();
             syncHiddenInput();
             resetSim();
           };
-          item.appendChild(btnDel);
+          btnGroup.appendChild(btnDel);
 
+          item.appendChild(btnGroup);
           workspaceElem.appendChild(item);
         });
       }
@@ -3665,13 +3761,26 @@
           await new Promise(r => setTimeout(r, 220));
 
           if (robotState.x === finishPos.x && robotState.y === finishPos.y) {
-            updateSimStatus(true, '🎉 Robot sukses mencapai Garis Finish!');
-            isSimRunning = false;
-            return;
+            const allStarsCollected = stars.length === 0 || collectedStars.size >= stars.length;
+            if (!allStarsCollected) {
+              updateSimStatus(false, `🔒 Pintu Finish masih terkunci! Robot harus mengumpulkan semua ${stars.length} bintang terlebih dahulu (${collectedStars.size}/${stars.length} terkumpul).`);
+            } else {
+              updateSimStatus(true, '🎉 Robot sukses mengumpulkan semua target bintang dan mencapai Garis Finish!');
+              isSimRunning = false;
+              return;
+            }
           }
         }
 
-        updateSimStatus(false, '⚠️ Robot kehabisan langkah dan belum mencapai finish.');
+        const isAtFinish = (robotState.x === finishPos.x && robotState.y === finishPos.y);
+        const allStarsCollected = stars.length === 0 || collectedStars.size >= stars.length;
+        if (isAtFinish && allStarsCollected) {
+          updateSimStatus(true, '🎉 Robot sukses mengumpulkan semua target bintang dan mencapai Garis Finish!');
+        } else if (isAtFinish && !allStarsCollected) {
+          updateSimStatus(false, `🔒 Pintu Finish terkunci! Masih ada bintang yang belum dikumpulkan (${collectedStars.size}/${stars.length}).`);
+        } else {
+          updateSimStatus(false, '⚠️ Robot kehabisan langkah dan belum mencapai finish.');
+        }
         isSimRunning = false;
       }
 
@@ -3752,7 +3861,12 @@
         renderGrid();
 
         if (robotState.x === finishPos.x && robotState.y === finishPos.y) {
-          updateSimStatus(true, '🎉 Robot sukses mencapai Garis Finish!');
+          const allStarsCollected = stars.length === 0 || collectedStars.size >= stars.length;
+          if (!allStarsCollected) {
+            updateSimStatus(false, `🔒 Pintu Finish masih terkunci! Robot harus mengumpulkan semua ${stars.length} bintang (${collectedStars.size}/${stars.length} terkumpul).`);
+          } else {
+            updateSimStatus(true, '🎉 Robot sukses mengumpulkan semua bintang dan mencapai Garis Finish!');
+          }
         }
       }
 
@@ -3769,8 +3883,12 @@
           let starsCount = 1;
           if (collected === totalStars && blockCount <= parLimit) {
             starsCount = 3;
-          } else if (collected > 0 || blockCount <= parLimit + 2) {
+            st.textContent = `${msg} Kode Sempurna & Efisien (≤ ${parLimit} balok)!`;
+          } else if (collected === totalStars) {
             starsCount = 2;
+            st.textContent = `${msg} Berhasil, namun melampaui par efisiensi (${blockCount}/${parLimit} balok).`;
+          } else {
+            starsCount = 1;
           }
           sb.className = 'font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-700';
           sb.textContent = `⭐ ${starsCount} Bintang`;
@@ -4361,30 +4479,69 @@
               </div>
             ` : (isPg ? `
               <input type="hidden" name="soal_${s.id}" data-soal-id="${s.id}" id="input_pg_${s.id}" value="">
-              <div class="grid grid-cols-1 gap-2 pt-1 select-none" id="pg_options_container_${s.id}">
-                <button type="button" onclick="selectPgOption(${s.id}, 'A')" id="btn_pg_${s.id}_A" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-blue-300 hover:bg-slate-50 transition text-left cursor-pointer group">
-                  <span class="btn-pg-circle w-7 h-7 rounded-full bg-slate-100 group-hover:bg-blue-100 text-slate-700 group-hover:text-blue-700 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-300">A</span>
-                  <span class="text-xs sm:text-sm font-medium text-slate-800 leading-snug flex-1" dir="auto">${escapeHtml(s.opsi_a || '')}</span>
-                </button>
-                <button type="button" onclick="selectPgOption(${s.id}, 'B')" id="btn_pg_${s.id}_B" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-blue-300 hover:bg-slate-50 transition text-left cursor-pointer group">
-                  <span class="btn-pg-circle w-7 h-7 rounded-full bg-slate-100 group-hover:bg-blue-100 text-slate-700 group-hover:text-blue-700 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-300">B</span>
-                  <span class="text-xs sm:text-sm font-medium text-slate-800 leading-snug flex-1" dir="auto">${escapeHtml(s.opsi_b || '')}</span>
-                </button>
-                <button type="button" onclick="selectPgOption(${s.id}, 'C')" id="btn_pg_${s.id}_C" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-blue-300 hover:bg-slate-50 transition text-left cursor-pointer group">
-                  <span class="btn-pg-circle w-7 h-7 rounded-full bg-slate-100 group-hover:bg-blue-100 text-slate-700 group-hover:text-blue-700 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-300">C</span>
-                  <span class="text-xs sm:text-sm font-medium text-slate-800 leading-snug flex-1" dir="auto">${escapeHtml(s.opsi_c || '')}</span>
-                </button>
-                <button type="button" onclick="selectPgOption(${s.id}, 'D')" id="btn_pg_${s.id}_D" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-blue-300 hover:bg-slate-50 transition text-left cursor-pointer group">
-                  <span class="btn-pg-circle w-7 h-7 rounded-full bg-slate-100 group-hover:bg-blue-100 text-slate-700 group-hover:text-blue-700 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-300">D</span>
-                  <span class="text-xs sm:text-sm font-medium text-slate-800 leading-snug flex-1" dir="auto">${escapeHtml(s.opsi_d || '')}</span>
-                </button>
-                ${s.opsi_e ? `
-                <button type="button" onclick="selectPgOption(${s.id}, 'E')" id="btn_pg_${s.id}_E" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-blue-300 hover:bg-slate-50 transition text-left cursor-pointer group">
-                  <span class="btn-pg-circle w-7 h-7 rounded-full bg-slate-100 group-hover:bg-blue-100 text-slate-700 group-hover:text-blue-700 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-300">E</span>
-                  <span class="text-xs sm:text-sm font-medium text-slate-800 leading-snug flex-1" dir="auto">${escapeHtml(s.opsi_e)}</span>
-                </button>
-                ` : ''}
-              </div>
+              ${(s.tipe_pg === 'pg_kompleks' || (typeof s.kunci_pg === 'string' && (s.kunci_pg.includes(',') || s.kunci_pg.trim().length > 1))) ? `
+                <!-- Pilihan Ganda Kompleks (Multi-Select Checkbox) -->
+                <div class="flex items-center space-x-1.5 text-xs text-purple-800 bg-purple-50/80 px-2.5 py-1 rounded-xl border border-purple-200 mb-1">
+                  <span class="text-sm">☑️</span>
+                  <span class="font-bold text-[11px]">Pilihan Ganda Kompleks:</span>
+                  <span class="text-[11px] text-purple-700">Pilih satu atau lebih pernyataan/opsi yang benar</span>
+                </div>
+                <div class="grid grid-cols-1 gap-2 pt-1 select-none" id="pg_options_container_${s.id}">
+                  <button type="button" onclick="togglePgKompleksOption(${s.id}, 'A')" id="btn_pg_${s.id}_A" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-purple-300 hover:bg-slate-50 transition text-left cursor-pointer group">
+                    <span class="btn-pg-checkbox w-6 h-6 rounded-md bg-white border-2 border-slate-300 text-transparent font-black text-xs flex items-center justify-center shrink-0"></span>
+                    <span class="text-xs font-bold text-slate-700 shrink-0">A.</span>
+                    <span class="text-xs sm:text-sm font-medium text-slate-800 leading-snug flex-1" dir="auto">${escapeHtml(s.opsi_a || '')}</span>
+                  </button>
+                  <button type="button" onclick="togglePgKompleksOption(${s.id}, 'B')" id="btn_pg_${s.id}_B" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-purple-300 hover:bg-slate-50 transition text-left cursor-pointer group">
+                    <span class="btn-pg-checkbox w-6 h-6 rounded-md bg-white border-2 border-slate-300 text-transparent font-black text-xs flex items-center justify-center shrink-0"></span>
+                    <span class="text-xs font-bold text-slate-700 shrink-0">B.</span>
+                    <span class="text-xs sm:text-sm font-medium text-slate-800 leading-snug flex-1" dir="auto">${escapeHtml(s.opsi_b || '')}</span>
+                  </button>
+                  <button type="button" onclick="togglePgKompleksOption(${s.id}, 'C')" id="btn_pg_${s.id}_C" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-purple-300 hover:bg-slate-50 transition text-left cursor-pointer group">
+                    <span class="btn-pg-checkbox w-6 h-6 rounded-md bg-white border-2 border-slate-300 text-transparent font-black text-xs flex items-center justify-center shrink-0"></span>
+                    <span class="text-xs font-bold text-slate-700 shrink-0">C.</span>
+                    <span class="text-xs sm:text-sm font-medium text-slate-800 leading-snug flex-1" dir="auto">${escapeHtml(s.opsi_c || '')}</span>
+                  </button>
+                  <button type="button" onclick="togglePgKompleksOption(${s.id}, 'D')" id="btn_pg_${s.id}_D" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-purple-300 hover:bg-slate-50 transition text-left cursor-pointer group">
+                    <span class="btn-pg-checkbox w-6 h-6 rounded-md bg-white border-2 border-slate-300 text-transparent font-black text-xs flex items-center justify-center shrink-0"></span>
+                    <span class="text-xs font-bold text-slate-700 shrink-0">D.</span>
+                    <span class="text-xs sm:text-sm font-medium text-slate-800 leading-snug flex-1" dir="auto">${escapeHtml(s.opsi_d || '')}</span>
+                  </button>
+                  ${s.opsi_e ? `
+                  <button type="button" onclick="togglePgKompleksOption(${s.id}, 'E')" id="btn_pg_${s.id}_E" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-purple-300 hover:bg-slate-50 transition text-left cursor-pointer group">
+                    <span class="btn-pg-checkbox w-6 h-6 rounded-md bg-white border-2 border-slate-300 text-transparent font-black text-xs flex items-center justify-center shrink-0"></span>
+                    <span class="text-xs font-bold text-slate-700 shrink-0">E.</span>
+                    <span class="text-xs sm:text-sm font-medium text-slate-800 leading-snug flex-1" dir="auto">${escapeHtml(s.opsi_e)}</span>
+                  </button>
+                  ` : ''}
+                </div>
+              ` : `
+                <!-- Pilihan Ganda Biasa (Single Option) -->
+                <div class="grid grid-cols-1 gap-2 pt-1 select-none" id="pg_options_container_${s.id}">
+                  <button type="button" onclick="selectPgOption(${s.id}, 'A')" id="btn_pg_${s.id}_A" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-blue-300 hover:bg-slate-50 transition text-left cursor-pointer group">
+                    <span class="btn-pg-circle w-7 h-7 rounded-full bg-slate-100 group-hover:bg-blue-100 text-slate-700 group-hover:text-blue-700 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-300">A</span>
+                    <span class="text-xs sm:text-sm font-medium text-slate-800 leading-snug flex-1" dir="auto">${escapeHtml(s.opsi_a || '')}</span>
+                  </button>
+                  <button type="button" onclick="selectPgOption(${s.id}, 'B')" id="btn_pg_${s.id}_B" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-blue-300 hover:bg-slate-50 transition text-left cursor-pointer group">
+                    <span class="btn-pg-circle w-7 h-7 rounded-full bg-slate-100 group-hover:bg-blue-100 text-slate-700 group-hover:text-blue-700 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-300">B</span>
+                    <span class="text-xs sm:text-sm font-medium text-slate-800 leading-snug flex-1" dir="auto">${escapeHtml(s.opsi_b || '')}</span>
+                  </button>
+                  <button type="button" onclick="selectPgOption(${s.id}, 'C')" id="btn_pg_${s.id}_C" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-blue-300 hover:bg-slate-50 transition text-left cursor-pointer group">
+                    <span class="btn-pg-circle w-7 h-7 rounded-full bg-slate-100 group-hover:bg-blue-100 text-slate-700 group-hover:text-blue-700 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-300">C</span>
+                    <span class="text-xs sm:text-sm font-medium text-slate-800 leading-snug flex-1" dir="auto">${escapeHtml(s.opsi_c || '')}</span>
+                  </button>
+                  <button type="button" onclick="selectPgOption(${s.id}, 'D')" id="btn_pg_${s.id}_D" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-blue-300 hover:bg-slate-50 transition text-left cursor-pointer group">
+                    <span class="btn-pg-circle w-7 h-7 rounded-full bg-slate-100 group-hover:bg-blue-100 text-slate-700 group-hover:text-blue-700 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-300">D</span>
+                    <span class="text-xs sm:text-sm font-medium text-slate-800 leading-snug flex-1" dir="auto">${escapeHtml(s.opsi_d || '')}</span>
+                  </button>
+                  ${s.opsi_e ? `
+                  <button type="button" onclick="selectPgOption(${s.id}, 'E')" id="btn_pg_${s.id}_E" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-blue-300 hover:bg-slate-50 transition text-left cursor-pointer group">
+                    <span class="btn-pg-circle w-7 h-7 rounded-full bg-slate-100 group-hover:bg-blue-100 text-slate-700 group-hover:text-blue-700 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-300">E</span>
+                    <span class="text-xs sm:text-sm font-medium text-slate-800 leading-snug flex-1" dir="auto">${escapeHtml(s.opsi_e)}</span>
+                  </button>
+                  ` : ''}
+                </div>
+              `}
             ` : `
               ${showSymbols ? `
               <div class="flex items-center space-x-1 overflow-x-auto no-scrollbar py-0.5 text-xs select-none">
@@ -4441,7 +4598,13 @@
         }
         // Jika soal pilihan ganda, sinkronkan pilihan opsi aktif
         if (soalItem && soalItem.jenis === 'pilihan_ganda' && input.value) {
-          window.selectPgOption(sId, input.value, false);
+          const isKompleks = (soalItem.tipe_pg === 'pg_kompleks') ||
+            (typeof soalItem.kunci_pg === 'string' && (soalItem.kunci_pg.includes(',') || soalItem.kunci_pg.trim().length > 1));
+          if (isKompleks) {
+            window.syncPgKompleksUI(sId, input.value);
+          } else {
+            window.selectPgOption(sId, input.value, false);
+          }
         }
         // Jika soal koding_game, inisialisasi controller interaktif koding
         if (soalItem && soalItem.jenis === 'koding_game') {

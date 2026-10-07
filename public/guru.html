@@ -3372,15 +3372,75 @@
 
       <!-- Form Pengaturan Generator -->
       <form id="form-generate-ai-pg" class="space-y-3 text-xs">
+        <!-- Pilihan Mode Sumber Pembuatan Soal -->
         <div>
-          <label class="block font-bold text-slate-700 mb-1">Materi / Topik Pembelajaran:</label>
-          <input type="text" id="ai-pg-topik" required placeholder="Contoh: Termodinamika Fisika SMA, Sistem Ekskresi Biologi, Vocabulary TOEFL..." class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
+          <label class="block font-bold text-slate-800 mb-1.5">Pilih Sumber Pembuatan Soal PG</label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+            <label class="flex items-start space-x-2 p-2.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition" id="ai-pg-label-mode-topik">
+              <input type="radio" name="ai_pg_mode" value="topik" checked class="mt-0.5 text-teal-600 focus:ring-teal-500" onchange="toggleAiPgMode('topik')">
+              <div>
+                <span class="font-bold text-slate-800 block">Mode A: Dari Topik Singkat</span>
+                <span class="text-[11px] text-slate-500 block">AI menyusun soal berdasarkan nama tema materi</span>
+              </div>
+            </label>
+            <label class="flex items-start space-x-2 p-2.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition" id="ai-pg-label-mode-teks">
+              <input type="radio" name="ai_pg_mode" value="teks_materi" class="mt-0.5 text-teal-600 focus:ring-teal-500" onchange="toggleAiPgMode('teks_materi')">
+              <div>
+                <span class="font-bold text-slate-800 block">Mode B: Dari Teks Panjang / Berkas</span>
+                <span class="text-[11px] text-slate-500 block">Ekstrak teks materi (PDF/DOCX/TXT/Excel) atau tempel bacaan</span>
+              </div>
+            </label>
+          </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <!-- Input Topik (Mode A) -->
+        <div id="ai-pg-group-topik">
+          <label class="block font-bold text-slate-700 mb-1">Materi / Topik Pembelajaran:</label>
+          <input type="text" id="ai-pg-topik" placeholder="Contoh: Termodinamika Fisika SMA, Sistem Ekskresi Biologi, Vocabulary TOEFL..." class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
+        </div>
+
+        <!-- Input Teks Materi & Upload Berkas (Mode B) -->
+        <div id="ai-pg-group-teks" class="hidden space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="block font-bold text-slate-700">Teks Bahan Ajar / Bacaan Rujukan:</label>
+            <span class="text-[11px] text-teal-700 font-medium">Bisa Tempel Teks Panjang atau Upload Dokumen</span>
+          </div>
+
+          <!-- Area Upload Dokumen Dropzone -->
+          <div id="ai-pg-dropzone-file" class="border-2 border-dashed border-teal-300 hover:border-teal-500 bg-teal-50/50 hover:bg-teal-50/80 rounded-xl p-3 text-center cursor-pointer transition relative">
+            <input type="file" id="ai-pg-input-file" accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.md" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+            <div id="ai-pg-dropzone-idle" class="flex items-center justify-center space-x-2.5">
+              <span class="text-2xl">📄</span>
+              <div class="text-left">
+                <p class="text-xs font-bold text-slate-800">Upload Berkas Materi (PDF, Word, Excel, CSV, TXT)</p>
+                <p class="text-[11px] text-slate-500">Klik atau seret file ke sini untuk mengekstrak teks otomatis</p>
+              </div>
+            </div>
+            <div id="ai-pg-dropzone-loading" class="hidden py-1 flex items-center justify-center space-x-2 text-teal-700">
+              <div class="animate-spin rounded-full h-4 w-4 border-2 border-teal-300 border-t-teal-600"></div>
+              <span class="text-xs font-bold" id="ai-pg-dropzone-status-text">Mengekstrak teks dokumen...</span>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between text-[11px]">
+            <span id="ai-pg-file-meta-info" class="text-slate-500">Atau tempel teks bacaan secara manual di bawah ini:</span>
+            <button type="button" id="btn-clear-ai-pg-teks" onclick="clearAiPgTeks()" class="hidden text-rose-600 hover:text-rose-800 font-semibold cursor-pointer">✕ Bersihkan Teks</button>
+          </div>
+          <textarea id="ai-pg-materi-teks" rows="4" placeholder="Tempelkan paragraf materi, naskah bacaan, atau artikel yang ingin dijadikan sumber soal pilihan ganda di sini..." class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-sans leading-relaxed"></textarea>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-5 gap-2.5">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Tipe Soal PG:</label>
+            <select id="ai-pg-tipe-soal" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-xs">
+              <option value="pg_biasa" selected>🎯 PG Biasa (1 Kunci)</option>
+              <option value="pg_kompleks">☑️ PG Kompleks (Multi-Jawaban)</option>
+              <option value="campuran">⚖️ Campuran Berimbang</option>
+            </select>
+          </div>
           <div>
             <label class="block font-semibold text-slate-700 mb-1">Jumlah Soal:</label>
-            <select id="ai-pg-jumlah" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
+            <select id="ai-pg-jumlah" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-xs">
               <option value="5" selected>5 Butir Soal</option>
               <option value="10">10 Butir Soal</option>
               <option value="15">15 Butir Soal</option>
@@ -3389,23 +3449,23 @@
           </div>
           <div>
             <label class="block font-semibold text-slate-700 mb-1">Pilihan Opsi:</label>
-            <select id="ai-pg-opsi-count" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
+            <select id="ai-pg-opsi-count" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-xs">
               <option value="4" selected>4 Opsi (A - D)</option>
               <option value="5">5 Opsi (A - E)</option>
             </select>
           </div>
           <div>
             <label class="block font-semibold text-slate-700 mb-1">Tingkat Kesulitan:</label>
-            <select id="ai-pg-kesulitan" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
+            <select id="ai-pg-kesulitan" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-xs">
               <option value="sedang" selected>🟡 Sedang</option>
               <option value="mudah">🟢 Mudah</option>
               <option value="sulit">🔴 Sulit (HOTS)</option>
-              <option value="campuran">⚖️ Campuran Berimbang</option>
+              <option value="campuran">⚖️ Campuran</option>
             </select>
           </div>
           <div>
-            <label class="block font-semibold text-slate-700 mb-1">Bahasa Pengantar:</label>
-            <select id="ai-pg-bahasa" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
+            <label class="block font-semibold text-slate-700 mb-1">Bahasa:</label>
+            <select id="ai-pg-bahasa" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-xs">
               <option value="Bahasa Indonesia" selected>Bahasa Indonesia</option>
               <option value="Bahasa Inggris">English</option>
               <option value="Bahasa Arab">العربية</option>
@@ -3415,7 +3475,7 @@
 
         <div>
           <label class="block font-semibold text-slate-700 mb-1">Instruksi Tambahan (Opsional):</label>
-          <input type="text" id="ai-pg-instruksi" placeholder="Contoh: Fokus pada soal studi kasus kontekstual, jangan buat soal ingatan hafalan semata..." class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs">
+          <input type="text" id="ai-pg-instruksi" placeholder="Contoh: Fokus pada soal studi kasus kontekstual, buat stimulus bacaan menarik..." class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs">
         </div>
 
         <div class="flex justify-end pt-1">
@@ -3580,6 +3640,24 @@
                 <button type="button" onclick="setCgBrush('star')" id="cg-brush-star" class="cg-brush-btn px-2 py-1 bg-white rounded shadow-2xs font-semibold text-amber-600 border border-slate-200">⭐ Bintang</button>
                 <button type="button" onclick="setCgBrush('empty')" id="cg-brush-empty" class="cg-brush-btn px-2 py-1 bg-white rounded shadow-2xs font-semibold text-slate-500 border border-slate-200">⬜ Kosong</button>
               </div>
+            </div>
+
+            <!-- Generator Arena Acak Solvable & Pengaturan Target/Rintangan -->
+            <div class="bg-indigo-50/70 border border-indigo-200 rounded-xl p-2.5 flex items-center justify-between flex-wrap gap-2 text-xs">
+              <div class="flex items-center space-x-3 flex-wrap gap-y-1">
+                <div class="flex items-center space-x-1.5">
+                  <span class="font-bold text-indigo-950">⭐ Target Bintang:</span>
+                  <input type="number" id="cg-star-count" value="2" min="1" max="6" class="w-12 px-2 py-1 border border-slate-300 rounded-lg text-center font-bold bg-white text-xs">
+                </div>
+                <div class="flex items-center space-x-1.5">
+                  <span class="font-bold text-indigo-950">🧱 Rintangan:</span>
+                  <input type="number" id="cg-obstacle-count" value="3" min="0" max="12" class="w-12 px-2 py-1 border border-slate-300 rounded-lg text-center font-bold bg-white text-xs">
+                </div>
+                <span class="text-[11px] text-indigo-700 italic">Pintu finish terkunci sampai semua bintang tercapai</span>
+              </div>
+              <button type="button" onclick="generateSolvableCgGrid()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-lg shadow-2xs transition flex items-center space-x-1.5 cursor-pointer text-xs">
+                <span>🎲</span><span>Acak Arena (Jalur Dijamin Terbuka)</span>
+              </button>
             </div>
 
             <!-- Interaktif Editor Arena Grid & Simulator Grid -->
@@ -5362,29 +5440,35 @@
                 <span>${parsedGameData?.subtipe === 'scratch_puzzle' ? 'Mencocokkan balok kejadian Scratch dengan balok aksi yang tepat.' : 'Mengarahkan robot menuju titik finish dengan langkah efisien.'}</span>
               </div>
             </div>
-          ` : (isPg ? `
+          ` : (isPg ? (() => {
+            const keys = (s.kunci_pg || s.kunci_jawaban || '').split(',').map(x => x.trim().toUpperCase());
+            const isKompleks = s.tipe_pg === 'pg_kompleks' || keys.length > 1;
+            return `
             <div class="p-2.5 bg-blue-50/70 rounded-lg border border-blue-200 text-xs space-y-1.5 my-1.5">
-              <div class="font-semibold text-blue-900 text-[11px] mb-1">Pilihan Jawaban (A-D/E):</div>
+              <div class="flex items-center justify-between">
+                <span class="font-semibold text-blue-900 text-[11px]">Pilihan Jawaban (A-D/E):</span>
+                ${isKompleks ? '<span class="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">☑️ PG Kompleks</span>' : ''}
+              </div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                <div class="flex items-start space-x-1.5 ${s.kunci_pg === 'A' ? 'font-bold text-emerald-800' : 'text-slate-700'}">
-                  <span class="w-4 h-4 rounded-full text-center text-[10px] leading-4 font-bold shrink-0 ${s.kunci_pg === 'A' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}">A</span>
+                <div class="flex items-start space-x-1.5 ${keys.includes('A') ? 'font-bold text-emerald-800' : 'text-slate-700'}">
+                  <span class="w-4 h-4 rounded-full text-center text-[10px] leading-4 font-bold shrink-0 ${keys.includes('A') ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}">A</span>
                   <span>${escapeHtml(s.opsi_a || '-')}</span>
                 </div>
-                <div class="flex items-start space-x-1.5 ${s.kunci_pg === 'B' ? 'font-bold text-emerald-800' : 'text-slate-700'}">
-                  <span class="w-4 h-4 rounded-full text-center text-[10px] leading-4 font-bold shrink-0 ${s.kunci_pg === 'B' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}">B</span>
+                <div class="flex items-start space-x-1.5 ${keys.includes('B') ? 'font-bold text-emerald-800' : 'text-slate-700'}">
+                  <span class="w-4 h-4 rounded-full text-center text-[10px] leading-4 font-bold shrink-0 ${keys.includes('B') ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}">B</span>
                   <span>${escapeHtml(s.opsi_b || '-')}</span>
                 </div>
-                <div class="flex items-start space-x-1.5 ${s.kunci_pg === 'C' ? 'font-bold text-emerald-800' : 'text-slate-700'}">
-                  <span class="w-4 h-4 rounded-full text-center text-[10px] leading-4 font-bold shrink-0 ${s.kunci_pg === 'C' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}">C</span>
+                <div class="flex items-start space-x-1.5 ${keys.includes('C') ? 'font-bold text-emerald-800' : 'text-slate-700'}">
+                  <span class="w-4 h-4 rounded-full text-center text-[10px] leading-4 font-bold shrink-0 ${keys.includes('C') ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}">C</span>
                   <span>${escapeHtml(s.opsi_c || '-')}</span>
                 </div>
-                <div class="flex items-start space-x-1.5 ${s.kunci_pg === 'D' ? 'font-bold text-emerald-800' : 'text-slate-700'}">
-                  <span class="w-4 h-4 rounded-full text-center text-[10px] leading-4 font-bold shrink-0 ${s.kunci_pg === 'D' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}">D</span>
+                <div class="flex items-start space-x-1.5 ${keys.includes('D') ? 'font-bold text-emerald-800' : 'text-slate-700'}">
+                  <span class="w-4 h-4 rounded-full text-center text-[10px] leading-4 font-bold shrink-0 ${keys.includes('D') ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}">D</span>
                   <span>${escapeHtml(s.opsi_d || '-')}</span>
                 </div>
                 ${s.opsi_e ? `
-                <div class="flex items-start space-x-1.5 ${s.kunci_pg === 'E' ? 'font-bold text-emerald-800' : 'text-slate-700'}">
-                  <span class="w-4 h-4 rounded-full text-center text-[10px] leading-4 font-bold shrink-0 ${s.kunci_pg === 'E' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}">E</span>
+                <div class="flex items-start space-x-1.5 ${keys.includes('E') ? 'font-bold text-emerald-800' : 'text-slate-700'}">
+                  <span class="w-4 h-4 rounded-full text-center text-[10px] leading-4 font-bold shrink-0 ${keys.includes('E') ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}">E</span>
                   <span>${escapeHtml(s.opsi_e)}</span>
                 </div>
                 ` : ''}
@@ -5393,11 +5477,12 @@
             <div class="bg-white p-2 rounded border border-slate-200 text-slate-600 flex items-center justify-between" dir="auto">
               <div>
                 <strong class="text-slate-500">Kunci Jawaban:</strong>
-                <span class="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-300 ml-1">Pilihan ${s.kunci_pg || s.kunci_jawaban || '-'}</span>
+                <span class="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-300 ml-1">Pilihan ${escapeHtml(s.kunci_pg || s.kunci_jawaban || '-')}</span>
               </div>
               <span class="text-[10px] text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 font-semibold">⚡ Koreksi Otomatis</span>
             </div>
-          ` : `
+            `;
+          })() : `
             <div class="bg-white p-2 rounded border border-slate-200 text-slate-600" dir="auto">
               <strong class="text-slate-500">Kunci Acuan:</strong> ${s.kunci_jawaban || '(Kosong - AI akan menilai berdasarkan konsep pertanyaan)'}
             </div>
@@ -9118,27 +9203,30 @@
             <p class="font-medium text-slate-800 leading-relaxed text-sm" dir="auto">${item.pertanyaan}</p>
 
             <!-- Khusus Soal Pilihan Ganda: Render Opsi Jawaban -->
-            ${item.jenis === 'pilihan_ganda' ? `
+            ${item.jenis === 'pilihan_ganda' ? (() => {
+              const keys = (item.kunci_pg || item.kunci_jawaban || '').split(',').map(x => x.trim().toUpperCase());
+              return `
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 p-2.5 bg-teal-50/60 rounded-xl border border-teal-200 text-xs">
-                <div class="${(item.kunci_pg === 'A' || item.kunci_jawaban === 'A') ? 'font-bold text-teal-900 bg-teal-100 px-2 py-1 rounded border border-teal-300' : 'text-slate-700 px-2 py-1'}">
+                <div class="${keys.includes('A') ? 'font-bold text-teal-900 bg-teal-100 px-2 py-1 rounded border border-teal-300' : 'text-slate-700 px-2 py-1'}">
                   <strong>A.</strong> ${escapeHtml(item.opsi_a || '-')}
                 </div>
-                <div class="${(item.kunci_pg === 'B' || item.kunci_jawaban === 'B') ? 'font-bold text-teal-900 bg-teal-100 px-2 py-1 rounded border border-teal-300' : 'text-slate-700 px-2 py-1'}">
+                <div class="${keys.includes('B') ? 'font-bold text-teal-900 bg-teal-100 px-2 py-1 rounded border border-teal-300' : 'text-slate-700 px-2 py-1'}">
                   <strong>B.</strong> ${escapeHtml(item.opsi_b || '-')}
                 </div>
-                <div class="${(item.kunci_pg === 'C' || item.kunci_jawaban === 'C') ? 'font-bold text-teal-900 bg-teal-100 px-2 py-1 rounded border border-teal-300' : 'text-slate-700 px-2 py-1'}">
+                <div class="${keys.includes('C') ? 'font-bold text-teal-900 bg-teal-100 px-2 py-1 rounded border border-teal-300' : 'text-slate-700 px-2 py-1'}">
                   <strong>C.</strong> ${escapeHtml(item.opsi_c || '-')}
                 </div>
-                <div class="${(item.kunci_pg === 'D' || item.kunci_jawaban === 'D') ? 'font-bold text-teal-900 bg-teal-100 px-2 py-1 rounded border border-teal-300' : 'text-slate-700 px-2 py-1'}">
+                <div class="${keys.includes('D') ? 'font-bold text-teal-900 bg-teal-100 px-2 py-1 rounded border border-teal-300' : 'text-slate-700 px-2 py-1'}">
                   <strong>D.</strong> ${escapeHtml(item.opsi_d || '-')}
                 </div>
                 ${item.opsi_e ? `
-                  <div class="${(item.kunci_pg === 'E' || item.kunci_jawaban === 'E') ? 'font-bold text-teal-900 bg-teal-100 px-2 py-1 rounded border border-teal-300 sm:col-span-2' : 'text-slate-700 px-2 py-1 sm:col-span-2'}">
+                  <div class="${keys.includes('E') ? 'font-bold text-teal-900 bg-teal-100 px-2 py-1 rounded border border-teal-300 sm:col-span-2' : 'text-slate-700 px-2 py-1 sm:col-span-2'}">
                     <strong>E.</strong> ${escapeHtml(item.opsi_e)}
                   </div>
                 ` : ''}
               </div>
-            ` : ''}
+            `;
+            })() : ''}
 
             <!-- Khusus Game Koding: Render Info Level & Tombol Uji Coba -->
             ${item.jenis === 'koding_game' ? `
@@ -12364,14 +12452,115 @@
     }
     window.openAiPgGeneratorModal = openAiPgGeneratorModal;
 
+    let aiPgCurrentMode = 'topik';
+    window.toggleAiPgMode = (mode) => {
+      aiPgCurrentMode = mode;
+      const groupTopik = document.getElementById('ai-pg-group-topik');
+      const groupTeks = document.getElementById('ai-pg-group-teks');
+      if (mode === 'topik') {
+        if (groupTopik) groupTopik.classList.remove('hidden');
+        if (groupTeks) groupTeks.classList.add('hidden');
+      } else {
+        if (groupTopik) groupTopik.classList.add('hidden');
+        if (groupTeks) groupTeks.classList.remove('hidden');
+      }
+    };
+
+    window.clearAiPgTeks = () => {
+      const txt = document.getElementById('ai-pg-materi-teks');
+      const info = document.getElementById('ai-pg-file-meta-info');
+      const btnClear = document.getElementById('btn-clear-ai-pg-teks');
+      if (txt) txt.value = '';
+      if (info) {
+        info.textContent = 'Atau tempel teks bacaan secara manual di bawah ini:';
+        info.className = 'text-slate-500';
+      }
+      if (btnClear) btnClear.classList.add('hidden');
+    };
+
+    const aiPgInputFile = document.getElementById('ai-pg-input-file');
+    const aiPgDropzoneIdle = document.getElementById('ai-pg-dropzone-idle');
+    const aiPgDropzoneLoading = document.getElementById('ai-pg-dropzone-loading');
+    const aiPgDropzoneStatusText = document.getElementById('ai-pg-dropzone-status-text');
+    const aiPgFileMetaInfo = document.getElementById('ai-pg-file-meta-info');
+    const btnClearAiPgTeks = document.getElementById('btn-clear-ai-pg-teks');
+    const aiPgMateriTeks = document.getElementById('ai-pg-materi-teks');
+
+    if (aiPgInputFile) {
+      aiPgInputFile.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > 25 * 1024 * 1024) {
+          alert('Ukuran berkas terlalu besar (maksimal 25MB).');
+          aiPgInputFile.value = '';
+          return;
+        }
+
+        if (aiPgDropzoneIdle) aiPgDropzoneIdle.classList.add('hidden');
+        if (aiPgDropzoneLoading) aiPgDropzoneLoading.classList.remove('hidden');
+        if (aiPgDropzoneStatusText) aiPgDropzoneStatusText.textContent = `Mengekstrak berkas "${file.name}"...`;
+
+        try {
+          const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+
+          const res = await guruFetch('/api/guru/parse-file', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ base64, filename: file.name })
+          });
+
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.message || 'Gagal mengekstrak berkas');
+          }
+
+          if (aiPgMateriTeks) aiPgMateriTeks.value = data.text;
+          if (aiPgFileMetaInfo) {
+            aiPgFileMetaInfo.textContent = `📄 ${file.name} (${(file.size / 1024).toFixed(1)} KB) • ${data.charCount} karakter terekstrak`;
+            aiPgFileMetaInfo.className = 'text-teal-700 font-semibold';
+          }
+          if (btnClearAiPgTeks) btnClearAiPgTeks.classList.remove('hidden');
+        } catch (err) {
+          alert('Gagal mengekstrak isi dokumen: ' + err.message);
+          if (aiPgFileMetaInfo) {
+            aiPgFileMetaInfo.textContent = 'Gagal memproses dokumen';
+            aiPgFileMetaInfo.className = 'text-rose-600 font-medium';
+          }
+        } finally {
+          if (aiPgDropzoneIdle) aiPgDropzoneIdle.classList.remove('hidden');
+          if (aiPgDropzoneLoading) aiPgDropzoneLoading.classList.add('hidden');
+          aiPgInputFile.value = '';
+        }
+      });
+    }
+
     if (btnOpenAiPgGenerator) btnOpenAiPgGenerator.onclick = () => openAiPgGeneratorModal('ulangan');
     if (btnCloseAiPgModal) btnCloseAiPgModal.onclick = () => modalAiPgGenerator.classList.add('hidden');
 
     if (formGenerateAiPg) {
       formGenerateAiPg.onsubmit = async (e) => {
         e.preventDefault();
-        const topik = aiPgTopik?.value?.trim();
-        if (!topik) return;
+        const isModeTeks = (aiPgCurrentMode === 'teks_materi');
+        const topikVal = aiPgTopik?.value?.trim() || '';
+        const materiVal = aiPgMateriTeks?.value?.trim() || '';
+        const tipePgVal = document.getElementById('ai-pg-tipe-soal')?.value || 'pg_biasa';
+
+        if (!isModeTeks && !topikVal) {
+          alert('Silakan isi topik atau nama materi pembelajaran.');
+          aiPgTopik?.focus();
+          return;
+        }
+        if (isModeTeks && !materiVal) {
+          alert('Silakan tempel teks bahan ajar atau upload dokumen rujukan.');
+          aiPgMateriTeks?.focus();
+          return;
+        }
 
         btnSubmitGeneratePg.disabled = true;
         btnGeneratePgIcon.textContent = '⏳';
@@ -12379,7 +12568,9 @@
 
         try {
           const payload = {
-            topik: topik,
+            topik: isModeTeks ? (topikVal || 'Bahan Ajar Bacaan') : topikVal,
+            materi_teks: isModeTeks ? materiVal : null,
+            tipe_pg: tipePgVal,
             jumlah_soal: Number(aiPgJumlah?.value) || 5,
             opsi_count: Number(aiPgOpsiCount?.value) || 4,
             tingkat_kesulitan: aiPgKesulitan?.value || 'sedang',
@@ -12415,14 +12606,20 @@
       generatedAiPgList.forEach((q, idx) => {
         const item = document.createElement('div');
         item.className = 'p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs';
+        const isKompleks = (q.kunci_pg && (q.kunci_pg.includes(',') || q.kunci_pg.trim().length > 1)) || q.tipe_pg === 'pg_kompleks';
+        const typeBadge = isKompleks 
+          ? '<span class="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">☑️ PG Kompleks</span>' 
+          : '<span class="text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">🎯 PG Biasa</span>';
+
         item.innerHTML = `
           <div class="flex items-start justify-between gap-2">
             <div class="flex items-center space-x-2">
               <input type="checkbox" checked value="${idx}" class="chk-ai-pg w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer" onchange="updateAiPgCount()">
               <span class="font-bold text-slate-700">#${idx + 1}</span>
-              <span class="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Kunci: ${q.kunci_pg}</span>
+              ${typeBadge}
+              <span class="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Kunci: ${escapeHtml(q.kunci_pg)}</span>
             </div>
-            <span class="text-[10px] text-slate-400 capitalize">${q.tingkat_kesulitan || 'sedang'}</span>
+            <span class="text-[10px] text-slate-400 capitalize">${escapeHtml(q.tingkat_kesulitan || 'sedang')}</span>
           </div>
           <p class="font-medium text-slate-900 leading-relaxed">${escapeHtml(q.pertanyaan)}</p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] text-slate-700 pl-4 border-l-2 border-slate-300">
@@ -12473,23 +12670,27 @@
 
           try {
             const defaultKategori = aiPgTopik?.value?.trim() || 'Umum';
-            const bulkPayload = selectedQuestions.map(q => ({
-              kategori: q.kategori || defaultKategori,
-              sub_topik: null,
-              tingkat_kelas: 'SMP',
-              jenis: 'pilihan_ganda',
-              pertanyaan: q.pertanyaan,
-              kunci_jawaban: q.kunci_pg,
-              pembahasan: q.pembahasan || null,
-              tingkat_kesulitan: q.tingkat_kesulitan || 'sedang',
-              bobot_standar: Number(q.bobot || 10),
-              opsi_a: q.opsi_a,
-              opsi_b: q.opsi_b,
-              opsi_c: q.opsi_c,
-              opsi_d: q.opsi_d,
-              opsi_e: q.opsi_e || null,
-              kunci_pg: q.kunci_pg
-            }));
+            const bulkPayload = selectedQuestions.map(q => {
+              const isKompleks = (q.kunci_pg && (q.kunci_pg.includes(',') || q.kunci_pg.trim().length > 1)) || q.tipe_pg === 'pg_kompleks';
+              return {
+                kategori: q.kategori || defaultKategori,
+                sub_topik: null,
+                tingkat_kelas: 'SMP',
+                jenis: 'pilihan_ganda',
+                tipe_pg: isKompleks ? 'pg_kompleks' : 'pg_biasa',
+                pertanyaan: q.pertanyaan,
+                kunci_jawaban: q.kunci_pg,
+                pembahasan: q.pembahasan || null,
+                tingkat_kesulitan: q.tingkat_kesulitan || 'sedang',
+                bobot_standar: Number(q.bobot || 10),
+                opsi_a: q.opsi_a,
+                opsi_b: q.opsi_b,
+                opsi_c: q.opsi_c,
+                opsi_d: q.opsi_d,
+                opsi_e: q.opsi_e || null,
+                kunci_pg: q.kunci_pg
+              };
+            });
 
             const res = await guruFetch('/api/guru/bank-soal/bulk', {
               method: 'POST',
@@ -12523,8 +12724,10 @@
 
         try {
           for (const q of selectedQuestions) {
+            const isKompleks = (q.kunci_pg && (q.kunci_pg.includes(',') || q.kunci_pg.trim().length > 1)) || q.tipe_pg === 'pg_kompleks';
             const payload = {
               jenis: 'pilihan_ganda',
+              tipe_pg: isKompleks ? 'pg_kompleks' : 'pg_biasa',
               tingkat_kesulitan: q.tingkat_kesulitan || 'sedang',
               bobot: Number(q.bobot || 5),
               pertanyaan: q.pertanyaan,
@@ -12895,6 +13098,117 @@
       resetCgTestSim();
     }
 
+    function generateSolvableCgGrid() {
+      const w = cgCurrentConfig.grid_width || 5;
+      const h = cgCurrentConfig.grid_height || 5;
+      const targetStarCount = Math.max(1, Math.min(6, Number(document.getElementById('cg-star-count')?.value) || 2));
+      const targetObstacleCount = Math.max(0, Math.min(Math.floor((w * h) / 3), Number(document.getElementById('cg-obstacle-count')?.value) || 3));
+
+      const start = { x: 0, y: h - 1 };
+      const finish = { x: w - 1, y: 0 };
+      cgCurrentConfig.start_pos = start;
+      cgCurrentConfig.start_dir = 'N';
+      cgCurrentConfig.finish_pos = finish;
+
+      // Helper verifikasi ketercapaian jalur (BFS Connectivity Check)
+      const isSolvable = (gridMatrix, starsList) => {
+        const visited = Array(h).fill(0).map(() => Array(w).fill(false));
+        const queue = [{ x: start.x, y: start.y }];
+        visited[start.y][start.x] = true;
+
+        const dirs = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }];
+        while (queue.length > 0) {
+          const curr = queue.shift();
+          for (const d of dirs) {
+            const nx = curr.x + d.dx;
+            const ny = curr.y + d.dy;
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h && !visited[ny][nx]) {
+              if (gridMatrix[ny][nx] !== 'wall') {
+                visited[ny][nx] = true;
+                queue.push({ x: nx, y: ny });
+              }
+            }
+          }
+        }
+
+        // Garis finish harus dapat dijangkau
+        if (!visited[finish.y][finish.x]) return false;
+        // Semua bintang target harus dapat dijangkau
+        for (const s of starsList) {
+          if (!visited[s.y][s.x]) return false;
+        }
+        return true;
+      };
+
+      // Inisialisasi peta arena kosong
+      let grid = Array(h).fill(0).map(() => Array(w).fill('empty'));
+      grid[start.y][start.x] = 'start';
+      grid[finish.y][finish.x] = 'finish';
+
+      // Kumpulkan kandidat kotak kosong selain Start dan Finish
+      const candidates = [];
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          if ((x !== start.x || y !== start.y) && (x !== finish.x || y !== finish.y)) {
+            candidates.push({ x, y });
+          }
+        }
+      }
+
+      // Acak kandidat (Fisher-Yates shuffle)
+      for (let i = candidates.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+      }
+
+      const stars = candidates.slice(0, targetStarCount);
+      stars.forEach(s => {
+        grid[s.y][s.x] = 'star';
+      });
+
+      const remainingCandidates = candidates.slice(targetStarCount);
+      let obstaclesPlaced = 0;
+
+      for (const cand of remainingCandidates) {
+        if (obstaclesPlaced >= targetObstacleCount) break;
+        // Coba tempatkan rintangan
+        grid[cand.y][cand.x] = 'wall';
+        if (isSolvable(grid, stars)) {
+          obstaclesPlaced++;
+        } else {
+          // Batalkan penempatan jika memutus jalur
+          grid[cand.y][cand.x] = 'empty';
+        }
+      }
+
+      cgCurrentConfig.stars = stars;
+      cgCurrentConfig.grid = grid;
+      cgCurrentConfig.obstacles = [];
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          if (grid[y][x] === 'wall') {
+            cgCurrentConfig.obstacles.push({ x, y });
+          }
+        }
+      }
+
+      // Hitung rekomendasi batas par langkah efisien
+      let approxDist = Math.abs(start.x - (stars[0]?.x || 0)) + Math.abs(start.y - (stars[0]?.y || 0));
+      for (let i = 0; i < stars.length - 1; i++) {
+        approxDist += Math.abs(stars[i].x - stars[i+1].x) + Math.abs(stars[i].y - stars[i+1].y);
+      }
+      const lastStar = stars[stars.length - 1] || start;
+      approxDist += Math.abs(lastStar.x - finish.x) + Math.abs(lastStar.y - finish.y);
+      const recommendedPar = Math.max(5, approxDist + Math.ceil(obstaclesPlaced / 2) + 2);
+      cgCurrentConfig.par_limit = recommendedPar;
+      const parInput = document.getElementById('cg-par-limit');
+      if (parInput) parInput.value = recommendedPar;
+
+      renderCgInteractiveGrid();
+      resetCgTestSim();
+    }
+    window.generateSolvableCgGrid = generateSolvableCgGrid;
+
     function renderCgInteractiveGrid() {
       const container = document.getElementById('cg-interactive-grid');
       const badge = document.getElementById('cg-grid-info-badge');
@@ -12923,8 +13237,17 @@
             const rot = cgSimRobot.dir === 'E' ? 'rotate-90' : (cgSimRobot.dir === 'S' ? 'rotate-180' : (cgSimRobot.dir === 'W' ? '-rotate-90' : 'rotate-0'));
             cell.innerHTML = `<span class="inline-block transform ${rot} transition-transform">🚀</span>`;
           } else if (isFinish) {
-            cell.classList.add('bg-emerald-900/60', 'border-emerald-500', 'text-emerald-300');
-            cell.innerHTML = '🏁';
+            const totalStars = (cgCurrentConfig.stars || []).length;
+            const allCollected = totalStars === 0 || cgSimCollectedStars.size >= totalStars;
+            if (!allCollected) {
+              cell.classList.add('bg-emerald-950/70', 'border-amber-500/80', 'text-amber-400', 'flex-col');
+              cell.innerHTML = '<span class="text-xs">🔒</span><span class="text-[7px] font-black text-amber-300 leading-none">KUNCI</span>';
+              cell.title = `Finish Masih Terkunci! Kumpulkan semua ${totalStars} bintang (${cgSimCollectedStars.size}/${totalStars} terkumpul).`;
+            } else {
+              cell.classList.add('bg-emerald-900/60', 'border-emerald-400', 'text-emerald-300', 'ring-2', 'ring-emerald-400');
+              cell.innerHTML = '🏁';
+              cell.title = 'Finish Terbuka!';
+            }
           } else if (isWall) {
             cell.classList.add('bg-slate-700', 'border-slate-600', 'text-slate-400');
             cell.innerHTML = '🧱';
@@ -13111,13 +13434,58 @@
           item.innerHTML = `<span>⚖️ Jika Rintangan ➔ Belok, Lainnya ➔ Maju</span>`;
         }
 
+        // Tombol Geser Atas, Bawah, Hapus
+        const btnGroup = document.createElement('div');
+        btnGroup.className = 'flex items-center space-x-1 shrink-0 ml-2';
+
+        const btnUp = document.createElement('button');
+        btnUp.type = 'button';
+        btnUp.className = `p-1 text-white/80 hover:text-white hover:bg-white/20 rounded text-[11px] cursor-pointer ${idx === 0 ? 'opacity-30 cursor-not-allowed' : ''}`;
+        btnUp.title = 'Geser balok ke atas';
+        btnUp.innerHTML = '⬆';
+        btnUp.disabled = idx === 0;
+        btnUp.onclick = (e) => {
+          e.stopPropagation();
+          if (idx > 0) {
+            const temp = cgSimBlocks[idx];
+            cgSimBlocks[idx] = cgSimBlocks[idx - 1];
+            cgSimBlocks[idx - 1] = temp;
+            renderCgTestWorkspace();
+            resetCgTestSim();
+          }
+        };
+        btnGroup.appendChild(btnUp);
+
+        const btnDown = document.createElement('button');
+        btnDown.type = 'button';
+        btnDown.className = `p-1 text-white/80 hover:text-white hover:bg-white/20 rounded text-[11px] cursor-pointer ${idx === cgSimBlocks.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}`;
+        btnDown.title = 'Geser balok ke bawah';
+        btnDown.innerHTML = '⬇';
+        btnDown.disabled = idx === cgSimBlocks.length - 1;
+        btnDown.onclick = (e) => {
+          e.stopPropagation();
+          if (idx < cgSimBlocks.length - 1) {
+            const temp = cgSimBlocks[idx];
+            cgSimBlocks[idx] = cgSimBlocks[idx + 1];
+            cgSimBlocks[idx + 1] = temp;
+            renderCgTestWorkspace();
+            resetCgTestSim();
+          }
+        };
+        btnGroup.appendChild(btnDown);
+
         const btnDel = document.createElement('button');
         btnDel.type = 'button';
-        btnDel.className = 'text-white/80 hover:text-white ml-2 text-xs cursor-pointer';
+        btnDel.className = 'p-1 text-red-200 hover:text-white hover:bg-red-500/30 rounded text-[11px] cursor-pointer ml-0.5';
         btnDel.innerHTML = '✕';
-        btnDel.onclick = () => removeCgTestBlock(idx);
-        item.appendChild(btnDel);
+        btnDel.title = 'Hapus balok';
+        btnDel.onclick = (e) => {
+          e.stopPropagation();
+          removeCgTestBlock(idx);
+        };
+        btnGroup.appendChild(btnDel);
 
+        item.appendChild(btnGroup);
         ws.appendChild(item);
       });
     }
@@ -13245,13 +13613,28 @@
 
         // Cek finish
         if (cgSimRobot.x === cgCurrentConfig.finish_pos.x && cgSimRobot.y === cgCurrentConfig.finish_pos.y) {
-          updateCgSimResult(true, '🎉 Robot berhasil mencapai Garis Finish!');
-          cgSimRunning = false;
-          return;
+          const totalStars = (cgCurrentConfig.stars || []).length;
+          const allCollected = totalStars === 0 || cgSimCollectedStars.size >= totalStars;
+          if (!allCollected) {
+            updateCgSimResult(false, `🔒 Pintu Finish masih terkunci! Robot harus mengumpulkan semua ${totalStars} bintang (${cgSimCollectedStars.size}/${totalStars} terkumpul).`);
+          } else {
+            updateCgSimResult(true, '🎉 Robot berhasil mengumpulkan semua target bintang dan mencapai Finish!');
+            cgSimRunning = false;
+            return;
+          }
         }
       }
 
-      updateCgSimResult(false, '⚠️ Robot kehabisan langkah dan belum mencapai finish.');
+      const isAtFinish = (cgSimRobot.x === cgCurrentConfig.finish_pos.x && cgSimRobot.y === cgCurrentConfig.finish_pos.y);
+      const totalStars = (cgCurrentConfig.stars || []).length;
+      const allCollected = totalStars === 0 || cgSimCollectedStars.size >= totalStars;
+      if (isAtFinish && allCollected) {
+        updateCgSimResult(true, '🎉 Robot berhasil mengumpulkan semua target bintang dan mencapai Finish!');
+      } else if (isAtFinish && !allCollected) {
+        updateCgSimResult(false, `🔒 Pintu Finish terkunci! Masih ada bintang yang belum dikumpulkan (${cgSimCollectedStars.size}/${totalStars}).`);
+      } else {
+        updateCgSimResult(false, '⚠️ Robot kehabisan langkah dan belum mencapai finish.');
+      }
       cgSimRunning = false;
     }
 
@@ -13330,7 +13713,13 @@
       renderCgInteractiveGrid();
 
       if (cgSimRobot.x === cgCurrentConfig.finish_pos.x && cgSimRobot.y === cgCurrentConfig.finish_pos.y) {
-        updateCgSimResult(true, '🎉 Robot berhasil mencapai Garis Finish!');
+        const totalStars = (cgCurrentConfig.stars || []).length;
+        const allCollected = totalStars === 0 || cgSimCollectedStars.size >= totalStars;
+        if (!allCollected) {
+          updateCgSimResult(false, `🔒 Pintu Finish masih terkunci! Robot harus mengumpulkan semua ${totalStars} bintang (${cgSimCollectedStars.size}/${totalStars} terkumpul).`);
+        } else {
+          updateCgSimResult(true, '🎉 Robot berhasil mengumpulkan semua bintang dan mencapai Garis Finish!');
+        }
       }
     }
 
@@ -13350,8 +13739,12 @@
         let starsCount = 1;
         if (collected === totalStars && blockCount <= parLimit) {
           starsCount = 3;
-        } else if (collected > 0 || blockCount <= parLimit + 2) {
+          statusText.textContent = `${msg} Kode Sempurna & Efisien (≤ ${parLimit} balok)!`;
+        } else if (collected === totalStars) {
           starsCount = 2;
+          statusText.textContent = `${msg} Sukses, namun melampaui par efisiensi (${blockCount}/${parLimit} balok).`;
+        } else {
+          starsCount = 1;
         }
 
         badge.className = 'font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300';

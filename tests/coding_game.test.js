@@ -388,4 +388,160 @@ describe('=== SUITE: ULANGAN MODE PERMAINAN KODING (SMP) & HYBRID ===', () => {
     assert.ok(resPartial.score >= 50 && resPartial.score < 100, `Skor parsial harus realistis: ${resPartial.score}`);
     assert.ok(resPartial.starsEarned >= 1);
   });
+
+  test('12. Grid Robot Multi-Target: Garis finish terkunci sampai SELURUH target bintang terkumpul', () => {
+    // Level dengan 2 bintang: di (1,0) dan (1,1), finish di (2,0)
+    const levelData = {
+      mode: 'grid_runner',
+      gridSize: { rows: 3, cols: 3 },
+      start: { x: 0, y: 0, dir: 'right' },
+      finish: { x: 2, y: 0 },
+      obstacles: [],
+      stars: [
+        { x: 1, y: 0 },
+        { x: 1, y: 1 }
+      ],
+      parBlocks: 8
+    };
+
+    // Skenario A: Robot langsung maju ke finish (2,0) setelah hanya mengambil 1 bintang di (1,0)
+    // Jalur: (0,0) -> Maju ke (1,0)[ambil bintang 1] -> Maju ke (2,0)[sampai finish sebelum bintang 2 diambil]
+    const prematureBlocks = [
+      { type: 'move' },
+      { type: 'move' }
+    ];
+
+    const resPremature = codingGameService.evaluateSolution(levelData, prematureBlocks);
+    assert.strictEqual(resPremature.isFinished, false, 'Robot tidak boleh menyelesaikan level jika bintang belum lengkap');
+    assert.strictEqual(resPremature.allStarsCollected, false);
+    assert.strictEqual(resPremature.collectedStars, 1);
+    assert.strictEqual(resPremature.totalStars, 2);
+    assert.ok(resPremature.obstacleReason.includes('Garis finish terkunci'), 'Harus ada peringatan garis finish terkunci');
+    assert.ok(resPremature.logs.some(l => l.action === 'finish_locked'), 'Harus mencatat log finish_locked');
+
+    // Skenario B: Robot mengumpulkan SEMUA 2 bintang lalu menuju ke finish
+    // Jalur:
+    // (0,0) -> Belok kanan (hadap bawah) -> Maju ke (0,1) -> Belok kiri (hadap kanan)
+    // -> Maju ke (1,1)[ambil bintang 2] -> Belok kiri (hadap atas) -> Maju ke (1,0)[ambil bintang 1]
+    // -> Belok kanan (hadap kanan) -> Maju ke (2,0)[sampai finish dengan semua bintang lengkap]
+    const completeBlocks = [
+      { type: 'turn_right' }, // hadap S
+      { type: 'move' },       // (0,1)
+      { type: 'turn_left' },  // hadap E
+      { type: 'move' },       // (1,1) ambil bintang 2
+      { type: 'turn_left' },  // hadap N
+      { type: 'move' },       // (1,0) ambil bintang 1
+      { type: 'turn_right' }, // hadap E
+      { type: 'move' }        // (2,0) Finish!
+    ];
+
+    const resComplete = codingGameService.evaluateSolution(levelData, completeBlocks);
+    assert.strictEqual(resComplete.isFinished, true, 'Robot berhasil menyelesaikan level');
+    assert.strictEqual(resComplete.allStarsCollected, true);
+    assert.strictEqual(resComplete.collectedStars, 2);
+    assert.strictEqual(resComplete.starsEarned, 3);
+    assert.strictEqual(resComplete.score, 100);
+  });
+
+  test('13. Grid Robot Efisiensi Kode (Par Blocks): Jumlah blok <= parLimit dapat 3 bintang, lebih dari parLimit kena reduksi', () => {
+    const levelData = {
+      mode: 'grid_runner',
+      gridSize: { rows: 4, cols: 4 },
+      start: { x: 0, y: 0, dir: 'right' },
+      finish: { x: 2, y: 0 },
+      obstacles: [],
+      stars: [{ x: 1, y: 0 }],
+      parBlocks: 3 // Par limit ketat: 3 blok
+    };
+
+    // Solusi efisien: 2 blok (<= parLimit 3)
+    const efficientBlocks = [
+      { type: 'move' },
+      { type: 'move' }
+    ];
+    const resEfficient = codingGameService.evaluateSolution(levelData, efficientBlocks);
+    assert.strictEqual(resEfficient.isFinished, true);
+    assert.strictEqual(resEfficient.starsEarned, 3, 'Harus 3 bintang jika efisien');
+    assert.strictEqual(resEfficient.score, 100);
+
+    // Solusi tidak efisien: berputar-putar dulu sehingga total blok = 8 (> parLimit 3)
+    const inefficientBlocks = [
+      { type: 'turn_right' },
+      { type: 'turn_left' },
+      { type: 'turn_right' },
+      { type: 'turn_left' },
+      { type: 'turn_right' },
+      { type: 'turn_left' },
+      { type: 'move' },
+      { type: 'move' }
+    ];
+    const resInefficient = codingGameService.evaluateSolution(levelData, inefficientBlocks);
+    assert.strictEqual(resInefficient.isFinished, true);
+    assert.strictEqual(resInefficient.starsEarned, 2, 'Harus tereduksi jadi 2 bintang jika melebihi parLimit');
+    assert.ok(resInefficient.score < 100, `Skor harus di bawah 100 karena melebihi parLimit: ${resInefficient.score}`);
+    assert.ok(resInefficient.score >= 65, `Skor minimal tetap terjaga: ${resInefficient.score}`);
+  });
+
+  test('14. Pilihan Ganda Kompleks (Multi-Select): Evaluasi jawaban persis, parsial, dan salah di studentService', () => {
+    // 1. Buat ulangan khusus PG Kompleks via examService
+    const ulangan = examService.createUlangan(testGuruId, {
+      judul: 'Ulangan PG Kompleks Test',
+      mata_pelajaran: 'Informatika',
+      tingkat_kelas: 'Kelas 7',
+      jenis_ulangan: 'pilihan_ganda',
+      bobot_pg: 100
+    });
+    const ulanganId = ulangan.id;
+    const kodeUjian = ulangan.kode_ujian;
+
+    // Soal 1: PG Kompleks dengan 2 jawaban benar: "A, C"
+    const soal = examService.createSoal(ulanganId, {
+      nomor: 1,
+      jenis: 'pilihan_ganda',
+      pertanyaan: 'Manakah pernyataan yang BENAR mengenai algoritma? (Pilih semua yang tepat)',
+      opsi_a: 'Langkah sistematis',
+      opsi_b: 'Tidak memerlukan urutan',
+      opsi_c: 'Memiliki input dan output',
+      opsi_d: 'Selalu dibuat dengan bahasa C',
+      kunci_pg: 'A, C',
+      bobot: 20
+    });
+    const soalId = soal.id;
+
+    // Buka Ulangan
+    examService.updateUlangan(ulanganId, testGuruId, { status: 'dibuka' });
+
+    // Siswa 1: Menjawab persis "A, C" -> 100% (benar)
+    const sess1 = studentService.startExam(kodeUjian, 'Siswa Tepat', '7A');
+    const submit1 = studentService.submitExam(sess1.pengerjaanId, [{ soal_id: soalId, jawaban_siswa: 'A, C' }]);
+    assert.strictEqual(submit1.success, true);
+    const jwb1 = db.prepare('SELECT status_jawaban, skor_rekomendasi FROM jawaban WHERE pengerjaan_id = ? AND soal_id = ?').get(sess1.pengerjaanId, soalId);
+    assert.strictEqual(jwb1.status_jawaban, 'benar');
+    assert.strictEqual(jwb1.skor_rekomendasi, 20);
+
+    // Siswa 2: Menjawab parsial hanya "A" -> 50% (parsial)
+    const sess2 = studentService.startExam(kodeUjian, 'Siswa Parsial', '7A');
+    const submit2 = studentService.submitExam(sess2.pengerjaanId, [{ soal_id: soalId, jawaban_siswa: 'A' }]);
+    assert.strictEqual(submit2.success, true);
+    const jwb2 = db.prepare('SELECT status_jawaban, skor_rekomendasi FROM jawaban WHERE pengerjaan_id = ? AND soal_id = ?').get(sess2.pengerjaanId, soalId);
+    assert.strictEqual(jwb2.status_jawaban, 'parsial');
+    assert.strictEqual(jwb2.skor_rekomendasi, 10);
+
+    // Siswa 3: Menjawab salah semua "B, D" -> 0% (salah)
+    const sess3 = studentService.startExam(kodeUjian, 'Siswa Salah', '7A');
+    const submit3 = studentService.submitExam(sess3.pengerjaanId, [{ soal_id: soalId, jawaban_siswa: 'B, D' }]);
+    assert.strictEqual(submit3.success, true);
+    const jwb3 = db.prepare('SELECT status_jawaban, skor_rekomendasi FROM jawaban WHERE pengerjaan_id = ? AND soal_id = ?').get(sess3.pengerjaanId, soalId);
+    assert.strictEqual(jwb3.status_jawaban, 'salah');
+    assert.strictEqual(jwb3.skor_rekomendasi, 0);
+
+    // Siswa 4: Format array JSON string '["A", "C"]' dari checkbox front-end
+    const sess4 = studentService.startExam(kodeUjian, 'Siswa Array', '7A');
+    const submit4 = studentService.submitExam(sess4.pengerjaanId, [{ soal_id: soalId, jawaban_siswa: JSON.stringify(['A', 'C']) }]);
+    assert.strictEqual(submit4.success, true);
+    const jwb4 = db.prepare('SELECT status_jawaban, skor_rekomendasi FROM jawaban WHERE pengerjaan_id = ? AND soal_id = ?').get(sess4.pengerjaanId, soalId);
+    assert.strictEqual(jwb4.status_jawaban, 'benar');
+    assert.strictEqual(jwb4.skor_rekomendasi, 20);
+  });
 });
+

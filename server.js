@@ -1493,11 +1493,13 @@ const handleGeneratePgAi = async (req, res) => {
     const tingkatKelas = b.tingkatKelas || b.tingkat_kelas || 'SMP';
     const jumlahSoal = Number(b.jumlahSoal || b.jumlah_soal) || 10;
     const opsiCount = Number(b.opsiCount || b.opsi_count) === 5 ? 5 : 4;
-    const materiTeks = b.materiTeks || b.materi_teks || b.instruksi_tambahan || '';
+    const materiTeks = b.materiTeks || b.materi_teks || '';
+    const instruksiTambahan = b.instruksiTambahan || b.instruksi_tambahan || '';
     const fileBase64 = b.fileBase64 || b.file_base64;
     const fileName = b.fileName || b.file_name;
     const tingkatKesulitan = b.tingkatKesulitan || b.tingkat_kesulitan || 'sedang';
     const bahasa = b.bahasa || 'Bahasa Indonesia';
+    const tipePg = b.tipePg || b.tipe_pg || 'pg_biasa';
 
     if (!topik && !materiTeks && !fileBase64) {
       return res.status(400).json({ success: false, message: 'Topik atau materi bacaan wajib diisi' });
@@ -1510,6 +1512,8 @@ const handleGeneratePgAi = async (req, res) => {
       materiTeks,
       fileBase64,
       fileName,
+      tipePg,
+      instruksiTambahan,
       tingkatKesulitan,
       bahasa
     });

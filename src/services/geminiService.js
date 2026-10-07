@@ -1905,60 +1905,76 @@ Kembalikan HANYA teks sebaran pesan WhatsApp siap kirim tanpa penjelasan pembuka
     throw lastError || new Error('Gagal memproses gambar LJK dengan model AI yang tersedia');
   },
 
-  // Generator Soal Pilihan Ganda Berbantuan AI
-  async generateMultipleChoiceQuestions({ topik, tingkatKelas = 'SMP', jumlahSoal = 10, opsiCount = 4, materiTeks = '', fileBase64 = null, fileName = '' }) {
-    let contextMateri = `Topik: ${topik}\nJenjang/Kelas: ${tingkatKelas}\nJumlah Soal Diminta: ${jumlahSoal}\n`;
+  // Generator Soal Pilihan Ganda Berbantuan AI (Mendukung Teks Panjang, Berkas File, & PG Kompleks)
+  async generateMultipleChoiceQuestions({ topik, tingkatKelas = 'SMP', jumlahSoal = 10, opsiCount = 4, materiTeks = '', fileBase64 = null, fileName = '', tipePg = 'pg_biasa', instruksiTambahan = '', bahasa = 'Bahasa Indonesia' }) {
+    let contextMateri = `Topik: ${topik}\nJenjang/Kelas: ${tingkatKelas}\nJumlah Soal Diminta: ${jumlahSoal}\nBahasa Pengantar: ${bahasa}\n`;
+
+    // Ekstrak berkas jika fileBase64 dikirimkan tanpa teks materi
+    if (fileBase64 && (!materiTeks || !materiTeks.trim())) {
+      try {
+        const fileParserService = require('./fileParserService');
+        const parsedDoc = await fileParserService.parseFile(fileBase64, fileName || 'materi.pdf');
+        if (parsedDoc && parsedDoc.text) {
+          materiTeks = parsedDoc.text;
+        }
+      } catch (errParse) {
+        console.warn('⚠️ Gagal mengekstrak berkas di backend PG generator:', errParse.message);
+      }
+    }
+
     if (materiTeks && materiTeks.trim()) {
-      contextMateri += `\nBahan Bacaan Materi:\n${materiTeks.slice(0, 15000)}\n`;
+      contextMateri += `\nBahan Bacaan Materi Utama (Ekstrak dari Sumber/Dokumen):\n${materiTeks.slice(0, 18000)}\n`;
+    }
+
+    if (instruksiTambahan && instruksiTambahan.trim()) {
+      contextMateri += `\nInstruksi Khusus Guru:\n${instruksiTambahan.trim()}\n`;
     }
 
     const opsiLetters = opsiCount === 5 ? 'A, B, C, D, dan E' : 'A, B, C, dan D';
-    const jsonExample = opsiCount === 5 ? `
-{
-  "questions": [
-    {
-      "pertanyaan": "Teks pertanyaan nomor 1...",
-      "opsi_a": "Pilihan A...",
-      "opsi_b": "Pilihan B...",
-      "opsi_c": "Pilihan C...",
-      "opsi_d": "Pilihan D...",
-      "opsi_e": "Pilihan E...",
-      "kunci_pg": "C",
-      "pembahasan": "Penjelasan singkat mengapa C benar..."
+    let aturanTipePg = 'Tipe Soal: Pilihan Ganda Tunggal standar (hanya 1 opsi jawaban benar). Kunci jawaban berupa 1 huruf (misal "B").';
+    if (tipePg === 'pg_kompleks') {
+      aturanTipePg = `Tipe Soal: PILIHAN GANDA KOMPLEKS (MULTI-SELECT). Setiap butir soal WAJIB memiliki LEBIH DARI SATU jawaban yang benar (2 atau 3 pernyataan benar). Kunci jawaban WAJIB ditulis berupa gabungan huruf dipisahkan koma (contoh: "A, C" atau "B, D, E"). Teks pertanyaan WAJIB menyertakan keterangan "(Pilihlah lebih dari satu jawaban yang benar)".`;
+    } else if (tipePg === 'campuran') {
+      aturanTipePg = `Tipe Soal: CAMPURAN antara Pilihan Ganda Biasa (1 kunci benar, misal "A") dan Pilihan Ganda Kompleks (2-3 kunci benar dipisahkan koma, misal "A, C"). Berikan variasi seimbang. Untuk soal kompleks, pertanyaan wajib menyertakan petunjuk "(Pilihlah lebih dari satu jawaban yang benar)".`;
     }
-  ]
-}` : `
+
+    const jsonExample = `
 {
   "questions": [
     {
-      "pertanyaan": "Teks pertanyaan nomor 1...",
-      "opsi_a": "Pilihan A...",
-      "opsi_b": "Pilihan B...",
-      "opsi_c": "Pilihan C...",
-      "opsi_d": "Pilihan D...",
-      "kunci_pg": "B",
-      "pembahasan": "Penjelasan singkat mengapa B benar..."
+      "pertanyaan": "Teks pertanyaan butir 1...",
+      "opsi_a": "Pernyataan / opsi A...",
+      "opsi_b": "Pernyataan / opsi B...",
+      "opsi_c": "Pernyataan / opsi C...",
+      "opsi_d": "Pernyataan / opsi D...",
+      ${opsiCount === 5 ? '"opsi_e": "Pernyataan / opsi E...",' : ''}
+      "kunci_pg": "${tipePg === 'pg_kompleks' ? 'A, C' : 'B'}",
+      "jenis_pg": "${tipePg === 'pg_kompleks' ? 'pg_kompleks' : 'pilihan_ganda'}",
+      "pembahasan": "Penjelasan konsep mengapa kunci jawaban tersebut benar..."
     }
   ]
 }`;
 
-    const prompt = `Anda adalah Pakar Kurikulum dan Pembuat Soal Asesmen Standar Nasional.
-Tugas Anda adalah membuat naskah soal Pilihan Ganda (PG) berkualitas tinggi sesuai kaidah penulisan soal yang valid, HOTS (Higher Order Thinking Skills), serta terbebas dari bias.
+    const prompt = `Anda adalah Pakar Kurikulum dan Pembuat Soal Asesmen Standar Nasional (AKM & Asesmen Sekolah).
+Tugas Anda adalah membuat naskah butir soal Pilihan Ganda berkualitas tinggi sesuai kaidah penulisan asesmen yang valid, bernalar kritis (HOTS), kontekstual, dan mengacu pada materi ajar.
 
 DATA PEMBELAJARAN:
 ${contextMateri}
 
+PETUNJUK FORMAT & TIPE SOAL:
+${aturanTipePg}
+
 INSTRUKSI WAJIB:
 1. Buat tepat ${jumlahSoal} butir soal pilihan ganda.
-2. Setiap soal WAJIB memiliki ${opsiCount} opsi jawaban (${opsiLetters}).
-3. Kunci jawaban WAJIB akurat dan merujuk pada konsep ilmiah/faktual yang benar. Opsi pengecoh (distractor) harus masuk akal dan relevan.
-4. Distribusikan kunci jawaban secara proporsional dan acak (jangan sampai sebagian besar terkumpul di satu huruf).
-5. Sertakan pembahasan singkat yang jelas untuk setiap butir soal.
-6. Kembalikan HASIL HANYA dalam format JSON valid sesuai skema berikut tanpa teks pembuka/penutup markdown:
+2. Setiap butir soal WAJIB memiliki ${opsiCount} opsi (${opsiLetters}).
+3. Jika terdapat bahan bacaan materi di atas, ekstrak fakta, konsep, dan inferensi LANGSUNG dari bacaan tersebut.
+4. Kunci jawaban WAJIB akurat dan valid. Opsi pengecoh (distractor) harus masuk akal, homogen, dan tidak ambigu.
+5. Sertakan pembahasan ilmiah/konseptual yang jelas dan mendalam untuk setiap butir soal.
+6. Kembalikan HASIL HANYA dalam format JSON valid sesuai skema berikut tanpa pembungkus narasi di luar JSON:
 ${jsonExample}
 `;
 
-    const result = await this.callJsonPrompt(prompt, { temperature: 0.3, timeout: 25000 });
+    const result = await this.callJsonPrompt(prompt, { temperature: 0.3, timeout: 30000 });
     if (!result || !Array.isArray(result.questions)) {
       throw new Error('Format output generator soal tidak valid');
     }

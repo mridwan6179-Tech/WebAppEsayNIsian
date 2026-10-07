@@ -543,7 +543,16 @@ class CodingGameService {
           }
 
           if (x === finishX && y === finishY) {
-            logs.push({ step: totalStepsExecuted, action: 'reached_finish', x, y, dir });
+            if (remainingStars.size > 0) {
+              logs.push({
+                step: totalStepsExecuted,
+                action: 'finish_locked',
+                x, y, dir,
+                message: `Garis finish terkunci! Masih tersisa ${remainingStars.size} target bintang yang belum diambil.`
+              });
+            } else {
+              logs.push({ step: totalStepsExecuted, action: 'reached_finish', x, y, dir });
+            }
           }
         } else if (type === 'move_back' || type === 'MUNDUR' || type === 'mundur' || type === 'back') {
           // Perintah Mundur: Bergerak 1 petak ke arah berlawanan tanpa mengubah arah hadap robot
@@ -576,7 +585,16 @@ class CodingGameService {
           }
 
           if (x === finishX && y === finishY) {
-            logs.push({ step: totalStepsExecuted, action: 'reached_finish', x, y, dir });
+            if (remainingStars.size > 0) {
+              logs.push({
+                step: totalStepsExecuted,
+                action: 'finish_locked',
+                x, y, dir,
+                message: `Garis finish terkunci! Masih tersisa ${remainingStars.size} target bintang yang belum diambil.`
+              });
+            } else {
+              logs.push({ step: totalStepsExecuted, action: 'reached_finish', x, y, dir });
+            }
           }
         } else if (type === 'turn_right' || type === 'BELOK_KANAN' || type === 'kanan') {
           dir = turnClockwise[dir];
@@ -621,37 +639,42 @@ class CodingGameService {
 
     runList(blocks);
 
-    const isFinished = !hitObstacle && (x === finishX && y === finishY);
-    const starRatio = totalStars > 0 ? (collectedStars / totalStars) : 1;
-    const blockCount = this.countBlocks(blocks);
-    const parLimit = Number(levelData.parBlocks) || 8;
-
-    // Evaluasi Bintang 1-3
-    let starsEarned = 0;
-    if (isFinished) {
-      starsEarned = 1; // ⭐ Finish
-      if (starRatio >= 1) {
-        starsEarned = 2; // ⭐⭐ Finish + Semua Bintang
-        if (blockCount <= parLimit) {
-          starsEarned = 3; // ⭐⭐⭐ Finish + Semua Bintang + Efisien (<= Par)
-        }
-      }
+    const allStarsCollected = totalStars === 0 || collectedStars >= totalStars;
+    const isAtFinish = (x === finishX && y === finishY);
+    const isFinished = !hitObstacle && isAtFinish && allStarsCollected;
+    if (!hitObstacle && isAtFinish && !allStarsCollected) {
+      obstacleReason = `Garis finish terkunci! Kumpulkan seluruh ${totalStars} bintang target terlebih dahulu (baru ${collectedStars}/${totalStars} terkumpul).`;
     }
 
-    // Skor 0-100
+    const starRatio = totalStars > 0 ? (collectedStars / totalStars) : 1;
+    const blockCount = this.countBlocks(blocks);
+    const parLimit = Number(levelData.parBlocks || levelData.par_limit) || 8;
+
+    // Evaluasi Bintang 1-3 & Skor Berdasarkan Efisiensi Kode
+    let starsEarned = 0;
     let score = 0;
+
     if (isFinished) {
-      score += 50; // Dasar finish
-      score += Math.round(starRatio * 30); // Bintang (max 30)
       if (blockCount <= parLimit) {
-        score += 20; // Efisiensi penuh (20)
+        starsEarned = 3; // ⭐⭐⭐ Selesai + Semua Target + Efisien Optimal (<= Par)
+        score = 100;
+      } else if (blockCount <= parLimit + 2) {
+        starsEarned = 2; // ⭐⭐ Selesai + Semua Target, sedikit di atas Par
+        score = 85;
       } else {
-        const penalty = Math.min(15, (blockCount - parLimit) * 3);
-        score += Math.max(5, 20 - penalty);
+        starsEarned = 2; // ⭐⭐ Selesai + Semua Target, di atas Par
+        const penalty = Math.min(25, (blockCount - parLimit) * 3);
+        score = Math.max(65, 90 - penalty);
       }
     } else {
-      // Gagal finish: beri poin parsial bintang & langkah aman
-      score = Math.min(40, Math.round(starRatio * 30) + (hitObstacle ? 5 : 10));
+      // Gagal finish atau finish terkunci karena bintang belum lengkap
+      if (collectedStars > 0) {
+        starsEarned = 1;
+        score = Math.min(50, Math.round(starRatio * 40) + (hitObstacle ? 0 : 10));
+      } else {
+        starsEarned = 0;
+        score = 0;
+      }
     }
 
     return {
@@ -662,6 +685,7 @@ class CodingGameService {
       finalPos: { x, y, dir },
       totalStars,
       collectedStars,
+      allStarsCollected,
       starsEarned,
       blockCount,
       parLimit,
