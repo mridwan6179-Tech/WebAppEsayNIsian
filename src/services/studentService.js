@@ -433,10 +433,21 @@ const studentService = {
     };
   },
 
+  // Helper ambil pengerjaan dengan fallback sync replica Turso (mengatasi multi-instance cold start Vercel)
+  findPengerjaanWithSync(id) {
+    if (!id) return null;
+    let row = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(id);
+    if (!row && typeof db.sync === 'function') {
+      try { db.sync(); } catch (e) {}
+      row = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(id);
+    }
+    return row;
+  },
+
   // Auto-Save Draft Jawaban Siswa (Sinkronisasi berkala dari HP/Klien ke Server)
   saveDraft(pengerjaanId, rawAnswers, pasteCount = null, pasteDetails = null) {
     if (!pengerjaanId) throw new Error('ID pengerjaan tidak valid');
-    const pengerjaan = db.prepare('SELECT id, status FROM pengerjaan WHERE id = ?').get(pengerjaanId);
+    const pengerjaan = this.findPengerjaanWithSync(pengerjaanId);
     if (!pengerjaan) {
       throw new Error('Data pengerjaan tidak ditemukan');
     }
@@ -527,7 +538,7 @@ const studentService = {
 
   // FR-08 & NFR-01: Submit Seluruh Jawaban Siswa
   submitExam(pengerjaanId, rawAnswers, pasteCount = 0, isAutoSubmit = false, pasteDetails = null) {
-    const pengerjaan = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(pengerjaanId);
+    const pengerjaan = this.findPengerjaanWithSync(pengerjaanId);
     if (!pengerjaan) {
       throw new Error('Data pengerjaan tidak ditemukan');
     }
@@ -894,7 +905,7 @@ const studentService = {
 
   // Cek status pengerjaan untuk siswa
   getPengerjaanStatus(pengerjaanId) {
-    const pengerjaan = db.prepare(`
+    const query = `
       SELECT p.*, u.judul, u.mata_pelajaran, u.status as status_ulangan, u.kkm, u.kode_ujian,
              u.instruksi_remedial, u.link_remedial, pes.nama, pes.kelas,
              g.nama as nama_guru, g.email as email_guru, g.no_wa as no_wa_guru
@@ -903,7 +914,12 @@ const studentService = {
       JOIN guru g ON u.guru_id = g.id
       JOIN peserta pes ON p.peserta_id = pes.id
       WHERE p.id = ?
-    `).get(pengerjaanId);
+    `;
+    let pengerjaan = db.prepare(query).get(pengerjaanId);
+    if (!pengerjaan && typeof db.sync === 'function') {
+      try { db.sync(); } catch (e) {}
+      pengerjaan = db.prepare(query).get(pengerjaanId);
+    }
 
     if (!pengerjaan) return null;
 

@@ -682,22 +682,22 @@
             <div class="flex justify-between items-center flex-wrap gap-2">
               <p class="text-xs text-slate-500">Kunci jawaban & rubrik menjadi acuan utama penilaian semantik AI.</p>
               <div class="flex items-center space-x-2 flex-wrap gap-y-1">
-                <button id="btn-open-multi-paket" type="button" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-800 font-bold px-3 py-1.5 rounded-lg border border-indigo-200 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Kelola paket ulangan A, B, C, D dan cetak naskah soal per paket">
+                <button id="btn-open-multi-paket" type="button" onclick="window.openMultiPaketModal ? window.openMultiPaketModal() : null" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-800 font-bold px-3 py-1.5 rounded-lg border border-indigo-200 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Kelola paket ulangan A, B, C, D dan cetak naskah soal per paket">
                   <span>🔀 Multi-Paket (A-D)</span>
                 </button>
-                <button id="btn-open-cetak-ljk" type="button" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-lg border border-emerald-200 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Cetak Lembar Jawaban Komputer (LJK) Fisik Standar A4 / 2-per-A4">
+                <button id="btn-open-cetak-ljk" type="button" onclick="window.openCetakLjkModal ? window.openCetakLjkModal() : null" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-lg border border-emerald-200 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Cetak Lembar Jawaban Komputer (LJK) Fisik Standar A4 / 2-per-A4">
                   <span>📝 Cetak LJK OMR</span>
                 </button>
-                <button id="btn-open-omr-scanner" type="button" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1.5 cursor-pointer" title="Pindai LJK siswa secara otomatis menggunakan kamera HP atau webcam laptop">
+                <button id="btn-open-omr-scanner" type="button" onclick="window.openOmrScannerModal ? window.openOmrScannerModal() : null" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1.5 cursor-pointer" title="Pindai LJK siswa secara otomatis menggunakan kamera HP atau webcam laptop">
                   <span>📷 Scan LJK Kamera</span>
                 </button>
-                <button id="btn-open-coding-game-builder" type="button" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1.5 cursor-pointer" title="Rancang dan tambahkan permainan koding berpikir komputasional tingkat SMP">
+                <button id="btn-open-coding-game-builder" type="button" onclick="window.openCodingGameModal ? window.openCodingGameModal('ulangan') : null" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1.5 cursor-pointer" title="Rancang dan tambahkan permainan koding berpikir komputasional tingkat SMP">
                   <span>🎮 Game Koding (SMP)</span>
                 </button>
-                <button id="btn-open-ai-pg-generator" type="button" class="text-xs bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold px-3 py-1.5 rounded-lg border border-teal-200 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Buat butir soal Pilihan Ganda (PG) otomatis dengan bantuan Gemini AI">
+                <button id="btn-open-ai-pg-generator" type="button" onclick="window.openAiPgGeneratorModal ? window.openAiPgGeneratorModal('ulangan') : null" class="text-xs bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold px-3 py-1.5 rounded-lg border border-teal-200 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Buat butir soal Pilihan Ganda (PG) otomatis dengan bantuan Gemini AI">
                   <span>✨ Buat PG AI</span>
                 </button>
-                <button id="btn-open-calibrate-weights" type="button" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold px-3 py-1.5 rounded-lg border border-amber-300 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Kalibrasi bobot seluruh butir soal secara adil & seimbang">
+                <button id="btn-open-calibrate-weights" type="button" onclick="window.openCalibrateModal ? window.openCalibrateModal() : null" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold px-3 py-1.5 rounded-lg border border-amber-300 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Kalibrasi bobot seluruh butir soal secara adil & seimbang">
                   <span>⚖️ Kalibrasi Bobot</span>
                 </button>
                 <button id="btn-open-print-soal" type="button" class="text-xs bg-slate-800 hover:bg-slate-900 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1.5 cursor-pointer" title="Cetak lembar soal ujian fisik untuk siswa offline (kertas A4 / hemat kertas / acak paket)">
@@ -3667,6 +3667,148 @@
     let aiPollingTimer = null;
     let serverTimeOffset = 0;
     let serverClockInterval = null;
+
+    // Helper validasi ulangan aktif dengan visual highlight
+    function ensureActiveExam(actionName = 'mengakses fitur ini') {
+      if (!activeUlanganId) {
+        alert(`⚠️ Silakan pilih salah satu paket ulangan dari daftar di sebelah kiri terlebih dahulu sebelum ${actionName}.`);
+        const listEl = document.getElementById('ulangan-list-container');
+        if (listEl) {
+          listEl.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2');
+          setTimeout(() => listEl.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2'), 2500);
+        }
+        return false;
+      }
+      return true;
+    }
+
+    // Global Modal Openers (Safe & Globally Accessible)
+    window.openMultiPaketModal = () => {
+      if (!ensureActiveExam('mengelola multi-paket')) return;
+      const modal = document.getElementById('modal-multi-paket');
+      if (modal) {
+        modal.classList.remove('hidden');
+        if (typeof loadMultiPackages === 'function') loadMultiPackages();
+      }
+    };
+
+    window.openCetakLjkModal = () => {
+      if (!ensureActiveExam('mencetak LJK')) return;
+      const modal = document.getElementById('modal-cetak-ljk');
+      if (modal) {
+        modal.classList.remove('hidden');
+        const inputCustomTitle = document.getElementById('input-ljk-custom-title');
+        if (inputCustomTitle && activeUlanganData) {
+          inputCustomTitle.value = activeUlanganData.judul || '';
+        }
+        if (typeof renderLjkSheet === 'function') renderLjkSheet();
+      }
+    };
+
+    window.openOmrScannerModal = () => {
+      if (!ensureActiveExam('membuka OMR Scanner')) return;
+      const modal = document.getElementById('modal-omr-scanner');
+      if (modal) {
+        modal.classList.remove('hidden');
+        if (typeof populateOmrStudentDropdown === 'function') populateOmrStudentDropdown();
+        if (typeof loadOmrLogs === 'function') loadOmrLogs();
+      }
+    };
+
+    window.openCodingGameModal = (target = 'ulangan') => {
+      if (target !== 'bank_soal' && !ensureActiveExam('merancang game koding')) return;
+      const modal = document.getElementById('modal-coding-game-builder');
+      if (modal) {
+        window.cgTarget = target;
+        modal.classList.remove('hidden');
+        if (typeof switchCgTab === 'function') switchCgTab('preset');
+        if (typeof loadCodingGamePresets === 'function') loadCodingGamePresets();
+      }
+    };
+
+    window.openAiPgGeneratorModal = (target = 'ulangan') => {
+      if (target !== 'bank_soal' && !ensureActiveExam('membuat soal PG AI')) return;
+      const modal = document.getElementById('modal-ai-pg-generator');
+      if (modal) {
+        window.aiPgTarget = target;
+        const aiPgTopik = document.getElementById('ai-pg-topik');
+        if (aiPgTopik) {
+          if (target === 'bank_soal') {
+            const cat = document.getElementById('bank-filter-kategori')?.value;
+            aiPgTopik.value = (cat && cat !== 'all') ? cat : 'Informatika & Pemrograman';
+          } else if (activeUlanganData) {
+            aiPgTopik.value = `${activeUlanganData.mata_pelajaran || ''} - ${activeUlanganData.judul || ''}`.trim();
+          }
+        }
+        const btnSave = document.getElementById('btn-save-selected-ai-pg');
+        if (btnSave) {
+          btnSave.innerHTML = target === 'bank_soal' ? '<span>💾 Simpan Soal ke Bank Soal</span>' : '<span>💾 Masukkan Soal ke Ulangan</span>';
+        }
+        modal.classList.remove('hidden');
+      }
+    };
+
+    window.openCalibrateModal = () => {
+      if (!ensureActiveExam('kalibrasi bobot')) return;
+      const soalList = activeUlanganData?.soal || [];
+      if (soalList.length === 0) {
+        alert('⚠️ Ulangan ini belum memiliki butir soal untuk dikalibrasi. Tambahkan butir soal terlebih dahulu!');
+        return;
+      }
+      if (typeof openCalibrateModal === 'function' && openCalibrateModal !== window.openCalibrateModal) {
+        openCalibrateModal();
+      } else {
+        const modal = document.getElementById('modal-calibrate-weights');
+        if (modal) {
+          modal.classList.remove('hidden');
+          const currentBobot = soalList.reduce((sum, s) => sum + Number(s.bobot || 0), 0);
+          const elSoalCount = document.getElementById('calib-curr-soal-count');
+          if (elSoalCount) elSoalCount.textContent = `${soalList.length} butir soal`;
+          const elBobotSum = document.getElementById('calib-curr-bobot-sum');
+          if (elBobotSum) elBobotSum.textContent = `${currentBobot} poin`;
+        }
+      }
+    };
+
+    // Event Delegation: Menjamin setiap klik pada tombol toolbar baru pasti terpicu
+    document.addEventListener('click', (e) => {
+      const btnMulti = e.target.closest('#btn-open-multi-paket');
+      if (btnMulti) {
+        e.preventDefault();
+        window.openMultiPaketModal();
+        return;
+      }
+      const btnLjk = e.target.closest('#btn-open-cetak-ljk');
+      if (btnLjk) {
+        e.preventDefault();
+        window.openCetakLjkModal();
+        return;
+      }
+      const btnOmr = e.target.closest('#btn-open-omr-scanner');
+      if (btnOmr) {
+        e.preventDefault();
+        window.openOmrScannerModal();
+        return;
+      }
+      const btnCg = e.target.closest('#btn-open-coding-game-builder');
+      if (btnCg) {
+        e.preventDefault();
+        window.openCodingGameModal('ulangan');
+        return;
+      }
+      const btnPgAi = e.target.closest('#btn-open-ai-pg-generator');
+      if (btnPgAi) {
+        e.preventDefault();
+        window.openAiPgGeneratorModal('ulangan');
+        return;
+      }
+      const btnCalib = e.target.closest('#btn-open-calibrate-weights, #btn-quick-calibrate-bobot');
+      if (btnCalib) {
+        e.preventDefault();
+        window.openCalibrateModal();
+        return;
+      }
+    });
 
     // Helper fetch dengan dukungan Cookie dan Authorization Header (Bearer token fallback) serta anti-cache
     function guruFetch(url, options = {}) {
@@ -6939,7 +7081,7 @@
       try {
         const res = await guruFetch(`/api/guru/ulangan/${ulanganId}/peserta`);
         const data = await res.json();
-        currentStudentsList = data.data || [];
+        currentStudentsList = Array.isArray(data.data) ? data.data : [];
         document.getElementById('count-peserta').textContent = currentStudentsList.length;
 
         // Hitung Ringkasan Aktivitas / Kehadiran Siswa (Aktif vs DC)
@@ -10244,14 +10386,11 @@
     }
 
     function openCalibrateModal() {
-      if (!activeUlanganId) {
-        alert('Pilih salah satu ulangan aktif terlebih dahulu!');
-        return;
-      }
+      if (!ensureActiveExam('kalibrasi bobot')) return;
       const soalList = activeUlanganData?.soal || [];
       const soalCount = soalList.length;
       if (soalCount === 0) {
-        alert('Ulangan ini belum memiliki butir soal untuk dikalibrasi.');
+        alert('⚠️ Ulangan ini belum memiliki butir soal untuk dikalibrasi. Tambahkan butir soal terlebih dahulu!');
         return;
       }
 
@@ -10317,6 +10456,8 @@
     function closeCalibrateModal() {
       if (modalCalibrateWeights) modalCalibrateWeights.classList.add('hidden');
     }
+    window.openCalibrateModal = openCalibrateModal;
+    window.closeCalibrateModal = closeCalibrateModal;
 
     if (btnOpenCalibrateWeights) btnOpenCalibrateWeights.addEventListener('click', openCalibrateModal);
     if (btnQuickCalibrateBobot) btnQuickCalibrateBobot.addEventListener('click', openCalibrateModal);
@@ -11221,7 +11362,8 @@
         const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/packages`);
         const json = await res.json();
         if (res.ok && json.success) {
-          currentPackagesData = json.data || [];
+          const raw = json.packages || json.data;
+          currentPackagesData = Array.isArray(raw) ? raw : [];
           renderMultiPackagesView();
         }
       } catch (err) {
@@ -11234,7 +11376,7 @@
       multiPaketTabsContainer.innerHTML = '';
       multiPaketDetailBox.innerHTML = '';
 
-      if (!currentPackagesData || currentPackagesData.length === 0) {
+      if (!Array.isArray(currentPackagesData) || currentPackagesData.length === 0) {
         multiPaketDetailBox.innerHTML = `
           <div class="p-6 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-center space-y-2">
             <p class="text-xs text-slate-500 font-medium">Belum ada paket soal yang digenerate untuk ulangan ini.</p>
@@ -11334,15 +11476,15 @@
       tableKunciPaketTbody.innerHTML = tbodyHtml;
     }
 
+    function openMultiPaketModal() {
+      if (!ensureActiveExam('mengelola multi-paket')) return;
+      modalMultiPaket.classList.remove('hidden');
+      loadMultiPackages();
+    }
+    window.openMultiPaketModal = openMultiPaketModal;
+
     if (btnOpenMultiPaket) {
-      btnOpenMultiPaket.onclick = () => {
-        if (!activeUlanganId) {
-          alert('Pilih paket ulangan aktif terlebih dahulu!');
-          return;
-        }
-        modalMultiPaket.classList.remove('hidden');
-        loadMultiPackages();
-      };
+      btnOpenMultiPaket.onclick = openMultiPaketModal;
     }
 
     if (btnCloseMultiPaketModal) btnCloseMultiPaketModal.onclick = () => modalMultiPaket.classList.add('hidden');
@@ -11361,13 +11503,14 @@
           const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/packages/generate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jumlah_paket: count, acak_opsi: acakOpsi })
+            body: JSON.stringify({ packageCount: count, jumlah_paket: count, acak_opsi: acakOpsi })
           });
           const json = await res.json();
           if (!res.ok || !json.success) throw new Error(json.message || 'Gagal generate paket');
 
-          alert(`✅ Berhasil menghasilkan ${json.data.length} paket soal acak lengkap dengan kunci jawaban!`);
-          currentPackagesData = json.data;
+          const pkgs = json.packages || json.data || [];
+          alert(`✅ Berhasil menghasilkan ${pkgs.length} paket soal acak lengkap dengan kunci jawaban!`);
+          currentPackagesData = pkgs;
           activeSelectedPackageName = 'A';
           renderMultiPackagesView();
         } catch (err) {
@@ -11387,7 +11530,7 @@
           const json = await res.json();
           if (!res.ok || !json.success) throw new Error(json.message || 'Gagal mengambil naskah paket');
 
-          const data = json.data;
+          const data = json.data || json;
           renderPrintablePackageSheet(data);
           modalCetakNaskahPaket.classList.remove('hidden');
         } catch (err) {
@@ -11495,16 +11638,14 @@
     const cetakLjkSheetContainer = document.getElementById('cetak-ljk-sheet-container');
 
     function openCetakLjkModal() {
-      if (!activeUlanganId) {
-        alert('Pilih paket ulangan terlebih dahulu sebelum mencetak LJK!');
-        return;
-      }
+      if (!ensureActiveExam('mencetak LJK')) return;
       modalCetakLjk.classList.remove('hidden');
       if (inputLjkCustomTitle && activeUlanganData) {
         inputLjkCustomTitle.value = activeUlanganData.judul || '';
       }
       renderLjkSheet();
     }
+    window.openCetakLjkModal = openCetakLjkModal;
 
     if (btnOpenCetakLjk) btnOpenCetakLjk.onclick = openCetakLjkModal;
     if (btnCloseCetakLjkModal) btnCloseCetakLjkModal.onclick = () => modalCetakLjk.classList.add('hidden');
@@ -11702,14 +11843,12 @@
     let currentOmrSnapshotBase64 = null;
 
     function openOmrScannerModal() {
-      if (!activeUlanganId) {
-        alert('Pilih paket ulangan terlebih dahulu sebelum membuka OMR Scanner!');
-        return;
-      }
+      if (!ensureActiveExam('membuka OMR Scanner')) return;
       modalOmrScanner.classList.remove('hidden');
       populateOmrStudentDropdown();
       loadOmrLogs();
     }
+    window.openOmrScannerModal = openOmrScannerModal;
 
     if (btnOpenOmrScanner) btnOpenOmrScanner.onclick = openOmrScannerModal;
     if (btnCloseOmrScannerModal) {
@@ -12046,7 +12185,8 @@
         const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/omr/logs`);
         const json = await res.json();
         if (res.ok && json.success) {
-          const logs = json.data || [];
+          const rawLogs = json.logs || json.data;
+          const logs = Array.isArray(rawLogs) ? rawLogs : [];
           if (logs.length === 0) {
             omrLogsList.innerHTML = '<p class="text-[11px] text-slate-400 italic">Belum ada riwayat pemindaian.</p>';
             return;
@@ -12110,10 +12250,7 @@
         }
         if (btnSave) btnSave.innerHTML = '<span>💾 Simpan Soal ke Bank Soal</span>';
       } else {
-        if (!activeUlanganId) {
-          alert('Pilih paket ulangan terlebih dahulu sebelum membuat soal PG AI!');
-          return;
-        }
+        if (!ensureActiveExam('membuat butir soal PG AI')) return;
         modalAiPgGenerator.classList.remove('hidden');
         if (aiPgTopik && activeUlanganData) {
           aiPgTopik.value = `${activeUlanganData.mata_pelajaran || ''} - ${activeUlanganData.judul || ''}`.trim();
@@ -12121,6 +12258,7 @@
         if (btnSave) btnSave.innerHTML = '<span>💾 Masukkan Soal ke Ulangan</span>';
       }
     }
+    window.openAiPgGeneratorModal = openAiPgGeneratorModal;
 
     if (btnOpenAiPgGenerator) btnOpenAiPgGenerator.onclick = () => openAiPgGeneratorModal('ulangan');
     if (btnCloseAiPgModal) btnCloseAiPgModal.onclick = () => modalAiPgGenerator.classList.add('hidden');
@@ -12362,21 +12500,20 @@
       if (cgTarget === 'bank_soal') {
         if (btnSave) btnSave.innerHTML = '<span>💾 Simpan ke Bank Soal</span>';
       } else {
-        if (!activeUlanganId) {
-          alert('Silakan pilih atau buka salah satu ulangan terlebih dahulu sebelum merancang game koding.');
-          return;
-        }
+        if (!ensureActiveExam('merancang game koding')) return;
         if (btnSave) btnSave.innerHTML = '<span>💾 Simpan sebagai Butir Soal Ulangan</span>';
       }
       modalCodingGameBuilder.classList.remove('hidden');
       switchCgTab('preset');
       loadCodingGamePresets();
     }
+    window.openCodingGameModal = openCodingGameModal;
 
     function closeCodingGameModal() {
       modalCodingGameBuilder.classList.add('hidden');
       cgSimRunning = false;
     }
+    window.closeCodingGameModal = closeCodingGameModal;
 
     if (btnOpenCodingGameBuilder) {
       btnOpenCodingGameBuilder.onclick = () => openCodingGameModal('ulangan');
@@ -12399,7 +12536,6 @@
           content.classList.add('hidden');
         }
       });
-
       if (tab === 'editor') {
         renderCgEditorUI();
       }
@@ -12416,8 +12552,9 @@
       container.innerHTML = '<div class="col-span-2 text-center py-8 text-slate-400">Memuat template resmi SMP...</div>';
       try {
         const res = await guruFetch('/api/guru/coding-game/presets');
-        if (res && res.success && res.data) {
-          cgPresetsData = res.data;
+        const json = await res.json();
+        if (res.ok && json.success) {
+          cgPresetsData = json.presets || json.data || [];
           renderCodingPresetsUI();
         } else {
           container.innerHTML = '<div class="col-span-2 text-center py-6 text-red-500">Gagal memuat template koding.</div>';

@@ -1438,7 +1438,7 @@ app.post('/api/guru/ulangan/:id/packages/generate', requireGuru, (req, res) => {
 app.get('/api/guru/ulangan/:id/packages', requireGuru, (req, res) => {
   try {
     const packages = packageService.getPackagesByUlangan(req.params.id);
-    res.json({ success: true, packages });
+    res.json({ success: true, packages, data: packages });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }
@@ -1448,7 +1448,7 @@ app.get('/api/guru/ulangan/:id/packages', requireGuru, (req, res) => {
 app.get('/api/guru/ulangan/:id/packages/:name/printable', requireGuru, (req, res) => {
   try {
     const data = packageService.getPrintableQuestionsByPackage(req.params.id, req.params.name);
-    res.json({ success: true, ...data });
+    res.json({ success: true, ...data, data });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }
@@ -1532,7 +1532,7 @@ app.post('/api/guru/ulangan/:id/omr/scan-ai', requireGuru, async (req, res) => {
 app.get('/api/guru/ulangan/:id/omr/logs', requireGuru, (req, res) => {
   try {
     const logs = omrService.getScanLogs(req.params.id);
-    res.json({ success: true, logs });
+    res.json({ success: true, logs, data: logs });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }
@@ -1546,7 +1546,7 @@ app.get('/api/guru/ulangan/:id/omr/logs', requireGuru, (req, res) => {
 app.get('/api/guru/coding-game/presets', requireGuru, (req, res) => {
   try {
     const presets = codingGameService.getPresets();
-    res.json({ success: true, presets });
+    res.json({ success: true, presets, data: presets });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
