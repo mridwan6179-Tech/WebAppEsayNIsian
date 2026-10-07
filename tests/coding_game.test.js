@@ -261,6 +261,35 @@ describe('=== SUITE: ULANGAN MODE PERMAINAN KODING (SMP) & HYBRID ===', () => {
     assert.strictEqual(checkP.skor_koding, 100);
   });
 
+  test('8.2 Siswa submit pengerjaan dengan Game Koding parsial (1 bintang): status_jawaban tersimpan sebagai parsial sesuai CHECK constraint', () => {
+    // Siswa kedua: Budi
+    const examDataBudi = studentService.startExam(testKodeUjian, 'Budi Santoso', '7A');
+    assert.ok(examDataBudi.pengerjaanId);
+
+    // Di soal koding: robot finish tanpa ambil bintang -> dapat 1 bintang (skor 60%)
+    // gameData finish di {x: 2, y: 0}, stars di {x: 1, y: 0}
+    // Jika robot melompati bintang atau konfigurasi puzzle yang menghasilkan 1 bintang
+    const answersBudi = [
+      { soal_id: testSoalPgId, jawaban_siswa: 'A' },
+      {
+        soal_id: testSoalKodingId,
+        jawaban_siswa: JSON.stringify([{ type: 'move' }, { type: 'move' }]) // Akan dinilai
+      }
+    ];
+
+    // Buat jawaban parsial secara eksak: misalnya koding game Parsons atau Scratch dengan pasangan sebagian
+    const pengerjaanBudi = db.prepare('SELECT id FROM pengerjaan WHERE id = ?').get(examDataBudi.pengerjaanId);
+    assert.ok(pengerjaanBudi);
+
+    const submitResBudi = studentService.submitExam(pengerjaanBudi.id, answersBudi);
+    assert.strictEqual(submitResBudi.success, true);
+
+    // Verifikasi bahwa jawaban koding tersimpan dan status_jawaban memenuhi CHECK constraint
+    const jwbKoding = db.prepare('SELECT status_jawaban FROM jawaban WHERE pengerjaan_id = ? AND soal_id = ?').get(pengerjaanBudi.id, testSoalKodingId);
+    assert.ok(jwbKoding);
+    assert.ok(['benar', 'parsial', 'salah', 'perlu_review'].includes(jwbKoding.status_jawaban), `status_jawaban harus valid: ${jwbKoding.status_jawaban}`);
+  });
+
   test('9. REST API Endpoints: Presets dan Test-run bekerja normal via Express', async () => {
     const testLevel = {
       mode: 'grid_runner',

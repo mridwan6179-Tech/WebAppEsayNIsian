@@ -709,7 +709,7 @@ const studentService = {
           const evalResult = codingGameService.evaluateSolution(sInfo.game_data, finalJawaban);
           sumKodingScorePct += evalResult.score;
           const skorRek = Math.round(((evalResult.score / 100) * Number(bobot)) * 100) / 100;
-          const statusJwb = evalResult.starsEarned >= 2 ? 'benar' : (evalResult.starsEarned === 1 ? 'sebagian' : 'salah');
+          const statusJwb = evalResult.starsEarned >= 2 ? 'benar' : (evalResult.starsEarned === 1 ? 'parsial' : 'salah');
           let alasan = '';
           if (evalResult.mode === 'scratch_puzzle') {
             alasan = `Cocok: ${evalResult.correctCount}/${evalResult.total} pasangan balok. Bintang: ${evalResult.starsEarned}/3.`;
