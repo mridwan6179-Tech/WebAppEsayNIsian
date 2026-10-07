@@ -691,10 +691,10 @@
                 <button id="btn-open-omr-scanner" type="button" onclick="window.openOmrScannerModal ? window.openOmrScannerModal() : null" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1.5 cursor-pointer" title="Pindai LJK siswa secara otomatis menggunakan kamera HP atau webcam laptop">
                   <span>📷 Scan LJK Kamera</span>
                 </button>
-                <button id="btn-open-coding-game-builder" type="button" onclick="window.openCodingGameModal ? window.openCodingGameModal('ulangan') : null" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1.5 cursor-pointer" title="Rancang dan tambahkan permainan koding berpikir komputasional tingkat SMP">
+                <button id="btn-open-coding-game-builder" type="button" onclick="openCodingGameModal('ulangan')" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1.5 cursor-pointer" title="Rancang dan tambahkan permainan koding berpikir komputasional tingkat SMP">
                   <span>🎮 Game Koding (SMP)</span>
                 </button>
-                <button id="btn-open-ai-pg-generator" type="button" onclick="window.openAiPgGeneratorModal ? window.openAiPgGeneratorModal('ulangan') : null" class="text-xs bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold px-3 py-1.5 rounded-lg border border-teal-200 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Buat butir soal Pilihan Ganda (PG) otomatis dengan bantuan Gemini AI">
+                <button id="btn-open-ai-pg-generator" type="button" onclick="openAiPgGeneratorModal('ulangan')" class="text-xs bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold px-3 py-1.5 rounded-lg border border-teal-200 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Buat butir soal Pilihan Ganda (PG) otomatis dengan bantuan Gemini AI">
                   <span>✨ Buat PG AI</span>
                 </button>
                 <button id="btn-open-calibrate-weights" type="button" onclick="window.openCalibrateModal ? window.openCalibrateModal() : null" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold px-3 py-1.5 rounded-lg border border-amber-300 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Kalibrasi bobot seluruh butir soal secara adil & seimbang">
@@ -1115,10 +1115,10 @@
           <button id="btn-open-ai-generator-bank" type="button" class="px-3.5 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 border border-purple-400/40">
             <span>✨ Buat Soal via AI</span>
           </button>
-          <button id="btn-open-ai-pg-bank" type="button" class="px-3.5 py-2 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 border border-teal-400/40" title="Generate soal Pilihan Ganda dengan AI langsung ke Bank Soal">
+          <button id="btn-open-ai-pg-bank" type="button" onclick="openAiPgGeneratorModal('bank_soal')" class="px-3.5 py-2 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 border border-teal-400/40 cursor-pointer" title="Generate soal Pilihan Ganda dengan AI langsung ke Bank Soal">
             <span>🔘 Buat PG AI</span>
           </button>
-          <button id="btn-open-coding-game-bank" type="button" class="px-3.5 py-2 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 border border-indigo-400/40" title="Rancang game koding berpikir komputasional tingkat SMP langsung ke Bank Soal">
+          <button id="btn-open-coding-game-bank" type="button" onclick="openCodingGameModal('bank_soal')" class="px-3.5 py-2 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 border border-indigo-400/40 cursor-pointer" title="Rancang game koding berpikir komputasional tingkat SMP langsung ke Bank Soal">
             <span>🎮 Game Koding</span>
           </button>
           <button id="btn-open-ai-smart-pick" type="button" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5">
@@ -2990,6 +2990,9 @@
           </button>
         </div>
       </div>
+    </div>
+  </div>
+
   <!-- Modal Multi-Paket Soal (A, B, C, D) -->
   <div id="modal-multi-paket" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
     <div class="bg-white rounded-2xl max-w-4xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 my-auto max-h-[92vh] overflow-y-auto">
@@ -3364,7 +3367,7 @@
             <p class="text-[11px] text-slate-500">Buat paket soal PG HOTS dengan pilihan A-D atau A-E, kunci jawaban, dan pembahasan ilmiah secara otomatis.</p>
           </div>
         </div>
-        <button type="button" id="btn-close-ai-pg-modal" class="text-slate-400 hover:text-slate-600 text-xl font-bold p-1">&times;</button>
+        <button type="button" id="btn-close-ai-pg-modal" onclick="document.getElementById('modal-ai-pg-generator').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-xl font-bold p-1 cursor-pointer">&times;</button>
       </div>
 
       <!-- Form Pengaturan Generator -->
@@ -3443,7 +3446,7 @@
   </div>
 
   <!-- Modal Builder & Simulator Game Koding SMP -->
-  <div id="modal-coding-game-builder" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+  <div id="modal-coding-game-builder" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
     <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
       <!-- Modal Header -->
       <div class="px-5 py-3.5 bg-gradient-to-r from-indigo-700 via-indigo-800 to-purple-800 text-white flex items-center justify-between shrink-0">
@@ -3457,7 +3460,7 @@
             <p class="text-xs text-indigo-200">Rancang level simulasi logika (Algoritma, Loop, If-Else, Debugging, Scratch Puzzle)</p>
           </div>
         </div>
-        <button type="button" id="btn-close-coding-game-builder" class="text-white/80 hover:text-white hover:bg-white/10 p-1.5 rounded-xl transition text-lg cursor-pointer">✕</button>
+        <button type="button" id="btn-close-coding-game-builder" onclick="closeCodingGameModal()" class="text-white/80 hover:text-white hover:bg-white/10 p-1.5 rounded-xl transition text-lg cursor-pointer">✕</button>
       </div>
 
       <!-- Navigation Tabs -->
@@ -3691,8 +3694,6 @@
       </div>
     </div>
   </div>
-    </div>
-  </div>
 
   <script>
     function escapeHtml(str) {
@@ -3759,25 +3760,48 @@
       }
     };
 
-    window.openCodingGameModal = (target = 'ulangan') => {
-      if (target !== 'bank_soal' && !ensureActiveExam('merancang game koding')) return;
+    window.cgTarget = 'ulangan';
+    window.aiPgTarget = 'ulangan';
+
+    function openCodingGameModal(target = 'ulangan') {
+      const resolvedTarget = target || 'ulangan';
+      window.cgTarget = resolvedTarget;
+      if (typeof cgTarget !== 'undefined') {
+        try { cgTarget = resolvedTarget; } catch (e) {}
+      }
+      if (resolvedTarget !== 'bank_soal' && !ensureActiveExam('merancang game koding')) return;
       const modal = document.getElementById('modal-coding-game-builder');
       if (modal) {
-        window.cgTarget = target;
+        const btnSave = document.getElementById('btn-cg-save-to-exam');
+        if (btnSave) {
+          btnSave.innerHTML = resolvedTarget === 'bank_soal' ? '<span>💾 Simpan ke Bank Soal</span>' : '<span>💾 Simpan sebagai Butir Soal Ulangan</span>';
+        }
         modal.classList.remove('hidden');
         if (typeof switchCgTab === 'function') switchCgTab('preset');
         if (typeof loadCodingGamePresets === 'function') loadCodingGamePresets();
       }
-    };
+    }
+    window.openCodingGameModal = openCodingGameModal;
 
-    window.openAiPgGeneratorModal = (target = 'ulangan') => {
-      if (target !== 'bank_soal' && !ensureActiveExam('membuat soal PG AI')) return;
+    function closeCodingGameModal() {
+      const modal = document.getElementById('modal-coding-game-builder');
+      if (modal) modal.classList.add('hidden');
+      if (typeof cgSimRunning !== 'undefined') cgSimRunning = false;
+    }
+    window.closeCodingGameModal = closeCodingGameModal;
+
+    function openAiPgGeneratorModal(target = 'ulangan') {
+      const resolvedTarget = target || 'ulangan';
+      window.aiPgTarget = resolvedTarget;
+      if (typeof aiPgTarget !== 'undefined') {
+        try { aiPgTarget = resolvedTarget; } catch (e) {}
+      }
+      if (resolvedTarget !== 'bank_soal' && !ensureActiveExam('membuat butir soal PG AI')) return;
       const modal = document.getElementById('modal-ai-pg-generator');
       if (modal) {
-        window.aiPgTarget = target;
         const aiPgTopik = document.getElementById('ai-pg-topik');
         if (aiPgTopik) {
-          if (target === 'bank_soal') {
+          if (resolvedTarget === 'bank_soal') {
             const cat = document.getElementById('bank-filter-kategori')?.value;
             aiPgTopik.value = (cat && cat !== 'all') ? cat : 'Informatika & Pemrograman';
           } else if (activeUlanganData) {
@@ -3786,11 +3810,12 @@
         }
         const btnSave = document.getElementById('btn-save-selected-ai-pg');
         if (btnSave) {
-          btnSave.innerHTML = target === 'bank_soal' ? '<span>💾 Simpan Soal ke Bank Soal</span>' : '<span>💾 Masukkan Soal ke Ulangan</span>';
+          btnSave.innerHTML = resolvedTarget === 'bank_soal' ? '<span>💾 Simpan Soal ke Bank Soal</span>' : '<span>💾 Masukkan Soal ke Ulangan</span>';
         }
         modal.classList.remove('hidden');
       }
-    };
+    }
+    window.openAiPgGeneratorModal = openAiPgGeneratorModal;
 
     window.openCalibrateModal = () => {
       if (!ensureActiveExam('kalibrasi bobot')) return;
@@ -3834,22 +3859,47 @@
         window.openOmrScannerModal();
         return;
       }
+      const btnCgBank = e.target.closest('#btn-open-coding-game-bank');
+      if (btnCgBank) {
+        e.preventDefault();
+        openCodingGameModal('bank_soal');
+        return;
+      }
+      const btnPgAiBank = e.target.closest('#btn-open-ai-pg-bank');
+      if (btnPgAiBank) {
+        e.preventDefault();
+        openAiPgGeneratorModal('bank_soal');
+        return;
+      }
       const btnCg = e.target.closest('#btn-open-coding-game-builder');
       if (btnCg) {
         e.preventDefault();
-        window.openCodingGameModal('ulangan');
+        openCodingGameModal('ulangan');
         return;
       }
       const btnPgAi = e.target.closest('#btn-open-ai-pg-generator');
       if (btnPgAi) {
         e.preventDefault();
-        window.openAiPgGeneratorModal('ulangan');
+        openAiPgGeneratorModal('ulangan');
         return;
       }
       const btnCalib = e.target.closest('#btn-open-calibrate-weights, #btn-quick-calibrate-bobot');
       if (btnCalib) {
         e.preventDefault();
         window.openCalibrateModal();
+        return;
+      }
+      const btnCloseCg = e.target.closest('#btn-close-coding-game-builder');
+      if (btnCloseCg) {
+        e.preventDefault();
+        closeCodingGameModal();
+        return;
+      }
+      const btnCloseAiPg = e.target.closest('#btn-close-ai-pg-modal');
+      if (btnCloseAiPg) {
+        e.preventDefault();
+        const m = document.getElementById('modal-ai-pg-generator');
+        if (m) m.classList.add('hidden');
         return;
       }
     });
@@ -12293,6 +12343,7 @@
 
     function openAiPgGeneratorModal(target = 'ulangan') {
       aiPgTarget = target || 'ulangan';
+      window.aiPgTarget = aiPgTarget;
       const btnSave = document.getElementById('btn-save-selected-ai-pg');
 
       if (aiPgTarget === 'bank_soal') {
@@ -12416,7 +12467,7 @@
         const selectedQuestions = checkedBoxes.map(cb => generatedAiPgList[Number(cb.value)]).filter(Boolean);
 
         // Jika Target adalah Bank Soal Mandiri:
-        if (aiPgTarget === 'bank_soal') {
+        if (aiPgTarget === 'bank_soal' || window.aiPgTarget === 'bank_soal') {
           btnSaveSelectedAiPg.disabled = true;
           btnSaveSelectedAiPg.textContent = 'Menyimpan ke Bank Soal...';
 
@@ -12548,6 +12599,7 @@
 
     function openCodingGameModal(target = 'ulangan') {
       cgTarget = target || 'ulangan';
+      window.cgTarget = cgTarget;
       const btnSave = document.getElementById('btn-cg-save-to-exam');
 
       if (cgTarget === 'bank_soal') {
@@ -13408,7 +13460,7 @@
       btnSave.disabled = true;
 
       // Jika Target adalah Bank Soal Mandiri:
-      if (cgTarget === 'bank_soal') {
+      if (cgTarget === 'bank_soal' || window.cgTarget === 'bank_soal') {
         btnSave.textContent = 'Menyimpan ke Bank Soal...';
         try {
           const payload = {
