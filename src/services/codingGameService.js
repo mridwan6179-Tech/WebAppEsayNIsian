@@ -12,115 +12,300 @@ const geminiService = require('./geminiService');
 
 class CodingGameService {
   /**
-   * Template preset bawaan untuk 5 mode dasar koding SMP
+   * Template preset bawaan untuk ragam mode dan tema visual game koding SMP
    */
   getPresets() {
     return [
       {
         id: 'preset-grid-runner-1',
+        key: 'preset-grid-runner-1',
         mode: 'grid_runner',
-        title: 'Langkah Pertama Robot',
-        description: 'Bantu robot mengumpulkan bintang ⭐ dan mencapai gerbang finish 🏁!',
+        subtipe: 'grid_robot',
+        title: 'Langkah Pertama Robot Antariksa',
+        nama: 'Langkah Pertama Robot Antariksa',
+        description: 'Bantu robot mengumpulkan bintang ⭐ dan mencapai gerbang warp 🏁!',
+        deskripsi: 'Bantu robot mengumpulkan bintang ⭐ dan mencapai gerbang warp 🏁!',
+        pertanyaan: 'Susunlah balok algoritma agar Robot Antariksa dapat mengumpulkan semua bintang energi ⭐ dan tiba di gerbang finish 🏁 dengan selamat tanpa menabrak rintangan generator laser!',
+        theme: 'space',
         gridSize: { rows: 5, cols: 5 },
-        start: { x: 0, y: 0, dir: 'right' },
-        finish: { x: 4, y: 4 },
+        grid_width: 5,
+        grid_height: 5,
+        start: { x: 0, y: 4, dir: 'right' },
+        start_pos: { x: 0, y: 4 },
+        start_dir: 'E',
+        finish: { x: 4, y: 0 },
+        finish_pos: { x: 4, y: 0 },
         obstacles: [
-          { x: 1, y: 1, type: 'wall' },
+          { x: 1, y: 2, type: 'wall' },
+          { x: 2, y: 2, type: 'wall' },
+          { x: 3, y: 2, type: 'wall' }
+        ],
+        grid: [
+          ['', '', '', '', ''],
+          ['', '', '', '', ''],
+          ['', 'wall', 'wall', 'wall', ''],
+          ['', '', '', '', ''],
+          ['', '', '', '', '']
+        ],
+        stars: [
+          { x: 1, y: 3 },
+          { x: 3, y: 1 }
+        ],
+        allowedBlocks: ['move', 'move_back', 'turn_left', 'turn_right', 'collect'],
+        allowed_blocks: ['MAJU', 'MUNDUR', 'BELOK_KIRI', 'BELOK_KANAN'],
+        initialBlocks: [],
+        initial_blocks: [],
+        parBlocks: 8,
+        par_limit: 8,
+        difficulty: 'mudah',
+        tingkat_kesulitan: 'mudah',
+        bobot: 20
+      },
+      {
+        id: 'preset-forest-explorer-1',
+        key: 'preset-forest-explorer-1',
+        mode: 'grid_runner',
+        subtipe: 'grid_robot',
+        title: 'Penjelajah Labirin Hutan Berbatu',
+        nama: 'Penjelajah Labirin Hutan Berbatu',
+        description: 'Gunakan perintah Maju & Mundur untuk keluar dari celah tebing batu!',
+        deskripsi: 'Gunakan perintah Maju & Mundur untuk keluar dari celah tebing batu!',
+        pertanyaan: 'Di labirin hutan ini, gunakan balok MAJU, MUNDUR, dan BELOK agar Robot Penjelajah bisa mengambil kristal bintang ⭐ di ceruk sempit lalu mundur dan berbelok ke pos pengamatan 🏁!',
+        theme: 'forest',
+        gridSize: { rows: 5, cols: 5 },
+        grid_width: 5,
+        grid_height: 5,
+        start: { x: 0, y: 2, dir: 'right' },
+        start_pos: { x: 0, y: 2 },
+        start_dir: 'E',
+        finish: { x: 4, y: 2 },
+        finish_pos: { x: 4, y: 2 },
+        obstacles: [
           { x: 2, y: 1, type: 'wall' },
-          { x: 2, y: 3, type: 'rock' }
+          { x: 2, y: 3, type: 'wall' },
+          { x: 3, y: 1, type: 'wall' },
+          { x: 3, y: 3, type: 'wall' }
+        ],
+        grid: [
+          ['', '', '', '', ''],
+          ['', '', 'wall', 'wall', ''],
+          ['', '', '', '', ''],
+          ['', '', 'wall', 'wall', ''],
+          ['', '', '', '', '']
         ],
         stars: [
           { x: 2, y: 0 },
-          { x: 4, y: 2 }
+          { x: 2, y: 4 }
         ],
-        allowedBlocks: ['move', 'turn_left', 'turn_right', 'collect'],
+        allowedBlocks: ['move', 'move_back', 'turn_left', 'turn_right', 'collect'],
+        allowed_blocks: ['MAJU', 'MUNDUR', 'BELOK_KIRI', 'BELOK_KANAN'],
         initialBlocks: [],
+        initial_blocks: [],
         parBlocks: 10,
-        difficulty: 'mudah'
+        par_limit: 10,
+        difficulty: 'sedang',
+        tingkat_kesulitan: 'sedang',
+        bobot: 25
       },
       {
         id: 'preset-loop-master-1',
+        key: 'preset-loop-master-1',
         mode: 'loop_master',
-        title: 'Tangga Berulang (Loop Master)',
-        description: 'Jalur ini memiliki pola berulang! Gunakan balok Ulangi agar hemat balok.',
+        subtipe: 'loop_master',
+        title: 'Piramida Tangga Berulang (Loop Master)',
+        nama: 'Piramida Tangga Berulang (Loop Master)',
+        description: 'Kenali pola tangga berulang dan gunakan balok Ulangi agar efisien!',
+        deskripsi: 'Kenali pola tangga berulang dan gunakan balok Ulangi agar efisien!',
+        pertanyaan: 'Perhatikan pola tangga piramida ini: Maju, Belok Kiri, Maju, Belok Kanan. Gunakan balok ULANGI (Loop) agar kode kamu sangat ringkas dan tidak melebihi Par Target!',
+        theme: 'pyramid',
         gridSize: { rows: 6, cols: 6 },
-        start: { x: 0, y: 0, dir: 'right' },
-        finish: { x: 5, y: 5 },
+        grid_width: 6,
+        grid_height: 6,
+        start: { x: 0, y: 5, dir: 'right' },
+        start_pos: { x: 0, y: 5 },
+        start_dir: 'E',
+        finish: { x: 5, y: 0 },
+        finish_pos: { x: 5, y: 0 },
         obstacles: [
-          { x: 0, y: 1, type: 'wall' },
-          { x: 1, y: 2, type: 'wall' },
-          { x: 2, y: 3, type: 'wall' },
-          { x: 3, y: 4, type: 'wall' }
+          { x: 0, y: 4, type: 'wall' },
+          { x: 1, y: 3, type: 'wall' },
+          { x: 2, y: 2, type: 'wall' },
+          { x: 3, y: 1, type: 'wall' }
+        ],
+        grid: [
+          ['', '', '', '', '', ''],
+          ['', '', '', 'wall', '', ''],
+          ['', '', 'wall', '', '', ''],
+          ['', 'wall', '', '', '', ''],
+          ['wall', '', '', '', '', ''],
+          ['', '', '', '', '', '']
         ],
         stars: [
-          { x: 1, y: 1 },
-          { x: 3, y: 3 }
+          { x: 1, y: 4 },
+          { x: 3, y: 2 }
         ],
-        allowedBlocks: ['move', 'turn_left', 'turn_right', 'collect', 'repeat'],
+        allowedBlocks: ['move', 'move_back', 'turn_left', 'turn_right', 'collect', 'repeat'],
+        allowed_blocks: ['MAJU', 'MUNDUR', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'],
         initialBlocks: [],
+        initial_blocks: [],
         parBlocks: 6,
-        difficulty: 'sedang'
+        par_limit: 6,
+        difficulty: 'sedang',
+        tingkat_kesulitan: 'sedang',
+        bobot: 25
+      },
+      {
+        id: 'preset-if-else-1',
+        key: 'preset-if-else-1',
+        mode: 'if_else',
+        subtipe: 'decision_gate',
+        title: 'Lembah Lava: Gerbang Sensor Percabangan',
+        nama: 'Lembah Lava: Gerbang Sensor Percabangan',
+        description: 'Gunakan sensor percabangan kondisi untuk menghindar jika ada kubangan lahar!',
+        deskripsi: 'Gunakan sensor percabangan kondisi untuk menghindar jika ada kubangan lahar!',
+        pertanyaan: 'Jalur utama dipenuhi kubangan lahar panas 🔥. Gunakan balok percabangan JIKA RINTANGAN agar robot otomatis mendeteksi bahaya dan berbelok mengambil jalan aman!',
+        theme: 'volcano',
+        gridSize: { rows: 6, cols: 6 },
+        grid_width: 6,
+        grid_height: 6,
+        start: { x: 0, y: 3, dir: 'right' },
+        start_pos: { x: 0, y: 3 },
+        start_dir: 'E',
+        finish: { x: 5, y: 3 },
+        finish_pos: { x: 5, y: 3 },
+        obstacles: [
+          { x: 2, y: 3, type: 'wall' },
+          { x: 3, y: 3, type: 'wall' }
+        ],
+        grid: [
+          ['', '', '', '', '', ''],
+          ['', '', '', '', '', ''],
+          ['', '', '', '', '', ''],
+          ['', '', 'wall', 'wall', '', ''],
+          ['', '', '', '', '', ''],
+          ['', '', '', '', '', '']
+        ],
+        stars: [
+          { x: 2, y: 1 },
+          { x: 4, y: 4 }
+        ],
+        allowedBlocks: ['move', 'move_back', 'turn_left', 'turn_right', 'collect', 'if_obstacle'],
+        allowed_blocks: ['MAJU', 'MUNDUR', 'BELOK_KIRI', 'BELOK_KANAN', 'JIKA_RINTANGAN'],
+        initialBlocks: [],
+        initial_blocks: [],
+        parBlocks: 8,
+        par_limit: 8,
+        difficulty: 'sulit',
+        tingkat_kesulitan: 'sulit',
+        bobot: 30
       },
       {
         id: 'preset-bug-doctor-1',
+        key: 'preset-bug-doctor-1',
         mode: 'bug_doctor',
-        title: 'Dokter Kode: Perbaiki Jalur Rusak',
-        description: 'Robot ini menabrak tembok di langkah ke-3! Temukan dan ganti balok yang salah agar robot selamat.',
+        subtipe: 'bug_doctor',
+        title: 'Dokter Kode: Menyelamatkan Rover Rusak',
+        nama: 'Dokter Kode: Menyelamatkan Rover Rusak',
+        description: 'Kode program bawaan salah dan menabrak! Perbaiki baloknya agar berhasil.',
+        deskripsi: 'Kode program bawaan salah dan menabrak! Perbaiki baloknya agar berhasil.',
+        pertanyaan: 'Kode berikut memiliki kesalahan ("bug"): robot berbelok ke arah yang salah dan menabrak tebing. Temukan balok yang keliru, hapus atau ganti dengan arah yang benar!',
+        theme: 'ocean',
         gridSize: { rows: 5, cols: 5 },
+        grid_width: 5,
+        grid_height: 5,
         start: { x: 0, y: 2, dir: 'right' },
+        start_pos: { x: 0, y: 2 },
+        start_dir: 'E',
         finish: { x: 4, y: 2 },
+        finish_pos: { x: 4, y: 2 },
         obstacles: [
-          { x: 2, y: 1, type: 'wall' },
-          { x: 2, y: 3, type: 'wall' },
-          { x: 2, y: 2, type: 'rock' } // rintangan di tengah
+          { x: 2, y: 2, type: 'wall' },
+          { x: 2, y: 3, type: 'wall' }
+        ],
+        grid: [
+          ['', '', '', '', ''],
+          ['', '', '', '', ''],
+          ['', '', 'wall', '', ''],
+          ['', '', 'wall', '', ''],
+          ['', '', '', '', '']
         ],
         stars: [
           { x: 2, y: 0 },
           { x: 4, y: 0 }
         ],
-        allowedBlocks: ['move', 'turn_left', 'turn_right', 'collect'],
+        allowedBlocks: ['move', 'move_back', 'turn_left', 'turn_right', 'collect'],
+        allowed_blocks: ['MAJU', 'MUNDUR', 'BELOK_KIRI', 'BELOK_KANAN'],
         initialBlocks: [
           { type: 'move' },
-          { type: 'turn_right' }, // SALAH: belok kanan nabrak dinding, harusnya turn_left
-          { type: 'move' },
+          { type: 'turn_right' },
           { type: 'move' }
         ],
-        parBlocks: 8,
-        difficulty: 'sedang'
-      },
-      {
-        id: 'preset-if-else-1',
-        mode: 'if_else',
-        title: 'Gerbang Sensor Cerdas (If-Else)',
-        description: 'Gunakan sensor untuk memeriksa rintangan di depan robot sebelum melangkah.',
-        gridSize: { rows: 6, cols: 6 },
-        start: { x: 0, y: 2, dir: 'right' },
-        finish: { x: 5, y: 2 },
-        obstacles: [
-          { x: 2, y: 2, type: 'wall' }
+        initial_blocks: [
+          { type: 'MAJU' },
+          { type: 'BELOK_KANAN' },
+          { type: 'MAJU' }
         ],
-        stars: [
-          { x: 2, y: 1 },
-          { x: 4, y: 2 }
-        ],
-        allowedBlocks: ['move', 'turn_left', 'turn_right', 'collect', 'if_obstacle'],
-        initialBlocks: [],
-        parBlocks: 8,
-        difficulty: 'menantang'
+        parBlocks: 7,
+        par_limit: 7,
+        difficulty: 'sedang',
+        tingkat_kesulitan: 'sedang',
+        bobot: 20
       },
       {
         id: 'preset-scratch-puzzle-1',
+        key: 'preset-scratch-puzzle-1',
         mode: 'scratch_puzzle',
-        title: 'Logika Game Mini (Sebab & Akibat)',
-        description: 'Pasangkan setiap Pemicu Kejadian (Event) dengan Aksi yang paling tepat!',
+        subtipe: 'scratch_puzzle',
+        title: 'Logika Scratch Mini: Mekanika Game Aksi',
+        nama: 'Logika Scratch Mini: Mekanika Game Aksi',
+        description: 'Pasangkan Pemicu Kejadian (Event ⚡) dengan Balok Aksi (Action ▶) yang tepat!',
+        deskripsi: 'Pasangkan Pemicu Kejadian (Event ⚡) dengan Balok Aksi (Action ▶) yang tepat!',
+        pertanyaan: 'Tantangan Logika Scratch Mini Game: Pasangkan setiap Pemicu Kejadian (Event) di bawah ini dengan Aksi Balok yang paling logis dan benar!',
+        theme: 'scratch',
         pairs: [
-          { id: 'p1', event: 'Saat Tombol Spasi Ditekan', action: 'Karakter Melompat' },
-          { id: 'p2', event: 'Saat Robot Menyentuh Bintang', action: 'Tambah Skor +10' },
-          { id: 'p3', event: 'Saat Robot Menabrak Lava / Duri', action: 'Kurangi Nyawa 1' },
-          { id: 'p4', event: 'Saat Bendera Hijau Diklik', action: 'Mulai Game & Reset Posisi' }
+          { id: 'p1', event: 'Ketika tombol Spasi ditekan', action: 'Karakter melompat ke atas' },
+          { id: 'p2', event: 'Ketika robot menyentuh bintang ⭐', action: 'Skor bertambah +10 poin' },
+          { id: 'p3', event: 'Ketika robot menabrak duri / lava', action: 'Kurangi nyawa karakter 1' },
+          { id: 'p4', event: 'Ketika bendera hijau diklik 🚩', action: 'Mulai game & reset posisi karakter' }
         ],
-        distractors: ['Ubah Kostum Jadi Hantu', 'Matikan Komputer'],
-        difficulty: 'mudah'
+        target_pairs: [
+          { event: 'Ketika tombol Spasi ditekan', action: 'Karakter melompat ke atas' },
+          { event: 'Ketika robot menyentuh bintang ⭐', action: 'Skor bertambah +10 poin' },
+          { event: 'Ketika robot menabrak duri / lava', action: 'Kurangi nyawa karakter 1' },
+          { event: 'Ketika bendera hijau diklik 🚩', action: 'Mulai game & reset posisi karakter' }
+        ],
+        distractors: ['Ubah kostum jadi hantu', 'Keluarkan suara meong'],
+        difficulty: 'mudah',
+        tingkat_kesulitan: 'mudah',
+        bobot: 25
+      },
+      {
+        id: 'preset-scratch-puzzle-2',
+        key: 'preset-scratch-puzzle-2',
+        mode: 'scratch_puzzle',
+        subtipe: 'scratch_puzzle',
+        title: 'Logika Scratch Mini: Koin & Aturan Game',
+        nama: 'Logika Scratch Mini: Koin & Aturan Game',
+        description: 'Cocokkan logika kondisi dan aturan kemenangan permainan!',
+        deskripsi: 'Cocokkan logika kondisi dan aturan kemenangan permainan!',
+        pertanyaan: 'Dalam rancangan game menangkap koin, pasangkan setiap pemicu sensor dan tombol dengan aksi balok yang tepat!',
+        theme: 'scratch',
+        pairs: [
+          { id: 'q1', event: 'Ketika tombol Panah Kanan ditekan', action: 'Ubah posisi X sebesar +10 (bergerak ke kanan)' },
+          { id: 'q2', event: 'Ketika waktu hitung mundur = 0', action: 'Tampilkan tulisan GAME OVER & hentikan semua skrip' },
+          { id: 'q3', event: 'Ketika skor mencapai 100', action: 'Putar suara kemenangan & lanjut ke Level 2' },
+          { id: 'q4', event: 'Ketika karakter menyentuh magnet', action: 'Tarik semua koin emas di sekitar' }
+        ],
+        target_pairs: [
+          { event: 'Ketika tombol Panah Kanan ditekan', action: 'Ubah posisi X sebesar +10 (bergerak ke kanan)' },
+          { event: 'Ketika waktu hitung mundur = 0', action: 'Tampilkan tulisan GAME OVER & hentikan semua skrip' },
+          { event: 'Ketika skor mencapai 100', action: 'Putar suara kemenangan & lanjut ke Level 2' },
+          { event: 'Ketika karakter menyentuh magnet', action: 'Tarik semua koin emas di sekitar' }
+        ],
+        distractors: ['Hapus sprite dari panggung'],
+        difficulty: 'sedang',
+        tingkat_kesulitan: 'sedang',
+        bobot: 25
       }
     ];
   }
@@ -146,24 +331,40 @@ class CodingGameService {
 
   /**
    * Eksekusi simulasi grid langkah demi langkah (0-Token Deterministic Simulation)
+   * Mendukung instruksi: Maju, Mundur, Belok Kiri, Belok Kanan, Ulangi (Loop), dan Jika Rintangan
    */
   simulateGridExecution(levelData, blocks) {
-    const rows = levelData.gridSize?.rows || 5;
-    const cols = levelData.gridSize?.cols || 5;
-    let x = levelData.start?.x ?? 0;
-    let y = levelData.start?.y ?? 0;
-    let dir = levelData.start?.dir || 'right'; // 'up', 'right', 'down', 'left'
+    const rows = Number(levelData.grid_height || levelData.gridSize?.rows) || 5;
+    const cols = Number(levelData.grid_width || levelData.gridSize?.cols) || 5;
+    let x = (levelData.start_pos?.x ?? levelData.start?.x) ?? 0;
+    let y = (levelData.start_pos?.y ?? levelData.start?.y) ?? 0;
 
-    const finishX = levelData.finish?.x ?? (cols - 1);
-    const finishY = levelData.finish?.y ?? (rows - 1);
+    const dirMap = {
+      N: 'up', E: 'right', S: 'down', W: 'left',
+      up: 'up', right: 'right', down: 'down', left: 'left',
+      UTARA: 'up', TIMUR: 'right', SELATAN: 'down', BARAT: 'left'
+    };
+    let dir = dirMap[levelData.start_dir] || dirMap[levelData.start?.dir] || 'right';
 
-    const obstacles = new Set(
-      (levelData.obstacles || []).map(o => `${o.x},${o.y}`)
-    );
+    const finishX = (levelData.finish_pos?.x ?? levelData.finish?.x) ?? (cols - 1);
+    const finishY = (levelData.finish_pos?.y ?? levelData.finish?.y) ?? (rows - 1);
 
-    const remainingStars = new Set(
-      (levelData.stars || []).map(s => `${s.x},${s.y}`)
-    );
+    const obstacles = new Set();
+    if (Array.isArray(levelData.obstacles)) {
+      levelData.obstacles.forEach(o => obstacles.add(`${o.x},${o.y}`));
+    }
+    if (Array.isArray(levelData.grid)) {
+      levelData.grid.forEach((row, gy) => {
+        if (Array.isArray(row)) {
+          row.forEach((cell, gx) => {
+            if (cell === 'wall' || cell === 'rock' || cell === 'obstacle') obstacles.add(`${gx},${gy}`);
+          });
+        }
+      });
+    }
+
+    const starsList = Array.isArray(levelData.stars) ? levelData.stars : [];
+    const remainingStars = new Set(starsList.map(s => `${s.x},${s.y}`));
     const totalStars = remainingStars.size;
     let collectedStars = 0;
 
@@ -197,9 +398,10 @@ class CodingGameService {
         if (hitObstacle || totalStepsExecuted >= MAX_STEPS) break;
         totalStepsExecuted++;
 
-        const type = block?.type || block;
+        const rawType = (block?.type || block || '').toString();
+        const type = rawType.trim();
 
-        if (type === 'move') {
+        if (type === 'move' || type === 'MAJU' || type === 'maju') {
           const off = dirOffsets[dir];
           const nextX = x + off.dx;
           const nextY = y + off.dy;
@@ -222,7 +424,6 @@ class CodingGameService {
           y = nextY;
           logs.push({ step: totalStepsExecuted, action: 'move', x, y, dir });
 
-          // Auto-collect jika ada bintang di petak dan balok collect otomatis/opsional
           if (remainingStars.has(`${x},${y}`)) {
             remainingStars.delete(`${x},${y}`);
             collectedStars++;
@@ -232,10 +433,43 @@ class CodingGameService {
           if (x === finishX && y === finishY) {
             logs.push({ step: totalStepsExecuted, action: 'reached_finish', x, y, dir });
           }
-        } else if (type === 'turn_right') {
+        } else if (type === 'move_back' || type === 'MUNDUR' || type === 'mundur' || type === 'back') {
+          // Perintah Mundur: Bergerak 1 petak ke arah berlawanan tanpa mengubah arah hadap robot
+          const off = dirOffsets[dir];
+          const nextX = x - off.dx;
+          const nextY = y - off.dy;
+
+          if (nextX < 0 || nextX >= cols || nextY < 0 || nextY >= rows) {
+            hitObstacle = true;
+            obstacleReason = 'Robot menabrak batas arena saat mundur!';
+            logs.push({ step: totalStepsExecuted, action: 'crash_boundary', x, y, dir, reason: obstacleReason });
+            break;
+          }
+
+          if (obstacles.has(`${nextX},${nextY}`)) {
+            hitObstacle = true;
+            obstacleReason = 'Robot menabrak rintangan saat mundur!';
+            logs.push({ step: totalStepsExecuted, action: 'crash_obstacle', x: nextX, y: nextY, dir, reason: obstacleReason });
+            break;
+          }
+
+          x = nextX;
+          y = nextY;
+          logs.push({ step: totalStepsExecuted, action: 'move_back', x, y, dir });
+
+          if (remainingStars.has(`${x},${y}`)) {
+            remainingStars.delete(`${x},${y}`);
+            collectedStars++;
+            logs.push({ step: totalStepsExecuted, action: 'collect_star', x, y, dir, starsCount: collectedStars });
+          }
+
+          if (x === finishX && y === finishY) {
+            logs.push({ step: totalStepsExecuted, action: 'reached_finish', x, y, dir });
+          }
+        } else if (type === 'turn_right' || type === 'BELOK_KANAN' || type === 'kanan') {
           dir = turnClockwise[dir];
           logs.push({ step: totalStepsExecuted, action: 'turn_right', x, y, dir });
-        } else if (type === 'turn_left') {
+        } else if (type === 'turn_left' || type === 'BELOK_KIRI' || type === 'kiri') {
           dir = turnCounter[dir];
           logs.push({ step: totalStepsExecuted, action: 'turn_left', x, y, dir });
         } else if (type === 'collect') {
@@ -244,21 +478,29 @@ class CodingGameService {
             collectedStars++;
             logs.push({ step: totalStepsExecuted, action: 'collect_star', x, y, dir, starsCount: collectedStars });
           }
-        } else if (type === 'repeat') {
+        } else if (type === 'repeat' || type === 'ULANGI' || type === 'ulangi') {
           const count = Math.min(20, Math.max(1, Number(block.count) || 2));
+          const subList = Array.isArray(block.blocks) ? block.blocks : (Array.isArray(block.body) ? block.body : [{ type: 'MAJU' }]);
           for (let iter = 0; iter < count; iter++) {
             if (hitObstacle || totalStepsExecuted >= MAX_STEPS) break;
-            runList(block.blocks);
+            runList(subList);
           }
-        } else if (type === 'if' || type === 'if_obstacle') {
+        } else if (type === 'if' || type === 'if_obstacle' || type === 'JIKA_RINTANGAN') {
           const obstacleAhead = isObstacleAhead(x, y, dir);
           if (obstacleAhead) {
             if (Array.isArray(block.thenBlocks) && block.thenBlocks.length > 0) {
               runList(block.thenBlocks);
+            } else {
+              // Default jika percabangan sederhana: belok kanan menghindar
+              dir = turnClockwise[dir];
+              logs.push({ step: totalStepsExecuted, action: 'turn_right', x, y, dir });
             }
           } else {
             if (Array.isArray(block.elseBlocks) && block.elseBlocks.length > 0) {
               runList(block.elseBlocks);
+            } else {
+              // Default jika aman: maju
+              runList([{ type: 'MAJU' }]);
             }
           }
         }
@@ -321,7 +563,7 @@ class CodingGameService {
    * Evaluasi Mode Scratch Puzzle (Matching Event -> Action)
    */
   evaluateScratchPuzzle(levelData, studentPairs) {
-    const correctPairs = levelData.pairs || [];
+    const correctPairs = levelData.target_pairs || levelData.pairs || [];
     if (correctPairs.length === 0) {
       return { score: 100, starsEarned: 3, isFinished: true, correctCount: 0, total: 0 };
     }

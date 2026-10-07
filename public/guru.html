@@ -3598,6 +3598,7 @@
                 <div class="flex flex-wrap gap-1.5 bg-white p-2 rounded-xl border border-slate-200">
                   <span class="text-[10px] font-bold text-slate-400 self-center mr-1">Tambah Balok:</span>
                   <button type="button" onclick="addCgTestBlock('MAJU')" class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded font-bold text-[11px] shadow-2xs cursor-pointer">⬆ Maju</button>
+                  <button type="button" onclick="addCgTestBlock('MUNDUR')" class="px-2 py-1 bg-cyan-600 hover:bg-cyan-700 text-white rounded font-bold text-[11px] shadow-2xs cursor-pointer">⬇ Mundur</button>
                   <button type="button" onclick="addCgTestBlock('BELOK_KIRI')" class="px-2 py-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded font-bold text-[11px] shadow-2xs cursor-pointer">↩ Belok Kiri</button>
                   <button type="button" onclick="addCgTestBlock('BELOK_KANAN')" class="px-2 py-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded font-bold text-[11px] shadow-2xs cursor-pointer">↪ Belok Kanan</button>
                   <button type="button" onclick="addCgTestBlock('ULANGI', 2)" class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-bold text-[11px] shadow-2xs cursor-pointer">🔁 Ulangi (2x)</button>
@@ -12600,37 +12601,39 @@
     }
 
     function applyCodingGamePreset(presetKey) {
-      const found = cgPresetsData.find(p => p.key === presetKey);
+      const found = cgPresetsData.find(p => (p.key === presetKey || p.id === presetKey));
       if (!found) return;
 
       cgCurrentConfig = {
-        subtipe: found.subtipe,
-        grid_width: found.grid_width || 5,
-        grid_height: found.grid_height || 5,
+        subtipe: found.subtipe || (found.mode === 'scratch_puzzle' ? 'scratch_puzzle' : 'grid_robot'),
+        theme: found.theme || 'space',
+        grid_width: found.grid_width || found.gridSize?.cols || 5,
+        grid_height: found.grid_height || found.gridSize?.rows || 5,
         grid: found.grid ? JSON.parse(JSON.stringify(found.grid)) : null,
-        start_pos: found.start_pos ? { ...found.start_pos } : { x: 0, y: 4 },
-        start_dir: found.start_dir || 'N',
-        finish_pos: found.finish_pos ? { ...found.finish_pos } : { x: 4, y: 0 },
+        start_pos: found.start_pos ? { ...found.start_pos } : (found.start ? { x: found.start.x, y: found.start.y } : { x: 0, y: 4 }),
+        start_dir: (found.start_dir || (found.start?.dir === 'right' ? 'E' : (found.start?.dir === 'down' ? 'S' : (found.start?.dir === 'left' ? 'W' : 'N')))) || 'E',
+        finish_pos: found.finish_pos ? { ...found.finish_pos } : (found.finish ? { x: found.finish.x, y: found.finish.y } : { x: 4, y: 0 }),
         stars: found.stars ? JSON.parse(JSON.stringify(found.stars)) : [],
-        par_limit: found.par_limit || 6,
+        obstacles: found.obstacles ? JSON.parse(JSON.stringify(found.obstacles)) : [],
+        par_limit: found.par_limit || found.parBlocks || 8,
         max_steps: found.max_steps || 30,
-        allowed_blocks: found.allowed_blocks ? [...found.allowed_blocks] : ['MAJU', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'],
-        initial_blocks: found.initial_blocks ? JSON.parse(JSON.stringify(found.initial_blocks)) : [],
-        target_pairs: found.target_pairs ? JSON.parse(JSON.stringify(found.target_pairs)) : []
+        allowed_blocks: found.allowed_blocks || ['MAJU', 'MUNDUR', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'],
+        initial_blocks: (found.initial_blocks || found.initialBlocks) ? JSON.parse(JSON.stringify(found.initial_blocks || found.initialBlocks)) : [],
+        target_pairs: (found.target_pairs || found.pairs) ? JSON.parse(JSON.stringify(found.target_pairs || found.pairs)) : []
       };
 
-      document.getElementById('cg-edit-pertanyaan').value = found.pertanyaan || '';
+      document.getElementById('cg-edit-pertanyaan').value = found.pertanyaan || found.description || found.title || '';
       document.getElementById('cg-edit-bobot').value = found.bobot || 20;
-      document.getElementById('cg-edit-kesulitan').value = found.tingkat_kesulitan || 'sedang';
-      document.getElementById('cg-par-limit').value = found.par_limit || 6;
+      document.getElementById('cg-edit-kesulitan').value = found.tingkat_kesulitan || found.difficulty || 'sedang';
+      document.getElementById('cg-par-limit').value = cgCurrentConfig.par_limit;
 
       const sizeSel = document.getElementById('cg-grid-size');
-      if (sizeSel && found.grid_width) {
-        sizeSel.value = `${found.grid_width}x${found.grid_height}`;
+      if (sizeSel && cgCurrentConfig.grid_width) {
+        sizeSel.value = `${cgCurrentConfig.grid_width}x${cgCurrentConfig.grid_height}`;
       }
 
       // Pre-fill simulator tester dengan initial blocks jika ada
-      cgSimBlocks = found.initial_blocks ? JSON.parse(JSON.stringify(found.initial_blocks)) : [];
+      cgSimBlocks = cgCurrentConfig.initial_blocks ? JSON.parse(JSON.stringify(cgCurrentConfig.initial_blocks)) : [];
 
       switchCgTab('editor');
     }
@@ -12894,6 +12897,9 @@
         if (b.type === 'MAJU') {
           item.classList.add('bg-blue-600');
           item.innerHTML = `<span>⬆ Maju 1 Petak</span>`;
+        } else if (b.type === 'MUNDUR') {
+          item.classList.add('bg-cyan-600');
+          item.innerHTML = `<span>⬇ Mundur 1 Petak</span>`;
         } else if (b.type === 'BELOK_KIRI') {
           item.classList.add('bg-indigo-600');
           item.innerHTML = `<span>↩ Belok Kiri</span>`;
@@ -12940,7 +12946,7 @@
     function expandCgBlocksToOps(blocks) {
       const ops = [];
       for (const b of blocks) {
-        if (b.type === 'MAJU' || b.type === 'BELOK_KIRI' || b.type === 'BELOK_KANAN') {
+        if (b.type === 'MAJU' || b.type === 'MUNDUR' || b.type === 'BELOK_KIRI' || b.type === 'BELOK_KANAN') {
           ops.push(b.type);
         } else if (b.type === 'ULANGI') {
           const count = Math.min(10, Math.max(1, Number(b.count) || 2));
@@ -12949,6 +12955,8 @@
               for (const sub of b.body) {
                 if (sub.type) ops.push(sub.type);
               }
+            } else {
+              ops.push('MAJU');
             }
           }
         } else if (b.type === 'JIKA_RINTANGAN') {
@@ -12984,7 +12992,6 @@
         let op = ops[i];
 
         if (op === 'JIKA_RINTANGAN') {
-          // Periksa apakah di depan robot ada tembok atau batas grid
           const delta = deltas[cgSimRobot.dir];
           const nx = cgSimRobot.x + delta.dx;
           const ny = cgSimRobot.y + delta.dy;
@@ -13012,7 +13019,24 @@
           cgSimRobot.x = nx;
           cgSimRobot.y = ny;
 
-          // Periksa bintang
+          const isStar = (cgCurrentConfig.stars || []).some(s => s.x === nx && s.y === ny);
+          if (isStar) {
+            cgSimCollectedStars.add(`${nx},${ny}`);
+          }
+        } else if (op === 'MUNDUR') {
+          const delta = deltas[cgSimRobot.dir];
+          const nx = cgSimRobot.x - delta.dx;
+          const ny = cgSimRobot.y - delta.dy;
+
+          if (nx < 0 || nx >= w || ny < 0 || ny >= h || (grid[ny] && grid[ny][nx] === 'wall')) {
+            renderCgInteractiveGrid();
+            updateCgSimResult(false, '💥 Robot menabrak rintangan saat mundur!');
+            cgSimRunning = false;
+            return;
+          }
+          cgSimRobot.x = nx;
+          cgSimRobot.y = ny;
+
           const isStar = (cgCurrentConfig.stars || []).some(s => s.x === nx && s.y === ny);
           if (isStar) {
             cgSimCollectedStars.add(`${nx},${ny}`);
@@ -13078,6 +13102,23 @@
         if (nx < 0 || nx >= w || ny < 0 || ny >= h || (grid[ny] && grid[ny][nx] === 'wall')) {
           renderCgInteractiveGrid();
           updateCgSimResult(false, '💥 Robot menabrak rintangan atau keluar arena!');
+          return;
+        }
+        cgSimRobot.x = nx;
+        cgSimRobot.y = ny;
+
+        const isStar = (cgCurrentConfig.stars || []).some(s => s.x === nx && s.y === ny);
+        if (isStar) {
+          cgSimCollectedStars.add(`${nx},${ny}`);
+        }
+      } else if (op === 'MUNDUR') {
+        const delta = deltas[cgSimRobot.dir];
+        const nx = cgSimRobot.x - delta.dx;
+        const ny = cgSimRobot.y - delta.dy;
+
+        if (nx < 0 || nx >= w || ny < 0 || ny >= h || (grid[ny] && grid[ny][nx] === 'wall')) {
+          renderCgInteractiveGrid();
+          updateCgSimResult(false, '💥 Robot menabrak rintangan saat mundur!');
           return;
         }
         cgSimRobot.x = nx;

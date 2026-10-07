@@ -2419,15 +2419,110 @@
     }
 
     function initStudentGridRobotGame(container, hiddenInput, cfg, parsedSaved, soalId) {
-      const w = cfg.grid_width || 5;
-      const h = cfg.grid_height || 5;
+      const w = Number(cfg.grid_width) || 5;
+      const h = Number(cfg.grid_height) || 5;
       const startPos = cfg.start_pos || { x: 0, y: h - 1 };
-      const startDir = cfg.start_dir || 'N';
+      const startDir = (cfg.start_dir || 'E').toUpperCase();
       const finishPos = cfg.finish_pos || { x: w - 1, y: 0 };
-      const stars = cfg.stars || [];
+      const stars = Array.isArray(cfg.stars) ? cfg.stars : [];
       const parLimit = Number(cfg.par_limit) || 6;
-      const allowedBlocks = cfg.allowed_blocks || ['MAJU', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'];
+      const allowedBlocks = Array.isArray(cfg.allowed_blocks) ? cfg.allowed_blocks : ['MAJU', 'MUNDUR', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'];
       const subtipe = cfg.subtipe || 'grid_robot';
+
+      // Pilihan Tema Visual Arena (Anti-Repetisi & Segar)
+      const themeKey = cfg.theme || (subtipe === 'loop_master' ? 'pyramid' : (subtipe === 'decision_gate' ? 'volcano' : (subtipe === 'bug_doctor' ? 'ocean' : 'space')));
+      const themes = {
+        space: {
+          name: '🌌 Lab Antariksa',
+          boardBorder: 'border-indigo-800/80 bg-slate-950',
+          cellBg: 'bg-slate-900/90 border-slate-800 hover:border-indigo-600/50',
+          robotAvatar: '🤖',
+          robotBg: 'bg-indigo-600 border-indigo-400 text-white shadow-indigo-500/50',
+          wallIcon: '⚡',
+          wallLabel: 'Laser Barrier',
+          wallBg: 'bg-rose-950/90 border-rose-700/80 text-rose-300',
+          finishIcon: '🌀',
+          finishLabel: 'Portal Warp',
+          finishBg: 'bg-indigo-950 border-cyan-400 text-cyan-300 shadow-cyan-500/40',
+          starIcon: '⭐',
+          starLabel: 'Bintang',
+          starBg: 'bg-amber-950 border-amber-400 text-amber-300'
+        },
+        forest: {
+          name: '🌲 Hutan Labirin',
+          boardBorder: 'border-emerald-800/80 bg-emerald-950',
+          cellBg: 'bg-emerald-900/50 border-emerald-800/40 hover:border-emerald-500/50',
+          robotAvatar: '🚜',
+          robotBg: 'bg-amber-600 border-amber-300 text-white shadow-amber-500/50',
+          wallIcon: '🌲',
+          wallLabel: 'Pohon Raksasa',
+          wallBg: 'bg-emerald-950/90 border-emerald-700 text-emerald-300',
+          finishIcon: '⛺',
+          finishLabel: 'Pos Kemah',
+          finishBg: 'bg-amber-950 border-amber-500 text-amber-200',
+          starIcon: '💎',
+          starLabel: 'Kristal Giok',
+          starBg: 'bg-teal-950 border-teal-400 text-teal-300'
+        },
+        pyramid: {
+          name: '🏜️ Piramida Kuno',
+          boardBorder: 'border-amber-800/80 bg-stone-950',
+          cellBg: 'bg-stone-900/60 border-amber-900/40 hover:border-amber-500/50',
+          robotAvatar: '🤖',
+          robotBg: 'bg-amber-600 border-amber-300 text-white shadow-amber-600/50',
+          wallIcon: '🧱',
+          wallLabel: 'Batu Sandstone',
+          wallBg: 'bg-stone-800 border-stone-600 text-stone-300',
+          finishIcon: '🏛️',
+          finishLabel: 'Kuil Finish',
+          finishBg: 'bg-yellow-950 border-yellow-500 text-yellow-300',
+          starIcon: '🪙',
+          starLabel: 'Koin Kuno',
+          starBg: 'bg-amber-950 border-amber-400 text-amber-300'
+        },
+        volcano: {
+          name: '🌋 Lembah Lahar',
+          boardBorder: 'border-rose-900/80 bg-stone-950',
+          cellBg: 'bg-stone-900/80 border-stone-800 hover:border-rose-600/50',
+          robotAvatar: '🛡️',
+          robotBg: 'bg-rose-700 border-rose-400 text-white shadow-rose-600/60',
+          wallIcon: '🔥',
+          wallLabel: 'Lahar Panas',
+          wallBg: 'bg-red-950/90 border-red-700 text-red-400',
+          finishIcon: '🚀',
+          finishLabel: 'Kapsul Evakuasi',
+          finishBg: 'bg-emerald-950 border-emerald-400 text-emerald-300 shadow-emerald-500/40',
+          starIcon: '✨',
+          starLabel: 'Intan Api',
+          starBg: 'bg-orange-950 border-orange-400 text-orange-300'
+        },
+        ocean: {
+          name: '🌊 Bawah Laut Atlantis',
+          boardBorder: 'border-cyan-900/80 bg-cyan-950',
+          cellBg: 'bg-cyan-900/40 border-cyan-800/40 hover:border-cyan-500/50',
+          robotAvatar: '🤖',
+          robotBg: 'bg-cyan-600 border-cyan-300 text-white shadow-cyan-500/60',
+          wallIcon: '🪸',
+          wallLabel: 'Terumbu Karang',
+          wallBg: 'bg-teal-950/90 border-teal-700 text-teal-300',
+          finishIcon: '👑',
+          finishLabel: 'Peti Harta',
+          finishBg: 'bg-blue-950 border-yellow-400 text-yellow-300',
+          starIcon: '🦪',
+          starLabel: 'Mutiara Laut',
+          starBg: 'bg-sky-950 border-sky-400 text-sky-200'
+        }
+      };
+      const theme = themes[themeKey] || themes.space;
+
+      // Peta Penunjuk Arah Muka Awal Robot
+      const dirDetails = {
+        N: { text: 'UTARA (Ke Atas)', arrow: '👆', rot: 'rotate-0' },
+        E: { text: 'TIMUR (Ke Kanan)', arrow: '👉', rot: 'rotate-90' },
+        S: { text: 'SELATAN (Ke Bawah)', arrow: '👇', rot: 'rotate-180' },
+        W: { text: 'BARAT (Ke Kiri)', arrow: '👈', rot: '-rotate-90' }
+      };
+      const initialDir = dirDetails[startDir] || dirDetails.E;
 
       // State Pengerjaan Siswa
       let studentBlocks = [];
@@ -2457,37 +2552,77 @@
 
       container.innerHTML = `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-4 text-white space-y-3.5 select-none shadow-md">
-          <!-- Header Misi Game -->
+          <!-- Header Misi Game & Info Arah Awal -->
           <div class="flex items-center justify-between flex-wrap gap-2 border-b border-slate-800 pb-2.5">
             <div class="flex items-center space-x-2">
-              <span class="text-lg p-1 bg-indigo-600/50 rounded-lg">🤖</span>
+              <span class="text-lg p-1.5 bg-indigo-600/40 border border-indigo-500/50 rounded-xl shadow-xs">${theme.robotAvatar}</span>
               <div>
-                <span class="font-extrabold text-xs text-indigo-300 uppercase tracking-wide block">${subtipeTitles[subtipe] || 'Tantangan Robot Cilik'}</span>
-                <span class="text-[11px] text-slate-300">Arahkan robot ke finish 🏁 dan kumpulkan semua bintang ⭐</span>
+                <div class="flex items-center space-x-2">
+                  <span class="font-extrabold text-xs text-indigo-300 uppercase tracking-wide block">${subtipeTitles[subtipe] || 'Tantangan Robot Cilik'}</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-800 text-slate-300 border border-slate-700">${theme.name}</span>
+                </div>
+                <span class="text-[11px] text-slate-300">Arahkan robot ke finish ${theme.finishIcon} dan kumpulkan semua ${theme.starLabel} ${theme.starIcon}</span>
               </div>
             </div>
-            <div class="flex items-center space-x-2 text-[10px]">
-              <span class="bg-indigo-950 text-indigo-300 border border-indigo-700/60 font-bold px-2 py-0.5 rounded-full">
-                🎯 Par Target: ${parLimit} Balok
+            <div class="flex items-center flex-wrap gap-1.5 text-[10px]">
+              <button type="button" id="btn-toggle-guide-${soalId}" class="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg font-bold flex items-center space-x-1 cursor-pointer transition">
+                <span>💡</span><span>Cara Main</span>
+              </button>
+              <span class="bg-indigo-950 text-indigo-300 border border-indigo-700/60 font-bold px-2 py-1 rounded-lg">
+                🎯 Par: ${parLimit} Balok
               </span>
-              <span id="cg-counter-${soalId}" class="bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-full">
+              <span id="cg-counter-${soalId}" class="bg-slate-800 text-slate-300 font-bold px-2 py-1 rounded-lg">
                 0 Balok
               </span>
+            </div>
+          </div>
+
+          <!-- Banner Keterangan Arah Hadap Awal Robot -->
+          <div class="bg-indigo-950/60 border border-indigo-500/40 rounded-xl px-3 py-2 flex items-center justify-between flex-wrap gap-2 text-xs">
+            <div class="flex items-center space-x-2">
+              <span class="text-base">🧭</span>
+              <span class="text-slate-300 font-medium">Arah Hadap Muka Awal:</span>
+              <span class="font-extrabold text-amber-300 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-500/40 flex items-center space-x-1">
+                <span>${initialDir.text}</span>
+                <span class="text-sm">${initialDir.arrow}</span>
+              </span>
+            </div>
+            <span class="text-[11px] text-indigo-300/90 italic">Robot selalu melangkah sesuai arah pandang mukanya!</span>
+          </div>
+
+          <!-- Modal / Box Bantuan Cara Bermain (Collapsible) -->
+          <div id="cg-guide-box-${soalId}" class="hidden bg-slate-800/95 border border-amber-500/40 rounded-xl p-3 text-xs space-y-2 text-slate-200 shadow-md">
+            <div class="flex items-center justify-between font-bold text-amber-300 text-xs border-b border-slate-700 pb-1.5">
+              <span class="flex items-center space-x-1.5"><span>💡</span><span>Petunjuk Bermain Berpikir Komputasional</span></span>
+              <button type="button" id="btn-close-guide-${soalId}" class="text-slate-400 hover:text-white font-bold cursor-pointer">✕ Tutup</button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] leading-relaxed pt-1">
+              <div class="space-y-1">
+                <p><strong class="text-blue-400">⬆ Maju:</strong> Robot melangkah 1 kotak ke depan sesuai arah hadap mukanya.</p>
+                <p><strong class="text-cyan-400">⬇ Mundur:</strong> Robot melangkah 1 kotak ke belakang <em>tanpa memutar arah badan</em>.</p>
+                <p><strong class="text-indigo-400">↩ Belok Kiri:</strong> Memutar badan robot 90° ke kiri di tempat.</p>
+              </div>
+              <div class="space-y-1">
+                <p><strong class="text-indigo-400">↪ Belok Kanan:</strong> Memutar badan robot 90° ke kanan di tempat.</p>
+                <p><strong class="text-amber-400">🔁 Ulangi (Loop):</strong> Mengulang perintah beberapa kali agar hemat balok.</p>
+                <p><strong class="text-emerald-400">⭐ Target Skor:</strong> ⭐ (Finish), ⭐⭐ (Finish + Bintang), ⭐⭐⭐ (Finish + Bintang + Balok ≤ Par).</p>
+              </div>
             </div>
           </div>
 
           <!-- Arena Grid & Simulator Section -->
           <div class="grid grid-cols-1 md:grid-cols-12 gap-3.5">
             <!-- Canvas Grid Board -->
-            <div class="md:col-span-6 bg-slate-950 p-3 rounded-xl border border-slate-800 flex flex-col items-center justify-center min-h-[240px] shadow-inner">
-              <div id="cg-board-${soalId}" class="grid gap-1.5 p-1.5 bg-slate-900 rounded-lg border border-slate-800">
+            <div class="md:col-span-6 ${theme.boardBorder} p-3 rounded-xl border flex flex-col items-center justify-center min-h-[250px] shadow-inner">
+              <div id="cg-board-${soalId}" class="grid gap-1.5 p-1.5 rounded-lg border border-slate-800">
                 <!-- Rendered cells -->
               </div>
-              <div class="text-[10px] text-slate-400 mt-2 flex items-center space-x-3">
-                <span class="flex items-center space-x-1"><span>🚀</span><span>Robot</span></span>
-                <span class="flex items-center space-x-1"><span>🏁</span><span>Finish</span></span>
-                <span class="flex items-center space-x-1"><span>⭐</span><span>Bintang</span></span>
-                <span class="flex items-center space-x-1"><span>🧱</span><span>Tembok</span></span>
+              <!-- Legenda Simbol Sesuai Tema -->
+              <div class="text-[10px] text-slate-300 mt-2.5 flex items-center flex-wrap justify-center gap-3">
+                <span class="flex items-center space-x-1"><span>${theme.robotAvatar}</span><span>Robot</span></span>
+                <span class="flex items-center space-x-1"><span>${theme.finishIcon}</span><span>${theme.finishLabel}</span></span>
+                <span class="flex items-center space-x-1"><span>${theme.starIcon}</span><span>${theme.starLabel}</span></span>
+                <span class="flex items-center space-x-1"><span>${theme.wallIcon}</span><span>${theme.wallLabel}</span></span>
               </div>
             </div>
 
@@ -2497,23 +2632,26 @@
               <div class="space-y-1">
                 <span class="text-[10px] font-bold text-slate-300 uppercase tracking-wider block">Pilih Balok Instruksi:</span>
                 <div class="flex flex-wrap gap-1.5">
-                  <button type="button" id="btn-add-maju-${soalId}" class="px-2 py-1 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-[11px] rounded-lg shadow-2xs transition cursor-pointer">
-                    ⬆ Maju
+                  <button type="button" id="btn-add-maju-${soalId}" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-[11px] rounded-lg shadow-2xs transition cursor-pointer flex items-center space-x-1" title="Melangkah ke depan">
+                    <span>⬆</span><span>Maju</span>
                   </button>
-                  <button type="button" id="btn-add-kiri-${soalId}" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-[11px] rounded-lg shadow-2xs transition cursor-pointer">
-                    ↩ Belok Kiri
+                  <button type="button" id="btn-add-mundur-${soalId}" class="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 active:scale-95 text-white font-bold text-[11px] rounded-lg shadow-2xs transition cursor-pointer flex items-center space-x-1" title="Melangkah mundur tanpa putar arah">
+                    <span>⬇</span><span>Mundur</span>
                   </button>
-                  <button type="button" id="btn-add-kanan-${soalId}" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-[11px] rounded-lg shadow-2xs transition cursor-pointer">
-                    ↪ Belok Kanan
+                  <button type="button" id="btn-add-kiri-${soalId}" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-[11px] rounded-lg shadow-2xs transition cursor-pointer flex items-center space-x-1" title="Putar badan 90° ke kiri">
+                    <span>↩</span><span>Kiri</span>
+                  </button>
+                  <button type="button" id="btn-add-kanan-${soalId}" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-[11px] rounded-lg shadow-2xs transition cursor-pointer flex items-center space-x-1" title="Putar badan 90° ke kanan">
+                    <span>↪</span><span>Kanan</span>
                   </button>
                   ${allowedBlocks.includes('ULANGI') ? `
-                  <button type="button" id="btn-add-loop-${soalId}" class="px-2 py-1 bg-amber-600 hover:bg-amber-500 active:scale-95 text-white font-bold text-[11px] rounded-lg shadow-2xs transition cursor-pointer">
-                    🔁 Ulangi (2x)
+                  <button type="button" id="btn-add-loop-${soalId}" class="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 active:scale-95 text-white font-bold text-[11px] rounded-lg shadow-2xs transition cursor-pointer flex items-center space-x-1" title="Ulangi langkah">
+                    <span>🔁</span><span>Ulangi (2x)</span>
                   </button>
                   ` : ''}
                   ${allowedBlocks.includes('JIKA_RINTANGAN') ? `
-                  <button type="button" id="btn-add-if-${soalId}" class="px-2 py-1 bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-bold text-[11px] rounded-lg shadow-2xs transition cursor-pointer">
-                    ⚖️ Jika Rintangan
+                  <button type="button" id="btn-add-if-${soalId}" class="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-bold text-[11px] rounded-lg shadow-2xs transition cursor-pointer flex items-center space-x-1" title="Percabangan sensor">
+                    <span>⚖️</span><span>Jika Rintangan</span>
                   </button>
                   ` : ''}
                 </div>
@@ -2552,6 +2690,17 @@
         </div>
       `;
 
+      // Event toggle panduan main
+      const btnToggleGuide = document.getElementById(`btn-toggle-guide-${soalId}`);
+      const btnCloseGuide = document.getElementById(`btn-close-guide-${soalId}`);
+      const guideBox = document.getElementById(`cg-guide-box-${soalId}`);
+      if (btnToggleGuide && guideBox) {
+        btnToggleGuide.onclick = () => guideBox.classList.toggle('hidden');
+      }
+      if (btnCloseGuide && guideBox) {
+        btnCloseGuide.onclick = () => guideBox.classList.add('hidden');
+      }
+
       // Helper Renderer Grid
       const boardElem = document.getElementById(`cg-board-${soalId}`);
       boardElem.style.gridTemplateColumns = `repeat(${w}, minmax(0, 1fr))`;
@@ -2561,28 +2710,37 @@
         for (let y = 0; y < h; y++) {
           for (let x = 0; x < w; x++) {
             const cell = document.createElement('div');
-            cell.className = 'w-9 h-9 sm:w-10 sm:h-10 rounded-lg border flex items-center justify-center font-bold text-xs select-none transition-all';
+            cell.className = `w-9 h-9 sm:w-10 sm:h-10 rounded-lg border flex items-center justify-center font-bold text-xs select-none transition-all relative ${theme.cellBg}`;
 
             const isRobot = (robotState.x === x && robotState.y === y);
             const isFinish = (finishPos.x === x && finishPos.y === y);
-            const isWall = (cfg.grid && cfg.grid[y] && cfg.grid[y][x] === 'wall');
+            const isWall = (cfg.grid && cfg.grid[y] && (cfg.grid[y][x] === 'wall' || cfg.grid[y][x] === 'rock' || cfg.grid[y][x] === 'obstacle')) ||
+                           (Array.isArray(cfg.obstacles) && cfg.obstacles.some(o => o.x === x && o.y === y));
             const isStar = stars.some(s => s.x === x && s.y === y);
 
             if (isRobot) {
-              cell.classList.add('bg-indigo-600', 'border-indigo-400', 'text-white', 'shadow-md', 'scale-105');
-              const rot = robotState.dir === 'E' ? 'rotate-90' : (robotState.dir === 'S' ? 'rotate-180' : (robotState.dir === 'W' ? '-rotate-90' : 'rotate-0'));
-              cell.innerHTML = `<span class="inline-block transform ${rot} transition-transform">🚀</span>`;
+              cell.className = `w-9 h-9 sm:w-10 sm:h-10 rounded-lg border flex items-center justify-center font-bold text-xs select-none transition-all relative ${theme.robotBg} shadow-md scale-105 z-10`;
+              const rotClass = robotState.dir === 'E' ? 'rotate-90' : (robotState.dir === 'S' ? 'rotate-180' : (robotState.dir === 'W' ? '-rotate-90' : 'rotate-0'));
+              // Avatar robot dengan panah neon segitiga penunjuk arah hadap muka
+              cell.innerHTML = `
+                <div class="relative flex items-center justify-center w-full h-full">
+                  <span class="inline-block transform ${rotClass} transition-transform text-base sm:text-lg drop-shadow">${theme.robotAvatar}</span>
+                  <span class="absolute -top-1 font-black text-[9px] text-amber-300 drop-shadow transform ${rotClass}">▲</span>
+                </div>
+              `;
             } else if (isFinish) {
-              cell.classList.add('bg-emerald-950', 'border-emerald-500', 'text-emerald-300');
-              cell.innerHTML = '🏁';
+              cell.className = `w-9 h-9 sm:w-10 sm:h-10 rounded-lg border flex items-center justify-center font-bold text-xs select-none transition-all relative ${theme.finishBg}`;
+              cell.innerHTML = theme.finishIcon;
             } else if (isWall) {
-              cell.classList.add('bg-slate-700', 'border-slate-600', 'text-slate-400');
-              cell.innerHTML = '🧱';
+              cell.className = `w-9 h-9 sm:w-10 sm:h-10 rounded-lg border flex items-center justify-center font-bold text-xs select-none transition-all relative ${theme.wallBg}`;
+              cell.innerHTML = theme.wallIcon;
             } else if (isStar && !collectedStars.has(`${x},${y}`)) {
-              cell.classList.add('bg-amber-950', 'border-amber-500', 'text-amber-400');
-              cell.innerHTML = '⭐';
+              cell.className = `w-9 h-9 sm:w-10 sm:h-10 rounded-lg border flex items-center justify-center font-bold text-xs select-none transition-all relative ${theme.starBg}`;
+              cell.innerHTML = theme.starIcon;
+            } else if (startPos.x === x && startPos.y === y) {
+              // Tandai titik start awal jika robot sedang melangkah ke petak lain
+              cell.innerHTML = '<span class="text-[9px] font-bold text-indigo-400/80">START</span>';
             } else {
-              cell.classList.add('bg-slate-800/80', 'border-slate-700/60');
               cell.innerHTML = '';
             }
 
@@ -2611,6 +2769,9 @@
           if (b.type === 'MAJU') {
             item.classList.add('bg-blue-600');
             item.innerHTML = `<span>#${idx + 1} ⬆ Maju 1 Petak</span>`;
+          } else if (b.type === 'MUNDUR') {
+            item.classList.add('bg-cyan-600');
+            item.innerHTML = `<span>#${idx + 1} ⬇ Mundur 1 Petak</span>`;
           } else if (b.type === 'BELOK_KIRI') {
             item.classList.add('bg-indigo-600');
             item.innerHTML = `<span>#${idx + 1} ↩ Belok Kiri</span>`;
@@ -2647,11 +2808,11 @@
         const count = studentBlocks.length;
         counter.textContent = `${count} Balok`;
         if (count > 0 && count <= parLimit) {
-          counter.className = 'bg-emerald-950 text-emerald-300 border border-emerald-700/60 font-bold px-2 py-0.5 rounded-full';
+          counter.className = 'bg-emerald-950 text-emerald-300 border border-emerald-700/60 font-bold px-2 py-1 rounded-lg';
         } else if (count > parLimit) {
-          counter.className = 'bg-amber-950 text-amber-300 border border-amber-700/60 font-bold px-2 py-0.5 rounded-full';
+          counter.className = 'bg-amber-950 text-amber-300 border border-amber-700/60 font-bold px-2 py-1 rounded-lg';
         } else {
-          counter.className = 'bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-full';
+          counter.className = 'bg-slate-800 text-slate-300 font-bold px-2 py-1 rounded-lg';
         }
       }
 
@@ -2671,7 +2832,7 @@
       function expandStudentBlocks(blocks) {
         const ops = [];
         for (const b of blocks) {
-          if (b.type === 'MAJU' || b.type === 'BELOK_KIRI' || b.type === 'BELOK_KANAN') {
+          if (b.type === 'MAJU' || b.type === 'MUNDUR' || b.type === 'BELOK_KIRI' || b.type === 'BELOK_KANAN') {
             ops.push(b.type);
           } else if (b.type === 'ULANGI') {
             const count = Math.min(10, Math.max(1, Number(b.count) || 2));
@@ -2708,6 +2869,13 @@
           W: { dx: -1, dy: 0 }
         };
         const grid = cfg.grid || [];
+        const obstaclesArr = Array.isArray(cfg.obstacles) ? cfg.obstacles : [];
+
+        const isWallAt = (cx, cy) => {
+          return (cx < 0 || cx >= w || cy < 0 || cy >= h) ||
+                 (grid[cy] && (grid[cy][cx] === 'wall' || grid[cy][cx] === 'rock' || grid[cy][cx] === 'obstacle')) ||
+                 obstaclesArr.some(o => o.x === cx && o.y === cy);
+        };
 
         for (let i = 0; i < ops.length; i++) {
           if (!isSimRunning) break;
@@ -2717,7 +2885,7 @@
             const delta = deltas[robotState.dir];
             const nx = robotState.x + delta.dx;
             const ny = robotState.y + delta.dy;
-            const hasObstacle = (nx < 0 || nx >= w || ny < 0 || ny >= h || (grid[ny] && grid[ny][nx] === 'wall'));
+            const hasObstacle = isWallAt(nx, ny);
             op = hasObstacle ? 'BELOK_KANAN' : 'MAJU';
           }
 
@@ -2732,9 +2900,27 @@
             const nx = robotState.x + delta.dx;
             const ny = robotState.y + delta.dy;
 
-            if (nx < 0 || nx >= w || ny < 0 || ny >= h || (grid[ny] && grid[ny][nx] === 'wall')) {
+            if (isWallAt(nx, ny)) {
               renderGrid();
               updateSimStatus(false, '💥 Robot menabrak rintangan atau keluar arena!');
+              isSimRunning = false;
+              return;
+            }
+            robotState.x = nx;
+            robotState.y = ny;
+
+            if (stars.some(s => s.x === nx && s.y === ny)) {
+              collectedStars.add(`${nx},${ny}`);
+            }
+          } else if (op === 'MUNDUR') {
+            // Mundur = arah berlawanan dari hadap robot (x - dx, y - dy)
+            const delta = deltas[robotState.dir];
+            const nx = robotState.x - delta.dx;
+            const ny = robotState.y - delta.dy;
+
+            if (isWallAt(nx, ny)) {
+              renderGrid();
+              updateSimStatus(false, '💥 Robot menabrak rintangan saat mundur!');
               isSimRunning = false;
               return;
             }
@@ -2775,6 +2961,13 @@
           W: { dx: -1, dy: 0 }
         };
         const grid = cfg.grid || [];
+        const obstaclesArr = Array.isArray(cfg.obstacles) ? cfg.obstacles : [];
+
+        const isWallAt = (cx, cy) => {
+          return (cx < 0 || cx >= w || cy < 0 || cy >= h) ||
+                 (grid[cy] && (grid[cy][cx] === 'wall' || grid[cy][cx] === 'rock' || grid[cy][cx] === 'obstacle')) ||
+                 obstaclesArr.some(o => o.x === cx && o.y === cy);
+        };
 
         let op = ops[stepIndex];
         stepIndex++;
@@ -2783,7 +2976,7 @@
           const delta = deltas[robotState.dir];
           const nx = robotState.x + delta.dx;
           const ny = robotState.y + delta.dy;
-          const hasObstacle = (nx < 0 || nx >= w || ny < 0 || ny >= h || (grid[ny] && grid[ny][nx] === 'wall'));
+          const hasObstacle = isWallAt(nx, ny);
           op = hasObstacle ? 'BELOK_KANAN' : 'MAJU';
         }
 
@@ -2798,9 +2991,25 @@
           const nx = robotState.x + delta.dx;
           const ny = robotState.y + delta.dy;
 
-          if (nx < 0 || nx >= w || ny < 0 || ny >= h || (grid[ny] && grid[ny][nx] === 'wall')) {
+          if (isWallAt(nx, ny)) {
             renderGrid();
             updateSimStatus(false, '💥 Robot menabrak rintangan atau keluar arena!');
+            return;
+          }
+          robotState.x = nx;
+          robotState.y = ny;
+
+          if (stars.some(s => s.x === nx && s.y === ny)) {
+            collectedStars.add(`${nx},${ny}`);
+          }
+        } else if (op === 'MUNDUR') {
+          const delta = deltas[robotState.dir];
+          const nx = robotState.x - delta.dx;
+          const ny = robotState.y - delta.dy;
+
+          if (isWallAt(nx, ny)) {
+            renderGrid();
+            updateSimStatus(false, '💥 Robot menabrak rintangan saat mundur!');
             return;
           }
           robotState.x = nx;
@@ -2849,6 +3058,15 @@
       if (btnAddMaju) {
         btnAddMaju.onclick = () => {
           studentBlocks.push({ type: 'MAJU' });
+          renderWorkspace();
+          syncHiddenInput();
+          resetSim();
+        };
+      }
+      const btnAddMundur = document.getElementById(`btn-add-mundur-${soalId}`);
+      if (btnAddMundur) {
+        btnAddMundur.onclick = () => {
+          studentBlocks.push({ type: 'MUNDUR' });
           renderWorkspace();
           syncHiddenInput();
           resetSim();

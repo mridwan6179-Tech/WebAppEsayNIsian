@@ -123,6 +123,29 @@ describe('=== SUITE: ULANGAN MODE PERMAINAN KODING (SMP) & HYBRID ===', () => {
     assert.strictEqual(result.starsEarned, 3);
   });
 
+  test('4b. Engine Simulasi Grid Robot: Perintah MUNDUR (Move Backward) bergerak mundur tanpa memutar arah hadap', () => {
+    const levelData = {
+      mode: 'grid_runner',
+      theme: 'pyramid',
+      gridSize: { rows: 4, cols: 4 },
+      start: { x: 1, y: 1, dir: 'right' },
+      finish: { x: 0, y: 1 },
+      obstacles: [],
+      stars: [],
+      parBlocks: 3
+    };
+
+    // Robot menghadap kanan (E/right) di (1,1). Mundur 1 langkah -> ke (0,1) yang merupakan finish!
+    const blocks = [{ type: 'move_back' }];
+    const result = codingGameService.evaluateSolution(levelData, blocks);
+    assert.strictEqual(result.isFinished, true);
+    assert.strictEqual(result.finalPos.x, 0);
+    assert.strictEqual(result.finalPos.y, 1);
+    assert.strictEqual(result.finalPos.dir, 'right');
+    assert.strictEqual(result.score, 100);
+  });
+
+
   test('5. Engine Scratch Mini Puzzle: Evaluasi pasangan Event -> Action', () => {
     const levelData = {
       mode: 'scratch_puzzle',
