@@ -2335,7 +2335,8 @@
         : targetPairs.map(p => ({ event: p.event, action: '' }));
 
       const syncHiddenInput = () => {
-        hiddenInput.value = JSON.stringify({ pairs: currentPairs });
+        const hasAnyAction = currentPairs.some(p => Boolean(p.action));
+        hiddenInput.value = hasAnyAction ? JSON.stringify({ pairs: currentPairs }) : '';
         hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
       };
 
@@ -2545,7 +2546,7 @@
       };
 
       const syncHiddenInput = () => {
-        hiddenInput.value = JSON.stringify({ blocks: studentBlocks });
+        hiddenInput.value = studentBlocks.length > 0 ? JSON.stringify({ blocks: studentBlocks }) : '';
         hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
         updateBlockCounter();
       };
@@ -3110,15 +3111,21 @@
       }
 
       // Event Listeners Kontrol Runner
-      document.getElementById(`btn-run-${soalId}`).onclick = runSim;
-      document.getElementById(`btn-step-${soalId}`).onclick = stepSim;
-      document.getElementById(`btn-reset-${soalId}`).onclick = resetSim;
-      document.getElementById(`btn-clear-${soalId}`).onclick = () => {
-        studentBlocks = [];
-        renderWorkspace();
-        syncHiddenInput();
-        resetSim();
-      };
+      const btnRun = document.getElementById(`btn-run-${soalId}`);
+      if (btnRun) btnRun.onclick = runSim;
+      const btnStep = document.getElementById(`btn-step-${soalId}`);
+      if (btnStep) btnStep.onclick = stepSim;
+      const btnReset = document.getElementById(`btn-reset-${soalId}`);
+      if (btnReset) btnReset.onclick = resetSim;
+      const btnClear = document.getElementById(`btn-clear-${soalId}`);
+      if (btnClear) {
+        btnClear.onclick = () => {
+          studentBlocks = [];
+          renderWorkspace();
+          syncHiddenInput();
+          resetSim();
+        };
+      }
 
       // Inisialisasi Tampilan Awal
       renderGrid();
@@ -3788,6 +3795,25 @@
       }
     }
 
+    // Helper validasi keabsahan jawaban siswa (mendukung teks isian/esai, PG, dan JSON Game Koding)
+    function checkIsAnswerFilled(val) {
+      if (val === undefined || val === null) return false;
+      const str = String(val).trim();
+      if (!str) return false;
+      if (str.startsWith('{') && str.endsWith('}')) {
+        try {
+          const parsed = JSON.parse(str);
+          if (parsed.blocks !== undefined) {
+            return Array.isArray(parsed.blocks) && parsed.blocks.length > 0;
+          }
+          if (parsed.pairs !== undefined) {
+            return Array.isArray(parsed.pairs) && parsed.pairs.length > 0 && parsed.pairs.every(p => p.action && String(p.action).trim() !== '');
+          }
+        } catch (e) {}
+      }
+      return true;
+    }
+
     // Pembaruan Real-time Penanda Status Soal & Progres Pengerjaan
     function updateQuestionStatusAndProgress() {
       const inputs = document.querySelectorAll('#questions-container input[data-soal-id], #questions-container textarea[data-soal-id]');
@@ -3812,7 +3838,7 @@
 
         const rawVal = (input.value !== undefined && input.value !== null) ? String(input.value) : '';
         const textVal = rawVal.trim() || (savedDraftObj[sId] ? String(savedDraftObj[sId]).trim() : '');
-        const isFilled = textVal !== '';
+        const isFilled = checkIsAnswerFilled(textVal);
 
         if (isFilled) filled++;
 
@@ -3908,11 +3934,12 @@
 
         const rawVal = (input.value !== undefined && input.value !== null) ? String(input.value) : '';
         const textVal = rawVal.trim() || (savedDraftObj[sId] ? String(savedDraftObj[sId]).trim() : '');
+        const isFilled = checkIsAnswerFilled(textVal);
         
         const card = input.closest('[data-nomor-soal]');
         const nomor = card ? Number(card.dataset.nomorSoal) : total;
 
-        if (textVal !== '') {
+        if (isFilled) {
           filled++;
           if (card) {
             card.classList.remove('border-amber-400', 'ring-2', 'ring-amber-200/70', 'bg-amber-50/15');
@@ -4126,7 +4153,7 @@
 
         // Guard Frontend: Jika submit manual dan semua jawaban masih kosong, batalkan tanpa kirim ke server
         if (!isAutoSubmit) {
-          const hasAnyFilled = jawaban.some(j => j.jawaban_siswa && j.jawaban_siswa.trim() !== '');
+          const hasAnyFilled = jawaban.some(j => checkIsAnswerFilled(j.jawaban_siswa));
           if (!hasAnyFilled) {
             if (overlay) overlay.classList.add('hidden');
             alert('⚠️ Kamu belum mengisi jawaban apapun.\n\nSilakan isi jawaban terlebih dahulu sebelum mengumpulkan.\nJika ingin keluar, tutup saja tab ini — ulangan kamu tidak akan dikirim.');
@@ -4139,11 +4166,11 @@
           }
         }
 
-        // Kirim pengumpulan jawaban dengan batas waktu 60 detik & auto-retry 1x jika ada gangguan sinyal HP siswa
+        // Kirim pengumpulan jawaban dengan batas waktu 60 detik & auto-retry jika ada gangguan sinyal / replikasi
         let res;
         let data;
         let submitAttempt = 0;
-        const maxSubmitAttempts = 2;
+        const maxSubmitAttempts = 3;
 
         while (submitAttempt < maxSubmitAttempts) {
           submitAttempt++;
@@ -4165,7 +4192,14 @@
             });
             clearTimeout(timeoutId);
             data = await res.json();
-            break; // Berhasil dapat respons dari server
+            // Jika replikasi Turso Cloud antar-instance Vercel butuh waktu sejenak
+            if (!res.ok && data && data.message && data.message.includes('tidak ditemukan') && submitAttempt < maxSubmitAttempts) {
+              const descEl = document.getElementById('submit-overlay-desc');
+              if (descEl) descEl.textContent = 'Menyelaraskan data sesi pengerjaan ke server, mencoba kembali...';
+              await new Promise(r => setTimeout(r, 1200));
+              continue;
+            }
+            break; // Berhasil dapat respons final dari server
           } catch (fetchErr) {
             clearTimeout(timeoutId);
             if (submitAttempt < maxSubmitAttempts) {

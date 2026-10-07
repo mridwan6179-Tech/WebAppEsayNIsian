@@ -796,6 +796,25 @@
                 </div>
               </div>
 
+              <!-- Input Khusus Game Koding (SMP) -->
+              <div id="wrapper-soal-koding" class="hidden p-3.5 bg-indigo-50/80 rounded-xl border border-indigo-200 space-y-2.5">
+                <div class="flex justify-between items-center">
+                  <span class="font-bold text-indigo-900 text-xs flex items-center space-x-1.5">
+                    <span>🎮</span>
+                    <span>Game Koding & Berpikir Komputasional (SMP)</span>
+                  </span>
+                  <span class="text-[10px] text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200 font-semibold">Tantangan Interaktif</span>
+                </div>
+                <p class="text-xs text-indigo-800 leading-relaxed">
+                  Soal koding dievaluasi secara deterministik dengan simulator petak grid robot atau balok logika Scratch. Klik tombol di bawah untuk membuka editor visual atau menghasilkan level dengan AI:
+                </p>
+                <div>
+                  <button type="button" onclick="openCodingGameModal('ulangan')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center space-x-1.5 cursor-pointer">
+                    <span>🚀 Buka Builder Game Koding & AI Generator</span>
+                  </button>
+                </div>
+              </div>
+
               <!-- Gambar / Diagram Soal (Opsional) -->
               <div class="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
                 <label class="block font-semibold text-slate-700">Gambar / Diagram Soal (Opsional)</label>
@@ -4105,11 +4124,13 @@
           container.appendChild(card);
         });
 
-        // Pulihkan paket ulangan yang sedang aktif jika halaman di-refresh
+        // Pulihkan paket ulangan yang sedang aktif jika halaman di-refresh atau auto-select ulangan pertama
         if (!activeUlanganId) {
           const savedId = sessionStorage.getItem('active_guru_ulangan_id');
           if (savedId && data.data.some(x => String(x.id) === String(savedId))) {
             selectUlangan(parseInt(savedId, 10));
+          } else if (data.data.length > 0) {
+            selectUlangan(data.data[0].id);
           }
         }
 
@@ -5519,6 +5540,8 @@
         inpSoalBobot.value = k === 'mudah' ? 5 : (k === 'sulit' ? 10 : 5);
       } else if (j === 'isian') {
         inpSoalBobot.value = k === 'mudah' ? 8 : (k === 'sulit' ? 12 : 10);
+      } else if (j === 'koding_game') {
+        inpSoalBobot.value = k === 'mudah' ? 15 : (k === 'sulit' ? 25 : 20);
       } else {
         inpSoalBobot.value = k === 'mudah' ? 16 : (k === 'sulit' ? 30 : 20);
       }
@@ -5526,22 +5549,22 @@
 
     function toggleFormSoalJenis() {
       const isPg = selSoalJenis?.value === 'pilihan_ganda';
+      const isKoding = selSoalJenis?.value === 'koding_game';
+      const wrapKoding = document.getElementById('wrapper-soal-koding');
       if (wrapperSoalPg) wrapperSoalPg.classList.toggle('hidden', !isPg);
-      if (boxSoalKunciIsian) boxSoalKunciIsian.classList.toggle('hidden', isPg);
-      if (boxSoalRubrikIsian) boxSoalRubrikIsian.classList.toggle('hidden', isPg);
+      if (wrapKoding) wrapKoding.classList.toggle('hidden', !isKoding);
+      if (boxSoalKunciIsian) boxSoalKunciIsian.classList.toggle('hidden', isPg || isKoding);
+      if (boxSoalRubrikIsian) boxSoalRubrikIsian.classList.toggle('hidden', isPg || isKoding);
     }
 
     if (selSoalJenis) {
       selSoalJenis.addEventListener('change', () => {
         delete inpSoalBobot?.dataset.userModified;
-        if (selSoalJenis.value === 'koding_game') {
-          openCodingGameModal();
-          selSoalJenis.value = 'isian';
-          toggleFormSoalJenis();
-          return;
-        }
         toggleFormSoalJenis();
         syncManualSoalBobot();
+        if (selSoalJenis.value === 'koding_game') {
+          openCodingGameModal('ulangan');
+        }
       });
     }
     if (selSoalKesulitan) selSoalKesulitan.addEventListener('change', () => { delete inpSoalBobot?.dataset.userModified; syncManualSoalBobot(); });
@@ -5564,6 +5587,11 @@
     formAddSoal.addEventListener('submit', async (e) => {
       e.preventDefault();
       const jenisVal = document.getElementById('soal-jenis').value;
+      if (jenisVal === 'koding_game') {
+        alert('💡 Untuk butir soal Game Koding, silakan rancang level arena dan balok melalui Builder Game Koding resmi.');
+        openCodingGameModal('ulangan');
+        return;
+      }
       const isPg = jenisVal === 'pilihan_ganda';
       const kunciPg = isPg ? (document.getElementById('soal-pg-kunci')?.value || 'A') : null;
 
@@ -13189,8 +13217,9 @@
             })
           });
 
-          if (res && res.success && res.data) {
-            const lvl = res.data;
+          const json = await res.json();
+          if (res.ok && json.success && json.data) {
+            const lvl = json.data;
             cgCurrentConfig = {
               subtipe: lvl.subtipe || subtipe,
               grid_width: lvl.grid_width || 5,
@@ -13202,7 +13231,7 @@
               stars: lvl.stars || [],
               par_limit: lvl.par_limit || 6,
               max_steps: lvl.max_steps || 30,
-              allowed_blocks: lvl.allowed_blocks || ['MAJU', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'],
+              allowed_blocks: lvl.allowed_blocks || ['MAJU', 'MUNDUR', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'],
               initial_blocks: lvl.initial_blocks || [],
               target_pairs: lvl.target_pairs || []
             };
@@ -13222,7 +13251,7 @@
             alert('✨ Level Game Koding berhasil dibuat oleh AI! Anda sekarang dapat memeriksa dan mengujinya.');
             switchCgTab('editor');
           } else {
-            alert('Gagal generate level: ' + (res?.error || 'Respon tidak valid'));
+            alert('Gagal generate level: ' + (json?.message || json?.error || 'Respon tidak valid'));
           }
         } catch (err) {
           alert('Error generate AI level: ' + err.message);
@@ -13311,6 +13340,8 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Gagal menyimpan butir soal game koding');
 
         alert('🎉 Butir Soal Game Koding berhasil disimpan ke dalam ulangan!');
         closeCodingGameModal();
@@ -13344,6 +13375,32 @@
         alert('Format data game koding tidak valid.');
       }
     }
+
+    // Global Window Bindings untuk seluruh tombol Game Koding & Builder
+    window.openCodingGameModal = openCodingGameModal;
+    window.closeCodingGameModal = closeCodingGameModal;
+    window.switchCgTab = switchCgTab;
+    window.applyCodingGamePreset = applyCodingGamePreset;
+    window.loadCodingGamePresets = loadCodingGamePresets;
+    window.renderCodingPresetsUI = renderCodingPresetsUI;
+    window.renderCgEditorUI = renderCgEditorUI;
+    window.setCgBrush = setCgBrush;
+    window.changeCgGridDimensions = changeCgGridDimensions;
+    window.renderCgInteractiveGrid = renderCgInteractiveGrid;
+    window.handleCgCellClick = handleCgCellClick;
+    window.renderCgScratchPairsTable = renderCgScratchPairsTable;
+    window.updateCgScratchPair = updateCgScratchPair;
+    window.addCgScratchPairRow = addCgScratchPairRow;
+    window.removeCgScratchPairRow = removeCgScratchPairRow;
+    window.addCgTestBlock = addCgTestBlock;
+    window.removeCgTestBlock = removeCgTestBlock;
+    window.clearCgTestBlocks = clearCgTestBlocks;
+    window.renderCgTestWorkspace = renderCgTestWorkspace;
+    window.resetCgTestSim = resetCgTestSim;
+    window.runCgTestSim = runCgTestSim;
+    window.stepCgTestSim = stepCgTestSim;
+    window.saveCodingGameToExam = saveCodingGameToExam;
+    window.previewCodingGameInModal = previewCodingGameInModal;
 
 
 

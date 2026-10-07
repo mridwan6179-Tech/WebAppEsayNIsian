@@ -393,6 +393,9 @@ const studentService = {
       } else {
         db.prepare('UPDATE pengerjaan SET soal_ids = ?, last_active_at = CURRENT_TIMESTAMP WHERE id = ?').run(soalIdsJson, pengerjaan.id);
         pengerjaan.soal_ids = soalIdsJson;
+        if (typeof db.sync === 'function') {
+          try { db.sync(); } catch (syncErr) {}
+        }
       }
     }
 
@@ -446,7 +449,8 @@ const studentService = {
     if (row) return row;
 
     if (typeof db.sync === 'function') {
-      for (let attempt = 1; attempt <= 3; attempt++) {
+      const delays = [150, 300, 500, 800, 1200];
+      for (let attempt = 1; attempt <= 5; attempt++) {
         try {
           db.sync();
         } catch (e) {
@@ -454,8 +458,8 @@ const studentService = {
         }
         row = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(cleanId);
         if (row) return row;
-        if (attempt < 3) {
-          const waitTill = Date.now() + 120;
+        if (attempt < 5) {
+          const waitTill = Date.now() + (delays[attempt - 1] || 300);
           while (Date.now() < waitTill) {}
         }
       }
@@ -943,12 +947,13 @@ const studentService = {
     const cleanId = isNaN(numId) ? pengerjaanId : numId;
     let pengerjaan = db.prepare(query).get(cleanId);
     if (!pengerjaan && typeof db.sync === 'function') {
-      for (let attempt = 1; attempt <= 3; attempt++) {
+      const delays = [150, 300, 500, 800, 1200];
+      for (let attempt = 1; attempt <= 5; attempt++) {
         try { db.sync(); } catch (e) {}
         pengerjaan = db.prepare(query).get(cleanId);
         if (pengerjaan) break;
-        if (attempt < 3) {
-          const waitTill = Date.now() + 120;
+        if (attempt < 5) {
+          const waitTill = Date.now() + (delays[attempt - 1] || 300);
           while (Date.now() < waitTill) {}
         }
       }
@@ -1131,12 +1136,13 @@ const studentService = {
     `;
     let pengerjaan = db.prepare(sessionQuery).get(cleanId);
     if (!pengerjaan && typeof db.sync === 'function') {
-      for (let attempt = 1; attempt <= 3; attempt++) {
+      const delays = [150, 300, 500, 800, 1200];
+      for (let attempt = 1; attempt <= 5; attempt++) {
         try { db.sync(); } catch (e) {}
         pengerjaan = db.prepare(sessionQuery).get(cleanId);
         if (pengerjaan) break;
-        if (attempt < 3) {
-          const waitTill = Date.now() + 120;
+        if (attempt < 5) {
+          const waitTill = Date.now() + (delays[attempt - 1] || 300);
           while (Date.now() < waitTill) {}
         }
       }
