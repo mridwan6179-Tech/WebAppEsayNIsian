@@ -6788,6 +6788,19 @@
       const items = Array.isArray(kisi.daftar_kisi_kisi) ? kisi.daftar_kisi_kisi : [];
       const rangkumanList = Array.isArray(kisi.rangkuman_materi_penting) ? kisi.rangkuman_materi_penting : [];
       const tipsList = Array.isArray(kisi.tips_sukses_ujian) ? kisi.tips_sukses_ujian : [];
+      const komp = kisi.komposisi_soal;
+      let kompText = `${items.length} Butir Soal`;
+      if (typeof komp === 'string' && komp.trim()) {
+        kompText = komp.trim();
+      } else if (komp && typeof komp === 'object') {
+        const parts = [];
+        if (komp.pilihan_ganda > 0) parts.push(`${komp.pilihan_ganda} Pilihan Ganda`);
+        if (komp.pg_kompleks > 0) parts.push(`${komp.pg_kompleks} PG Kompleks`);
+        if (komp.isian > 0) parts.push(`${komp.isian} Isian Singkat`);
+        if (komp.essay > 0) parts.push(`${komp.essay} Essay/Uraian`);
+        if (komp.koding_game > 0) parts.push(`${komp.koding_game} Game Koding`);
+        if (parts.length > 0) kompText = `${items.length} Butir Soal (${parts.join(', ')})`;
+      }
 
       body.innerHTML = `
         <div class="text-center border-b-2 border-slate-900 pb-3 mb-4">
@@ -6799,7 +6812,7 @@
         <div class="p-3.5 bg-indigo-50/70 border border-indigo-200 rounded-xl text-xs space-y-1">
           <p class="font-bold text-indigo-950">📌 Ringkasan Cakupan Materi:</p>
           <p class="text-slate-700 leading-relaxed">${escapeHtml(kisi.ringkasan_cakupan || '-')}</p>
-          <p class="text-[11px] font-semibold text-indigo-800 pt-1">Komposisi Bentuk Soal: ${escapeHtml(kisi.komposisi_soal || `${items.length} Butir Soal`)}</p>
+          <p class="text-[11px] font-semibold text-indigo-800 pt-1">Komposisi Bentuk Soal: ${escapeHtml(kompText)}</p>
         </div>
 
         <div class="overflow-x-auto">
