@@ -152,6 +152,7 @@ function initDatabase() {
       konten_kisi_kisi TEXT DEFAULT NULL,
       tampilkan_kisi_kisi INTEGER DEFAULT 0,
       tampilkan_teks_listening INTEGER DEFAULT 0,
+      skor_langsung_ai INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (guru_id) REFERENCES guru(id) ON DELETE RESTRICT
@@ -498,6 +499,7 @@ function initDatabase() {
   safeAddColumn('ulangan', 'bobot_essay', 'REAL DEFAULT 40');
   safeAddColumn('ulangan', 'opsi_pg_count', 'INTEGER DEFAULT 4');
   safeAddColumn('ulangan', 'jumlah_soal_pg', 'INTEGER DEFAULT NULL');
+  safeAddColumn('ulangan', 'skor_langsung_ai', 'INTEGER DEFAULT 0');
 
   safeAddColumn('soal', 'opsi_a', 'TEXT DEFAULT NULL');
   safeAddColumn('soal', 'opsi_b', 'TEXT DEFAULT NULL');

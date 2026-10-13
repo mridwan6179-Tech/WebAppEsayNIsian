@@ -520,6 +520,15 @@
                 <textarea id="new-exam-instruksi-khusus" rows="2" placeholder="Contoh: Wajib sebutkan minimal 2 contoh, jawaban singkat padat tetap nilai penuh..." class="w-full px-2 py-1.5 text-xs rounded border border-slate-300 bg-white"></textarea>
                 <span class="block text-[10px] text-slate-500 mt-0.5">Kriteria ini akan diprioritaskan AI Gemini saat mengevaluasi setiap jawaban siswa.</span>
               </div>
+              <div class="pt-2 border-t border-emerald-200/80">
+                <label class="flex items-start space-x-2 cursor-pointer p-2 rounded-lg bg-white border border-emerald-300 hover:bg-emerald-50/50 transition">
+                  <input type="checkbox" id="new-exam-skor-langsung-ai" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500">
+                  <div>
+                    <span class="block text-emerald-950 text-[11px] font-extrabold">⚡ Skor Keluar Langsung Otomatis oleh AI (Antrean Dinamis Anti-Limit)</span>
+                    <span class="block text-[10px] text-slate-600 mt-0.5 leading-relaxed">Jika diaktifkan, begitu siswa selesai ujian, jawaban otomatis masuk antrean AI Dinamis (rotasi multi-model &amp; jeda anti-limit) dan skor langsung tampil di layar siswa setelah selesai dinilai tanpa perlu klik Rilis manual.</span>
+                  </div>
+                </label>
+              </div>
             </div>
 
             <div class="flex justify-end space-x-2 pt-1">
@@ -949,8 +958,13 @@
             <div class="p-3.5 sm:p-4 bg-slate-900 text-white rounded-xl space-y-3">
               <div class="flex flex-wrap items-center justify-between gap-2.5">
                 <div>
-                  <h4 class="font-bold text-sm">Review Otomatis Berbantuan Gemini AI</h4>
-                  <p class="text-xs text-slate-400">Memproses 1 jawaban per waktu dengan jeda acak 5–13 detik.</p>
+                  <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                    <h4 class="font-bold text-sm">Review Otomatis Berbantuan Gemini AI</h4>
+                    <button id="btn-quick-toggle-skor-langsung" type="button" onclick="window.quickToggleSkorLangsungAi && window.quickToggleSkorLangsungAi()" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold border transition cursor-pointer flex items-center space-x-1" title="Klik untuk menghidupkan/mematikan Skor Keluar Langsung Otomatis oleh AI Dinamis dengan Antrean Anti-Limit">
+                      <span>⚡ Skor Langsung AI: OFF</span>
+                    </button>
+                  </div>
+                  <p class="text-xs text-slate-400">Memproses jawaban melalui antrean AI Dinamis anti-limit (rotasi model &amp; kunci otomatis).</p>
                 </div>
                 <div class="flex items-center flex-wrap gap-2 w-full sm:w-auto">
                   <button id="btn-start-ai" class="flex-1 sm:flex-initial px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-lg transition flex items-center justify-center space-x-1.5" title="Nilai jawaban siswa yang belum dinilai">
@@ -1788,6 +1802,16 @@
             <label class="block font-medium text-slate-700 text-[11px] mb-1">Instruksi / Parameter Penilaian Khusus Guru (Opsional):</label>
             <textarea id="edit-exam-instruksi-khusus" rows="2" placeholder="Contoh: Wajib sebutkan minimal 2 contoh, jawaban singkat padat tetap nilai penuh..." class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white"></textarea>
             <span class="block text-[10px] text-slate-500 mt-0.5">Kriteria khusus ini akan diprioritaskan AI saat mengevaluasi seluruh jawaban ulangan ini.</span>
+          </div>
+
+          <div class="pt-2 border-t border-emerald-200/80">
+            <label class="flex items-start space-x-2.5 cursor-pointer p-2.5 rounded-xl bg-white border border-emerald-300 hover:bg-emerald-50/50 transition">
+              <input type="checkbox" id="edit-exam-skor-langsung-ai" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500">
+              <div>
+                <span class="block text-emerald-950 text-xs font-extrabold">⚡ Skor Keluar Langsung Otomatis oleh AI (Antrean Dinamis Anti-Limit)</span>
+                <span class="block text-[10px] text-slate-600 mt-0.5 leading-relaxed">Jika dihidupkan, saat siswa mengumpulkan ujian, jawaban otomatis dinilai melalui antrean AI Dinamis (rotasi kunci &amp; model anti-rate-limit) dan skor akhir langsung muncul di layar siswa begitu selesai dinilai.</span>
+              </div>
+            </label>
           </div>
         </div>
 
@@ -4826,7 +4850,8 @@
         izinkan_informal: izinkanInformal,
         toleransi_typo: toleransiTypo,
         instruksi_penilaian_khusus: instruksiKhusus,
-        tampilkan_simbol: document.getElementById('new-exam-tampilkan-simbol')?.checked ? 1 : 0
+        tampilkan_simbol: document.getElementById('new-exam-tampilkan-simbol')?.checked ? 1 : 0,
+        skor_langsung_ai: document.getElementById('new-exam-skor-langsung-ai')?.checked ? 1 : 0
       };
 
       const res = await guruFetch('/api/guru/ulangan', {
@@ -5188,13 +5213,52 @@
           badges.push('<span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium border border-slate-200">🎧 Naskah Listening: Disembunyikan (Murni)</span>');
         }
 
+        if (u.skor_langsung_ai) {
+          badges.push('<button type="button" onclick="window.quickToggleSkorLangsungAi && window.quickToggleSkorLangsungAi(0)" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-0.5 rounded font-bold border border-emerald-700 cursor-pointer shadow-2xs transition" title="Klik untuk mematikan Skor Langsung AI">⚡ Skor Langsung AI: ON (Antrean Anti-Limit)</button>');
+        } else {
+          badges.push('<button type="button" onclick="window.quickToggleSkorLangsungAi && window.quickToggleSkorLangsungAi(1)" class="bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 px-2.5 py-0.5 rounded font-semibold border border-slate-300 hover:border-emerald-300 cursor-pointer transition" title="Klik untuk menghidupkan Skor Langsung AI">⚡ Skor Langsung AI: OFF (Klik Hidupkan)</button>');
+        }
+
         aiRulesEl.innerHTML = `<span class="text-slate-500 font-semibold text-[11px]">Toleransi & Pengaturan:</span> ${badges.join(' ')}`;
+      }
+
+      const btnQuickSkorLangsung = document.getElementById('btn-quick-toggle-skor-langsung');
+      if (btnQuickSkorLangsung) {
+        if (u.skor_langsung_ai) {
+          btnQuickSkorLangsung.innerHTML = '<span>⚡ Skor Langsung AI: ON (Auto-Antrean)</span>';
+          btnQuickSkorLangsung.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-bold border border-emerald-400 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition cursor-pointer flex items-center space-x-1';
+        } else {
+          btnQuickSkorLangsung.innerHTML = '<span>⚡ Skor Langsung AI: OFF</span>';
+          btnQuickSkorLangsung.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-bold border border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 transition cursor-pointer flex items-center space-x-1';
+        }
       }
 
       renderSoalList(u.soal || []);
       loadPesertaList(id);
       checkAiStatus(id);
     }
+
+    // Helper On/Off Toggle Skor Langsung AI Cepat Guru
+    window.quickToggleSkorLangsungAi = async function(explicitVal) {
+      if (!activeUlanganId) return;
+      const currentVal = Boolean(activeUlanganData?.skor_langsung_ai);
+      const nextVal = explicitVal !== undefined ? (explicitVal ? 1 : 0) : (currentVal ? 0 : 1);
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ skor_langsung_ai: nextVal })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          await selectUlangan(activeUlanganId);
+        } else {
+          alert(data.message || 'Gagal mengubah pengaturan Skor Langsung AI');
+        }
+      } catch (err) {
+        alert('Gagal menghubungi server: ' + err.message);
+      }
+    };
 
     // Handler Form Inline Edit Arahan Remedial
     const btnEditRemedial = document.getElementById('btn-edit-remedial-settings');
@@ -5641,6 +5705,9 @@
         if (document.getElementById('edit-exam-token-ujian')) {
           document.getElementById('edit-exam-token-ujian').value = (u.token_ujian !== null && u.token_ujian !== undefined) ? u.token_ujian : '';
         }
+        if (document.getElementById('edit-exam-skor-langsung-ai')) {
+          document.getElementById('edit-exam-skor-langsung-ai').checked = Boolean(u.skor_langsung_ai);
+        }
 
         // Render target kelas checkboxes
         const activeKelasIds = (u.kelas || []).map(k => k.id);
@@ -5752,7 +5819,8 @@
         link_kisi_kisi: linkKisiKisi || null,
         tampilkan_teks_listening: document.getElementById('edit-exam-tampilkan-teks-listening')?.checked ? 1 : 0,
         pin_aktif: document.getElementById('edit-exam-pin-aktif')?.checked ? 1 : 0,
-        token_ujian: document.getElementById('edit-exam-token-ujian')?.value.trim() ? parseInt(document.getElementById('edit-exam-token-ujian').value.trim(), 10) : null
+        token_ujian: document.getElementById('edit-exam-token-ujian')?.value.trim() ? parseInt(document.getElementById('edit-exam-token-ujian').value.trim(), 10) : null,
+        skor_langsung_ai: document.getElementById('edit-exam-skor-langsung-ai')?.checked ? 1 : 0
       };
 
       const btnSave = document.getElementById('btn-save-edit-exam');

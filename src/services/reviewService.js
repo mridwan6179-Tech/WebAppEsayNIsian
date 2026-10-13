@@ -443,7 +443,7 @@ const reviewService = {
   },
 
   // Hitung ulang nilai total siswa (AI & Final) dengan normalisasi max 100 (FR-05 & FR-23)
-  recalculatePengerjaanTotal(pengerjaanId) {
+  recalculatePengerjaanTotal(pengerjaanId, options = {}) {
     const jawabanItems = db.prepare(`
       SELECT j.id as jawaban_id, j.status_penilaian, j.skor_rekomendasi, j.skor_maksimum,
              s.bobot, s.jenis, rg.id as rg_id, rg.skor_final
@@ -485,9 +485,9 @@ const reviewService = {
       }
     }
 
-    // Cek konfigurasi jenis ulangan dan bobot campuran (PG + Esai + Koding)
+    // Cek konfigurasi jenis ulangan dan bobot campuran (PG + Esai + Koding) serta skor_langsung_ai
     const ulanganInfo = db.prepare(`
-      SELECT u.jenis_ulangan, u.bobot_pg, u.bobot_essay, u.bobot_koding 
+      SELECT u.jenis_ulangan, u.bobot_pg, u.bobot_essay, u.bobot_koding, u.skor_langsung_ai
       FROM pengerjaan p 
       JOIN ulangan u ON p.ulangan_id = u.id 
       WHERE p.id = ?
@@ -577,22 +577,38 @@ const reviewService = {
       }
     }
 
-    db.prepare(`
-      UPDATE pengerjaan 
-      SET nilai_ai = ?, nilai_final = ?,
-          skor_pg = COALESCE(?, skor_pg),
-          skor_koding = COALESCE(?, skor_koding),
-          skor_essay = COALESCE(?, skor_essay)
-      WHERE id = ?
-    `).run(totalAiScore, totalFinalScore, skorPg, skorKoding, skorEssay, pengerjaanId);
+    const allGraded = jawabanItems.length > 0 && jawabanItems.every(item => item.status_penilaian === 'selesai');
+    const shouldAutoRelease = options.checkAutoRelease !== false && Number(ulanganInfo?.skor_langsung_ai) === 1 && allGraded;
 
-    if (hasHealed && typeof db.syncCloud === 'function') {
+    if (shouldAutoRelease) {
+      db.prepare(`
+        UPDATE pengerjaan 
+        SET nilai_ai = ?, nilai_final = ?,
+            skor_pg = COALESCE(?, skor_pg),
+            skor_koding = COALESCE(?, skor_koding),
+            skor_essay = COALESCE(?, skor_essay),
+            released_at = COALESCE(released_at, CURRENT_TIMESTAMP)
+        WHERE id = ?
+      `).run(totalAiScore, totalFinalScore, skorPg, skorKoding, skorEssay, pengerjaanId);
+    } else {
+      db.prepare(`
+        UPDATE pengerjaan 
+        SET nilai_ai = ?, nilai_final = ?,
+            skor_pg = COALESCE(?, skor_pg),
+            skor_koding = COALESCE(?, skor_koding),
+            skor_essay = COALESCE(?, skor_essay)
+        WHERE id = ?
+      `).run(totalAiScore, totalFinalScore, skorPg, skorKoding, skorEssay, pengerjaanId);
+    }
+
+    if ((hasHealed || shouldAutoRelease) && typeof db.syncCloud === 'function') {
       db.syncCloud(true);
     }
 
     return {
       nilai_ai: totalAiScore,
-      nilai_final: totalFinalScore
+      nilai_final: totalFinalScore,
+      auto_released: shouldAutoRelease
     };
   },
 

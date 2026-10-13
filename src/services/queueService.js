@@ -3,6 +3,7 @@ require('dotenv').config();
 
 // Track status worker per ulangan
 const runningWorkers = new Map(); // ulanganId -> { isRunning: boolean, shouldStop: boolean }
+let lastAutoTickAt = 0;
 
 const queueService = {
   // Hitung jeda acak 5 - 13 detik (atau dari env)
@@ -234,7 +235,8 @@ const queueService = {
                j.pengerjaan_id, j.jawaban_siswa, j.skor_maksimum,
                s.pertanyaan, s.jenis, s.bobot, s.kunci_jawaban, s.rubrik, s.tingkat_kelas, s.tingkat_kesulitan,
                s.pembahasan, s.audio_script, s.is_listening, s.bahasa,
-               u.izinkan_singkatan, u.izinkan_informal, u.toleransi_typo, u.instruksi_penilaian_khusus
+               u.izinkan_singkatan, u.izinkan_informal, u.toleransi_typo, u.instruksi_penilaian_khusus,
+               u.skor_langsung_ai
         FROM antrean_review a
         JOIN jawaban j ON a.jawaban_id = j.id
         JOIN soal s ON j.soal_id = s.id
@@ -278,7 +280,17 @@ const queueService = {
         result = await gradeFunction(queueItem);
       } else {
         const geminiService = require('./geminiService');
-        result = await geminiService.gradeAnswer(queueItem);
+        try {
+          result = await geminiService.gradeAnswer(queueItem);
+        } catch (aiErr) {
+          // Jika fitur skor_langsung_ai aktif dan sudah mencapai percobaan terakhir (attempt ke-3),
+          // gunakan evaluasi semantik offline sebagai jaring pengaman agar skor siswa tidak macet selamanya
+          if (Number(queueItem.skor_langsung_ai) === 1 && (queueItem.attempt_count + 1) >= 3) {
+            result = geminiService.fallbackOfflineEvaluation(queueItem);
+          } else {
+            throw aiErr;
+          }
+        }
       }
 
       let normalizedStatus = result.status_jawaban;
@@ -320,7 +332,7 @@ const queueService = {
       })();
 
       // Auto-kalkulasi nilai total pengerjaan siswa saat butir soal dinilai AI
-      // Nilai AI & Nilai Final langsung muncul di tabel depan guru (status tetap belum dirilis / released_at tetap NULL)
+      // Jika skor_langsung_ai = 1 dan seluruh soal pengerjaan ini selesai, recalculatePengerjaanTotal otomatis merilis nilai
       try {
         const reviewService = require('./reviewService');
         if (queueItem.pengerjaan_id) {
@@ -348,7 +360,7 @@ const queueService = {
       const maxRetry = 3;
 
       // Adaptive delay jika terjadi rate limit (FR-12 & NFR-05)
-      const retrySeconds = isRateLimit ? 25 : 10;
+      const retrySeconds = isRateLimit ? 15 : 8;
       const finalStatus = newAttempt >= maxRetry ? 'gagal' : 'menunggu';
 
       db.transaction(() => {
@@ -383,6 +395,50 @@ const queueService = {
         status: this.getQueueStatus(id)
       };
     }
+  },
+
+  // Pemrosesan antrean bertahap otomatis (Serverless-safe & Anti-Rate-Limit)
+  // Dipanggil saat siswa menunggu skor langsung AI di halaman hasil ujian
+  async tickAutoQueueIfDue(ulanganId, options = {}) {
+    const id = Number(ulanganId);
+    if (!id) return { skipped: true, reason: 'invalid_id' };
+
+    // Jika background worker lokal sudah aktif untuk ulangan ini, biarkan worker yang memproses
+    if (runningWorkers.get(id)?.isRunning && !options.forceStep) {
+      return { skipped: true, reason: 'worker_running' };
+    }
+
+    const isTestEnv = process.env.NODE_ENV === 'test' || process.argv.some(arg => arg.includes('test'));
+    const minIntervalMs = options.minIntervalMs !== undefined ? Number(options.minIntervalMs) : (isTestEnv ? 0 : 4500);
+    const now = Date.now();
+
+    if (minIntervalMs > 0 && (now - lastAutoTickAt) < minIntervalMs) {
+      return { skipped: true, reason: 'throttled_memory' };
+    }
+
+    // Pastikan tidak ada item antrean yang sedang diproses baru-baru ini (< 5 detik) atau baru selesai (< 4 detik)
+    if (minIntervalMs > 0) {
+      try {
+        const recentActivity = db.prepare(`
+          SELECT id FROM antrean_review
+          WHERE (status = 'diproses' AND locked_at IS NOT NULL AND datetime(locked_at) >= datetime('now', '-5 seconds'))
+             OR (status = 'selesai' AND completed_at IS NOT NULL AND datetime(completed_at) >= datetime('now', '-4 seconds'))
+          LIMIT 1
+        `).get();
+        if (recentActivity) {
+          return { skipped: true, reason: 'throttled_db' };
+        }
+      } catch (e) {}
+    }
+
+    lastAutoTickAt = now;
+
+    // Pastikan jawaban submitted yang belum masuk antrean_review sudah di-enqueue
+    try {
+      this.enqueueUlangan(id, { forceAll: false });
+    } catch (e) {}
+
+    return await this.processNextAnswer(id, options.gradeFunction || null);
   },
 
   // FR-10, FR-11, FR-12, FR-13: Jalankan worker antrean

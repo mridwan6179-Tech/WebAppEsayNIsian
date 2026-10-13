@@ -5463,12 +5463,18 @@
       }
     });
 
+    let autoScorePollTimer = null;
+
     // Tampilkan Layar Hasil
     function showResultStep(data) {
       stopHeartbeat();
       if (countdownInterval) {
         clearInterval(countdownInterval);
         countdownInterval = null;
+      }
+      if (autoScorePollTimer) {
+        clearTimeout(autoScorePollTimer);
+        autoScorePollTimer = null;
       }
       stepAuth.classList.add('hidden');
       stepExam.classList.add('hidden');
@@ -5492,7 +5498,9 @@
           if (pgDesc) {
             const hasEssay = (data.jawaban || []).some(j => j.jenis !== 'pilihan_ganda' && j.jenis !== 'koding_game');
             if (hasEssay) {
-              pgDesc.textContent = 'Bagian Pilihan Ganda telah dinilai seketika. Bagian Isian/Esai sedang diproses oleh Guru & AI.';
+              pgDesc.textContent = data.skorLangsungAi
+                ? 'Bagian Pilihan Ganda telah dinilai seketika. Bagian Isian/Esai sedang dinilai otomatis oleh AI Dinamis via Antrean Anti-Limit.'
+                : 'Bagian Pilihan Ganda telah dinilai seketika. Bagian Isian/Esai sedang diproses oleh Guru & AI.';
             } else {
               pgDesc.textContent = 'Semua butir soal pilihan ganda telah selesai dinilai otomatis 100%.';
             }
@@ -5519,7 +5527,10 @@
 
       if (data.isReleased && data.nilaiFinal !== null) {
         statusBox.innerHTML = `
-          <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 mb-2">Nilai Resmi Telah Dirilis</span>
+          <div class="flex flex-wrap items-center justify-center gap-1.5 mb-2">
+            <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">Nilai Resmi Telah Dirilis</span>
+            ${data.skorLangsungAi ? `<span class="inline-block px-2.5 py-1 text-[11px] font-bold rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">⚡ Skor Keluar Langsung oleh AI Dinamis</span>` : ''}
+          </div>
           <p class="text-sm font-bold text-slate-800">Total Nilai Anda: <span class="text-blue-600 text-lg">${data.nilaiFinal}</span> / 100</p>
         `;
         document.getElementById('final-score-badge').textContent = data.nilaiFinal;
@@ -5565,6 +5576,7 @@
             ` : `
               <p class="text-slate-600" dir="auto"><strong class="text-slate-500">Jawaban Anda:</strong> ${j.jawaban_siswa || '(kosong)'}</p>
             `)}
+            ${j.umpan_balik_ai && !isPg ? `<p class="text-indigo-800 bg-indigo-50/80 p-2 rounded border border-indigo-100 font-medium" dir="auto">🤖 Evaluasi AI: ${j.umpan_balik_ai}</p>` : ''}
             ${j.catatan_guru ? `<p class="text-emerald-700 bg-emerald-50 p-2 rounded border border-emerald-100 font-medium" dir="auto">Catatan Guru: ${j.catatan_guru}</p>` : ''}
           `;
           listContainer.appendChild(item);
@@ -5708,10 +5720,45 @@
           }
         }
       } else {
-        statusBox.innerHTML = `
-          <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 mb-2">Sedang Diproses / Belum Dirilis</span>
-          <p class="text-xs text-slate-500">Nilai Anda sedang ditinjau dan belum dirilis oleh guru. Silakan cek kembali secara berkala.</p>
-        `;
+        if (data.skorLangsungAi) {
+          const totalSoal = data.antreanInfo?.totalSoal || (data.jawaban || []).length || 1;
+          const selesaiSoal = data.antreanInfo?.selesaiSoal || 0;
+          const posisiAntrean = data.antreanInfo?.posisiAntrean || 1;
+          const pct = Math.min(98, Math.max(12, Math.round((selesaiSoal / totalSoal) * 100)));
+
+          statusBox.innerHTML = `
+            <div class="space-y-2.5 text-left bg-indigo-50/90 border border-indigo-200 rounded-xl p-3.5">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-full bg-indigo-600 text-white shadow-2xs">
+                  <span class="animate-spin inline-block">⏳</span>
+                  <span>⚡ AI Dinamis & Antrean Anti-Limit Aktif</span>
+                </span>
+                <span class="text-[11px] font-bold text-indigo-800 bg-white px-2.5 py-0.5 rounded-lg border border-indigo-200">
+                  Antrean #${posisiAntrean} &bull; ${selesaiSoal}/${totalSoal} Soal Dinilai
+                </span>
+              </div>
+              <div class="w-full bg-indigo-100 rounded-full h-2.5 overflow-hidden border border-indigo-200">
+                <div class="bg-gradient-to-r from-indigo-600 to-blue-500 h-2.5 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+              </div>
+              <p class="text-[11px] text-indigo-900 leading-relaxed">
+                AI Dinamis sedang menilai jawabanmu secara bertahap melalui sistem antrean cerdas agar bebas terkena limit kuota. <strong>Nilai akhir dan rincian evaluasi akan langsung muncul otomatis di layar ini begitu antrean selesai!</strong>
+              </p>
+            </div>
+          `;
+
+          // Jadwalkan auto-polling setiap 4.2 detik sampai nilai otomatis keluar
+          const targetPid = currentPengerjaanId || data.pengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
+          if (targetPid) {
+            autoScorePollTimer = setTimeout(() => {
+              checkResultStatusWithRetry(targetPid, 0);
+            }, 4200);
+          }
+        } else {
+          statusBox.innerHTML = `
+            <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 mb-2">Sedang Diproses / Belum Dirilis</span>
+            <p class="text-xs text-slate-500">Nilai Anda sedang ditinjau dan belum dirilis oleh guru. Silakan cek kembali secara berkala.</p>
+          `;
+        }
         releasedDetails.classList.add('hidden');
         const remedialCard = document.getElementById('remedial-action-card');
         if (remedialCard) remedialCard.classList.add('hidden');

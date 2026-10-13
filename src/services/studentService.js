@@ -822,10 +822,12 @@ const studentService = {
       computedSkorPg = totalPg > 0 ? Math.round((benarPg / totalPg) * 100 * 10) / 10 : null;
       computedSkorKoding = totalKoding > 0 ? Math.round((sumKodingScorePct / totalKoding) * 10) / 10 : null;
 
+      const ulInfo = db.prepare('SELECT bobot_pg, bobot_koding, skor_langsung_ai FROM ulangan WHERE id = ?').get(pengerjaan.ulangan_id);
+      const skorLangsungAi = Boolean(Number(ulInfo?.skor_langsung_ai) === 1);
+
       // Jika seluruh soal adalah pilihan ganda / koding (tidak ada esai/isian), hitung nilai akhir seketika
       let nilaiFinal = null;
       if (!hasEssayOrIsian && (computedSkorPg !== null || computedSkorKoding !== null)) {
-        const ulInfo = db.prepare('SELECT bobot_pg, bobot_koding FROM ulangan WHERE id = ?').get(pengerjaan.ulangan_id);
         const bPg = (computedSkorPg !== null) ? (Number(ulInfo?.bobot_pg) || (computedSkorKoding !== null ? 50 : 100)) : 0;
         const bKod = (computedSkorKoding !== null) ? (Number(ulInfo?.bobot_koding) || (computedSkorPg !== null ? 50 : 100)) : 0;
         const totalB = bPg + bKod;
@@ -840,36 +842,60 @@ const studentService = {
       // Update status pengerjaan ke submitted & catat skor_pg, skor_koding, nilai_final, paste_count
       const nowIso = new Date().toISOString();
       const pasteDetailsStr = pasteDetails && typeof pasteDetails === 'object' ? JSON.stringify(pasteDetails) : null;
+      const autoReleaseIso = (!hasEssayOrIsian && skorLangsungAi) ? nowIso : null;
+
       db.prepare(`
         UPDATE pengerjaan 
         SET status = 'submitted', submitted_at = ?, paste_count = MAX(COALESCE(paste_count, 0), ?),
             auto_submitted = ?, paste_details = COALESCE(?, paste_details),
             skor_pg = ?,
             skor_koding = ?,
-            nilai_final = COALESCE(?, nilai_final)
+            nilai_ai = COALESCE(?, nilai_ai),
+            nilai_final = COALESCE(?, nilai_final),
+            released_at = COALESCE(?, released_at)
         WHERE id = ?
-      `).run(nowIso, Number(pasteCount) || 0, isAutoSubmit ? 1 : 0, pasteDetailsStr, computedSkorPg, computedSkorKoding, nilaiFinal, pengerjaanId);
+      `).run(nowIso, Number(pasteCount) || 0, isAutoSubmit ? 1 : 0, pasteDetailsStr, computedSkorPg, computedSkorKoding, nilaiFinal, nilaiFinal, autoReleaseIso, pengerjaanId);
     });
 
     insertOrUpdateJawaban();
+
+    // Jika fitur Skor Langsung AI aktif dan ada soal Essay/Isian, masukkan ke antrean AI dinamis anti-limit
+    const ulRowAfter = db.prepare('SELECT skor_langsung_ai FROM ulangan WHERE id = ?').get(pengerjaan.ulangan_id);
+    const isSkorLangsungActive = Boolean(Number(ulRowAfter?.skor_langsung_ai) === 1);
+    if (isSkorLangsungActive && hasEssayOrIsian) {
+      try {
+        const queueService = require('./queueService');
+        queueService.enqueuePengerjaan(pengerjaanId);
+        const isTestEnv = process.env.NODE_ENV === 'test' || process.argv.some(arg => arg.includes('test'));
+        if (!isTestEnv) {
+          queueService.startReview(pengerjaan.ulangan_id).catch(() => {});
+        }
+      } catch (qErr) {
+        console.warn('⚠️ Auto-enqueue skor_langsung_ai notice:', qErr.message);
+      }
+    }
 
     // Segera dorong jawaban dan status submitted ke Turso Cloud agar tersimpan permanen
     if (typeof db.sync === 'function') {
       try { db.sync(); } catch (syncErr) {}
     }
 
-    const updated = db.prepare('SELECT submitted_at FROM pengerjaan WHERE id = ?').get(pengerjaanId);
+    const updated = db.prepare('SELECT submitted_at, released_at, nilai_final FROM pengerjaan WHERE id = ?').get(pengerjaanId);
 
     return {
       success: true,
       message: 'Jawaban berhasil dikumpulkan',
-      submitted_at: updated ? updated.submitted_at : nowIso,
+      submitted_at: updated ? updated.submitted_at : new Date().toISOString(),
       skor_pg: computedSkorPg,
       total_pg: totalPg,
       benar_pg: benarPg,
       skor_koding: computedSkorKoding,
       total_koding: totalKoding,
-      has_essay: hasEssayOrIsian
+      has_essay: hasEssayOrIsian,
+      skor_langsung_ai: isSkorLangsungActive,
+      is_released: Boolean(updated?.released_at),
+      auto_released: Boolean(updated?.released_at),
+      nilai_final: updated?.nilai_final ?? null
     };
   },
 
@@ -1031,7 +1057,7 @@ const studentService = {
   getPengerjaanStatus(pengerjaanId) {
     const query = `
       SELECT p.*, u.judul, u.mata_pelajaran, u.status as status_ulangan, u.kkm, u.kode_ujian,
-             u.instruksi_remedial, u.link_remedial, pes.nama, pes.kelas,
+             u.instruksi_remedial, u.link_remedial, u.skor_langsung_ai, pes.nama, pes.kelas,
              g.nama as nama_guru, g.email as email_guru, g.no_wa as no_wa_guru
       FROM pengerjaan p
       JOIN ulangan u ON p.ulangan_id = u.id
@@ -1056,6 +1082,62 @@ const studentService = {
     }
 
     if (!pengerjaan) return null;
+
+    const skorLangsungAi = Boolean(Number(pengerjaan.skor_langsung_ai) === 1);
+    let antreanInfo = null;
+
+    // Jika skor_langsung_ai aktif dan belum dirilis, cek apakah semua soal sudah selesai dinilai
+    if (skorLangsungAi && !pengerjaan.released_at && pengerjaan.status === 'submitted') {
+      const jwbStats = db.prepare(`
+        SELECT 
+          COUNT(id) as total_soal,
+          SUM(CASE WHEN status_penilaian = 'selesai' THEN 1 ELSE 0 END) as selesai_soal,
+          SUM(CASE WHEN status_penilaian != 'selesai' THEN 1 ELSE 0 END) as belum_selesai
+        FROM jawaban
+        WHERE pengerjaan_id = ?
+      `).get(pengerjaan.id);
+
+      const totalSoal = Number(jwbStats?.total_soal || 0);
+      const selesaiSoal = Number(jwbStats?.selesai_soal || 0);
+      const belumSelesai = Number(jwbStats?.belum_selesai || 0);
+
+      if (totalSoal > 0 && belumSelesai === 0) {
+        try {
+          const reviewService = require('./reviewService');
+          reviewService.recalculatePengerjaanTotal(pengerjaan.id);
+          pengerjaan = db.prepare(query).get(cleanId) || pengerjaan;
+        } catch (eRecalc) {}
+      } else if (totalSoal > 0) {
+        // Hitung posisi antrean siswa pada antrean_review untuk ulangan ini
+        let posisiAntrean = 1;
+        try {
+          const minQueueRow = db.prepare(`
+            SELECT MIN(a.id) as min_antrean_id
+            FROM antrean_review a
+            JOIN jawaban j ON a.jawaban_id = j.id
+            WHERE j.pengerjaan_id = ? AND a.status != 'selesai'
+          `).get(pengerjaan.id);
+
+          if (minQueueRow && minQueueRow.min_antrean_id) {
+            const aheadRow = db.prepare(`
+              SELECT COUNT(DISTINCT j.pengerjaan_id) as siswa_di_depan
+              FROM antrean_review a
+              JOIN jawaban j ON a.jawaban_id = j.id
+              JOIN pengerjaan p ON j.pengerjaan_id = p.id
+              WHERE p.ulangan_id = ? AND a.status != 'selesai' AND a.id < ?
+            `).get(pengerjaan.ulangan_id, minQueueRow.min_antrean_id);
+            posisiAntrean = Number(aheadRow?.siswa_di_depan || 0) + 1;
+          }
+        } catch (ePos) {}
+
+        antreanInfo = {
+          totalSoal,
+          selesaiSoal,
+          menungguSoal: belumSelesai,
+          posisiAntrean
+        };
+      }
+    }
 
     const isReleased = Boolean(pengerjaan.released_at);
     const examKkm = pengerjaan.kkm || 75;
@@ -1116,6 +1198,7 @@ const studentService = {
 
     return {
       pengerjaanId: pengerjaan.id,
+      ulanganId: pengerjaan.ulangan_id,
       nama: pengerjaan.nama,
       kelas: pengerjaan.kelas,
       judul: pengerjaan.judul,
@@ -1125,6 +1208,8 @@ const studentService = {
       submittedAt: pengerjaan.submitted_at,
       isReleased,
       releasedAt: pengerjaan.released_at,
+      skorLangsungAi,
+      antreanInfo,
       kkm: examKkm,
       nilaiFinal: finalScore,
       isRemedial,

@@ -611,6 +611,96 @@ describe('=== SUITE: ULANGAN MODE PERMAINAN KODING (SMP) & HYBRID ===', () => {
     const parsedFromStudent = JSON.parse(checkResult.ulangan.konten_kisi_kisi);
     assert.ok(parsedFromStudent.daftar_kisi_kisi.length >= 1 && parsedFromStudent.daftar_kisi_kisi.length <= 3);
   });
+
+  test('16. Fitur Skor Keluar Langsung oleh AI (skor_langsung_ai = 1) dengan AI Dinamis & Antrean Anti-Limit', async () => {
+    const queueService = require('../src/services/queueService');
+
+    // Skenario A: Ulangan PG + Game Koding (Tanpa Esai) dengan skor_langsung_ai = 1 -> Langsung rilis seketika saat submit
+    const ulanganInstant = examService.createUlangan(testGuruId, {
+      judul: 'Ulangan Skor Langsung Instan PG',
+      mata_pelajaran: 'Informatika',
+      tingkat_kelas: 'Kelas 7',
+      jenis_ulangan: 'pilihan_ganda',
+      skor_langsung_ai: 1
+    });
+    assert.strictEqual(ulanganInstant.skor_langsung_ai, 1);
+
+    const soalPg = examService.createSoal(ulanganInstant.id, {
+      jenis: 'pilihan_ganda',
+      pertanyaan: '1 byte terdiri dari berapa bit?',
+      opsi_a: '8 bit',
+      opsi_b: '4 bit',
+      opsi_c: '16 bit',
+      opsi_d: '32 bit',
+      kunci_pg: 'A',
+      bobot: 10
+    });
+    examService.updateUlangan(ulanganInstant.id, testGuruId, { status: 'dibuka' });
+
+    const sessInstant = studentService.startExam(ulanganInstant.kode_ujian, 'Siswa Instan AI', '7A');
+    const subInstant = studentService.submitExam(sessInstant.pengerjaanId, [
+      { soal_id: soalPg.id, jawaban_siswa: 'A' }
+    ]);
+    assert.strictEqual(subInstant.success, true);
+    assert.strictEqual(subInstant.skor_langsung_ai, true);
+    assert.strictEqual(subInstant.auto_released, true);
+
+    const statusInstant = studentService.getPengerjaanStatus(sessInstant.pengerjaanId);
+    assert.strictEqual(statusInstant.isReleased, true, 'Skor PG dengan skor_langsung_ai=1 harus langsung dirilis');
+    assert.strictEqual(statusInstant.nilaiFinal, 100);
+
+    // Skenario B: Ulangan Campuran (PG + Isian) dengan skor_langsung_ai = 1 -> Masuk antrean AI & otomatis rilis setelah antrean selesai
+    const ulanganQueued = examService.createUlangan(testGuruId, {
+      judul: 'Ulangan Skor Langsung Antrean AI',
+      mata_pelajaran: 'Informatika',
+      tingkat_kelas: 'Kelas 8',
+      jenis_ulangan: 'campuran',
+      bobot_pg: 50,
+      bobot_essay: 50,
+      skor_langsung_ai: 1
+    });
+
+    const qPg = examService.createSoal(ulanganQueued.id, {
+      jenis: 'pilihan_ganda',
+      pertanyaan: 'Otak dari komputer disebut...',
+      opsi_a: 'CPU (Processor)',
+      opsi_b: 'Monitor',
+      opsi_c: 'Keyboard',
+      opsi_d: 'Mouse',
+      kunci_pg: 'A',
+      bobot: 10
+    });
+
+    const qIsian = examService.createSoal(ulanganQueued.id, {
+      jenis: 'isian',
+      pertanyaan: 'Jelaskan apa yang dimaksud dengan algoritma pemrograman!',
+      kunci_jawaban: 'Urutan langkah-langkah logis dan sistematis untuk menyelesaikan suatu masalah.',
+      bobot: 10
+    });
+
+    examService.updateUlangan(ulanganQueued.id, testGuruId, { status: 'dibuka' });
+
+    const sessQueued = studentService.startExam(ulanganQueued.kode_ujian, 'Siswa Antrean AI', '8A');
+    const subQueued = studentService.submitExam(sessQueued.pengerjaanId, [
+      { soal_id: qPg.id, jawaban_siswa: 'A' },
+      { soal_id: qIsian.id, jawaban_siswa: 'Urutan langkah logis dan sistematis untuk menyelesaikan masalah pemrograman.' }
+    ]);
+    assert.strictEqual(subQueued.success, true);
+    assert.strictEqual(subQueued.skor_langsung_ai, true);
+
+    // Pastikan item antrean diproses melalui tickAutoQueueIfDue (simulasi polling siswa anti-rate-limit)
+    let statusAfter = studentService.getPengerjaanStatus(sessQueued.pengerjaanId);
+    let safetyStep = 0;
+    while (!statusAfter.isReleased && safetyStep < 5) {
+      safetyStep++;
+      await queueService.tickAutoQueueIfDue(ulanganQueued.id, { minIntervalMs: 0 });
+      statusAfter = studentService.getPengerjaanStatus(sessQueued.pengerjaanId);
+    }
+
+    assert.strictEqual(statusAfter.isReleased, true, 'Skor campuran harus otomatis dirilis begitu antrean AI selesai menilai');
+    assert.strictEqual(statusAfter.skorLangsungAi, true);
+    assert.ok(statusAfter.nilaiFinal !== null && statusAfter.nilaiFinal >= 50, `Nilai final harus keluar otomatis: ${statusAfter.nilaiFinal}`);
+  });
 });
 
 

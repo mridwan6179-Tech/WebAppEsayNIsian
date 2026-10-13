@@ -346,11 +346,19 @@ app.get('/api/siswa/sesi/:pengerjaan_id', (req, res) => {
   }
 });
 
-app.get('/api/siswa/hasil/:pengerjaan_id', (req, res) => {
+app.get('/api/siswa/hasil/:pengerjaan_id', async (req, res) => {
   try {
-    const status = studentService.getPengerjaanStatus(req.params.pengerjaan_id);
+    let status = studentService.getPengerjaanStatus(req.params.pengerjaan_id);
     if (!status) {
       return res.status(404).json({ success: false, message: 'Data pengerjaan tidak ditemukan' });
+    }
+    if (status.skorLangsungAi && !status.isReleased && status.status === 'submitted' && status.ulanganId) {
+      try {
+        await queueService.tickAutoQueueIfDue(status.ulanganId);
+        status = studentService.getPengerjaanStatus(req.params.pengerjaan_id) || status;
+      } catch (eTick) {
+        console.warn('⚠️ Auto-queue tick notice:', eTick.message);
+      }
     }
     res.json({ success: true, data: status });
   } catch (err) {

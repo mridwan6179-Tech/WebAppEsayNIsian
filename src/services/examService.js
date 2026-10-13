@@ -135,6 +135,7 @@ const examService = {
     const cleanJumlahSoalPg = (data.jumlah_soal_pg !== undefined && data.jumlah_soal_pg !== null && data.jumlah_soal_pg !== '') ? Math.max(0, Number(data.jumlah_soal_pg)) : null;
     const cleanPinAktif = (data.pin_aktif !== undefined && data.pin_aktif !== null) ? (data.pin_aktif ? 1 : 0) : 0;
     const cleanTokenUjian = (data.token_ujian !== undefined && data.token_ujian !== null && data.token_ujian !== '') ? Math.max(0, Number(data.token_ujian)) : null;
+    const cleanSkorLangsungAi = (data.skor_langsung_ai !== undefined && data.skor_langsung_ai !== null) ? (data.skor_langsung_ai ? 1 : 0) : 0;
 
     const stmt = db.prepare(`
       INSERT INTO ulangan (
@@ -144,9 +145,9 @@ const examService = {
         izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus, tampilkan_simbol,
         link_kisi_kisi, konten_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening,
         jenis_ulangan, jumlah_paket, bobot_pg, bobot_essay, bobot_koding, opsi_pg_count, jumlah_soal_pg,
-        pin_aktif, token_ujian
+        pin_aktif, token_ujian, skor_langsung_ai
       )
-      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
       guruId, judul, mata_pelajaran, tingkat_kelas, deskripsi || '', kode_ujian,
@@ -154,7 +155,7 @@ const examService = {
       cleanKkm, cleanInstruksiRemedial, cleanLinkRemedial, cleanZonaWaktu,
       izinkanSingkatan, izinkanInformal, toleransiTypo, cleanInstruksiKhusus, tampilkanSimbol, cleanLinkKisiKisi, cleanKontenKisiKisi, tampilkanKisiKisi, tampilkanTeksListening,
       cleanJenisUlangan, cleanJumlahPaket, cleanBobotPg, cleanBobotEssay, cleanBobotKoding, cleanOpsiPgCount, cleanJumlahSoalPg,
-      cleanPinAktif, cleanTokenUjian
+      cleanPinAktif, cleanTokenUjian, cleanSkorLangsungAi
     );
     const ulanganId = info.lastInsertRowid;
 
@@ -430,6 +431,10 @@ const examService = {
       updates.push('token_ujian = ?');
       params.push(tok);
     }
+    if (data.skor_langsung_ai !== undefined) {
+      updates.push('skor_langsung_ai = ?');
+      params.push(data.skor_langsung_ai ? 1 : 0);
+    }
     if (status !== undefined) {
       if (!['draft', 'dibuka', 'ditutup', 'selesai'].includes(status)) {
         throw new Error('Status tidak valid');
@@ -442,6 +447,38 @@ const examService = {
       updates.push('updated_at = CURRENT_TIMESTAMP');
       params.push(id, guruId);
       db.prepare(`UPDATE ulangan SET ${updates.join(', ')} WHERE id = ? AND guru_id = ?`).run(...params);
+    }
+
+    // Jika fitur Skor Langsung AI diaktifkan, rilis otomatis pengerjaan yang sudah selesai dinilai
+    // dan masukkan pengerjaan submitted yang belum selesai dinilai ke antrean AI dinamis
+    if (data.skor_langsung_ai) {
+      try {
+        const reviewService = require('./reviewService');
+        const queueService = require('./queueService');
+        const submittedList = db.prepare(`
+          SELECT p.id, p.released_at,
+                 COUNT(j.id) as total_jwb,
+                 SUM(CASE WHEN j.status_penilaian = 'selesai' THEN 1 ELSE 0 END) as selesai_jwb
+          FROM pengerjaan p
+          LEFT JOIN jawaban j ON p.id = j.pengerjaan_id
+          WHERE p.ulangan_id = ? AND p.status = 'submitted'
+          GROUP BY p.id
+        `).all(id);
+
+        let hasPendingAi = false;
+        for (const sub of submittedList) {
+          if (Number(sub.total_jwb) > 0 && Number(sub.selesai_jwb) >= Number(sub.total_jwb)) {
+            reviewService.recalculatePengerjaanTotal(sub.id);
+          } else if (Number(sub.total_jwb) > 0) {
+            hasPendingAi = true;
+          }
+        }
+        if (hasPendingAi) {
+          queueService.startReview(id).catch(() => {});
+        }
+      } catch (eAuto) {
+        console.warn('Auto-queue on skor_langsung_ai enable notice:', eAuto.message);
+      }
     }
 
     if (Array.isArray(kelas_ids) && kelas_ids.length > 0) {
