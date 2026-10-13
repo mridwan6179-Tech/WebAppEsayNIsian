@@ -1979,8 +1979,278 @@ ${jsonExample}
       throw new Error('Format output generator soal tidak valid');
     }
     return result.questions;
+  },
+
+  // Helper Pembangun Kisi-Kisi Cerdas (Deterministic Fallback & Normalizer)
+  // Menganalisis seluruh jenis soal (PG, PG Kompleks, Isian, Essay, & Game Koding) tanpa membocorkan kunci jawaban
+  buildFallbackKisiKisi(ulangan = {}, soalList = []) {
+    const mapel = ulangan.mata_pelajaran || 'Mata Pelajaran Umum';
+    const judul = ulangan.judul || 'Ulangan Harian / Asesmen';
+    const kelas = ulangan.tingkat_kelas || 'Umum';
+
+    const komposisi = {
+      total_soal: soalList.length,
+      pilihan_ganda: 0,
+      pg_kompleks: 0,
+      isian: 0,
+      essay: 0,
+      koding_game: 0
+    };
+
+    const daftarKisiKisi = [];
+    const topikSet = new Set();
+
+    soalList.forEach((s, idx) => {
+      const no = s.nomor || (idx + 1);
+      const jenisRaw = (s.jenis || 'isian').toLowerCase();
+      let bentukLabel = 'Isian Singkat';
+      let levelDefault = 'C2 (Memahami)';
+
+      if (jenisRaw === 'pilihan_ganda') {
+        const rawKunci = String(s.kunci_pg || '').trim();
+        if (rawKunci.includes(',') || rawKunci.length > 1) {
+          komposisi.pg_kompleks++;
+          bentukLabel = 'Pilihan Ganda Kompleks';
+          levelDefault = 'C3 (Menerapkan)';
+        } else {
+          komposisi.pilihan_ganda++;
+          bentukLabel = 'Pilihan Ganda';
+          levelDefault = 'C2 (Memahami)';
+        }
+      } else if (jenisRaw === 'essay') {
+        komposisi.essay++;
+        bentukLabel = 'Uraian / Essay';
+        levelDefault = 'C4 (Menganalisis)';
+      } else if (jenisRaw === 'koding_game') {
+        komposisi.koding_game++;
+        let gd = {};
+        try {
+          gd = typeof s.game_data === 'string' ? JSON.parse(s.game_data) : (s.game_data || {});
+        } catch (e) { gd = {}; }
+        const modeName = gd.title || gd.nama || gd.mode || 'Logika Algoritma';
+        bentukLabel = `Game Koding (${modeName})`;
+        levelDefault = 'C4 (Berpikir Komputasional)';
+      } else {
+        komposisi.isian++;
+        bentukLabel = 'Isian Singkat';
+        levelDefault = 'C2 (Memahami)';
+      }
+
+      if (s.tingkat_kesulitan === 'mudah') levelDefault = 'C2 (Memahami)';
+      else if (s.tingkat_kesulitan === 'sedang') levelDefault = 'C3 (Menerapkan)';
+      else if (s.tingkat_kesulitan === 'sulit') levelDefault = 'C4 (Menganalisis / HOTS)';
+
+      // Ekstrak kata kunci / topik dari pertanyaan tanpa membocorkan jawaban
+      const cleanPertanyaan = String(s.pertanyaan || '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      let materiPokok = s.kategori && s.kategori.trim() ? s.kategori.trim() : '';
+      if (!materiPokok) {
+        if (jenisRaw === 'koding_game') {
+          let gd = {};
+          try { gd = typeof s.game_data === 'string' ? JSON.parse(s.game_data) : (s.game_data || {}); } catch (e) {}
+          const modeMap = {
+            grid_runner: 'Algoritma Sekuensial & Navigasi Spasial Robot',
+            loop_master: 'Struktur Perulangan (Looping) & Efisiensi Kode',
+            if_else: 'Percabangan Kondisi (If-Else) & Sensor',
+            bug_doctor: 'Debugging & Evaluasi Kesalahan Algoritma',
+            scratch_puzzle: 'Pemrograman Visual Berbasis Kejadian (Event-Driven)',
+            pattern_guesser: 'Pengenalan Pola Komputasional (Pattern Recognition)',
+            parsons_puzzle: 'Penyusunan Urutan Logika Algoritma (Parsons Problem)'
+          };
+          materiPokok = modeMap[gd.mode || gd.subtipe] || gd.title || `Berpikir Komputasional (${mapel})`;
+        } else {
+          // Ambil frasa inti dari pertanyaan
+          const words = cleanPertanyaan.replace(/[?.!,;:()"']/g, '').split(/\s+/).filter(w => w.length > 3);
+          const stopWords = new Set(['yang', 'dalam', 'untuk', 'adalah', 'berikut', 'manakah', 'apakah', 'jelaskan', 'sebutkan', 'bagaimana', 'mengapa', 'disebut', 'dengan', 'pada', 'dari', 'atau', 'tidak', 'bukan', 'pilih', 'semua', 'tepat', 'benar']);
+          const keyWords = words.filter(w => !stopWords.has(w.toLowerCase())).slice(0, 5);
+          materiPokok = keyWords.length > 0
+            ? `Konsep ${keyWords.join(' ')}`
+            : `Materi Pokok ${mapel} #${no}`;
+        }
+      }
+
+      topikSet.add(materiPokok);
+
+      let indikatorSoal = '';
+      if (jenisRaw === 'koding_game') {
+        indikatorSoal = `Disajikan simulasi tantangan interaktif ${bentukLabel}, peserta didik mampu menyusun dan menguji urutan instruksi algoritma secara logis dan efisien untuk menyelesaikan misi.`;
+      } else if (jenisRaw === 'essay') {
+        indikatorSoal = `Disajikan permasalahan kontekstual mengenai "${cleanPertanyaan.slice(0, 85)}${cleanPertanyaan.length > 85 ? '...' : ''}", peserta didik mampu menguraikan analisis dan penjelasan konsep secara lengkap dan runtut.`;
+      } else if (bentukLabel === 'Pilihan Ganda Kompleks') {
+        indikatorSoal = `Disajikan beberapa pernyataan terkait ${materiPokok.toLowerCase()}, peserta didik mampu menganalisis dan memilih lebih dari satu pernyataan yang benar secara tepat.`;
+      } else if (jenisRaw === 'pilihan_ganda') {
+        indikatorSoal = `Disajikan deskripsi/kasus mengenai ${materiPokok.toLowerCase()}, peserta didik mampu menentukan konsep atau jawaban yang paling tepat dari pilihan yang tersedia.`;
+      } else {
+        indikatorSoal = `Disajikan pertanyaan spesifik terkait ${materiPokok.toLowerCase()}, peserta didik mampu menuliskan istilah, nilai, atau jawaban singkat yang tepat.`;
+      }
+
+      daftarKisiKisi.push({
+        nomor_soal: String(no),
+        bentuk_soal: bentukLabel,
+        materi_pokok: materiPokok,
+        indikator_soal: indikatorSoal,
+        level_kognitif: levelDefault,
+        fokus_belajar: `Pelajari pemahaman konsep dan penerapan tentang: ${materiPokok}.`
+      });
+    });
+
+    const jenisRingkas = [];
+    if (komposisi.pilihan_ganda > 0) jenisRingkas.push(`${komposisi.pilihan_ganda} Pilihan Ganda`);
+    if (komposisi.pg_kompleks > 0) jenisRingkas.push(`${komposisi.pg_kompleks} PG Kompleks`);
+    if (komposisi.isian > 0) jenisRingkas.push(`${komposisi.isian} Isian Singkat`);
+    if (komposisi.essay > 0) jenisRingkas.push(`${komposisi.essay} Essay/Uraian`);
+    if (komposisi.koding_game > 0) jenisRingkas.push(`${komposisi.koding_game} Game Koding`);
+
+    return {
+      judul_kisi_kisi: `Kisi-Kisi & Panduan Belajar: ${judul}`,
+      mata_pelajaran: mapel,
+      tingkat_kelas: kelas,
+      ringkasan_cakupan: `Ulangan ini mencakup ${soalList.length} butir soal (${jenisRingkas.join(', ') || 'Campuran'}) pada mata pelajaran ${mapel} untuk kelas ${kelas}. Fokus evaluasi meliputi pemahaman konsep dasar, penerapan logika, serta pemecahan masalah secara analitis.`,
+      komposisi_soal: komposisi,
+      daftar_kisi_kisi: daftarKisiKisi,
+      rangkuman_materi_penting: Array.from(topikSet).slice(0, 8).map(t => `Memahami konsep, karakteristik, dan penerapan dari ${t}.`),
+      tips_sukses_ujian: [
+        'Pelajari setiap indikator materi dan fokus belajar pada tabel kisi-kisi di atas sebelum memulai ujian.',
+        'Kerjakan terlebih dahulu butir soal yang dianggap paling mudah untuk menghemat waktu.',
+        komposisi.pg_kompleks > 0 ? 'Perhatikan soal Pilihan Ganda Kompleks yang meminta lebih dari satu jawaban benar (kotak centang).' : 'Teliti setiap pilihan jawaban pada soal objektif dan pastikan istilah pada soal isian ditulis dengan tepat.',
+        komposisi.koding_game > 0 ? 'Pada soal Game Koding, perhatikan jumlah target bintang, rintangan, dan batas efisiensi jumlah balok (Par Limit) sebelum menjalankan simulasi.' : 'Pada soal uraian/essay, tuliskan penjelasan secara runtut dengan kalimat yang jelas.',
+        'Periksa kembali seluruh jawaban sebelum menekan tombol Kumpulkan.'
+      ],
+      generated_at: new Date().toISOString()
+    };
+  },
+
+  // Generator Kisi-Kisi Otomatis Berbantuan AI dari Daftar Soal Ulangan (Mendukung Soal Campuran)
+  async generateKisiKisiFromQuestions(ulangan = {}, soalList = [], options = {}) {
+    if (!Array.isArray(soalList) || soalList.length === 0) {
+      throw new Error('Tidak ada soal dalam ulangan ini untuk dianalisis menjadi kisi-kisi.');
+    }
+
+    const fallback = this.buildFallbackKisiKisi(ulangan, soalList);
+
+    // Susun rincian soal untuk dianalisis AI (tanpa meminta AI membocorkan kunci jawaban ke siswa)
+    const soalSummaryText = soalList.map((s, idx) => {
+      const no = s.nomor || (idx + 1);
+      const jenisRaw = (s.jenis || 'isian').toLowerCase();
+      let bentuk = 'Isian Singkat';
+      let extraInfo = '';
+
+      if (jenisRaw === 'pilihan_ganda') {
+        const rawKunci = String(s.kunci_pg || '').trim();
+        bentuk = (rawKunci.includes(',') || rawKunci.length > 1) ? 'Pilihan Ganda Kompleks (Multi-Jawaban)' : 'Pilihan Ganda';
+        const opsiPreview = [s.opsi_a, s.opsi_b, s.opsi_c, s.opsi_d, s.opsi_e].filter(Boolean).join(' | ');
+        extraInfo = `Cakupan Opsi: [${opsiPreview}]`;
+      } else if (jenisRaw === 'essay') {
+        bentuk = 'Uraian / Essay';
+        if (s.rubrik) extraInfo = `Fokus Rubrik: ${String(s.rubrik).slice(0, 120)}`;
+      } else if (jenisRaw === 'koding_game') {
+        let gd = {};
+        try { gd = typeof s.game_data === 'string' ? JSON.parse(s.game_data) : (s.game_data || {}); } catch (e) {}
+        bentuk = `Game Koding (${gd.title || gd.mode || 'Algoritma'})`;
+        extraInfo = `Mekanika: ${gd.description || gd.mode || 'Penyusunan algoritma balok'}`;
+      }
+
+      return `Soal #${no} [${bentuk}] (Kesulitan: ${s.tingkat_kesulitan || 'sedang'}, Bobot: ${s.bobot || 1}):
+Pertanyaan: ${String(s.pertanyaan || '').slice(0, 350)}
+${extraInfo}`;
+    }).join('\n\n');
+
+    const prompt = `Anda adalah Pakar Kurikulum dan Penyusun Kisi-Kisi Asesmen Pendidikan Nasional (Kurikulum Merdeka).
+Tugas Anda adalah menganalisis seluruh daftar butir soal ulangan berikut (termasuk jika soalnya campuran: Pilihan Ganda, Pilihan Ganda Kompleks, Isian Singkat, Essay/Uraian, maupun Game Koding) dan menyusun dokumen **KISI-KISI PENULISAN SOAL & PANDUAN BELAJAR SISWA** yang komprehensif, rapi, dan edukatif.
+
+ATURAN SANGAT PENTING:
+1. JANGAN MEMBOCORKAN kunci jawaban persis (seperti "Jawabannya adalah A" atau menyebutkan jawaban akhir secara eksplisit), melainkan tuliskan **Materi Pokok**, **Indikator Pencapaian Kompetensi / Indikator Soal** (contoh: "Disajikan kasus ..., peserta didik dapat menentukan/menganalisis ..."), **Level Kognitif (C1-C6)**, dan **Fokus Materi Belajar** yang harus dikuasai siswa!
+2. Analisis tepat untuk SELURUH ${soalList.length} butir soal yang diberikan secara berurutan dari nomor 1 sampai ${soalList.length}.
+3. Jika terdapat soal **Game Koding**, jelaskan kompetensi berpikir komputasional / algoritmik yang diujikan (misal: navigasi sekuensial, efisiensi perulangan/loop, sensor percabangan if-else, debugging, pengenalan pola, atau penyusunan algoritma).
+4. Sajikan juga ringkasan cakupan materi, poin rangkuman konsep penting yang perlu dipelajari siswa, dan tips sukses mengerjakan ulangan ini.
+5. Instruksi tambahan dari guru (jika ada): ${options.instruksiTambahan || 'Buat kisi-kisi yang jelas, akademis, dan mudah dipahami oleh guru maupun siswa.'}
+
+IDENTITAS ULANGAN:
+- Judul Ulangan: ${ulangan.judul || '-'}
+- Mata Pelajaran: ${ulangan.mata_pelajaran || '-'}
+- Kelas / Tingkat: ${ulangan.tingkat_kelas || '-'}
+- KKM: ${ulangan.kkm || 75}
+
+DAFTAR BUTIR SOAL YANG DIANALISIS (${soalList.length} SOAL):
+${soalSummaryText}
+
+Kembalikan HASIL HANYA dalam format JSON valid sesuai struktur berikut tanpa teks pembuka/penutup di luar JSON:
+{
+  "judul_kisi_kisi": "Kisi-Kisi & Panduan Belajar: ${ulangan.judul || 'Ulangan'}",
+  "ringkasan_cakupan": "Paragraf ringkasan menyeluruh tentang cakupan materi dan kompetensi yang diujikan...",
+  "daftar_kisi_kisi": [
+    {
+      "nomor_soal": "1",
+      "bentuk_soal": "Pilihan Ganda / PG Kompleks / Isian Singkat / Essay / Game Koding",
+      "materi_pokok": "Nama topik / konsep materi pokok...",
+      "indikator_soal": "Disajikan ..., peserta didik mampu ...",
+      "level_kognitif": "C1 / C2 / C3 / C4 / C5 / C6 beserta keterangannya",
+      "fokus_belajar": "Konsep spesifik yang perlu dibaca/dipelajari siswa..."
+    }
+  ],
+  "rangkuman_materi_penting": [
+    "Poin rangkuman konsep penting 1...",
+    "Poin rangkuman konsep penting 2..."
+  ],
+  "tips_sukses_ujian": [
+    "Tips belajar & strategi mengerjakan 1...",
+    "Tips belajar & strategi mengerjakan 2..."
+  ]
+}`;
+
+    try {
+      const aiResult = await this.callJsonPrompt(prompt, {
+        temperature: 0.25,
+        timeout: 30000,
+        apiKey: options.apiKey
+      });
+
+      if (aiResult && Array.isArray(aiResult.daftar_kisi_kisi) && aiResult.daftar_kisi_kisi.length > 0) {
+        // Pastikan setiap nomor soal tetap lengkap & terstruktur
+        const normalizedList = fallback.daftar_kisi_kisi.map((fbItem, idx) => {
+          const matched = aiResult.daftar_kisi_kisi.find(it => String(it.nomor_soal) === String(fbItem.nomor_soal)) || aiResult.daftar_kisi_kisi[idx];
+          if (!matched) return fbItem;
+          return {
+            nomor_soal: String(fbItem.nomor_soal),
+            bentuk_soal: matched.bentuk_soal || fbItem.bentuk_soal,
+            materi_pokok: matched.materi_pokok || fbItem.materi_pokok,
+            indikator_soal: matched.indikator_soal || fbItem.indikator_soal,
+            level_kognitif: matched.level_kognitif || fbItem.level_kognitif,
+            fokus_belajar: matched.fokus_belajar || fbItem.fokus_belajar
+          };
+        });
+
+        return {
+          judul_kisi_kisi: aiResult.judul_kisi_kisi || fallback.judul_kisi_kisi,
+          mata_pelajaran: fallback.mata_pelajaran,
+          tingkat_kelas: fallback.tingkat_kelas,
+          ringkasan_cakupan: aiResult.ringkasan_cakupan || fallback.ringkasan_cakupan,
+          komposisi_soal: fallback.komposisi_soal,
+          daftar_kisi_kisi: normalizedList,
+          rangkuman_materi_penting: Array.isArray(aiResult.rangkuman_materi_penting) && aiResult.rangkuman_materi_penting.length > 0
+            ? aiResult.rangkuman_materi_penting
+            : fallback.rangkuman_materi_penting,
+          tips_sukses_ujian: Array.isArray(aiResult.tips_sukses_ujian) && aiResult.tips_sukses_ujian.length > 0
+            ? aiResult.tips_sukses_ujian
+            : fallback.tips_sukses_ujian,
+          generated_by: 'gemini_ai',
+          generated_at: new Date().toISOString()
+        };
+      }
+    } catch (err) {
+      console.warn('⚠️ [KISI-KISI AI] Fallback ke analisis struktur pintar karena AI gagal/limit:', err.message);
+    }
+
+    return {
+      ...fallback,
+      generated_by: 'smart_analyzer_fallback'
+    };
   }
 };
 
 module.exports = geminiService;
+
 

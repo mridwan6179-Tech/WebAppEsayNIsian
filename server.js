@@ -20,6 +20,7 @@ const summaryService = require('./src/services/summaryService');
 const packageService = require('./src/services/packageService');
 const omrService = require('./src/services/omrService');
 const codingGameService = require('./src/services/codingGameService');
+const pinService = require('./src/services/pinService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -459,6 +460,49 @@ app.post('/api/guru/ulangan/:id/generate-broadcast', requireGuru, async (req, re
     res.json({ success: true, text });
   } catch (err) {
     console.error('Error generate broadcast:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Generator Kisi-Kisi Ulangan Otomatis Berbantuan AI dari Daftar Soal (Mendukung Soal Campuran)
+app.post('/api/guru/ulangan/:id/generate-kisi-kisi', requireGuru, async (req, res) => {
+  try {
+    const ulanganId = Number(req.params.id);
+    const ulangan = examService.getUlanganById(ulanganId, req.guru.guruId);
+    if (!ulangan) {
+      return res.status(404).json({ success: false, message: 'Ulangan tidak ditemukan' });
+    }
+
+    const soalList = Array.isArray(ulangan.soal) && ulangan.soal.length > 0
+      ? ulangan.soal
+      : db.prepare('SELECT * FROM soal WHERE ulangan_id = ? ORDER BY urutan ASC, nomor ASC').all(ulanganId);
+
+    if (!soalList || soalList.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Belum ada butir soal di ulangan ini untuk dianalisis. Silakan tambahkan soal terlebih dahulu.'
+      });
+    }
+
+    const { instruksi_tambahan, auto_publish } = req.body || {};
+    const kisiKisiData = await geminiService.generateKisiKisiFromQuestions(ulangan, soalList, {
+      instruksiTambahan: instruksi_tambahan || ''
+    });
+
+    const shouldShow = (auto_publish === undefined || auto_publish === null) ? 1 : (auto_publish ? 1 : 0);
+    const updatedUlangan = examService.updateUlangan(ulanganId, req.guru.guruId, {
+      konten_kisi_kisi: JSON.stringify(kisiKisiData),
+      tampilkan_kisi_kisi: shouldShow
+    });
+
+    res.json({
+      success: true,
+      message: 'Kisi-kisi berhasil dianalisis dan disusun dari daftar soal ulangan',
+      kisi_kisi: kisiKisiData,
+      ulangan: updatedUlangan
+    });
+  } catch (err) {
+    console.error('Error generate kisi-kisi AI:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -1610,6 +1654,129 @@ app.post('/api/guru/coding-game/test-run', requireGuru, (req, res) => {
     res.json({ success: true, result });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+
+// ==========================================
+// ROUTE: Sistem PIN Sekali Pakai (Anti Multi-Perangkat)
+// ==========================================
+
+// Siswa: Validasi PIN sebelum mulai ujian
+app.post('/api/siswa/validasi-pin', (req, res) => {
+  try {
+    const { kode_ujian, nama, kelas, pin } = req.body;
+    const val = require('./src/services/studentService').validateExamCode(kode_ujian);
+    if (!val.valid) return res.status(400).json({ valid: false, message: val.message });
+
+    const ulanganId = val.ulangan.id;
+    const deviceId = pinService.makeDeviceId(req);
+    const result = pinService.validatePin(ulanganId, nama, kelas, pin, deviceId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ valid: false, message: err.message });
+  }
+});
+
+// Guru: Set mode PIN aktif/nonaktif untuk ujian
+app.post('/api/guru/ulangan/:id/pin/set-mode', requireGuru, (req, res) => {
+  try {
+    const { aktif } = req.body;
+    const result = pinService.setUlanganPinMode(req.params.id, req.guru.guruId, Boolean(aktif));
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// Guru: Generate pool PIN sekali pakai baru (misal 30 PIN)
+app.post('/api/guru/ulangan/:id/pin/generate-pool', requireGuru, (req, res) => {
+  try {
+    const { count } = req.body || {};
+    const result = pinService.generatePoolPins(req.params.id, req.guru.guruId, count || 10);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// Guru: Ambil daftar PIN semua peserta & ringkasan kuota
+app.get('/api/guru/ulangan/:id/pin/list', requireGuru, (req, res) => {
+  try {
+    const result = pinService.getAllPins(req.params.id, req.guru.guruId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// Guru: Reset PIN tertentu (unclaim atau device_only)
+app.post('/api/guru/ulangan/:id/pin/reset/:pinId', requireGuru, (req, res) => {
+  try {
+    const { mode } = req.body || {};
+    const result = pinService.resetPin(req.params.id, req.params.pinId, req.guru.guruId, mode || 'unclaim');
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// Guru: Hapus PIN yang belum terpakai
+app.delete('/api/guru/ulangan/:id/pin/:pinId', requireGuru, (req, res) => {
+  try {
+    const result = pinService.deletePin(req.params.id, req.params.pinId, req.guru.guruId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// Guru: Teks sebaran PIN WhatsApp / Cetak
+app.get('/api/guru/ulangan/:id/pin/broadcast', requireGuru, (req, res) => {
+  try {
+    const result = pinService.formatBroadcastText(req.params.id, req.guru.guruId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// Guru: Set token ujian (batas maksimal peserta)
+app.post('/api/guru/ulangan/:id/token', requireGuru, (req, res) => {
+  try {
+    const { jumlah_token } = req.body;
+    const result = pinService.setTokenUjian(req.params.id, req.guru.guruId, jumlah_token);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// Guru: Tambah token ujian saat ujian berlangsung
+app.post('/api/guru/ulangan/:id/token/tambah', requireGuru, (req, res) => {
+  try {
+    const { tambah } = req.body;
+    const result = pinService.addTokenUjian(req.params.id, req.guru.guruId, tambah || 5);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// Guru: Cek status token ujian
+app.get('/api/guru/ulangan/:id/token/status', requireGuru, (req, res) => {
+  try {
+    const ulangan = db.prepare('SELECT token_ujian, pin_aktif FROM ulangan WHERE id = ?').get(req.params.id);
+    if (!ulangan) return res.status(404).json({ success: false, message: 'Ulangan tidak ditemukan' });
+    const countRow = db.prepare('SELECT COUNT(DISTINCT peserta_id) as cnt FROM pengerjaan WHERE ulangan_id = ?').get(req.params.id);
+    res.json({
+      success: true,
+      token_ujian: ulangan.token_ujian,
+      pin_aktif: Number(ulangan.pin_aktif),
+      peserta_masuk: Number(countRow?.cnt || 0)
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 

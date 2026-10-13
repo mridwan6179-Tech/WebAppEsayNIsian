@@ -55,7 +55,8 @@
       body > #modal-cetak-soal:not(.hidden),
       body > #modal-laporan:not(.hidden),
       body > #modal-cetak-ljk:not(.hidden),
-      body > #modal-cetak-naskah-paket:not(.hidden) {
+      body > #modal-cetak-naskah-paket:not(.hidden),
+      body > #modal-cetak-kisi-kisi:not(.hidden) {
         display: block !important;
         position: static !important;
         width: 100% !important;
@@ -79,7 +80,8 @@
       #modal-cetak-soal > div,
       #modal-laporan > div,
       #modal-cetak-ljk > div,
-      #modal-cetak-naskah-paket > div {
+      #modal-cetak-naskah-paket > div,
+      #modal-cetak-kisi-kisi > div {
         display: block !important;
         position: static !important;
         width: 100% !important;
@@ -97,7 +99,8 @@
       #modal-cetak-soal > div > div,
       #modal-laporan > div > div,
       #modal-cetak-ljk > div > div,
-      #modal-cetak-naskah-paket > div > div {
+      #modal-cetak-naskah-paket > div > div,
+      #modal-cetak-kisi-kisi > div > div {
         display: block !important;
         position: static !important;
         overflow: visible !important;
@@ -112,7 +115,7 @@
         display: none !important;
       }
 
-      #laporan-sheet-container, #cetak-soal-sheet-container, #cetak-ljk-sheet-container, #cetak-naskah-paket-sheet-container {
+      #laporan-sheet-container, #cetak-soal-sheet-container, #cetak-ljk-sheet-container, #cetak-naskah-paket-sheet-container, #cetak-kisi-kisi-sheet-container {
         display: block !important;
         position: static !important;
         padding: 0 !important;
@@ -551,6 +554,11 @@
                   <span>📲</span>
                   <span>Sebar ke WA</span>
                 </button>
+                <button id="btn-open-pin-manager" type="button" onclick="openExamPinModal()" class="whitespace-nowrap text-xs font-semibold px-3 py-1.5 rounded-lg border border-rose-300 text-rose-800 bg-rose-50 hover:bg-rose-100 transition flex items-center space-x-1.5 shadow-2xs cursor-pointer" title="Kelola PIN Sekali Pakai & Tambah Token Peserta Ujian">
+                  <span>🔑</span>
+                  <span>Kelola PIN &amp; Token</span>
+                  <span id="badge-pin-count" class="hidden text-[10px] bg-rose-600 text-white px-1.5 py-0.2 rounded-full font-mono font-bold">0</span>
+                </button>
                 <button id="btn-edit-exam-modal" class="whitespace-nowrap text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 bg-slate-50 hover:bg-slate-100 transition flex items-center space-x-1 cursor-pointer" title="Ubah Jadwal, Waktu, & Pengaturan Ulangan">
                   <span>⏱️</span>
                   <span>Edit Waktu & Aturan</span>
@@ -622,43 +630,55 @@
           </div>
 
           <!-- Box Info Kisi-kisi Ulangan & Kontrol On/Off Guru -->
-          <div id="detail-exam-kisi-kisi-box" class="p-3.5 bg-indigo-50/70 rounded-xl border border-indigo-200 text-xs space-y-2">
+          <div id="detail-exam-kisi-kisi-box" class="p-3.5 bg-indigo-50/70 rounded-xl border border-indigo-200 text-xs space-y-2.5">
             <div class="flex justify-between items-center flex-wrap gap-2">
               <div class="flex items-center space-x-2">
                 <span class="font-bold text-indigo-900 flex items-center space-x-1.5">
                   <span>📖</span>
-                  <span>Kisi-kisi Ulangan:</span>
+                  <span>Kisi-kisi &amp; Panduan Belajar Ulangan:</span>
                 </span>
                 <span id="badge-kisi-kisi-status" class="px-2 py-0.5 rounded-full text-[10px] font-bold"></span>
               </div>
-              <div class="flex items-center space-x-2">
-                <button id="btn-quick-toggle-kisi-kisi" type="button" class="text-xs font-semibold px-2.5 py-1 rounded-lg border transition shadow-xs cursor-pointer">
+              <div class="flex items-center flex-wrap gap-1.5">
+                <button id="btn-generate-ai-kisi-kisi" type="button" onclick="window.handleGenerateKisiKisiAi && window.handleGenerateKisiKisiAi()" class="text-xs font-bold px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white transition shadow-xs flex items-center space-x-1.5 cursor-pointer" title="Analisis seluruh butir soal (PG, PG Kompleks, Isian, Essay, &amp; Game Koding) dan buatkan Kisi-kisi Ulangan otomatis dengan AI">
+                  <span>✨</span>
+                  <span id="label-btn-generate-kisi-kisi">Buat Kisi-kisi AI (Analisis Soal)</span>
+                </button>
+                <button id="btn-open-cetak-kisi-kisi" type="button" onclick="window.openCetakKisiKisiModal && window.openCetakKisiKisiModal()" class="hidden text-xs font-bold px-3 py-1.5 rounded-lg bg-white hover:bg-indigo-50 text-indigo-800 border border-indigo-300 transition shadow-xs flex items-center space-x-1.5 cursor-pointer" title="Buka Pratinjau Lengkap &amp; Cetak / Download PDF Kisi-kisi Ulangan">
+                  <span>🖨️</span>
+                  <span>Lihat &amp; Download PDF Kisi-kisi</span>
+                </button>
+                <button id="btn-quick-toggle-kisi-kisi" type="button" class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition shadow-xs cursor-pointer">
                   Ubah Status
                 </button>
-                <button id="btn-edit-kisi-kisi-settings" type="button" class="text-[11px] font-semibold text-indigo-800 hover:text-indigo-950 underline cursor-pointer">
-                  ✏️ Edit Link
+                <button id="btn-edit-kisi-kisi-settings" type="button" class="text-[11px] font-semibold text-indigo-800 hover:text-indigo-950 underline px-1 cursor-pointer">
+                  ✏️ Link Eksternal
                 </button>
               </div>
             </div>
-            <div id="kisi-kisi-display-view" class="space-y-1 text-slate-700">
-              <div id="kisi-kisi-link-container" class="hidden pt-1">
+            <div id="kisi-kisi-display-view" class="space-y-2 text-slate-700">
+              <!-- Kontainer Kisi-kisi Hasil Analisis AI (Muncul langsung di tempat Kisi-kisi) -->
+              <div id="kisi-kisi-ai-preview-container" class="hidden bg-white rounded-xl border border-indigo-200 p-3 shadow-2xs space-y-2.5"></div>
+
+              <!-- Kontainer Tautan Kisi-kisi Eksternal (Opsional) -->
+              <div id="kisi-kisi-link-container" class="hidden pt-0.5">
                 <a id="kisi-kisi-link-url" href="#" target="_blank" class="block bg-white hover:bg-indigo-50/50 p-2.5 rounded-lg border border-indigo-200 transition shadow-2xs group">
                   <div class="flex items-center space-x-1.5 text-xs text-indigo-900 font-bold mb-0.5">
                     <span>🔗</span>
-                    <span>Buka Dokumen / Materi Kisi-kisi:</span>
+                    <span>Buka Tautan Materi / Dokumen Kisi-kisi Eksternal:</span>
                   </div>
                   <div id="kisi-kisi-link-label" class="text-xs text-indigo-700 group-hover:underline font-mono truncate pl-5 max-w-full"></div>
                 </a>
               </div>
-              <p id="kisi-kisi-empty-text" class="text-xs italic bg-white/80 p-2 rounded-lg border border-indigo-100 text-slate-500">
-                Belum ada tautan kisi-kisi atau kisi-kisi dinonaktifkan.
+              <p id="kisi-kisi-empty-text" class="text-xs italic bg-white/80 p-2.5 rounded-lg border border-indigo-100 text-slate-500">
+                Belum ada kisi-kisi. Klik tombol <strong>"✨ Buat Kisi-kisi AI (Analisis Soal)"</strong> agar AI menganalisis soal ulangan ini secara otomatis, atau tambahkan Link Eksternal.
               </p>
             </div>
             <!-- Inline Form Edit Link Kisi-kisi -->
             <form id="form-inline-kisi-kisi" class="hidden space-y-2 pt-2 border-t border-indigo-200">
               <div>
-                <label class="block text-[11px] font-semibold text-slate-700 mb-0.5">Tautan Kisi-kisi (Google Drive / Docs / Canva / Web):</label>
-                <input type="url" id="inline-link-kisi-kisi" placeholder="https://drive.google.com/... atau tautan web" class="w-full px-2 py-1 text-xs rounded border border-slate-300 bg-white">
+                <label class="block text-[11px] font-semibold text-slate-700 mb-0.5">Tautan Kisi-kisi Eksternal Opsional (Google Drive / Docs / Canva / Web):</label>
+                <input type="url" id="inline-link-kisi-kisi" placeholder="https://drive.google.com/... atau kosongkan jika hanya memakai Kisi-kisi AI" class="w-full px-2 py-1 text-xs rounded border border-slate-300 bg-white">
               </div>
               <div class="flex justify-end space-x-2 pt-1">
                 <button type="button" id="btn-cancel-inline-kisi-kisi" class="px-2.5 py-1 text-slate-600 cursor-pointer">Batal</button>
@@ -998,6 +1018,12 @@
                 <button type="button" id="btn-refresh-peserta" onclick="loadPesertaList(activeUlanganId)" class="px-2.5 py-1 text-xs rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-semibold flex items-center justify-center space-x-1.5 transition shadow-xs cursor-pointer active:scale-95 shrink-0" title="Segarkan data tabel peserta dan nilai AI terkini">
                   <span class="text-blue-600 font-bold">🔄</span>
                   <span>Refresh Data</span>
+                </button>
+
+                <!-- Tombol Kelola PIN & Token Peserta -->
+                <button type="button" onclick="openExamPinModal()" class="px-2.5 py-1 text-xs rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-800 font-semibold flex items-center justify-center space-x-1.5 transition shadow-xs cursor-pointer active:scale-95 shrink-0" title="Kelola PIN sekali pakai siswa dan tambah kuota token live">
+                  <span>🔑</span>
+                  <span>Kelola PIN &amp; Token</span>
                 </button>
               </div>
 
@@ -1800,6 +1826,35 @@
           <span class="block text-[10px] text-slate-500">Bila tidak dicentang (default), naskah percakapan audio dan tombol 'Tunjukkan Teks' disembunyikan total dari layar ujian siswa agar menjadi ujian listening murni.</span>
         </div>
 
+        <!-- Keamanan Ujian: PIN Sekali Pakai & Kuota Token Peserta (Opsional) -->
+        <div class="p-3.5 bg-rose-50/60 rounded-xl border border-rose-200 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <label class="block font-bold text-rose-950 text-xs flex items-center space-x-1.5">
+              <span>🔑</span>
+              <span>PIN Sekali Pakai &amp; Kuota Token Peserta</span>
+            </label>
+            <label class="flex items-center space-x-1.5 cursor-pointer text-xs font-semibold text-rose-800">
+              <input type="checkbox" id="edit-exam-pin-aktif" class="rounded text-rose-600 focus:ring-rose-500">
+              <span>Aktifkan PIN</span>
+            </label>
+          </div>
+          <p class="text-[11px] text-slate-600 leading-relaxed">
+            Jika aktif, setiap siswa <strong>wajib memasukkan PIN 6-digit sekali pakai</strong> yang diberikan guru. Mencegah joki, siswa lain mengerjakan, atau login ganda dari perangkat lain.
+          </p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-rose-200/60">
+            <div>
+              <label class="block text-slate-700 text-[11px] font-semibold mb-1">Batas Kuota Peserta (Token Ujian):</label>
+              <input type="number" id="edit-exam-token-ujian" min="0" placeholder="Kosongkan jika tak terbatas" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white">
+              <span class="block text-[10px] text-slate-500 mt-0.5">Guru dapat menambah token ini kapan saja saat ujian live berlangsung.</span>
+            </div>
+            <div class="flex items-end">
+              <button type="button" onclick="openExamPinModalFromEdit()" class="w-full py-1.5 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1 shadow-sm cursor-pointer">
+                <span>🔑 Kelola &amp; Tambah PIN Sekarang</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
           <button type="button" id="btn-cancel-edit-exam" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-medium transition">
             Batal
@@ -1845,6 +1900,135 @@
           <button type="submit" id="btn-save-profile" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow transition">Simpan Pengaturan</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL MANAJEMEN PIN SEKALI PAKAI & TOKEN UJIAN -->
+  <div id="modal-exam-pin-manager" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden my-auto">
+      <!-- Modal Header -->
+      <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-rose-50 via-pink-50 to-amber-50">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center text-lg font-bold shadow-md shadow-rose-200">
+            🔑
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-900 text-sm sm:text-base flex items-center space-x-2">
+              <span>Manajemen PIN Sekali Pakai &amp; Token Peserta</span>
+              <span id="pin-modal-status-badge" class="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Memuat...</span>
+            </h3>
+            <p class="text-[11px] text-slate-500" id="pin-modal-subtitle">Ulangan: - &bull; Mencegah joki, siswa lain mengerjakan, dan login multi-perangkat</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeExamPinModal()" class="text-slate-400 hover:text-slate-600 p-1 text-xl font-bold cursor-pointer transition">&times;</button>
+      </div>
+
+      <!-- Modal Body (Scrollable) -->
+      <div class="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs">
+        <!-- Control Card: Status & Kuota Token -->
+        <div class="bg-gradient-to-r from-slate-50 to-rose-50/40 p-4 rounded-xl border border-slate-200 space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center space-x-3">
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="pin-modal-toggle-active" onchange="toggleExamPinMode(this.checked)" class="sr-only peer">
+                <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600"></div>
+              </label>
+              <div>
+                <span class="font-bold text-slate-800 text-xs sm:text-sm block" id="pin-modal-toggle-label">Fitur PIN: Nonaktif</span>
+                <span class="text-[11px] text-slate-500">Jika aktif, siswa harus memasukkan 1 PIN sekali pakai sebelum masuk ujian.</span>
+              </div>
+            </div>
+
+            <!-- Summary Badges -->
+            <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+              <span class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 font-semibold text-[11px] shadow-2xs">
+                Total: <strong id="pin-stat-total" class="font-mono text-slate-900">0</strong>
+              </span>
+              <span class="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold text-[11px] shadow-2xs">
+                🟢 Tersedia: <strong id="pin-stat-available" class="font-mono text-emerald-700">0</strong>
+              </span>
+              <span class="px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 font-semibold text-[11px] shadow-2xs">
+                🔒 Terpakai: <strong id="pin-stat-used" class="font-mono text-rose-700">0</strong>
+              </span>
+            </div>
+          </div>
+
+          <!-- Live Token Addition Toolbar (Bisa Ditambah Selama Ujian Berlangsung!) -->
+          <div class="pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
+              <span class="font-bold text-rose-950 text-xs flex items-center space-x-1">
+                <span>⚡</span>
+                <span>Tambah Token Live:</span>
+              </span>
+              <button type="button" onclick="tambahTokenExamPin(5)" class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition flex items-center space-x-1 cursor-pointer active:scale-95" title="Tambah 5 PIN sekali pakai baru saat ujian berlangsung">
+                <span>+5 Token PIN</span>
+              </button>
+              <button type="button" onclick="tambahTokenExamPin(10)" class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition flex items-center space-x-1 cursor-pointer active:scale-95" title="Tambah 10 PIN sekali pakai baru saat ujian berlangsung">
+                <span>+10 Token PIN</span>
+              </button>
+              <button type="button" onclick="promptCustomTokenPin()" class="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-semibold text-xs shadow-2xs transition flex items-center space-x-1 cursor-pointer">
+                <span>+ Jumlah Lain</span>
+              </button>
+            </div>
+
+            <!-- Action Tools: Salin WA & Cetak -->
+            <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
+              <button type="button" onclick="salinFormatWaPins()" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition flex items-center space-x-1 cursor-pointer active:scale-95" title="Salin seluruh daftar PIN ke clipboard format pesan WhatsApp">
+                <span>📲 Salin untuk WA</span>
+              </button>
+              <button type="button" onclick="cetakExamPins()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow-xs transition flex items-center space-x-1 cursor-pointer active:scale-95" title="Cetak lembar PIN siswa fisik atau simpan PDF">
+                <span>🖨️ Cetak Lembar PIN</span>
+              </button>
+              <button type="button" onclick="loadExamPins(activeUlanganId)" class="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-semibold text-xs transition cursor-pointer" title="Segarkan data PIN">
+                <span>🔄 Segarkan</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter & Search Toolbar -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+          <div class="flex items-center space-x-1.5">
+            <button type="button" id="pin-filter-all" onclick="filterPinTable('all')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition bg-slate-800 text-white cursor-pointer">Semua (<span id="pin-count-all">0</span>)</button>
+            <button type="button" id="pin-filter-available" onclick="filterPinTable('available')" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer">Tersedia (<span id="pin-count-avail">0</span>)</button>
+            <button type="button" id="pin-filter-used" onclick="filterPinTable('used')" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer">Terpakai (<span id="pin-count-used">0</span>)</button>
+          </div>
+          <div class="relative w-full sm:w-56">
+            <input type="text" id="pin-search-input" oninput="renderPinTable()" placeholder="Cari PIN atau nama siswa..." class="w-full pl-7 pr-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white">
+            <span class="absolute left-2 top-1.5 text-slate-400">🔍</span>
+          </div>
+        </div>
+
+        <!-- Tabel Daftar PIN -->
+        <div class="overflow-x-auto border border-slate-200 rounded-xl shadow-2xs">
+          <table class="w-full text-left text-xs min-w-[640px]">
+            <thead class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+              <tr>
+                <th class="py-2.5 px-3 w-12 text-center">No</th>
+                <th class="py-2.5 px-3 w-28">Kode PIN</th>
+                <th class="py-2.5 px-3 w-32">Status</th>
+                <th class="py-2.5 px-3">Siswa Pemilik / Pengklaim</th>
+                <th class="py-2.5 px-3 w-24">Kelas</th>
+                <th class="py-2.5 px-3 w-32">Waktu Klaim</th>
+                <th class="py-2.5 px-3 text-right w-32">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="pin-table-body" class="divide-y divide-slate-100 text-slate-700">
+              <tr>
+                <td colspan="7" class="py-8 text-center text-slate-400">Memuat data PIN...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="p-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-xs">
+        <span class="text-slate-500 text-[11px]">💡 Tip: Anda dapat menambah kuota token peserta sewaktu-waktu selama siswa sedang ujian berlangsung.</span>
+        <button type="button" onclick="closeExamPinModal()" class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg transition cursor-pointer">
+          Tutup
+        </button>
+      </div>
     </div>
   </div>
 
@@ -3081,6 +3265,51 @@
     </div>
   </div>
 
+  <!-- Modal Pratinjau & Cetak / Download PDF Kisi-Kisi Ulangan (AI Analyzer) -->
+  <div id="modal-cetak-kisi-kisi" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-5xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 my-auto max-h-[95vh] overflow-y-auto">
+      <div class="no-print flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
+        <div class="flex items-center space-x-2.5">
+          <span class="text-2xl">📖</span>
+          <div>
+            <h3 class="font-bold text-slate-900 text-sm sm:text-base">Dokumen Kisi-kisi &amp; Panduan Belajar Ulangan (AI)</h3>
+            <p class="text-[11px] text-slate-500">Dianalisis otomatis dari butir soal ulangan (PG, PG Kompleks, Isian, Essay, &amp; Game Koding). Siap dicetak / disimpan sebagai PDF.</p>
+          </div>
+        </div>
+        <div class="flex items-center flex-wrap gap-2">
+          <button type="button" id="btn-regenerate-kisi-kisi-modal" onclick="window.handleGenerateKisiKisiAi && window.handleGenerateKisiKisiAi(true)" class="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold text-xs rounded-xl transition flex items-center space-x-1.5 cursor-pointer">
+            <span>🔄</span>
+            <span>Analisis Ulang Soal (AI)</span>
+          </button>
+          <button type="button" id="btn-do-print-kisi-kisi" onclick="window.print()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer">
+            <span>🖨️ Cetak / Download PDF</span>
+          </button>
+          <button type="button" id="btn-delete-kisi-kisi-ai" onclick="window.handleDeleteKisiKisiAi && window.handleDeleteKisiKisiAi()" class="px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-xs rounded-xl transition cursor-pointer" title="Hapus Kisi-kisi AI dari ulangan ini">
+            🗑️
+          </button>
+          <button type="button" id="btn-close-cetak-kisi-kisi-modal" onclick="document.getElementById('modal-cetak-kisi-kisi').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-xl font-bold p-1 cursor-pointer">&times;</button>
+        </div>
+      </div>
+
+      <!-- Toolbar Kustomisasi Kop & Instruksi AI (No-Print) -->
+      <div class="no-print p-3 bg-slate-50 border border-slate-200 rounded-xl grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Nama Sekolah / Instansi di Kop PDF:</label>
+          <input type="text" id="input-kisi-kisi-instansi" placeholder="Contoh: SMP Negeri 1 / Madrasah / Sekolah..." oninput="window.renderCurrentKisiKisiSheet && window.renderCurrentKisiKisiSheet()" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Catatan / Fokus Tambahan untuk Analisis Ulang AI (Opsional):</label>
+          <input type="text" id="input-kisi-kisi-instruksi" placeholder="Contoh: Tekankan istilah Kurikulum Merdeka & fokuskan poin latihan..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white">
+        </div>
+      </div>
+
+      <!-- Container Sheet Printable A4 -->
+      <div id="cetak-kisi-kisi-sheet-container" class="bg-white text-black p-4 sm:p-6 text-xs border border-slate-200 rounded-xl">
+        <!-- Diisi dinamis oleh renderPrintableKisiKisiSheet -->
+      </div>
+    </div>
+  </div>
+
   <!-- Modal Print Naskah Soal Terformat per Paket -->
   <div id="modal-cetak-naskah-paket" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
     <div class="bg-white rounded-2xl max-w-4xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 my-auto max-h-[95vh] overflow-y-auto">
@@ -3132,7 +3361,10 @@
           <div>
             <label class="block font-semibold text-slate-700 mb-1">Jumlah Butir Soal:</label>
             <select id="select-ljk-soal-count" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
+              <option value="10">10 Soal (Kuis / Latihan / Mini)</option>
+              <option value="15">15 Soal</option>
               <option value="20">20 Soal</option>
+              <option value="25">25 Soal</option>
               <option value="30">30 Soal</option>
               <option value="40" selected>40 Soal</option>
               <option value="50">50 Soal</option>
@@ -4666,6 +4898,17 @@
       document.getElementById('detail-exam-kkm').textContent = u.kkm || 75;
       document.getElementById('count-soal').textContent = u.soal?.length || 0;
 
+      // Update status indikator PIN di toolbar detail ulangan
+      const pinToolbarBadge = document.getElementById('badge-pin-count');
+      if (pinToolbarBadge) {
+        if (u.pin_aktif) {
+          pinToolbarBadge.textContent = u.token_ujian ? `${u.token_ujian} Token` : 'Aktif';
+          pinToolbarBadge.classList.remove('hidden');
+        } else {
+          pinToolbarBadge.classList.add('hidden');
+        }
+      }
+
       // Render Remedial Info & Controls
       const instruksiEl = document.getElementById('remedial-instruksi-text');
       const linkContainer = document.getElementById('remedial-link-container');
@@ -4692,41 +4935,145 @@
       document.getElementById('inline-link-remedial').value = u.link_remedial || '';
       document.getElementById('form-inline-remedial').classList.add('hidden');
 
-      // Render Kisi-kisi Info & Quick Controls
+      // Render Kisi-kisi Info & Quick Controls (Mendukung Kisi-kisi AI & Tautan Eksternal)
       const badgeKisiKisi = document.getElementById('badge-kisi-kisi-status');
       const btnQuickToggleKisi = document.getElementById('btn-quick-toggle-kisi-kisi');
+      const btnOpenCetakKisi = document.getElementById('btn-open-cetak-kisi-kisi');
+      const labelBtnGenKisi = document.getElementById('label-btn-generate-kisi-kisi');
+      const aiPreviewKisi = document.getElementById('kisi-kisi-ai-preview-container');
       const linkContainerKisi = document.getElementById('kisi-kisi-link-container');
       const linkUrlKisi = document.getElementById('kisi-kisi-link-url');
       const linkLabelKisi = document.getElementById('kisi-kisi-link-label');
       const emptyTextKisi = document.getElementById('kisi-kisi-empty-text');
 
+      let parsedKisiAi = null;
+      if (u.konten_kisi_kisi) {
+        try {
+          parsedKisiAi = typeof u.konten_kisi_kisi === 'string' ? JSON.parse(u.konten_kisi_kisi) : u.konten_kisi_kisi;
+        } catch (e) {
+          parsedKisiAi = null;
+        }
+      }
+
+      const hasKisiAi = Boolean(parsedKisiAi && Array.isArray(parsedKisiAi.daftar_kisi_kisi) && parsedKisiAi.daftar_kisi_kisi.length > 0);
+      const hasKisiLink = Boolean(u.link_kisi_kisi && u.link_kisi_kisi.trim());
       const isKisiAktif = !!(u.tampilkan_kisi_kisi);
+
+      if (btnOpenCetakKisi) {
+        if (hasKisiAi) btnOpenCetakKisi.classList.remove('hidden');
+        else btnOpenCetakKisi.classList.add('hidden');
+      }
+      if (labelBtnGenKisi) {
+        labelBtnGenKisi.textContent = hasKisiAi ? 'Analisis Ulang Kisi-kisi AI' : 'Buat Kisi-kisi AI (Analisis Soal)';
+      }
+
       if (badgeKisiKisi && btnQuickToggleKisi) {
-        if (isKisiAktif) {
-          badgeKisiKisi.textContent = '🟢 Aktif (Tampil)';
+        if (isKisiAktif && (hasKisiAi || hasKisiLink)) {
+          badgeKisiKisi.textContent = '🟢 Aktif (Tampil di Siswa)';
           badgeKisiKisi.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300';
+          btnQuickToggleKisi.textContent = 'Sembunyikan dari Siswa';
+          btnQuickToggleKisi.className = 'text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 transition shadow-xs cursor-pointer';
+          btnQuickToggleKisi.onclick = () => quickToggleKisiKisi(0);
+        } else if (isKisiAktif) {
+          badgeKisiKisi.textContent = '🟡 Aktif (Belum Ada Isi)';
+          badgeKisiKisi.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300';
           btnQuickToggleKisi.textContent = 'Matikan Kisi-kisi';
-          btnQuickToggleKisi.className = 'text-xs font-semibold px-2.5 py-1 rounded-lg border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 transition shadow-xs cursor-pointer';
+          btnQuickToggleKisi.className = 'text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 transition shadow-xs cursor-pointer';
           btnQuickToggleKisi.onclick = () => quickToggleKisiKisi(0);
         } else {
-          badgeKisiKisi.textContent = '⚪ Nonaktif (Mati)';
+          badgeKisiKisi.textContent = '⚪ Nonaktif (Tersembunyi)';
           badgeKisiKisi.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-300';
-          btnQuickToggleKisi.textContent = 'Hidupkan Kisi-kisi';
-          btnQuickToggleKisi.className = 'text-xs font-semibold px-2.5 py-1 rounded-lg border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition shadow-xs cursor-pointer';
+          btnQuickToggleKisi.textContent = 'Tampilkan ke Siswa';
+          btnQuickToggleKisi.className = 'text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition shadow-xs cursor-pointer';
           btnQuickToggleKisi.onclick = () => quickToggleKisiKisi(1);
         }
       }
 
+      if (aiPreviewKisi) {
+        if (hasKisiAi) {
+          const komp = parsedKisiAi.komposisi_soal || {};
+          const badges = [];
+          if (komp.pilihan_ganda > 0) badges.push(`<span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-bold text-[10px]">${komp.pilihan_ganda} PG</span>`);
+          if (komp.pg_kompleks > 0) badges.push(`<span class="px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 font-bold text-[10px]">${komp.pg_kompleks} PG Kompleks</span>`);
+          if (komp.isian > 0) badges.push(`<span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[10px]">${komp.isian} Isian</span>`);
+          if (komp.essay > 0) badges.push(`<span class="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-bold text-[10px]">${komp.essay} Essay</span>`);
+          if (komp.koding_game > 0) badges.push(`<span class="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold text-[10px]">${komp.koding_game} Game Koding</span>`);
+
+          const previewRows = parsedKisiAi.daftar_kisi_kisi.slice(0, 5).map(item => `
+            <tr class="border-b border-slate-100 last:border-none">
+              <td class="py-1.5 px-2 font-bold text-slate-700 text-center w-10">${escapeHtml(String(item.nomor_soal || '-'))}</td>
+              <td class="py-1.5 px-2 text-[11px] font-semibold text-indigo-700 whitespace-nowrap">${escapeHtml(item.bentuk_soal || '-')}</td>
+              <td class="py-1.5 px-2 font-bold text-slate-800">${escapeHtml(item.materi_pokok || '-')}</td>
+              <td class="py-1.5 px-2 text-slate-600">${escapeHtml(item.indikator_soal || '-')}</td>
+              <td class="py-1.5 px-2 text-[10px] font-bold text-slate-500 whitespace-nowrap">${escapeHtml(item.level_kognitif || '-')}</td>
+            </tr>
+          `).join('');
+
+          const moreCount = Math.max(0, parsedKisiAi.daftar_kisi_kisi.length - 5);
+
+          aiPreviewKisi.innerHTML = `
+            <div class="flex items-start justify-between flex-wrap gap-2 border-b border-slate-100 pb-2">
+              <div>
+                <div class="flex items-center space-x-1.5">
+                  <span class="text-sm">✨</span>
+                  <span class="font-extrabold text-indigo-950 text-xs">${escapeHtml(parsedKisiAi.judul_kisi_kisi || 'Kisi-kisi Hasil Analisis Soal AI')}</span>
+                  <span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 font-bold text-[10px]">${parsedKisiAi.daftar_kisi_kisi.length} Butir Dianalisis</span>
+                </div>
+                <p class="text-[11px] text-slate-600 mt-1 leading-relaxed">${escapeHtml(parsedKisiAi.ringkasan_cakupan || '')}</p>
+              </div>
+              <div class="flex items-center gap-1 flex-wrap">
+                ${badges.join('')}
+              </div>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-[11px]">
+                <thead>
+                  <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 uppercase text-[10px]">
+                    <th class="py-1.5 px-2 text-center w-10">No</th>
+                    <th class="py-1.5 px-2">Bentuk Soal</th>
+                    <th class="py-1.5 px-2">Materi Pokok</th>
+                    <th class="py-1.5 px-2">Indikator Pencapaian / Kisi-kisi</th>
+                    <th class="py-1.5 px-2">Level</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${previewRows}
+                </tbody>
+              </table>
+            </div>
+            <div class="flex items-center justify-between pt-1 border-t border-slate-100 flex-wrap gap-2">
+              <span class="text-[11px] text-slate-500 italic">
+                ${moreCount > 0 ? `+ ${moreCount} butir kisi-kisi lainnya tersedia di dokumen lengkap.` : `Menampilkan seluruh ${parsedKisiAi.daftar_kisi_kisi.length} butir kisi-kisi.`}
+              </span>
+              <button type="button" onclick="window.openCetakKisiKisiModal && window.openCetakKisiKisiModal()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] rounded-lg shadow-xs transition flex items-center space-x-1.5 cursor-pointer">
+                <span>🖨️</span>
+                <span>Buka Tabel Lengkap &amp; Download PDF Kisi-kisi</span>
+              </button>
+            </div>
+          `;
+          aiPreviewKisi.classList.remove('hidden');
+        } else {
+          aiPreviewKisi.classList.add('hidden');
+          aiPreviewKisi.innerHTML = '';
+        }
+      }
+
       if (linkContainerKisi && emptyTextKisi) {
-        if (u.link_kisi_kisi && u.link_kisi_kisi.trim()) {
+        if (hasKisiLink) {
           linkContainerKisi.classList.remove('hidden');
           linkUrlKisi.href = u.link_kisi_kisi;
           linkLabelKisi.textContent = u.link_kisi_kisi;
-          emptyTextKisi.classList.add('hidden');
         } else {
           linkContainerKisi.classList.add('hidden');
+        }
+
+        if (hasKisiAi || hasKisiLink) {
+          emptyTextKisi.classList.add('hidden');
+        } else {
           emptyTextKisi.classList.remove('hidden');
-          emptyTextKisi.textContent = isKisiAktif ? 'Tautan materi belum diisi. Klik "Edit Link" untuk menambahkan tautan.' : 'Kisi-kisi ulangan dinonaktifkan (siswa tidak melihat tombol kisi-kisi).';
+          emptyTextKisi.innerHTML = isKisiAktif
+            ? 'Kisi-kisi aktif tetapi belum diisi. Klik tombol <strong>"✨ Buat Kisi-kisi AI (Analisis Soal)"</strong> agar AI menyusun kisi-kisi otomatis dari soal yang ada, atau klik "✏️ Link Eksternal".'
+            : 'Belum ada kisi-kisi. Klik tombol <strong>"✨ Buat Kisi-kisi AI (Analisis Soal)"</strong> untuk menganalisis soal menjadi kisi-kisi siap cetak PDF &amp; tampil di halaman siswa.';
         }
       }
 
@@ -4924,6 +5271,7 @@
         if (!activeUlanganId) return;
 
         const link_kisi_kisi = document.getElementById('inline-link-kisi-kisi').value.trim();
+        const hasAiKisi = Boolean(activeUlanganData?.konten_kisi_kisi);
 
         try {
           const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}`, {
@@ -4931,7 +5279,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               link_kisi_kisi: link_kisi_kisi || null,
-              tampilkan_kisi_kisi: link_kisi_kisi ? 1 : 0
+              tampilkan_kisi_kisi: (link_kisi_kisi || hasAiKisi) ? 1 : 0
             })
           });
           const data = await res.json();
@@ -4946,6 +5294,209 @@
         }
       };
     }
+
+    // =========================================================================
+    // GENERATOR KISI-KISI OTOMATIS BERBANTUAN AI & CETAK PDF KISI-KISI GURU
+    // =========================================================================
+    window.handleGenerateKisiKisiAi = async (openModalAfter = true) => {
+      if (!activeUlanganId) {
+        alert('Pilih salah satu ulangan terlebih dahulu.');
+        return;
+      }
+      const soalCount = Array.isArray(activeUlanganData?.soal) ? activeUlanganData.soal.length : 0;
+      if (soalCount === 0) {
+        alert('Ulangan ini belum memiliki butir soal. Silakan buat atau tambahkan soal terlebih dahulu agar AI dapat menganalisis dan menyusun kisi-kisi ulangan.');
+        return;
+      }
+
+      const btnMain = document.getElementById('btn-generate-ai-kisi-kisi');
+      const btnRegen = document.getElementById('btn-regenerate-kisi-kisi-modal');
+      const labelMain = document.getElementById('label-btn-generate-kisi-kisi');
+      const instruksiInput = document.getElementById('input-kisi-kisi-instruksi');
+      const instruksiTambahan = instruksiInput ? instruksiInput.value.trim() : '';
+
+      const origTextMain = labelMain ? labelMain.textContent : 'Buat Kisi-kisi AI';
+      if (btnMain) btnMain.disabled = true;
+      if (btnRegen) btnRegen.disabled = true;
+      if (labelMain) labelMain.textContent = `⏳ Menganalisis ${soalCount} Soal...`;
+
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/generate-kisi-kisi`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            instruksi_tambahan: instruksiTambahan,
+            auto_publish: 1
+          })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || 'Gagal menyusun kisi-kisi dengan AI');
+        }
+
+        if (data.ulangan) {
+          activeUlanganData = data.ulangan;
+        }
+        await selectUlangan(activeUlanganId);
+
+        if (openModalAfter) {
+          window.openCetakKisiKisiModal();
+        }
+      } catch (err) {
+        alert('Gagal membuat Kisi-kisi AI: ' + err.message);
+      } finally {
+        if (btnMain) btnMain.disabled = false;
+        if (btnRegen) btnRegen.disabled = false;
+        if (labelMain && !activeUlanganData?.konten_kisi_kisi) {
+          labelMain.textContent = origTextMain;
+        }
+      }
+    };
+
+    window.renderCurrentKisiKisiSheet = () => {
+      const container = document.getElementById('cetak-kisi-kisi-sheet-container');
+      if (!container || !activeUlanganData) return;
+
+      let kisi = null;
+      try {
+        kisi = typeof activeUlanganData.konten_kisi_kisi === 'string'
+          ? JSON.parse(activeUlanganData.konten_kisi_kisi)
+          : activeUlanganData.konten_kisi_kisi;
+      } catch (e) {
+        kisi = null;
+      }
+
+      if (!kisi || !Array.isArray(kisi.daftar_kisi_kisi)) {
+        container.innerHTML = `<div class="p-6 text-center text-slate-500 italic">Belum ada data kisi-kisi untuk ditampilkan.</div>`;
+        return;
+      }
+
+      const u = activeUlanganData;
+      const instansiInput = document.getElementById('input-kisi-kisi-instansi');
+      const namaInstansi = (instansiInput && instansiInput.value.trim()) ? instansiInput.value.trim() : 'DOKUMEN AKADEMIK & KURIKULUM SEKOLAH';
+      const komp = kisi.komposisi_soal || {};
+      const kompParts = [];
+      if (komp.pilihan_ganda > 0) kompParts.push(`${komp.pilihan_ganda} Pilihan Ganda`);
+      if (komp.pg_kompleks > 0) kompParts.push(`${komp.pg_kompleks} PG Kompleks`);
+      if (komp.isian > 0) kompParts.push(`${komp.isian} Isian Singkat`);
+      if (komp.essay > 0) kompParts.push(`${komp.essay} Essay/Uraian`);
+      if (komp.koding_game > 0) kompParts.push(`${komp.koding_game} Game Koding`);
+
+      const rowsHtml = kisi.daftar_kisi_kisi.map((item, idx) => `
+        <tr class="border-b border-black/80 break-inside-avoid">
+          <td class="border border-black px-2 py-1.5 text-center font-bold align-top">${escapeHtml(String(item.nomor_soal || (idx + 1)))}</td>
+          <td class="border border-black px-2 py-1.5 font-semibold align-top whitespace-nowrap">${escapeHtml(item.bentuk_soal || '-')}</td>
+          <td class="border border-black px-2.5 py-1.5 font-bold align-top">${escapeHtml(item.materi_pokok || '-')}</td>
+          <td class="border border-black px-2.5 py-1.5 align-top leading-relaxed">${escapeHtml(item.indikator_soal || '-')}</td>
+          <td class="border border-black px-2 py-1.5 text-center font-semibold align-top whitespace-nowrap">${escapeHtml(item.level_kognitif || '-')}</td>
+          <td class="border border-black px-2.5 py-1.5 align-top leading-relaxed">${escapeHtml(item.fokus_belajar || '-')}</td>
+        </tr>
+      `).join('');
+
+      const rangkumanList = Array.isArray(kisi.rangkuman_materi_penting) ? kisi.rangkuman_materi_penting : [];
+      const tipsList = Array.isArray(kisi.tips_sukses_ujian) ? kisi.tips_sukses_ujian : [];
+
+      container.innerHTML = `
+        <div class="space-y-4 text-black leading-normal">
+          <!-- Kop Dokumen Kisi-Kisi -->
+          <div class="border-b-2 border-black pb-3 text-center space-y-0.5">
+            <p class="text-[11px] font-bold uppercase tracking-widest text-slate-700">${escapeHtml(namaInstansi)}</p>
+            <h1 class="text-base sm:text-lg font-black uppercase tracking-wide">KISI-KISI PENULISAN SOAL &amp; PANDUAN BELAJAR ULANGAN</h1>
+            <p class="text-xs font-bold text-slate-800">${escapeHtml(u.judul || kisi.judul_kisi_kisi || '-')}</p>
+          </div>
+
+          <!-- Tabel Identitas Ulangan -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs border border-black p-3 rounded bg-slate-50/40">
+            <div class="flex"><span class="w-36 font-bold">Mata Pelajaran</span><span>: ${escapeHtml(u.mata_pelajaran || '-')}</span></div>
+            <div class="flex"><span class="w-36 font-bold">Jumlah &amp; Bentuk Soal</span><span>: ${kisi.daftar_kisi_kisi.length} Soal (${escapeHtml(kompParts.join(', ') || 'Campuran')})</span></div>
+            <div class="flex"><span class="w-36 font-bold">Kelas / Tingkat</span><span>: ${escapeHtml(u.tingkat_kelas || '-')}</span></div>
+            <div class="flex"><span class="w-36 font-bold">Durasi / KKM</span><span>: ${u.durasi_menit ? u.durasi_menit + ' Menit' : 'Fleksibel'} / KKM: ${u.kkm || 75}</span></div>
+            <div class="flex"><span class="w-36 font-bold">Kode Akses Ujian</span><span class="font-mono font-bold">: ${escapeHtml(u.kode_ujian || '-')}</span></div>
+            <div class="flex"><span class="w-36 font-bold">Tanggal Penyusunan</span><span>: ${new Date(kisi.generated_at || Date.now()).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span></div>
+          </div>
+
+          <!-- Ringkasan Cakupan Materi -->
+          <div class="space-y-1">
+            <h2 class="font-extrabold text-xs uppercase tracking-wider border-l-4 border-black pl-2">I. Ringkasan Cakupan Materi Asesmen</h2>
+            <p class="text-xs text-slate-900 leading-relaxed text-justify">${escapeHtml(kisi.ringkasan_cakupan || '-')}</p>
+          </div>
+
+          <!-- Matriks Tabel Kisi-Kisi -->
+          <div class="space-y-1.5">
+            <h2 class="font-extrabold text-xs uppercase tracking-wider border-l-4 border-black pl-2">II. Matriks Kisi-Kisi Indikator Butir Soal</h2>
+            <div class="overflow-x-auto">
+              <table class="w-full border-collapse border border-black text-[11px]">
+                <thead>
+                  <tr class="bg-slate-200/80 text-black font-extrabold uppercase text-[10px]">
+                    <th class="border border-black px-2 py-1.5 text-center w-10">No</th>
+                    <th class="border border-black px-2 py-1.5 text-left">Bentuk Soal</th>
+                    <th class="border border-black px-2.5 py-1.5 text-left">Materi Pokok</th>
+                    <th class="border border-black px-2.5 py-1.5 text-left">Indikator Pencapaian Kompetensi / Kisi-Kisi Soal</th>
+                    <th class="border border-black px-2 py-1.5 text-center">Level Kognitif</th>
+                    <th class="border border-black px-2.5 py-1.5 text-left">Fokus Materi Belajar Siswa</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rowsHtml}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Rangkuman Konsep Penting & Tips Belajar -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1 break-inside-avoid">
+            <div class="border border-black rounded p-3 space-y-1.5">
+              <h3 class="font-extrabold text-xs uppercase">III. Pokok Materi yang Wajib Dikuasai</h3>
+              <ul class="list-disc pl-4 space-y-1 text-[11px]">
+                ${rangkumanList.map(r => `<li>${escapeHtml(r)}</li>`).join('')}
+              </ul>
+            </div>
+            <div class="border border-black rounded p-3 space-y-1.5">
+              <h3 class="font-extrabold text-xs uppercase">IV. Panduan &amp; Strategi Persiapan Siswa</h3>
+              <ul class="list-decimal pl-4 space-y-1 text-[11px]">
+                ${tipsList.map(t => `<li>${escapeHtml(t)}</li>`).join('')}
+              </ul>
+            </div>
+          </div>
+        </div>
+      `;
+      if (typeof renderMath === 'function') renderMath(container);
+    };
+
+    window.openCetakKisiKisiModal = () => {
+      if (!activeUlanganData || !activeUlanganData.konten_kisi_kisi) {
+        window.handleGenerateKisiKisiAi(true);
+        return;
+      }
+      window.renderCurrentKisiKisiSheet();
+      const modal = document.getElementById('modal-cetak-kisi-kisi');
+      if (modal) modal.classList.remove('hidden');
+    };
+
+    window.handleDeleteKisiKisiAi = async () => {
+      if (!activeUlanganId) return;
+      if (!confirm('Hapus Kisi-kisi hasil analisis AI dari ulangan ini?')) return;
+      try {
+        const hasLink = Boolean(activeUlanganData?.link_kisi_kisi && activeUlanganData.link_kisi_kisi.trim());
+        const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            konten_kisi_kisi: null,
+            tampilkan_kisi_kisi: hasLink ? 1 : 0
+          })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          document.getElementById('modal-cetak-kisi-kisi')?.classList.add('hidden');
+          selectUlangan(activeUlanganId);
+        } else {
+          alert(data.message || 'Gagal menghapus kisi-kisi AI');
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    };
 
     function toggleNewExamKisiKisi() {
       const isChecked = document.getElementById('new-exam-toggle-kisi-kisi')?.checked;
@@ -5101,6 +5652,12 @@
         if (document.getElementById('edit-exam-tampilkan-teks-listening')) {
           document.getElementById('edit-exam-tampilkan-teks-listening').checked = !!(u.tampilkan_teks_listening);
         }
+        if (document.getElementById('edit-exam-pin-aktif')) {
+          document.getElementById('edit-exam-pin-aktif').checked = Boolean(u.pin_aktif);
+        }
+        if (document.getElementById('edit-exam-token-ujian')) {
+          document.getElementById('edit-exam-token-ujian').value = (u.token_ujian !== null && u.token_ujian !== undefined) ? u.token_ujian : '';
+        }
 
         // Render target kelas checkboxes
         const activeKelasIds = (u.kelas || []).map(k => k.id);
@@ -5210,7 +5767,9 @@
         tampilkan_simbol: tampilkanSimbol,
         tampilkan_kisi_kisi: toggleKisiKisi,
         link_kisi_kisi: linkKisiKisi || null,
-        tampilkan_teks_listening: document.getElementById('edit-exam-tampilkan-teks-listening')?.checked ? 1 : 0
+        tampilkan_teks_listening: document.getElementById('edit-exam-tampilkan-teks-listening')?.checked ? 1 : 0,
+        pin_aktif: document.getElementById('edit-exam-pin-aktif')?.checked ? 1 : 0,
+        token_ujian: document.getElementById('edit-exam-token-ujian')?.value.trim() ? parseInt(document.getElementById('edit-exam-token-ujian').value.trim(), 10) : null
       };
 
       const btnSave = document.getElementById('btn-save-edit-exam');
@@ -11834,6 +12393,15 @@
       if (inputLjkCustomTitle && activeUlanganData) {
         inputLjkCustomTitle.value = activeUlanganData.judul || '';
       }
+      if (selectLjkSoalCount && activeUlanganData && Array.isArray(activeUlanganData.soal)) {
+        const pgCount = activeUlanganData.soal.filter(s => s.jenis === 'pilihan_ganda' || (s.kunci_pg && s.kunci_pg.trim() !== '')).length;
+        if (pgCount > 0) {
+          const validOpts = ['10', '15', '20', '25', '30', '40', '50'];
+          if (validOpts.includes(String(pgCount))) {
+            selectLjkSoalCount.value = String(pgCount);
+          }
+        }
+      }
       renderLjkSheet();
     }
     window.openCetakLjkModal = openCetakLjkModal;
@@ -13977,7 +14545,363 @@
     window.saveCodingGameToExam = saveCodingGameToExam;
     window.previewCodingGameInModal = previewCodingGameInModal;
 
+    // ==========================================
+    // MODUL MANAJEMEN PIN SEKALI PAKAI & TOKEN
+    // ==========================================
+    let currentPinExamId = null;
+    let currentPinList = [];
+    let currentPinFilter = 'all';
 
+    async function openExamPinModal(ulanganId = null) {
+      const targetId = ulanganId || activeUlanganId;
+      if (!targetId) {
+        alert('Pilih paket ulangan terlebih dahulu.');
+        return;
+      }
+      currentPinExamId = targetId;
+      const modal = document.getElementById('modal-exam-pin-manager');
+      if (modal) modal.classList.remove('hidden');
+      await loadExamPins(targetId);
+    }
+
+    function openExamPinModalFromEdit() {
+      const editModal = document.getElementById('modal-edit-exam');
+      if (editModal) editModal.classList.add('hidden');
+      openExamPinModal(activeUlanganId);
+    }
+
+    function closeExamPinModal() {
+      const modal = document.getElementById('modal-exam-pin-manager');
+      if (modal) modal.classList.add('hidden');
+      if (activeUlanganId) selectUlangan(activeUlanganId);
+    }
+
+    async function loadExamPins(ulanganId) {
+      if (!ulanganId) return;
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${ulanganId}/pin/list`);
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Gagal memuat data PIN');
+
+        const u = json.ulangan;
+        document.getElementById('pin-modal-subtitle').textContent = `Ulangan: ${u.judul} (${u.mata_pelajaran}) • Mencegah joki, siswa lain mengerjakan, dan login multi-perangkat`;
+        
+        const toggleActive = document.getElementById('pin-modal-toggle-active');
+        const toggleLabel = document.getElementById('pin-modal-toggle-label');
+        const statusBadge = document.getElementById('pin-modal-status-badge');
+
+        if (toggleActive) toggleActive.checked = Boolean(u.pin_aktif);
+        if (toggleLabel) {
+          toggleLabel.textContent = u.pin_aktif ? 'Fitur PIN: Aktif 🟢' : 'Fitur PIN: Nonaktif ⚪';
+          toggleLabel.className = u.pin_aktif ? 'font-bold text-emerald-800 text-xs sm:text-sm block' : 'font-bold text-slate-700 text-xs sm:text-sm block';
+        }
+        if (statusBadge) {
+          statusBadge.textContent = u.pin_aktif ? 'Aktif' : 'Nonaktif';
+          statusBadge.className = u.pin_aktif 
+            ? 'text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800'
+            : 'text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600';
+        }
+
+        // Update badges
+        document.getElementById('pin-stat-total').textContent = json.total || 0;
+        document.getElementById('pin-stat-available').textContent = json.available || 0;
+        document.getElementById('pin-stat-used').textContent = json.used || 0;
+
+        document.getElementById('pin-count-all').textContent = json.total || 0;
+        document.getElementById('pin-count-avail').textContent = json.available || 0;
+        document.getElementById('pin-count-used').textContent = json.used || 0;
+
+        // Update badge pin count in main toolbar
+        const badgeToolbar = document.getElementById('badge-pin-count');
+        if (badgeToolbar) {
+          badgeToolbar.textContent = json.total || 0;
+          if (json.total > 0 && u.pin_aktif) {
+            badgeToolbar.classList.remove('hidden');
+          } else {
+            badgeToolbar.classList.add('hidden');
+          }
+        }
+
+        currentPinList = json.data || [];
+        renderPinTable();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    function filterPinTable(filter) {
+      currentPinFilter = filter;
+      const btnAll = document.getElementById('pin-filter-all');
+      const btnAvail = document.getElementById('pin-filter-available');
+      const btnUsed = document.getElementById('pin-filter-used');
+
+      [btnAll, btnAvail, btnUsed].forEach(b => {
+        if (b) {
+          b.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer';
+        }
+      });
+
+      if (filter === 'all' && btnAll) btnAll.className = 'px-2.5 py-1 rounded-lg text-xs font-bold transition bg-slate-800 text-white cursor-pointer';
+      if (filter === 'available' && btnAvail) btnAvail.className = 'px-2.5 py-1 rounded-lg text-xs font-bold transition bg-emerald-600 text-white cursor-pointer';
+      if (filter === 'used' && btnUsed) btnUsed.className = 'px-2.5 py-1 rounded-lg text-xs font-bold transition bg-rose-600 text-white cursor-pointer';
+
+      renderPinTable();
+    }
+
+    function renderPinTable() {
+      const tbody = document.getElementById('pin-table-body');
+      if (!tbody) return;
+
+      const q = (document.getElementById('pin-search-input')?.value || '').toLowerCase().trim();
+
+      let items = currentPinList.filter(item => {
+        if (currentPinFilter === 'available' && item.is_used) return false;
+        if (currentPinFilter === 'used' && !item.is_used) return false;
+        if (q) {
+          const matchPin = item.pin.toLowerCase().includes(q);
+          const matchNama = (item.nama || '').toLowerCase().includes(q);
+          const matchKelas = (item.kelas || '').toLowerCase().includes(q);
+          return matchPin || matchNama || matchKelas;
+        }
+        return true;
+      });
+
+      if (items.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="py-8 text-center text-slate-400">
+              ${currentPinList.length === 0 
+                ? 'Belum ada PIN untuk ujian ini. Klik tombol <strong>+5 Token PIN</strong> atau <strong>+10 Token PIN</strong> di atas untuk membuat PIN baru.'
+                : 'Tidak ada data PIN yang sesuai dengan filter atau pencarian Anda.'}
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = items.map((p, idx) => {
+        const isUsed = p.is_used;
+        const statusBadge = isUsed 
+          ? `<span class="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200"><span>🔒</span><span>Terpakai</span></span>`
+          : `<span class="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"><span>🟢</span><span>Siap Digunakan</span></span>`;
+
+        let actionHtml = '';
+        if (isUsed) {
+          actionHtml = `
+            <div class="flex items-center justify-end space-x-1">
+              <button type="button" onclick="resetExamPin(${p.id}, 'device_only')" class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded font-semibold text-[10px] transition cursor-pointer" title="Izinkan siswa ini masuk kembali jika ganti HP / browser bermasalah">
+                🔓 Reset HP
+              </button>
+              <button type="button" onclick="resetExamPin(${p.id}, 'unclaim')" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold text-[10px] transition cursor-pointer" title="Lepaskan PIN ini agar bisa dipakai siswa lain">
+                Kembalikan
+              </button>
+            </div>
+          `;
+        } else {
+          actionHtml = `
+            <div class="flex items-center justify-end space-x-1">
+              <button type="button" onclick="salinSatuPin('${p.pin}')" class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded font-semibold text-[10px] transition cursor-pointer" title="Salin 1 PIN ini">
+                📋 Salin
+              </button>
+              <button type="button" onclick="deleteExamPin(${p.id})" class="px-2 py-1 text-red-600 hover:bg-red-50 rounded font-semibold text-[10px] transition cursor-pointer" title="Hapus PIN ini dari pool">
+                🗑️
+              </button>
+            </div>
+          `;
+        }
+
+        const formattedTime = p.used_at 
+          ? new Date(p.used_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+          : '-';
+
+        return `
+          <tr class="hover:bg-slate-50/80 transition">
+            <td class="py-2.5 px-3 text-center text-slate-400 font-mono">${idx + 1}</td>
+            <td class="py-2.5 px-3">
+              <span class="font-mono font-black text-sm tracking-widest ${isUsed ? 'text-slate-500' : 'text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded border border-blue-200'}">${escapeHtml(p.pin)}</span>
+            </td>
+            <td class="py-2.5 px-3">${statusBadge}</td>
+            <td class="py-2.5 px-3 font-semibold text-slate-900">${isUsed ? escapeHtml(p.nama) : '<span class="text-slate-400 italic">Belum diklaim</span>'}</td>
+            <td class="py-2.5 px-3">${isUsed ? escapeHtml(p.kelas) : '-'}</td>
+            <td class="py-2.5 px-3 text-slate-500 text-[11px]">${formattedTime}</td>
+            <td class="py-2.5 px-3 text-right">${actionHtml}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function toggleExamPinMode(aktif) {
+      if (!currentPinExamId) return;
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${currentPinExamId}/pin/set-mode`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ aktif })
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Gagal mengubah status PIN');
+        await loadExamPins(currentPinExamId);
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    async function tambahTokenExamPin(jumlah) {
+      if (!currentPinExamId) return;
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${currentPinExamId}/token/tambah`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tambah: jumlah })
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Gagal menambah token PIN');
+        await loadExamPins(currentPinExamId);
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    function promptCustomTokenPin() {
+      const val = prompt('Masukkan jumlah token PIN yang ingin ditambahkan (misal: 15):', '10');
+      if (!val) return;
+      const n = parseInt(val, 10);
+      if (isNaN(n) || n <= 0) {
+        alert('Masukkan angka yang valid.');
+        return;
+      }
+      tambahTokenExamPin(n);
+    }
+
+    async function resetExamPin(pinId, mode = 'unclaim') {
+      if (!currentPinExamId || !pinId) return;
+      const confirmMsg = mode === 'device_only'
+        ? 'Reset perangkat untuk siswa ini? Siswa akan diizinkan masuk kembali menggunakan PIN yang sama dari HP/browser baru.'
+        : 'Kembalikan PIN ini ke status belum terpakai? Riwayat klaim siswa pada PIN ini akan di-reset.';
+      if (!confirm(confirmMsg)) return;
+
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${currentPinExamId}/pin/reset/${pinId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode })
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Gagal mereset PIN');
+        await loadExamPins(currentPinExamId);
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    async function deleteExamPin(pinId) {
+      if (!currentPinExamId || !pinId) return;
+      if (!confirm('Hapus butir PIN ini?')) return;
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${currentPinExamId}/pin/${pinId}`, {
+          method: 'DELETE'
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Gagal menghapus PIN');
+        await loadExamPins(currentPinExamId);
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    async function salinFormatWaPins() {
+      if (!currentPinExamId) return;
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${currentPinExamId}/pin/broadcast`);
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Gagal mengambil format sebaran');
+
+        await navigator.clipboard.writeText(json.text);
+        alert('📋 Teks daftar PIN berhasil disalin ke clipboard! Siap ditempel di WhatsApp grup kelas.');
+      } catch (err) {
+        alert('Gagal menyalin teks: ' + err.message);
+      }
+    }
+
+    function salinSatuPin(pin) {
+      if (!pin) return;
+      navigator.clipboard.writeText(pin);
+      alert(`PIN ${pin} berhasil disalin ke clipboard!`);
+    }
+
+    function cetakExamPins() {
+      if (!currentPinList || currentPinList.length === 0) {
+        alert('Belum ada PIN untuk dicetak.');
+        return;
+      }
+
+      const uTitle = activeUlanganData?.judul || 'Ujian';
+      const uMapel = activeUlanganData?.mata_pelajaran || '-';
+      const uKode = activeUlanganData?.kode_ujian || '-';
+
+      const win = window.open('', '_blank');
+      if (!win) {
+        alert('Pop-up browser terblokir. Izinkan pop-up untuk mencetak kartu PIN.');
+        return;
+      }
+
+      const cardsHtml = currentPinList.map((p, idx) => `
+        <div style="border: 2px dashed #334155; border-radius: 8px; padding: 12px; margin: 6px; width: 220px; display: inline-block; vertical-align: top; font-family: sans-serif; background: #fff;">
+          <div style="font-size: 10px; font-weight: bold; color: #64748b; text-transform: uppercase;">KARTU PIN UJIAN SISWA</div>
+          <div style="font-size: 11px; font-weight: bold; color: #0f172a; margin: 2px 0;">${escapeHtml(uTitle)}</div>
+          <div style="font-size: 10px; color: #475569;">Mapel: ${escapeHtml(uMapel)} &bull; Kode: <strong>${escapeHtml(uKode)}</strong></div>
+          <div style="margin: 8px 0; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px; text-align: center;">
+            <div style="font-size: 9px; color: #64748b; font-weight: bold;">PIN SEKALI PAKAI:</div>
+            <div style="font-family: monospace; font-size: 20px; font-weight: 900; letter-spacing: 4px; color: #0284c7;">${escapeHtml(p.pin)}</div>
+          </div>
+          <div style="font-size: 9px; color: #64748b; text-align: center;">
+            ${p.is_used ? `Terpakai: <strong>${escapeHtml(p.nama)} (${escapeHtml(p.kelas)})</strong>` : `*PIN hangus setelah 1x pakai`}
+          </div>
+        </div>
+      `).join('');
+
+      win.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Cetak Lembar PIN Siswa - ${escapeHtml(uTitle)}</title>
+          <style>
+            @media print {
+              body { margin: 0; padding: 10px; }
+              .no-print { display: none !important; }
+            }
+          </style>
+        </head>
+        <body style="margin: 20px; background: #f1f5f9;">
+          <div class="no-print" style="margin-bottom: 20px; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <h2 style="margin: 0 0 10px 0; font-family: sans-serif; font-size: 16px;">Pratinjau Lembar Potongan PIN Ujian Siswa (${currentPinList.length} Butir)</h2>
+            <button onclick="window.print()" style="padding: 8px 16px; background: #0284c7; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">🖨️ Cetak Sekarang / Simpan PDF</button>
+            <button onclick="window.close()" style="padding: 8px 16px; background: #e2e8f0; color: #334155; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-left: 8px;">Tutup</button>
+          </div>
+          <div style="display: flex; flex-wrap: wrap;">
+            ${cardsHtml}
+          </div>
+        </body>
+        </html>
+      `);
+      win.document.close();
+    }
+
+    // Bind PIN manager functions to global window
+    window.openExamPinModal = openExamPinModal;
+    window.openExamPinModalFromEdit = openExamPinModalFromEdit;
+    window.closeExamPinModal = closeExamPinModal;
+    window.loadExamPins = loadExamPins;
+    window.toggleExamPinMode = toggleExamPinMode;
+    window.tambahTokenExamPin = tambahTokenExamPin;
+    window.promptCustomTokenPin = promptCustomTokenPin;
+    window.resetExamPin = resetExamPin;
+    window.deleteExamPin = deleteExamPin;
+    window.salinFormatWaPins = salinFormatWaPins;
+    window.salinSatuPin = salinSatuPin;
+    window.cetakExamPins = cetakExamPins;
+    window.filterPinTable = filterPinTable;
+    window.renderPinTable = renderPinTable;
 
   </script>
 </body>

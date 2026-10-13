@@ -28,7 +28,7 @@ const studentService = {
     }
 
     const cleanCode = kodeUjian.trim().toUpperCase();
-    const ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
+    const ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, konten_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening, pin_aktif, token_ujian FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
 
     if (!ulangan) {
       return { valid: false, message: 'Kode ulangan tidak ditemukan' };
@@ -125,6 +125,10 @@ const studentService = {
       ? ulangan.jumlah_soal_tampil
       : stats.total_soal;
 
+    const hasKisiLink = Boolean(ulangan.link_kisi_kisi && String(ulangan.link_kisi_kisi).trim());
+    const hasKisiKonten = Boolean(ulangan.konten_kisi_kisi && String(ulangan.konten_kisi_kisi).trim());
+    const isKisiShown = Boolean(ulangan.tampilkan_kisi_kisi && (hasKisiLink || hasKisiKonten));
+
     return {
       valid: true,
       ulangan: {
@@ -147,9 +151,12 @@ const studentService = {
         kkm: ulangan.kkm || 75,
         zona_waktu: ulangan.zona_waktu || 'WIB',
         tampilkan_simbol: (ulangan.tampilkan_simbol !== undefined && ulangan.tampilkan_simbol !== null) ? Number(ulangan.tampilkan_simbol) : 1,
-        link_kisi_kisi: (ulangan.tampilkan_kisi_kisi && ulangan.link_kisi_kisi) ? ulangan.link_kisi_kisi : null,
-        tampilkan_kisi_kisi: (ulangan.tampilkan_kisi_kisi && ulangan.link_kisi_kisi) ? 1 : 0,
+        link_kisi_kisi: (isKisiShown && hasKisiLink) ? ulangan.link_kisi_kisi : null,
+        konten_kisi_kisi: (isKisiShown && hasKisiKonten) ? ulangan.konten_kisi_kisi : null,
+        tampilkan_kisi_kisi: isKisiShown ? 1 : 0,
         tampilkan_teks_listening: (ulangan.tampilkan_teks_listening !== undefined && ulangan.tampilkan_teks_listening !== null) ? Number(ulangan.tampilkan_teks_listening) : 0,
+        pin_aktif: Number(ulangan.pin_aktif) === 1 ? 1 : 0,
+        token_ujian: ulangan.token_ujian || null,
         available_classes: kelasList
       }
     };
@@ -172,6 +179,37 @@ const studentService = {
     const cleanNama = nama.trim();
     const cleanKelas = kelas.trim();
     const ulanganId = val.ulangan.id;
+
+    // Cek batas token ujian (jika aktif)
+    try {
+      const pinServiceModule = require('./pinService');
+      // Cek apakah peserta ini sudah pernah ada di peserta table
+      const existingPeserta = db.prepare(
+        'SELECT id FROM peserta WHERE ulangan_id = ? AND LOWER(nama) = LOWER(?) AND LOWER(kelas) = LOWER(?)'
+      ).get(ulanganId, cleanNama, cleanKelas);
+      const tokenCheck = pinServiceModule.checkTokenAvailable(ulanganId, existingPeserta?.id || null);
+      if (!tokenCheck.allowed) {
+        throw new Error(tokenCheck.message);
+      }
+    } catch (tokenErr) {
+      if (tokenErr.message && tokenErr.message.includes('token')) {
+        throw tokenErr;
+      }
+      // Jika error lain (misal modul tidak ada), abaikan saja
+    }
+
+    // Jika ulangan mewajibkan PIN sekali pakai, pastikan siswa sudah tervalidasi dengan PIN
+    if (val.ulangan.pin_aktif === 1) {
+      const pinSession = db.prepare(`
+        SELECT id FROM pin_sessions 
+        WHERE ulangan_id = ? AND is_used = 1 
+          AND LOWER(TRIM(nama_siswa)) = LOWER(?) 
+          AND LOWER(TRIM(kelas_siswa)) = LOWER(?)
+      `).get(ulanganId, cleanNama, cleanKelas);
+      if (!pinSession) {
+        throw new Error('Ujian ini mewajibkan PIN sekali pakai. Silakan masukkan PIN yang valid dari guru Anda.');
+      }
+    }
 
     // Cek apakah peserta sudah pernah mengerjakan ulangan ini
     let peserta = db.prepare('SELECT id FROM peserta WHERE ulangan_id = ? AND LOWER(nama) = LOWER(?) AND LOWER(kelas) = LOWER(?)').get(ulanganId, cleanNama, cleanKelas);
@@ -1186,7 +1224,7 @@ const studentService = {
     const sessionQuery = `
       SELECT p.*, u.id as ulangan_id, u.judul, u.mata_pelajaran, u.tingkat_kelas, u.deskripsi,
              u.kode_ujian, u.durasi_menit, u.tanggal_mulai, u.tanggal_selesai, u.kkm, u.zona_waktu,
-             u.tampilkan_simbol, u.link_kisi_kisi, u.tampilkan_kisi_kisi, u.jumlah_soal_listening, u.tampilkan_teks_listening, pes.id as peserta_id, pes.nama as nama_peserta, pes.kelas as kelas_peserta
+             u.tampilkan_simbol, u.link_kisi_kisi, u.konten_kisi_kisi, u.tampilkan_kisi_kisi, u.jumlah_soal_listening, u.tampilkan_teks_listening, pes.id as peserta_id, pes.nama as nama_peserta, pes.kelas as kelas_peserta
       FROM pengerjaan p
       JOIN ulangan u ON p.ulangan_id = u.id
       JOIN peserta pes ON p.peserta_id = pes.id
@@ -1302,6 +1340,10 @@ const studentService = {
 
     const stats = db.prepare('SELECT COUNT(*) as total_soal, COALESCE(SUM(bobot), 0) as total_bobot FROM soal WHERE ulangan_id = ?').get(pengerjaan.ulangan_id);
 
+    const hasRecKisiLink = Boolean(pengerjaan.link_kisi_kisi && String(pengerjaan.link_kisi_kisi).trim());
+    const hasRecKisiKonten = Boolean(pengerjaan.konten_kisi_kisi && String(pengerjaan.konten_kisi_kisi).trim());
+    const isRecKisiShown = Boolean(pengerjaan.tampilkan_kisi_kisi && (hasRecKisiLink || hasRecKisiKonten));
+
     return {
       alreadySubmitted: false,
       timeExpired: isTimeExpired,
@@ -1323,8 +1365,9 @@ const studentService = {
         kkm: pengerjaan.kkm || 75,
         zona_waktu: pengerjaan.zona_waktu || 'WIB',
         tampilkan_simbol: (pengerjaan.tampilkan_simbol !== undefined && pengerjaan.tampilkan_simbol !== null) ? Number(pengerjaan.tampilkan_simbol) : 1,
-        link_kisi_kisi: (pengerjaan.tampilkan_kisi_kisi && pengerjaan.link_kisi_kisi) ? pengerjaan.link_kisi_kisi : null,
-        tampilkan_kisi_kisi: (pengerjaan.tampilkan_kisi_kisi && pengerjaan.link_kisi_kisi) ? 1 : 0,
+        link_kisi_kisi: (isRecKisiShown && hasRecKisiLink) ? pengerjaan.link_kisi_kisi : null,
+        konten_kisi_kisi: (isRecKisiShown && hasRecKisiKonten) ? pengerjaan.konten_kisi_kisi : null,
+        tampilkan_kisi_kisi: isRecKisiShown ? 1 : 0,
         jumlah_soal_listening: pengerjaan.jumlah_soal_listening,
         tampilkan_teks_listening: Number(pengerjaan.tampilkan_teks_listening || 0)
       },

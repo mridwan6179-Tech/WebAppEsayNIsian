@@ -543,5 +543,74 @@ describe('=== SUITE: ULANGAN MODE PERMAINAN KODING (SMP) & HYBRID ===', () => {
     assert.strictEqual(jwb4.status_jawaban, 'benar');
     assert.strictEqual(jwb4.skor_rekomendasi, 20);
   });
+
+  test('15. AI Kisi-kisi dapat menganalisis soal campuran (PG, Isian, Game Koding) & muncul di tempat kisi-kisi siswa tanpa link eksternal', async () => {
+    const geminiService = require('../src/services/geminiService');
+
+    const ulangan = examService.createUlangan(testGuruId, {
+      judul: 'Ulangan Campuran Analisis Kisi-Kisi AI',
+      mata_pelajaran: 'Informatika',
+      tingkat_kelas: 'Kelas 8',
+      jenis_ulangan: 'campuran'
+    });
+
+    examService.createSoal(ulangan.id, {
+      jenis: 'pilihan_ganda',
+      pertanyaan: 'Struktur data yang menggunakan prinsip LIFO (Last In First Out) disebut...',
+      opsi_a: 'Stack (Tumpukan)',
+      opsi_b: 'Queue (Antrean)',
+      opsi_c: 'Tree (Pohon)',
+      opsi_d: 'Graph',
+      kunci_pg: 'A',
+      bobot: 10
+    });
+
+    examService.createSoal(ulangan.id, {
+      jenis: 'isian',
+      pertanyaan: 'Tuliskan istilah untuk proses mencari dan memperbaiki kesalahan (bug) pada kode program!',
+      kunci_jawaban: 'Debugging',
+      bobot: 10
+    });
+
+    examService.createSoal(ulangan.id, {
+      jenis: 'koding_game',
+      pertanyaan: 'Susun blok perintah agar robot mencapai garis finish tanpa menabrak batu!',
+      bobot: 20,
+      game_data: {
+        mode: 'grid_runner',
+        gridSize: { rows: 4, cols: 4 },
+        start: { x: 0, y: 0, dir: 'right' },
+        finish: { x: 2, y: 0 },
+        obstacles: [{ x: 1, y: 1 }],
+        stars: [{ x: 1, y: 0 }]
+      }
+    });
+
+    const fullUlangan = examService.getUlanganById(ulangan.id, testGuruId);
+    const kisiKisi = await geminiService.generateKisiKisiFromQuestions(fullUlangan, fullUlangan.soal);
+
+    assert.ok(kisiKisi, 'Kisi-kisi harus berhasil digenerate');
+    assert.strictEqual(Array.isArray(kisiKisi.daftar_kisi_kisi), true);
+    assert.strictEqual(kisiKisi.daftar_kisi_kisi.length, 3);
+    assert.ok(kisiKisi.ringkasan_cakupan);
+    assert.ok(kisiKisi.komposisi_soal);
+
+    // Simpan ke ulangan & buka ulangan tanpa mengisi link_kisi_kisi
+    examService.updateUlangan(ulangan.id, testGuruId, {
+      status: 'dibuka',
+      konten_kisi_kisi: JSON.stringify(kisiKisi),
+      tampilkan_kisi_kisi: 1,
+      link_kisi_kisi: null
+    });
+
+    // Pastikan saat siswa mengecek kode ujian, kisi-kisi tetap muncul meskipun link_kisi_kisi kosong
+    const checkResult = studentService.validateExamCode(ulangan.kode_ujian);
+    assert.strictEqual(checkResult.valid, true);
+    assert.strictEqual(checkResult.ulangan.tampilkan_kisi_kisi, 1);
+    assert.ok(checkResult.ulangan.konten_kisi_kisi, 'konten_kisi_kisi harus dikirim ke portal siswa');
+    const parsedFromStudent = JSON.parse(checkResult.ulangan.konten_kisi_kisi);
+    assert.strictEqual(parsedFromStudent.daftar_kisi_kisi.length, 3);
+  });
 });
+
 

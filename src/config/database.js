@@ -128,6 +128,7 @@ function initDatabase() {
       instruksi_penilaian_khusus TEXT DEFAULT NULL,
       tampilkan_simbol INTEGER DEFAULT 1,
       link_kisi_kisi TEXT DEFAULT NULL,
+      konten_kisi_kisi TEXT DEFAULT NULL,
       tampilkan_kisi_kisi INTEGER DEFAULT 0,
       tampilkan_teks_listening INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -432,11 +433,19 @@ function initDatabase() {
   safeAddColumn('bank_soal', 'bahasa', 'TEXT DEFAULT NULL');
   safeAddColumn('ulangan', 'tampilkan_simbol', 'INTEGER DEFAULT 1');
   safeAddColumn('ulangan', 'link_kisi_kisi', 'TEXT DEFAULT NULL');
+  safeAddColumn('ulangan', 'konten_kisi_kisi', 'TEXT DEFAULT NULL');
   safeAddColumn('ulangan', 'tampilkan_kisi_kisi', 'INTEGER DEFAULT 0');
   safeAddColumn('ulangan', 'tampilkan_teks_listening', 'INTEGER DEFAULT 0');
   safeAddColumn('soal', 'tampilkan_teks_listening', 'INTEGER DEFAULT NULL');
   safeAddColumn('bank_soal', 'tampilkan_teks_listening', 'INTEGER DEFAULT 0');
   safeAddColumn('pengerjaan', 'last_active_at', 'DATETIME');
+
+  // Migrasi: kolom PIN sekali pakai untuk ulangan
+  safeAddColumn('ulangan', 'pin_aktif', 'INTEGER DEFAULT 0');
+  safeAddColumn('ulangan', 'token_ujian', 'INTEGER DEFAULT NULL');
+  safeAddColumn('peserta', 'pin_siswa', 'TEXT DEFAULT NULL');
+  safeAddColumn('peserta', 'pin_used_at', 'DATETIME DEFAULT NULL');
+  safeAddColumn('peserta', 'pin_device_id', 'TEXT DEFAULT NULL');
 
   try {
     db.exec("UPDATE pengerjaan SET last_active_at = COALESCE(last_active_at, started_at, CURRENT_TIMESTAMP) WHERE last_active_at IS NULL;");
@@ -524,6 +533,66 @@ function initDatabase() {
   } catch (e) {
     console.warn('⚠️ Gagal inisialisasi tabel paket_soal / omr_scan_log:', e.message);
   }
+
+  // Tabel PIN Sekali Pakai (Anti Multi-Perangkat)
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS pin_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ulangan_id INTEGER NOT NULL,
+        peserta_id INTEGER DEFAULT NULL,
+        nama_siswa TEXT DEFAULT NULL,
+        kelas_siswa TEXT DEFAULT NULL,
+        pin TEXT NOT NULL,
+        device_id TEXT DEFAULT NULL,
+        is_used INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        used_at DATETIME DEFAULT NULL,
+        FOREIGN KEY (ulangan_id) REFERENCES ulangan(id) ON DELETE CASCADE,
+        FOREIGN KEY (peserta_id) REFERENCES peserta(id) ON DELETE SET NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_pin_sessions_ulangan ON pin_sessions(ulangan_id);
+      CREATE INDEX IF NOT EXISTS idx_pin_sessions_pin ON pin_sessions(ulangan_id, pin);
+    `);
+  } catch (e) {
+    console.warn('⚠️ Gagal inisialisasi tabel pin_sessions:', e.message);
+  }
+
+  // Migrasi penyesuaian kolom nama_siswa & kelas_siswa jika tabel pin_sessions dibuat sebelumnya
+  try {
+    safeAddColumn('pin_sessions', 'nama_siswa', 'TEXT DEFAULT NULL');
+    safeAddColumn('pin_sessions', 'kelas_siswa', 'TEXT DEFAULT NULL');
+  } catch (e) {}
+
+  // Pastikan peserta_id pada pin_sessions dapat bernilai NULL (agar guru bisa generate pool PIN sebelum siswa mulai)
+  try {
+    const pinCols = db.pragma('table_info("pin_sessions")');
+    const pesertaCol = pinCols.find(c => c.name.toLowerCase() === 'peserta_id');
+    if (pesertaCol && pesertaCol.notnull === 1) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS pin_sessions_migrated (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ulangan_id INTEGER NOT NULL,
+          peserta_id INTEGER DEFAULT NULL,
+          nama_siswa TEXT DEFAULT NULL,
+          kelas_siswa TEXT DEFAULT NULL,
+          pin TEXT NOT NULL,
+          device_id TEXT DEFAULT NULL,
+          is_used INTEGER DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          used_at DATETIME DEFAULT NULL,
+          FOREIGN KEY (ulangan_id) REFERENCES ulangan(id) ON DELETE CASCADE,
+          FOREIGN KEY (peserta_id) REFERENCES peserta(id) ON DELETE SET NULL
+        );
+        INSERT OR IGNORE INTO pin_sessions_migrated (id, ulangan_id, peserta_id, pin, device_id, is_used, created_at, used_at)
+        SELECT id, ulangan_id, peserta_id, pin, device_id, is_used, created_at, used_at FROM pin_sessions;
+        DROP TABLE pin_sessions;
+        ALTER TABLE pin_sessions_migrated RENAME TO pin_sessions;
+        CREATE INDEX IF NOT EXISTS idx_pin_sessions_ulangan ON pin_sessions(ulangan_id);
+        CREATE INDEX IF NOT EXISTS idx_pin_sessions_pin ON pin_sessions(ulangan_id, pin);
+      `);
+    }
+  } catch (e) {}
 
   // Update CHECK constraint soal & bank_soal agar mendukung 'pilihan_ganda' dan 'koding_game'
   try {

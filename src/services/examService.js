@@ -118,7 +118,12 @@ const examService = {
     const cleanInstruksiKhusus = data.instruksi_penilaian_khusus ? String(data.instruksi_penilaian_khusus).trim() : null;
     const tampilkanSimbol = (data.tampilkan_simbol !== undefined && data.tampilkan_simbol !== null) ? (data.tampilkan_simbol ? 1 : 0) : 1;
     const cleanLinkKisiKisi = data.link_kisi_kisi ? String(data.link_kisi_kisi).trim() : null;
-    const tampilkanKisiKisi = (data.tampilkan_kisi_kisi !== undefined && data.tampilkan_kisi_kisi !== null) ? (data.tampilkan_kisi_kisi ? 1 : 0) : (cleanLinkKisiKisi ? 1 : 0);
+    const cleanKontenKisiKisi = data.konten_kisi_kisi
+      ? (typeof data.konten_kisi_kisi === 'object' ? JSON.stringify(data.konten_kisi_kisi) : String(data.konten_kisi_kisi).trim())
+      : null;
+    const tampilkanKisiKisi = (data.tampilkan_kisi_kisi !== undefined && data.tampilkan_kisi_kisi !== null)
+      ? (data.tampilkan_kisi_kisi ? 1 : 0)
+      : ((cleanLinkKisiKisi || cleanKontenKisiKisi) ? 1 : 0);
     const tampilkanTeksListening = data.tampilkan_teks_listening ? 1 : 0;
 
     const cleanJenisUlangan = (data.jenis_ulangan && ['pg_saja', 'essay_saja', 'campuran', 'koding_saja'].includes(data.jenis_ulangan)) ? data.jenis_ulangan : 'campuran';
@@ -128,6 +133,8 @@ const examService = {
     const cleanBobotKoding = (data.bobot_koding !== undefined && data.bobot_koding !== null && data.bobot_koding !== '') ? Math.max(0, Math.min(100, Number(data.bobot_koding))) : 0;
     const cleanOpsiPgCount = Number(data.opsi_pg_count) === 5 ? 5 : 4;
     const cleanJumlahSoalPg = (data.jumlah_soal_pg !== undefined && data.jumlah_soal_pg !== null && data.jumlah_soal_pg !== '') ? Math.max(0, Number(data.jumlah_soal_pg)) : null;
+    const cleanPinAktif = (data.pin_aktif !== undefined && data.pin_aktif !== null) ? (data.pin_aktif ? 1 : 0) : 0;
+    const cleanTokenUjian = (data.token_ujian !== undefined && data.token_ujian !== null && data.token_ujian !== '') ? Math.max(0, Number(data.token_ujian)) : null;
 
     const stmt = db.prepare(`
       INSERT INTO ulangan (
@@ -135,17 +142,19 @@ const examService = {
         jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, acak_soal,
         tanggal_mulai, tanggal_selesai, durasi_menit, kkm, instruksi_remedial, link_remedial, zona_waktu,
         izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus, tampilkan_simbol,
-        link_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening,
-        jenis_ulangan, jumlah_paket, bobot_pg, bobot_essay, bobot_koding, opsi_pg_count, jumlah_soal_pg
+        link_kisi_kisi, konten_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening,
+        jenis_ulangan, jumlah_paket, bobot_pg, bobot_essay, bobot_koding, opsi_pg_count, jumlah_soal_pg,
+        pin_aktif, token_ujian
       )
-      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
       guruId, judul, mata_pelajaran, tingkat_kelas, deskripsi || '', kode_ujian,
       limitSoal, cleanIsian, cleanEssay, cleanListening, isAcak, cleanTanggalMulai, cleanTanggalSelesai, cleanDurasi,
       cleanKkm, cleanInstruksiRemedial, cleanLinkRemedial, cleanZonaWaktu,
-      izinkanSingkatan, izinkanInformal, toleransiTypo, cleanInstruksiKhusus, tampilkanSimbol, cleanLinkKisiKisi, tampilkanKisiKisi, tampilkanTeksListening,
-      cleanJenisUlangan, cleanJumlahPaket, cleanBobotPg, cleanBobotEssay, cleanBobotKoding, cleanOpsiPgCount, cleanJumlahSoalPg
+      izinkanSingkatan, izinkanInformal, toleransiTypo, cleanInstruksiKhusus, tampilkanSimbol, cleanLinkKisiKisi, cleanKontenKisiKisi, tampilkanKisiKisi, tampilkanTeksListening,
+      cleanJenisUlangan, cleanJumlahPaket, cleanBobotPg, cleanBobotEssay, cleanBobotKoding, cleanOpsiPgCount, cleanJumlahSoalPg,
+      cleanPinAktif, cleanTokenUjian
     );
     const ulanganId = info.lastInsertRowid;
 
@@ -362,6 +371,13 @@ const examService = {
       updates.push('link_kisi_kisi = ?');
       params.push(data.link_kisi_kisi ? String(data.link_kisi_kisi).trim() : null);
     }
+    if (data.konten_kisi_kisi !== undefined) {
+      updates.push('konten_kisi_kisi = ?');
+      const val = data.konten_kisi_kisi
+        ? (typeof data.konten_kisi_kisi === 'object' ? JSON.stringify(data.konten_kisi_kisi) : String(data.konten_kisi_kisi).trim())
+        : null;
+      params.push(val);
+    }
     if (data.tampilkan_kisi_kisi !== undefined) {
       updates.push('tampilkan_kisi_kisi = ?');
       params.push(data.tampilkan_kisi_kisi ? 1 : 0);
@@ -371,7 +387,7 @@ const examService = {
       params.push(data.tampilkan_teks_listening ? 1 : 0);
     }
     if (data.jenis_ulangan !== undefined) {
-      const ju = ['pg_saja', 'essay_saja', 'campuran'].includes(data.jenis_ulangan) ? data.jenis_ulangan : 'campuran';
+      const ju = ['pg_saja', 'essay_saja', 'campuran', 'koding_saja'].includes(data.jenis_ulangan) ? data.jenis_ulangan : 'campuran';
       updates.push('jenis_ulangan = ?');
       params.push(ju);
     }
@@ -404,6 +420,15 @@ const examService = {
       const jsp = (data.jumlah_soal_pg !== null && data.jumlah_soal_pg !== '') ? Math.max(0, Number(data.jumlah_soal_pg)) : null;
       updates.push('jumlah_soal_pg = ?');
       params.push(jsp);
+    }
+    if (data.pin_aktif !== undefined) {
+      updates.push('pin_aktif = ?');
+      params.push(data.pin_aktif ? 1 : 0);
+    }
+    if (data.token_ujian !== undefined) {
+      const tok = (data.token_ujian !== null && data.token_ujian !== '') ? Math.max(0, Number(data.token_ujian)) : null;
+      updates.push('token_ujian = ?');
+      params.push(tok);
     }
     if (status !== undefined) {
       if (!['draft', 'dibuka', 'ditutup', 'selesai'].includes(status)) {
