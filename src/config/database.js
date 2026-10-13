@@ -88,7 +88,28 @@ db.syncCloud = function(force = false) {
 };
 
 function initDatabase() {
-  const hasSchema = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='guru'").get());
+  let hasSchema = false;
+  try {
+    hasSchema = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='guru'").get());
+  } catch (e) {}
+
+  if (!hasSchema && typeof db.sync === 'function') {
+    try {
+      db.sync();
+      hasSchema = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='guru'").get());
+    } catch (e) {
+      console.warn('⚠️ Initial replica sync notice:', e.message);
+    }
+  }
+
+  const existingObjects = new Set();
+  try {
+    const rows = db.prepare("SELECT name FROM sqlite_master WHERE type IN ('table', 'index')").all();
+    for (const r of rows) {
+      if (r.name) existingObjects.add(r.name.toLowerCase());
+    }
+  } catch (e) {}
+
   if (!hasSchema) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS guru (
@@ -306,73 +327,75 @@ function initDatabase() {
   }
 
   // Tabel Fitur Baru: Tugas Rangkuman Berbantuan AI
-  try {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS tugas_rangkuman (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        guru_id INTEGER NOT NULL,
-        judul TEXT NOT NULL,
-        mata_pelajaran TEXT NOT NULL,
-        tingkat_kelas TEXT NOT NULL,
-        deskripsi TEXT,
-        kode_tugas TEXT UNIQUE NOT NULL,
-        tipe_media TEXT CHECK(tipe_media IN ('youtube', 'video_url', 'pdf_url', 'teks')) NOT NULL DEFAULT 'youtube',
-        media_url TEXT,
-        media_teks TEXT,
-        batas_minimum_kata INTEGER DEFAULT 100,
-        batas_maksimum_kata INTEGER DEFAULT 500,
-        master_rangkuman TEXT,
-        poin_kunci TEXT,
-        tanggal_mulai DATETIME,
-        tanggal_selesai DATETIME,
-        status TEXT CHECK(status IN ('draft', 'dibuka', 'ditutup', 'selesai')) DEFAULT 'draft',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (guru_id) REFERENCES guru(id) ON DELETE CASCADE
-      );
+  if (!existingObjects.has('tugas_rangkuman') || !existingObjects.has('pengerjaan_rangkuman') || !existingObjects.has('antrean_rangkuman')) {
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS tugas_rangkuman (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          guru_id INTEGER NOT NULL,
+          judul TEXT NOT NULL,
+          mata_pelajaran TEXT NOT NULL,
+          tingkat_kelas TEXT NOT NULL,
+          deskripsi TEXT,
+          kode_tugas TEXT UNIQUE NOT NULL,
+          tipe_media TEXT CHECK(tipe_media IN ('youtube', 'video_url', 'pdf_url', 'teks')) NOT NULL DEFAULT 'youtube',
+          media_url TEXT,
+          media_teks TEXT,
+          batas_minimum_kata INTEGER DEFAULT 100,
+          batas_maksimum_kata INTEGER DEFAULT 500,
+          master_rangkuman TEXT,
+          poin_kunci TEXT,
+          tanggal_mulai DATETIME,
+          tanggal_selesai DATETIME,
+          status TEXT CHECK(status IN ('draft', 'dibuka', 'ditutup', 'selesai')) DEFAULT 'draft',
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (guru_id) REFERENCES guru(id) ON DELETE CASCADE
+        );
 
-      CREATE TABLE IF NOT EXISTS pengerjaan_rangkuman (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tugas_id INTEGER NOT NULL,
-        nama_siswa TEXT NOT NULL,
-        kelas_siswa TEXT NOT NULL,
-        teks_rangkuman TEXT NOT NULL,
-        jumlah_kata INTEGER DEFAULT 0,
-        status TEXT CHECK(status IN ('submitted', 'dinilai')) DEFAULT 'submitted',
-        skor_ai REAL DEFAULT NULL,
-        skor_final REAL DEFAULT NULL,
-        status_kelulusan TEXT CHECK(status_kelulusan IN ('belum_final', 'lulus', 'revisi', 'final')) DEFAULT 'belum_final',
-        feedback_ai TEXT,
-        detail_poin_ai TEXT,
-        model_ai TEXT,
-        status_antrean TEXT CHECK(status_antrean IN ('menunggu', 'diproses', 'selesai', 'gagal')) DEFAULT 'menunggu',
-        posisi_antrean INTEGER DEFAULT 0,
-        submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        reviewed_at DATETIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (tugas_id) REFERENCES tugas_rangkuman(id) ON DELETE CASCADE
-      );
+        CREATE TABLE IF NOT EXISTS pengerjaan_rangkuman (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tugas_id INTEGER NOT NULL,
+          nama_siswa TEXT NOT NULL,
+          kelas_siswa TEXT NOT NULL,
+          teks_rangkuman TEXT NOT NULL,
+          jumlah_kata INTEGER DEFAULT 0,
+          status TEXT CHECK(status IN ('submitted', 'dinilai')) DEFAULT 'submitted',
+          skor_ai REAL DEFAULT NULL,
+          skor_final REAL DEFAULT NULL,
+          status_kelulusan TEXT CHECK(status_kelulusan IN ('belum_final', 'lulus', 'revisi', 'final')) DEFAULT 'belum_final',
+          feedback_ai TEXT,
+          detail_poin_ai TEXT,
+          model_ai TEXT,
+          status_antrean TEXT CHECK(status_antrean IN ('menunggu', 'diproses', 'selesai', 'gagal')) DEFAULT 'menunggu',
+          posisi_antrean INTEGER DEFAULT 0,
+          submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          reviewed_at DATETIME,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (tugas_id) REFERENCES tugas_rangkuman(id) ON DELETE CASCADE
+        );
 
-      CREATE TABLE IF NOT EXISTS antrean_rangkuman (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        pengerjaan_id INTEGER UNIQUE NOT NULL,
-        status TEXT CHECK(status IN ('menunggu', 'diproses', 'selesai', 'gagal')) DEFAULT 'menunggu',
-        attempt_count INTEGER DEFAULT 0,
-        locked_at DATETIME,
-        completed_at DATETIME,
-        error_message TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (pengerjaan_id) REFERENCES pengerjaan_rangkuman(id) ON DELETE CASCADE
-      );
+        CREATE TABLE IF NOT EXISTS antrean_rangkuman (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          pengerjaan_id INTEGER UNIQUE NOT NULL,
+          status TEXT CHECK(status IN ('menunggu', 'diproses', 'selesai', 'gagal')) DEFAULT 'menunggu',
+          attempt_count INTEGER DEFAULT 0,
+          locked_at DATETIME,
+          completed_at DATETIME,
+          error_message TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (pengerjaan_id) REFERENCES pengerjaan_rangkuman(id) ON DELETE CASCADE
+        );
 
-      CREATE INDEX IF NOT EXISTS idx_tugas_rangkuman_guru ON tugas_rangkuman(guru_id);
-      CREATE INDEX IF NOT EXISTS idx_tugas_rangkuman_kode ON tugas_rangkuman(kode_tugas);
-      CREATE INDEX IF NOT EXISTS idx_pengerjaan_rangkuman_tugas ON pengerjaan_rangkuman(tugas_id);
-      CREATE INDEX IF NOT EXISTS idx_antrean_rangkuman_status ON antrean_rangkuman(status);
-    `);
-  } catch (e) {
-    console.warn('⚠️ Gagal inisialisasi tabel rangkuman:', e.message);
+        CREATE INDEX IF NOT EXISTS idx_tugas_rangkuman_guru ON tugas_rangkuman(guru_id);
+        CREATE INDEX IF NOT EXISTS idx_tugas_rangkuman_kode ON tugas_rangkuman(kode_tugas);
+        CREATE INDEX IF NOT EXISTS idx_pengerjaan_rangkuman_tugas ON pengerjaan_rangkuman(tugas_id);
+        CREATE INDEX IF NOT EXISTS idx_antrean_rangkuman_status ON antrean_rangkuman(status);
+      `);
+    } catch (e) {
+      console.warn('⚠️ Gagal inisialisasi tabel rangkuman:', e.message);
+    }
   }
 
   // Migrasi cerdas: Periksa ketersediaan kolom via local pragma sebelum mengeksekusi ALTER TABLE
@@ -447,25 +470,27 @@ function initDatabase() {
   safeAddColumn('peserta', 'pin_used_at', 'DATETIME DEFAULT NULL');
   safeAddColumn('peserta', 'pin_device_id', 'TEXT DEFAULT NULL');
 
-  try {
-    db.exec("UPDATE pengerjaan SET last_active_at = COALESCE(last_active_at, started_at, CURRENT_TIMESTAMP) WHERE last_active_at IS NULL;");
-  } catch (e) {}
+  if (!existingObjects.has('idx_jawaban_pengerjaan_soal')) {
+    try {
+      db.exec("UPDATE pengerjaan SET last_active_at = COALESCE(last_active_at, started_at, CURRENT_TIMESTAMP) WHERE last_active_at IS NULL;");
+    } catch (e) {}
 
-  try {
-    db.exec("UPDATE ulangan SET tampilkan_kisi_kisi = 1 WHERE link_kisi_kisi IS NOT NULL AND TRIM(link_kisi_kisi) != '' AND (tampilkan_kisi_kisi IS NULL OR tampilkan_kisi_kisi = 0);");
-  } catch (e) {}
+    try {
+      db.exec("UPDATE ulangan SET tampilkan_kisi_kisi = 1 WHERE link_kisi_kisi IS NOT NULL AND TRIM(link_kisi_kisi) != '' AND (tampilkan_kisi_kisi IS NULL OR tampilkan_kisi_kisi = 0);");
+    } catch (e) {}
 
-  // Bersihkan data duplikat jawaban (jika ada soal_id yang ter-insert lebih dari 1 kali untuk pengerjaan yang sama)
-  try {
-    db.exec(`
-      DELETE FROM jawaban 
-      WHERE id NOT IN (
-        SELECT MIN(id) 
-        FROM jawaban 
-        GROUP BY pengerjaan_id, soal_id
-      );
-    `);
-  } catch (e) {}
+    // Bersihkan data duplikat jawaban (jika ada soal_id yang ter-insert lebih dari 1 kali untuk pengerjaan yang sama)
+    try {
+      db.exec(`
+        DELETE FROM jawaban 
+        WHERE id NOT IN (
+          SELECT MIN(id) 
+          FROM jawaban 
+          GROUP BY pengerjaan_id, soal_id
+        );
+      `);
+    } catch (e) {}
+  }
 
   safeAddColumn('ulangan', 'jenis_ulangan', "TEXT DEFAULT 'campuran'");
   safeAddColumn('ulangan', 'jumlah_paket', 'INTEGER DEFAULT 1');
@@ -500,62 +525,66 @@ function initDatabase() {
   safeAddColumn('jawaban', 'jawaban_koding', 'TEXT DEFAULT NULL');
 
   // Tabel Baru: Multi-Paket Soal & Log Scan Kamera LJK
-  try {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS paket_soal (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ulangan_id INTEGER NOT NULL,
-        nama_paket TEXT NOT NULL,
-        urutan_soal_ids TEXT NOT NULL,
-        kunci_jawaban_map TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (ulangan_id) REFERENCES ulangan(id) ON DELETE CASCADE
-      );
-      CREATE INDEX IF NOT EXISTS idx_paket_soal_ulangan ON paket_soal(ulangan_id);
+  if (!existingObjects.has('paket_soal') || !existingObjects.has('omr_scan_log')) {
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS paket_soal (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ulangan_id INTEGER NOT NULL,
+          nama_paket TEXT NOT NULL,
+          urutan_soal_ids TEXT NOT NULL,
+          kunci_jawaban_map TEXT NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (ulangan_id) REFERENCES ulangan(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_paket_soal_ulangan ON paket_soal(ulangan_id);
 
-      CREATE TABLE IF NOT EXISTS omr_scan_log (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ulangan_id INTEGER NOT NULL,
-        pengerjaan_id INTEGER DEFAULT NULL,
-        nama_siswa TEXT,
-        kelas TEXT,
-        paket TEXT DEFAULT 'A',
-        skor_pg REAL,
-        total_soal INTEGER,
-        total_benar INTEGER,
-        raw_answers TEXT,
-        image_data TEXT DEFAULT NULL,
-        scanned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (ulangan_id) REFERENCES ulangan(id) ON DELETE CASCADE
-      );
-      CREATE INDEX IF NOT EXISTS idx_omr_scan_ulangan ON omr_scan_log(ulangan_id);
-    `);
-  } catch (e) {
-    console.warn('⚠️ Gagal inisialisasi tabel paket_soal / omr_scan_log:', e.message);
+        CREATE TABLE IF NOT EXISTS omr_scan_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ulangan_id INTEGER NOT NULL,
+          pengerjaan_id INTEGER DEFAULT NULL,
+          nama_siswa TEXT,
+          kelas TEXT,
+          paket TEXT DEFAULT 'A',
+          skor_pg REAL,
+          total_soal INTEGER,
+          total_benar INTEGER,
+          raw_answers TEXT,
+          image_data TEXT DEFAULT NULL,
+          scanned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (ulangan_id) REFERENCES ulangan(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_omr_scan_ulangan ON omr_scan_log(ulangan_id);
+      `);
+    } catch (e) {
+      console.warn('⚠️ Gagal inisialisasi tabel paket_soal / omr_scan_log:', e.message);
+    }
   }
 
   // Tabel PIN Sekali Pakai (Anti Multi-Perangkat)
-  try {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS pin_sessions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ulangan_id INTEGER NOT NULL,
-        peserta_id INTEGER DEFAULT NULL,
-        nama_siswa TEXT DEFAULT NULL,
-        kelas_siswa TEXT DEFAULT NULL,
-        pin TEXT NOT NULL,
-        device_id TEXT DEFAULT NULL,
-        is_used INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        used_at DATETIME DEFAULT NULL,
-        FOREIGN KEY (ulangan_id) REFERENCES ulangan(id) ON DELETE CASCADE,
-        FOREIGN KEY (peserta_id) REFERENCES peserta(id) ON DELETE SET NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_pin_sessions_ulangan ON pin_sessions(ulangan_id);
-      CREATE INDEX IF NOT EXISTS idx_pin_sessions_pin ON pin_sessions(ulangan_id, pin);
-    `);
-  } catch (e) {
-    console.warn('⚠️ Gagal inisialisasi tabel pin_sessions:', e.message);
+  if (!existingObjects.has('pin_sessions')) {
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS pin_sessions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ulangan_id INTEGER NOT NULL,
+          peserta_id INTEGER DEFAULT NULL,
+          nama_siswa TEXT DEFAULT NULL,
+          kelas_siswa TEXT DEFAULT NULL,
+          pin TEXT NOT NULL,
+          device_id TEXT DEFAULT NULL,
+          is_used INTEGER DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          used_at DATETIME DEFAULT NULL,
+          FOREIGN KEY (ulangan_id) REFERENCES ulangan(id) ON DELETE CASCADE,
+          FOREIGN KEY (peserta_id) REFERENCES peserta(id) ON DELETE SET NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_pin_sessions_ulangan ON pin_sessions(ulangan_id);
+        CREATE INDEX IF NOT EXISTS idx_pin_sessions_pin ON pin_sessions(ulangan_id, pin);
+      `);
+    } catch (e) {
+      console.warn('⚠️ Gagal inisialisasi tabel pin_sessions:', e.message);
+    }
   }
 
   // Migrasi penyesuaian kolom nama_siswa & kelas_siswa jika tabel pin_sessions dibuat sebelumnya
@@ -640,89 +669,95 @@ function initDatabase() {
   }
 
   // Tambahkan UNIQUE index agar tidak akan pernah ada duplikasi butir soal per pengerjaan
+  if (!existingObjects.has('idx_jawaban_pengerjaan_soal')) {
+    try {
+      db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_jawaban_pengerjaan_soal ON jawaban(pengerjaan_id, soal_id);");
+    } catch (e) {}
+  }
+
+  // Seed initial guru, admin, keys, kelas safely
   try {
-    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_jawaban_pengerjaan_soal ON jawaban(pengerjaan_id, soal_id);");
-  } catch (e) {}
+    const teacherEmail = process.env.TEACHER_EMAIL || 'mridwan700611@gmail.com';
+    const teacherName = process.env.TEACHER_NAME || 'Muhammad Ridwan, S.Kom';
+    const teacherPassword = process.env.TEACHER_PASSWORD || 'Guru123';
+    const teacherWa = process.env.TEACHER_WA || '081234567890';
 
-  // Seed initial guru if table is empty
-  const teacherEmail = process.env.TEACHER_EMAIL || 'mridwan700611@gmail.com';
-  const teacherName = process.env.TEACHER_NAME || 'Muhammad Ridwan, S.Kom';
-  const teacherPassword = process.env.TEACHER_PASSWORD || 'Guru123';
-  const teacherWa = process.env.TEACHER_WA || '081234567890';
-
-  let guru = db.prepare('SELECT id, password, no_wa FROM guru WHERE email = ?').get(teacherEmail);
-  if (!guru) {
-    const info = db.prepare('INSERT INTO guru (email, nama, password, no_wa) VALUES (?, ?, ?, ?)').run(teacherEmail, teacherName, teacherPassword, teacherWa);
-    guru = { id: info.lastInsertRowid };
-  } else {
-    if (!guru.password) {
-      db.prepare('UPDATE guru SET password = ? WHERE id = ?').run(teacherPassword, guru.id);
+    let guru = db.prepare('SELECT id, password, no_wa FROM guru WHERE email = ?').get(teacherEmail);
+    if (!guru) {
+      const info = db.prepare('INSERT INTO guru (email, nama, password, no_wa) VALUES (?, ?, ?, ?)').run(teacherEmail, teacherName, teacherPassword, teacherWa);
+      guru = { id: info.lastInsertRowid };
+    } else {
+      if (!guru.password) {
+        db.prepare('UPDATE guru SET password = ? WHERE id = ?').run(teacherPassword, guru.id);
+      }
+      if (!guru.no_wa) {
+        db.prepare('UPDATE guru SET no_wa = ? WHERE id = ?').run(teacherWa, guru.id);
+      }
     }
-    if (!guru.no_wa) {
-      db.prepare('UPDATE guru SET no_wa = ? WHERE id = ?').run(teacherWa, guru.id);
-    }
-  }
 
-  // Seed initial admin
-  const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
-  const adminName = process.env.ADMIN_NAME || 'Administrator Utama';
-  let admin = db.prepare('SELECT id FROM admin WHERE username = ?').get(adminUsername);
-  if (!admin) {
-    db.prepare('INSERT INTO admin (username, password, nama) VALUES (?, ?, ?)').run(adminUsername, adminPassword, adminName);
-  }
-
-  // Seed initial app_settings for gemini_api_key if available in environment
-  const rawEnvKeys = (process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '')
-    .split(/[\n,;]+/)
-    .map(k => k.trim())
-    .filter(k => k && k !== 'YOUR_GEMINI_API_KEY');
-
-  let initialKey = rawEnvKeys[0] || '';
-  if (!initialKey) {
-    const existingKey = db.prepare("SELECT value FROM app_settings WHERE key = 'gemini_api_key'").get();
-    if (existingKey?.value && existingKey.value !== 'YOUR_GEMINI_API_KEY') {
-      initialKey = existingKey.value;
+    // Seed initial admin
+    const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    const adminName = process.env.ADMIN_NAME || 'Administrator Utama';
+    let admin = db.prepare('SELECT id FROM admin WHERE username = ?').get(adminUsername);
+    if (!admin) {
+      db.prepare('INSERT INTO admin (username, password, nama) VALUES (?, ?, ?)').run(adminUsername, adminPassword, adminName);
     }
-  } else {
-    const existingKey = db.prepare("SELECT value FROM app_settings WHERE key = 'gemini_api_key'").get();
-    if (!existingKey) {
-      db.prepare("INSERT INTO app_settings (key, value) VALUES ('gemini_api_key', ?)").run(initialKey);
-    }
-  }
 
-  // Seed initial gemini_api_keys if table empty (mendukung multiple keys dipisah koma)
-  const keyCount = db.prepare('SELECT COUNT(*) as c FROM gemini_api_keys').get().c;
-  if (keyCount === 0 && (rawEnvKeys.length > 0 || initialKey)) {
-    const insertKeyStmt = db.prepare(`
-      INSERT INTO gemini_api_keys (label, api_key, priority)
-      VALUES (?, ?, ?)
-    `);
-    if (rawEnvKeys.length > 0) {
-      rawEnvKeys.forEach((k, idx) => {
-        insertKeyStmt.run(
-          idx === 0 ? 'Kunci Utama (Default)' : `Kunci Cadangan ${idx}`,
-          k,
-          idx + 1
-        );
-      });
-    } else if (initialKey) {
-      insertKeyStmt.run('Kunci Utama (Default)', initialKey, 1);
-    }
-  }
+    // Seed initial app_settings for gemini_api_key if available in environment
+    const rawEnvKeys = (process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '')
+      .split(/[\n,;]+/)
+      .map(k => k.trim())
+      .filter(k => k && k !== 'YOUR_GEMINI_API_KEY');
 
-  // Seed initial sample kelas if empty
-  const kelasCount = db.prepare('SELECT COUNT(*) as c FROM kelas WHERE guru_id = ?').get(guru.id);
-  if (kelasCount.c === 0) {
-    const defaultClasses = [
-      '7A', '7B', '7C', '7D',
-      '8A', '8B', '8C', '8D',
-      '9A', '9B', '9C', '9D'
-    ];
-    const insertK = db.prepare('INSERT INTO kelas (guru_id, nama_kelas) VALUES (?, ?)');
-    for (const kc of defaultClasses) {
-      insertK.run(guru.id, kc);
+    let initialKey = rawEnvKeys[0] || '';
+    if (!initialKey) {
+      const existingKey = db.prepare("SELECT value FROM app_settings WHERE key = 'gemini_api_key'").get();
+      if (existingKey?.value && existingKey.value !== 'YOUR_GEMINI_API_KEY') {
+        initialKey = existingKey.value;
+      }
+    } else {
+      const existingKey = db.prepare("SELECT value FROM app_settings WHERE key = 'gemini_api_key'").get();
+      if (!existingKey) {
+        db.prepare("INSERT INTO app_settings (key, value) VALUES ('gemini_api_key', ?)").run(initialKey);
+      }
     }
+
+    // Seed initial gemini_api_keys if table empty (mendukung multiple keys dipisah koma)
+    const keyCount = db.prepare('SELECT COUNT(*) as c FROM gemini_api_keys').get().c;
+    if (keyCount === 0 && (rawEnvKeys.length > 0 || initialKey)) {
+      const insertKeyStmt = db.prepare(`
+        INSERT INTO gemini_api_keys (label, api_key, priority)
+        VALUES (?, ?, ?)
+      `);
+      if (rawEnvKeys.length > 0) {
+        rawEnvKeys.forEach((k, idx) => {
+          insertKeyStmt.run(
+            idx === 0 ? 'Kunci Utama (Default)' : `Kunci Cadangan ${idx}`,
+            k,
+            idx + 1
+          );
+        });
+      } else if (initialKey) {
+        insertKeyStmt.run('Kunci Utama (Default)', initialKey, 1);
+      }
+    }
+
+    // Seed initial sample kelas if empty
+    const kelasCount = db.prepare('SELECT COUNT(*) as c FROM kelas WHERE guru_id = ?').get(guru.id);
+    if (kelasCount.c === 0) {
+      const defaultClasses = [
+        '7A', '7B', '7C', '7D',
+        '8A', '8B', '8C', '8D',
+        '9A', '9B', '9C', '9D'
+      ];
+      const insertK = db.prepare('INSERT INTO kelas (guru_id, nama_kelas) VALUES (?, ?)');
+      for (const kc of defaultClasses) {
+        insertK.run(guru.id, kc);
+      }
+    }
+  } catch (e) {
+    console.warn('⚠️ Notice initial seed:', e.message);
   }
 }
 
