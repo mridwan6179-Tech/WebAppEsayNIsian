@@ -1283,12 +1283,21 @@
               if (hasKisiAi) {
                 inlinePreview.classList.remove('hidden');
                 const items = parsedKisiAi.daftar_kisi_kisi;
-                const uniqueTopics = [...new Set(items.map(it => it.materi_pokok).filter(Boolean))].slice(0, 6);
                 inlinePreview.innerHTML = `
-                  <p class="text-[11px] text-indigo-900 leading-relaxed">${escapeHtml(parsedKisiAi.ringkasan_cakupan || '')}</p>
-                  <div class="flex flex-wrap gap-1 pt-0.5">
-                    ${uniqueTopics.map((t, i) => `<span class="px-2 py-0.5 bg-white/90 border border-indigo-200 rounded-md text-[10px] font-semibold text-indigo-900">${i + 1}. ${escapeHtml(t)}</span>`).join('')}
-                    ${items.length > uniqueTopics.length ? `<span class="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded-md text-[10px] font-bold">+${items.length} Indikator Soal</span>` : ''}
+                  <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    ${items.map((it, i) => `
+                      <div class="p-2.5 bg-white/95 border border-indigo-200 rounded-lg space-y-1 shadow-2xs">
+                        <div class="flex items-center justify-between gap-1.5 flex-wrap">
+                          <span class="font-extrabold text-[11px] text-indigo-950">${escapeHtml(it.materi_pokok || ('Pembahasan ' + (i + 1)))}</span>
+                          <span class="px-1.5 py-0.5 bg-indigo-100 text-indigo-800 rounded text-[10px] font-bold">${escapeHtml(String(it.nomor_soal || '-'))} &bull; ${escapeHtml(it.bentuk_soal || '-')}</span>
+                        </div>
+                        <p class="text-[11px] text-slate-700 leading-relaxed whitespace-pre-line">${escapeHtml(it.indikator_soal || '')}</p>
+                        <div class="pt-1 border-t border-indigo-100 text-[11px] text-indigo-950 leading-relaxed whitespace-pre-line bg-indigo-50/40 p-1.5 rounded">
+                          <strong class="block text-[10px] uppercase tracking-wider text-indigo-800 mb-0.5">📚 Ringkasan Materi &amp; Konsep Kunci:</strong>
+                          ${escapeHtml(it.fokus_belajar || '')}
+                        </div>
+                      </div>
+                    `).join('')}
                   </div>
                 `;
               } else {
@@ -6786,10 +6795,9 @@
       if (!modal || !body || !u || !kisi) return;
 
       const items = Array.isArray(kisi.daftar_kisi_kisi) ? kisi.daftar_kisi_kisi : [];
-      const rangkumanList = Array.isArray(kisi.rangkuman_materi_penting) ? kisi.rangkuman_materi_penting : [];
-      const tipsList = Array.isArray(kisi.tips_sukses_ujian) ? kisi.tips_sukses_ujian : [];
       const komp = kisi.komposisi_soal;
-      let kompText = `${items.length} Butir Soal`;
+      const totalSoalCount = (komp && komp.total_soal) ? komp.total_soal : (u.total_soal || items.length);
+      let kompText = `${totalSoalCount} Butir Soal`;
       if (typeof komp === 'string' && komp.trim()) {
         kompText = komp.trim();
       } else if (komp && typeof komp === 'object') {
@@ -6799,62 +6807,46 @@
         if (komp.isian > 0) parts.push(`${komp.isian} Isian Singkat`);
         if (komp.essay > 0) parts.push(`${komp.essay} Essay/Uraian`);
         if (komp.koding_game > 0) parts.push(`${komp.koding_game} Game Koding`);
-        if (parts.length > 0) kompText = `${items.length} Butir Soal (${parts.join(', ')})`;
+        if (parts.length > 0) kompText = `${totalSoalCount} Butir Soal (${parts.join(', ')})`;
       }
 
       body.innerHTML = `
-        <div class="text-center border-b-2 border-slate-900 pb-3 mb-4">
-          <p class="text-[11px] font-bold uppercase tracking-widest text-slate-600">DOKUMEN KISI-KISI &amp; PANDUAN BELAJAR PESERTA DIDIK</p>
+        <div class="text-center border-b-2 border-slate-900 pb-3 mb-3">
+          <p class="text-[11px] font-bold uppercase tracking-widest text-slate-600">DOKUMEN KISI-KISI &amp; RANGKUMAN MATERI PEMBAHASAN</p>
           <h2 class="text-lg font-extrabold uppercase tracking-wide text-slate-900 mt-0.5">${escapeHtml(kisi.judul_kisi_kisi || ('Kisi-Kisi ' + (u.judul || 'Ulangan')))}</h2>
           <p class="text-xs text-slate-600 mt-0.5">Mata Pelajaran: <strong>${escapeHtml(kisi.mata_pelajaran || u.mata_pelajaran || '-')}</strong> &bull; Kelas: <strong>${escapeHtml(kisi.tingkat_kelas || u.tingkat_kelas || '-')}</strong> &bull; Kode Ujian: <strong class="font-mono">${escapeHtml(u.kode_ujian || '-')}</strong></p>
         </div>
 
-        <div class="p-3.5 bg-indigo-50/70 border border-indigo-200 rounded-xl text-xs space-y-1">
-          <p class="font-bold text-indigo-950">📌 Ringkasan Cakupan Materi:</p>
-          <p class="text-slate-700 leading-relaxed">${escapeHtml(kisi.ringkasan_cakupan || '-')}</p>
-          <p class="text-[11px] font-semibold text-indigo-800 pt-1">Komposisi Bentuk Soal: ${escapeHtml(kompText)}</p>
+        <div class="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl text-xs space-y-1">
+          <p class="text-slate-800 leading-relaxed"><strong>📌 Cakupan Materi (${items.length} Pokok Pembahasan Terpadu — ${escapeHtml(kompText)}):</strong> ${escapeHtml(kisi.ringkasan_cakupan || '-')}</p>
         </div>
 
         <div class="overflow-x-auto">
           <table class="w-full border-collapse border border-slate-400 text-[11px]">
             <thead>
-              <tr class="bg-slate-100 text-slate-900 font-bold">
-                <th class="border border-slate-400 px-2 py-2 text-center w-10">No</th>
-                <th class="border border-slate-400 px-2.5 py-2 text-left w-28">Bentuk Soal</th>
-                <th class="border border-slate-400 px-2.5 py-2 text-left w-40">Materi Pokok</th>
-                <th class="border border-slate-400 px-2.5 py-2 text-left">Indikator Pencapaian Soal</th>
-                <th class="border border-slate-400 px-2 py-2 text-center w-24">Level Kognitif</th>
-                <th class="border border-slate-400 px-2.5 py-2 text-left w-48">Fokus Belajar Siswa</th>
+              <tr class="bg-slate-100 text-slate-900 font-extrabold uppercase text-[10px]">
+                <th class="border border-slate-400 px-2.5 py-2 text-left w-32">No. &amp; Bentuk Soal</th>
+                <th class="border border-slate-400 px-3 py-2 text-left w-5/12">Pokok Pembahasan &amp; Detail Kisi-Kisi Soal</th>
+                <th class="border border-slate-400 px-3 py-2 text-left">Uraian Materi &amp; Konsep Kunci (Panduan Belajar Detail SMP)</th>
               </tr>
             </thead>
             <tbody>
               ${items.map((item, idx) => `
-                <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}">
-                  <td class="border border-slate-300 px-2 py-1.5 text-center font-bold">${escapeHtml(String(item.nomor_soal || (idx + 1)))}</td>
-                  <td class="border border-slate-300 px-2.5 py-1.5 font-semibold text-slate-800">${escapeHtml(item.bentuk_soal || '-')}</td>
-                  <td class="border border-slate-300 px-2.5 py-1.5 font-bold text-indigo-950">${escapeHtml(item.materi_pokok || '-')}</td>
-                  <td class="border border-slate-300 px-2.5 py-1.5 leading-snug text-slate-700">${escapeHtml(item.indikator_soal || '-')}</td>
-                  <td class="border border-slate-300 px-2 py-1.5 text-center font-semibold text-slate-700">${escapeHtml(item.level_kognitif || '-')}</td>
-                  <td class="border border-slate-300 px-2.5 py-1.5 leading-snug text-slate-600">${escapeHtml(item.fokus_belajar || '-')}</td>
+                <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} align-top">
+                  <td class="border border-slate-300 px-2.5 py-2.5 font-bold text-slate-900">
+                    <div class="text-xs font-extrabold text-indigo-950">${escapeHtml(String(item.nomor_soal || (idx + 1)))}</div>
+                    <div class="text-[11px] font-semibold text-indigo-700 mt-0.5">${escapeHtml(item.bentuk_soal || '-')}</div>
+                    <div class="text-[10px] font-bold text-slate-600 mt-1 pt-1 border-t border-slate-200">${escapeHtml(item.level_kognitif || '-')}</div>
+                  </td>
+                  <td class="border border-slate-300 px-3 py-2.5 leading-relaxed">
+                    <div class="font-extrabold text-indigo-950 text-xs mb-1">${escapeHtml(item.materi_pokok || '-')}</div>
+                    <div class="text-slate-800 whitespace-pre-line">${escapeHtml(item.indikator_soal || '-')}</div>
+                  </td>
+                  <td class="border border-slate-300 px-3 py-2.5 leading-relaxed text-slate-800 whitespace-pre-line">${escapeHtml(item.fokus_belajar || '-')}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-          <div class="p-3 border border-slate-300 rounded-xl bg-slate-50/60">
-            <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-900 mb-1.5">📚 Rangkuman Materi Penting</h4>
-            <ul class="list-disc list-inside text-[11px] text-slate-700 space-y-1 leading-snug">
-              ${rangkumanList.map(r => `<li>${escapeHtml(r)}</li>`).join('')}
-            </ul>
-          </div>
-          <div class="p-3 border border-slate-300 rounded-xl bg-slate-50/60">
-            <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-900 mb-1.5">💡 Tips Sukses Mengerjakan Ujian</h4>
-            <ul class="list-disc list-inside text-[11px] text-slate-700 space-y-1 leading-snug">
-              ${tipsList.map(t => `<li>${escapeHtml(t)}</li>`).join('')}
-            </ul>
-          </div>
         </div>
       `;
 

@@ -591,7 +591,7 @@ describe('=== SUITE: ULANGAN MODE PERMAINAN KODING (SMP) & HYBRID ===', () => {
 
     assert.ok(kisiKisi, 'Kisi-kisi harus berhasil digenerate');
     assert.strictEqual(Array.isArray(kisiKisi.daftar_kisi_kisi), true);
-    assert.strictEqual(kisiKisi.daftar_kisi_kisi.length, 3);
+    assert.ok(kisiKisi.daftar_kisi_kisi.length >= 1 && kisiKisi.daftar_kisi_kisi.length <= 3);
     assert.ok(kisiKisi.ringkasan_cakupan);
     assert.ok(kisiKisi.komposisi_soal);
 
@@ -609,7 +609,7 @@ describe('=== SUITE: ULANGAN MODE PERMAINAN KODING (SMP) & HYBRID ===', () => {
     assert.strictEqual(checkResult.ulangan.tampilkan_kisi_kisi, 1);
     assert.ok(checkResult.ulangan.konten_kisi_kisi, 'konten_kisi_kisi harus dikirim ke portal siswa');
     const parsedFromStudent = JSON.parse(checkResult.ulangan.konten_kisi_kisi);
-    assert.strictEqual(parsedFromStudent.daftar_kisi_kisi.length, 3);
+    assert.ok(parsedFromStudent.daftar_kisi_kisi.length >= 1 && parsedFromStudent.daftar_kisi_kisi.length <= 3);
   });
 });
 

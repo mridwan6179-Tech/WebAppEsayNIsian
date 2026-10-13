@@ -1981,12 +1981,12 @@ ${jsonExample}
     return result.questions;
   },
 
-  // Helper Pembangun Kisi-Kisi Cerdas (Deterministic Fallback & Normalizer)
-  // Menganalisis seluruh jenis soal (PG, PG Kompleks, Isian, Essay, & Game Koding) tanpa membocorkan kunci jawaban
+  // Helper Pembangun Kisi-Kisi Cerdas Terpadu (Mengelompokkan Soal per Satu Pembahasan & Detail Tingkat SMP)
+  // Menganalisis seluruh jenis soal (PG, PG Kompleks, Isian, Essay, & Game Koding) tanpa membocorkan kunci jawaban eksplisit
   buildFallbackKisiKisi(ulangan = {}, soalList = []) {
-    const mapel = ulangan.mata_pelajaran || 'Mata Pelajaran Umum';
+    const mapel = ulangan.mata_pelajaran || 'Informatika';
     const judul = ulangan.judul || 'Ulangan Harian / Asesmen';
-    const kelas = ulangan.tingkat_kelas || 'Umum';
+    const kelas = ulangan.tingkat_kelas || 'SMP / Sederajat';
 
     const komposisi = {
       total_soal: soalList.length,
@@ -1997,10 +1997,8 @@ ${jsonExample}
       koding_game: 0
     };
 
-    const daftarKisiKisi = [];
-    const topikSet = new Set();
-
-    soalList.forEach((s, idx) => {
+    // Klasifikasi topik pembahasan cerdas agar soal-soal yang masih satu pembahasan disatukan
+    const classifyTopicAndDetail = (s, idx) => {
       const no = s.nomor || (idx + 1);
       const jenisRaw = (s.jenis || 'isian').toLowerCase();
       let bentukLabel = 'Isian Singkat';
@@ -2010,7 +2008,7 @@ ${jsonExample}
         const rawKunci = String(s.kunci_pg || '').trim();
         if (rawKunci.includes(',') || rawKunci.length > 1) {
           komposisi.pg_kompleks++;
-          bentukLabel = 'Pilihan Ganda Kompleks';
+          bentukLabel = 'PG Kompleks';
           levelDefault = 'C3 (Menerapkan)';
         } else {
           komposisi.pilihan_ganda++;
@@ -2019,83 +2017,190 @@ ${jsonExample}
         }
       } else if (jenisRaw === 'essay') {
         komposisi.essay++;
-        bentukLabel = 'Uraian / Essay';
-        levelDefault = 'C4 (Menganalisis)';
+        bentukLabel = 'Essay / Uraian';
+        levelDefault = 'C3 - C4 (Menganalisis)';
       } else if (jenisRaw === 'koding_game') {
         komposisi.koding_game++;
         let gd = {};
-        try {
-          gd = typeof s.game_data === 'string' ? JSON.parse(s.game_data) : (s.game_data || {});
-        } catch (e) { gd = {}; }
-        const modeName = gd.title || gd.nama || gd.mode || 'Logika Algoritma';
-        bentukLabel = `Game Koding (${modeName})`;
-        levelDefault = 'C4 (Berpikir Komputasional)';
+        try { gd = typeof s.game_data === 'string' ? JSON.parse(s.game_data) : (s.game_data || {}); } catch (e) {}
+        const modeTitle = gd.title || gd.nama || gd.mode || 'Algoritma';
+        bentukLabel = `Game Koding (${modeTitle})`;
+        levelDefault = 'C3 - C4 (Praktik Algoritma)';
       } else {
         komposisi.isian++;
         bentukLabel = 'Isian Singkat';
         levelDefault = 'C2 (Memahami)';
       }
 
-      if (s.tingkat_kesulitan === 'mudah') levelDefault = 'C2 (Memahami)';
-      else if (s.tingkat_kesulitan === 'sedang') levelDefault = 'C3 (Menerapkan)';
-      else if (s.tingkat_kesulitan === 'sulit') levelDefault = 'C4 (Menganalisis / HOTS)';
+      const cleanQ = String(s.pertanyaan || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      const opsiList = [s.opsi_a, s.opsi_b, s.opsi_c, s.opsi_d, s.opsi_e]
+        .filter(Boolean)
+        .map(o => String(o).trim());
+      const combinedText = `${cleanQ} ${opsiList.join(' ')} ${s.kategori || ''}`.toLowerCase();
 
-      // Ekstrak kata kunci / topik dari pertanyaan tanpa membocorkan jawaban
-      const cleanPertanyaan = String(s.pertanyaan || '')
-        .replace(/<[^>]*>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-      let materiPokok = s.kategori && s.kategori.trim() ? s.kategori.trim() : '';
-      if (!materiPokok) {
-        if (jenisRaw === 'koding_game') {
-          let gd = {};
-          try { gd = typeof s.game_data === 'string' ? JSON.parse(s.game_data) : (s.game_data || {}); } catch (e) {}
-          const modeMap = {
-            grid_runner: 'Algoritma Sekuensial & Navigasi Spasial Robot',
-            loop_master: 'Struktur Perulangan (Looping) & Efisiensi Kode',
-            if_else: 'Percabangan Kondisi (If-Else) & Sensor',
-            bug_doctor: 'Debugging & Evaluasi Kesalahan Algoritma',
-            scratch_puzzle: 'Pemrograman Visual Berbasis Kejadian (Event-Driven)',
-            pattern_guesser: 'Pengenalan Pola Komputasional (Pattern Recognition)',
-            parsons_puzzle: 'Penyusunan Urutan Logika Algoritma (Parsons Problem)'
-          };
-          materiPokok = modeMap[gd.mode || gd.subtipe] || gd.title || `Berpikir Komputasional (${mapel})`;
-        } else {
-          // Ambil frasa inti dari pertanyaan
-          const words = cleanPertanyaan.replace(/[?.!,;:()"']/g, '').split(/\s+/).filter(w => w.length > 3);
-          const stopWords = new Set(['yang', 'dalam', 'untuk', 'adalah', 'berikut', 'manakah', 'apakah', 'jelaskan', 'sebutkan', 'bagaimana', 'mengapa', 'disebut', 'dengan', 'pada', 'dari', 'atau', 'tidak', 'bukan', 'pilih', 'semua', 'tepat', 'benar']);
-          const keyWords = words.filter(w => !stopWords.has(w.toLowerCase())).slice(0, 5);
-          materiPokok = keyWords.length > 0
-            ? `Konsep ${keyWords.join(' ')}`
-            : `Materi Pokok ${mapel} #${no}`;
-        }
-      }
-
-      topikSet.add(materiPokok);
-
-      let indikatorSoal = '';
+      // Jika soal koding_game, analisis mekanika levelnya secara spesifik
       if (jenisRaw === 'koding_game') {
-        indikatorSoal = `Disajikan simulasi tantangan interaktif ${bentukLabel}, peserta didik mampu menyusun dan menguji urutan instruksi algoritma secara logis dan efisien untuk menyelesaikan misi.`;
-      } else if (jenisRaw === 'essay') {
-        indikatorSoal = `Disajikan permasalahan kontekstual mengenai "${cleanPertanyaan.slice(0, 85)}${cleanPertanyaan.length > 85 ? '...' : ''}", peserta didik mampu menguraikan analisis dan penjelasan konsep secara lengkap dan runtut.`;
-      } else if (bentukLabel === 'Pilihan Ganda Kompleks') {
-        indikatorSoal = `Disajikan beberapa pernyataan terkait ${materiPokok.toLowerCase()}, peserta didik mampu menganalisis dan memilih lebih dari satu pernyataan yang benar secara tepat.`;
-      } else if (jenisRaw === 'pilihan_ganda') {
-        indikatorSoal = `Disajikan deskripsi/kasus mengenai ${materiPokok.toLowerCase()}, peserta didik mampu menentukan konsep atau jawaban yang paling tepat dari pilihan yang tersedia.`;
-      } else {
-        indikatorSoal = `Disajikan pertanyaan spesifik terkait ${materiPokok.toLowerCase()}, peserta didik mampu menuliskan istilah, nilai, atau jawaban singkat yang tepat.`;
+        let gd = {};
+        try { gd = typeof s.game_data === 'string' ? JSON.parse(s.game_data) : (s.game_data || {}); } catch (e) {}
+        const mode = gd.mode || gd.subtipe || 'grid_runner';
+
+        if (mode === 'loop_master' || mode === 'pattern_guesser' || combinedText.includes('ulangi') || combinedText.includes('pola')) {
+          return {
+            groupKey: 'koding_perulangan_pola',
+            materiPokok: 'Struktur Perulangan (Looping), Efisiensi Balok (Par Limit) & Pengenalan Pola Algoritma',
+            level: 'C3 - C4 (Menerapkan & Menganalisis)',
+            no,
+            bentukLabel,
+            indikatorPoint: `• Soal No. ${no} (${bentukLabel}): Mengenali pola gerakan yang berulang (siklus langkah robot/drone) dan membungkusnya menggunakan balok ULANGI (Repeat Loop) agar jumlah balok tidak melebihi batas efisiensi (Par Blocks).`,
+            materiPoint: `• Perulangan (Looping): menyederhanakan rangkaian perintah yang sama (misal pola anak tangga: Maju ➔ Belok Kiri ➔ Maju ➔ Belok Kanan) ke dalam 1 balok "Ulangi N Kali".\n• Pengenalan Pola (Pattern Recognition): mengamati urutan siklus gerakan untuk menentukan langkah selanjutnya secara tepat.\n• Efisiensi Kode (Par Limit): semakin ringkas jumlah balok yang disusun (≤ batas Par), semakin tinggi perolehan bintang (3 Bintang = 100 poin).`
+          };
+        }
+        if (mode === 'if_else' || mode === 'parsons_puzzle' || combinedText.includes('sensor') || combinedText.includes('pintu otomatis')) {
+          return {
+            groupKey: 'koding_percabangan_urut',
+            materiPokok: 'Logika Percabangan Sensor (If-Else) & Penyusunan Urutan Algoritma Sistem Otomatis',
+            level: 'C3 - C4 (Menerapkan & Menganalisis)',
+            no,
+            bentukLabel,
+            indikatorPoint: `• Soal No. ${no} (${bentukLabel}): Menggunakan logika kondisi sensor (Jika Ada Rintangan/Bahaya maka berbelok aman) serta mengurutkan langkah algoritma sistem sensor otomatis dari awal hingga akhir secara logis.`,
+            materiPoint: `• Percabangan (If-Else / Selection): pengambilan keputusan otomatis oleh program ketika sensor mendeteksi kondisi tertentu (contoh: ada lahar panas di depan atau sensor gerak mendeteksi objek).\n• Parsons Problem (Urutan Algoritma): setiap sistem otomatis bekerja berurutan mulai dari: (1) Inisialisasi/Siaga ➔ (2) Baca Sensor ➔ (3) Cek Kondisi (If) ➔ (4) Eksekusi Aksi Utama ➔ (5) Kembali ke kondisi aman.`
+          };
+        }
+        if (mode === 'bug_doctor' || mode === 'scratch_puzzle' || combinedText.includes('dokter kode') || combinedText.includes('pemicu kejadian')) {
+          return {
+            groupKey: 'koding_debugging_event',
+            materiPokok: 'Pelacakan Kesalahan Kode (Debugging) & Pemrograman Berbasis Kejadian (Event-Action)',
+            level: 'C3 - C4 (Menganalisis & Memperbaiki)',
+            no,
+            bentukLabel,
+            indikatorPoint: `• Soal No. ${no} (${bentukLabel}): Melacak letak kesalahan urutan balok kode (Bug) yang membuat robot menabrak tebing serta memasangkan Pemicu Kejadian (Event ⚡) dengan Aksi (Action ▶) yang tepat pada gim interaktif.`,
+            materiPoint: `• Debugging (Dokter Kode): telusuri jalannya kode langkah demi langkah dari petak awal untuk menemukan balok yang salah arah atau salah urutan, lalu tukar/perbaiki.\n• Event-Driven Programming (Scratch): setiap aksi di dalam gim selalu dipicu oleh sebuah kejadian (Event), misalnya "Saat Tombol Spasi Ditekan" ➔ "Karakter Melompat", atau "Saat Menyentuh Bintang" ➔ "Tambah Skor".`
+          };
+        }
+        return {
+          groupKey: 'algoritma_loop_scratch',
+          materiPokok: 'Algoritma Pemrograman, Struktur Perulangan (Looping) & Navigasi Spasial Robot',
+          level: levelDefault,
+          no,
+          bentukLabel,
+          indikatorPoint: `• Soal No. ${no} (${bentukLabel}): Menyusun urutan balok gerak dasar (Maju, Mundur tanpa memutar arah hadap, Belok Kiri/Kanan) untuk mengambil seluruh bintang target (⭐) terlebih dahulu agar kunci garis Finish (🏁) terbuka tanpa menabrak rintangan batu/tebing.`,
+          materiPoint: `• Perintah Navigasi Robot: Maju & Mundur menggerakkan robot 1 petak sesuai/berlawanan arah hadapnya saat ini; Belok Kiri/Kanan hanya memutar arah hadap 90° di tempat.\n• Syarat Finish Terkunci: seluruh bintang target (⭐) wajib diambil lebih dulu sebelum masuk ke petak Finish (🏁).`
+        };
       }
 
-      daftarKisiKisi.push({
-        nomor_soal: String(no),
-        bentuk_soal: bentukLabel,
-        materi_pokok: materiPokok,
-        indikator_soal: indikatorSoal,
-        level_kognitif: levelDefault,
-        fokus_belajar: `Pelajari pemahaman konsep dan penerapan tentang: ${materiPokok}.`
-      });
+      // Klasifikasi untuk Soal Teori / Konsep (PG, PG Kompleks, Isian, Essay) — satukan yang satu rumpun pembahasan!
+      if (combinedText.includes('bug') || combinedText.includes('debugging') || combinedText.includes('kesalahan sintaksis')) {
+        return {
+          groupKey: 'algoritma_bug_debugging',
+          materiPokok: 'Pemrograman Dasar: Kesalahan Kode Program (Bug) & Proses Perbaikannya (Debugging)',
+          level: levelDefault,
+          no,
+          bentukLabel,
+          indikatorPoint: `• Soal No. ${no} (${bentukLabel}): ${cleanQ}`,
+          materiPoint: `• Bug: sebutan untuk kesalahan (error/cacat) pada penulisan sintaks maupun alur logika program yang menyebabkan program gagal berjalan atau menghasilkan output yang salah.\n• Debugging: proses sistematis mencari, melacak, menguji, dan memperbaiki bug/kesalahan di dalam kode program.\n• Istilah Terkait di Opsi: Compiling adalah proses menerjemahkan kode sumber ke bahasa mesin; Looping adalah perulangan instruksi; Branching adalah percabangan kondisi.`
+        };
+      }
+
+      if (combinedText.includes('dekomposisi') || combinedText.includes('abstraksi') || combinedText.includes('lifo') || combinedText.includes('stack') || combinedText.includes('queue') || combinedText.includes('biner') || combinedText.includes('desimal')) {
+        return {
+          groupKey: 'berpikir_komputasional_struktur_data',
+          materiPokok: 'Berpikir Komputasional: 4 Pilar Utama, Struktur Data (Stack & Queue) & Sistem Bilangan Biner',
+          level: 'C2 - C3 (Memahami & Menerapkan)',
+          no,
+          bentukLabel,
+          indikatorPoint: `• Soal No. ${no} (${bentukLabel}): ${cleanQ}`,
+          materiPoint: `• 4 Pilar Berpikir Komputasional: (1) Dekomposisi (memecah masalah besar/kompleks menjadi bagian-bagian kecil yang mudah dikelola), (2) Pengenalan Pola (mencari kesamaan pola), (3) Abstraksi (fokus pada informasi penting & mengabaikan detail tidak relevan), (4) Perancangan Algoritma (menyusun langkah solusi berurutan).\n• Struktur Data: Stack (Tumpukan) memakai prinsip LIFO (Last In First Out — elemen yang terakhir masuk adalah yang pertama keluar, seperti tumpukan buku), sedangkan Queue (Antrean) memakai prinsip FIFO (First In First Out).\n• Konversi Biner ke Desimal: kalikan tiap digit biner dari kanan dengan perpangkatan 2 (1, 2, 4, 8). Contoh: biner 1011 = (1×8) + (0×4) + (1×2) + (1×1) = 11.`
+        };
+      }
+
+      if (combinedText.includes('router') || combinedText.includes('switch') || combinedText.includes('jaringan') || combinedText.includes('password') || combinedText.includes('kata sandi') || combinedText.includes('netiket') || combinedText.includes('etika')) {
+        return {
+          groupKey: 'jaringan_keamanan_etika_digital',
+          materiPokok: 'Jaringan Komputer, Keamanan Siber (Password Kuat) & Etika Kewargaan Digital (Netiket)',
+          level: 'C2 - C3 (Memahami & Menerapkan)',
+          no,
+          bentukLabel,
+          indikatorPoint: `• Soal No. ${no} (${bentukLabel}): ${cleanQ}`,
+          materiPoint: `• Perangkat Jaringan Komputer: Router bertugas menghubungkan dua atau lebih jaringan berbeda dan menentukan rute terbaik pengiriman paket data di internet; Switch/Hub menghubungkan perangkat dalam satu jaringan lokal (LAN); Repeater memperkuat sinyal.\n• Keamanan Kata Sandi (Password): password yang kuat wajib menggabungkan minimal 8–12 karakter terdiri dari huruf besar, huruf kecil, angka, dan simbol khusus (hindari tanggal lahir atau nama panggilan).\n• Literasi & Etika Digital: Netiket (Network Etiquette) adalah tata krama dan sopan santun berkomunikasi di internet; Phishing adalah penipuan pencurian data pribadi; Cyberbullying adalah perundungan di dunia maya.`
+        };
+      }
+
+      if (combinedText.includes('perulangan') || combinedText.includes('loop') || combinedText.includes('iterasi') || combinedText.includes('scratch') || combinedText.includes('green flag')) {
+        return {
+          groupKey: 'algoritma_loop_scratch',
+          materiPokok: 'Algoritma Pemrograman, Struktur Perulangan (Looping) & Navigasi Spasial Robot',
+          level: levelDefault,
+          no,
+          bentukLabel,
+          indikatorPoint: `• Soal No. ${no} (${bentukLabel}): ${cleanQ}`,
+          materiPoint: `• Struktur Algoritma Dasar: (1) Sekuensial (instruksi dijalankan berurutan), (2) Percabangan/Branching (pemilihan kondisi If-Else), dan (3) Perulangan/Looping (mengeksekusi sekumpulan instruksi berulang kali selama kondisi terpenuhi).\n• Manfaat Penting Looping: membuat kode program jauh lebih pendek/efisien, menghemat waktu penulisan kode, mencegah penulisan perintah berulang-ulang secara manual, dan memudahkan pencarian kesalahan.\n• Kategori Balok Visual Scratch: Events/Kejadian (balok pemicu awal seperti "When Green Flag Clicked"), Motion (gerakan koordinat), Looks (tampilan kostum), dan Sensing (sensor deteksi).`
+        };
+      }
+
+      if (combinedText.includes('perangkat keras') || combinedText.includes('perangkat lunak') || combinedText.includes('cpu') || combinedText.includes('ram') || combinedText.includes('spreadsheet') || combinedText.includes('ekstensi') || combinedText.includes('microsoft word') || combinedText.includes('excel')) {
+        return {
+          groupKey: 'sistem_komputer_hw_sw',
+          materiPokok: 'Sistem Komputer: Perangkat Keras (Hardware), Perangkat Lunak (Software) & Ekstensi Berkas',
+          level: levelDefault,
+          no,
+          bentukLabel,
+          indikatorPoint: `• Soal No. ${no} (${bentukLabel}): ${cleanQ}`,
+          materiPoint: `• Perangkat Keras (Hardware): komponen fisik komputer, meliputi CPU (Central Processing Unit sebagai otak pemroses utama seluruh instruksi dan perhitungan logika), RAM (memori kerja sementara), SSD/Harddisk (penyimpanan data permanen), dan GPU (pengolah grafis).\n• Perangkat Lunak Aplikasi & Ekstensi Berkas: Pengolah Kata seperti Microsoft Word (.docx / .doc), Pengolah Lembar Kerja/Angka (Spreadsheet) seperti Microsoft Excel (.xlsx / .xls), dan Aplikasi Presentasi seperti PowerPoint (.pptx / .ppt).`
+        };
+      }
+
+      // Default cerdas untuk mata pelajaran apapun: kelompokkan berdasarkan kategori atau kata kunci utama
+      const customCat = (s.kategori && s.kategori.trim()) ? s.kategori.trim() : null;
+      const groupKey = customCat ? `cat_${customCat.toLowerCase()}` : `pembahasan_${Math.floor(idx / 2) + 1}`;
+      const pembahasanNote = (s.pembahasan && String(s.pembahasan).trim())
+        ? String(s.pembahasan).trim()
+        : (s.rubrik && String(s.rubrik).trim())
+          ? `Fokus penilaian konsep: ${String(s.rubrik).trim()}`
+          : (opsiList.length > 0
+            ? `Pahami pengertian, fungsi, dan perbedaan dari setiap konsep berikut: ${opsiList.join('; ')}.`
+            : `Pelajari pengertian, karakteristik utama, serta penerapan konsep pada pertanyaan: "${cleanQ}".`);
+
+      return {
+        groupKey,
+        materiPokok: customCat || `Pokok Pembahasan ${mapel}: ${cleanQ.split(/\s+/).slice(0, 6).join(' ')}...`,
+        level: levelDefault,
+        no,
+        bentukLabel,
+        indikatorPoint: `Soal No. ${no} (${bentukLabel}): ${cleanQ}${opsiList.length > 0 ? ` — menganalisis konsep terkait ${opsiList.join(', ')}.` : ''}`,
+        materiPoint: `• Konsep Soal No. ${no}: ${pembahasanNote}`
+      };
+    };
+
+    // Kelompokkan butir-butir soal yang memiliki groupKey pembahasan yang sama
+    const groupedMap = new Map();
+    soalList.forEach((s, idx) => {
+      const info = classifyTopicAndDetail(s, idx);
+      if (!groupedMap.has(info.groupKey)) {
+        groupedMap.set(info.groupKey, {
+          materi_pokok: info.materiPokok.trim(),
+          nomorList: [],
+          bentukSet: new Set(),
+          levelSet: new Set(),
+          indikatorPoints: [],
+          materiPoints: new Set()
+        });
+      }
+      const grp = groupedMap.get(info.groupKey);
+      grp.nomorList.push(info.no);
+      grp.bentukSet.add(info.bentukLabel);
+      grp.levelSet.add(info.level);
+      grp.indikatorPoints.push(info.indikatorPoint);
+      grp.materiPoints.add(info.materiPoint);
     });
+
+    const daftarKisiKisi = Array.from(groupedMap.values()).map((grp, i) => ({
+      nomor_soal: grp.nomorList.length > 1 ? `No. ${grp.nomorList.join(', ')}` : `No. ${grp.nomorList[0]}`,
+      bentuk_soal: Array.from(grp.bentukSet).join(' & '),
+      materi_pokok: `${i + 1}. ${grp.materi_pokok}`,
+      indikator_soal: grp.indikatorPoints.join('\n\n'),
+      level_kognitif: Array.from(grp.levelSet).join(' / '),
+      fokus_belajar: Array.from(grp.materiPoints).join('\n\n')
+    }));
 
     const jenisRingkas = [];
     if (komposisi.pilihan_ganda > 0) jenisRingkas.push(`${komposisi.pilihan_ganda} Pilihan Ganda`);
@@ -2105,25 +2210,22 @@ ${jsonExample}
     if (komposisi.koding_game > 0) jenisRingkas.push(`${komposisi.koding_game} Game Koding`);
 
     return {
-      judul_kisi_kisi: `Kisi-Kisi & Panduan Belajar: ${judul}`,
+      judul_kisi_kisi: `Kisi-Kisi & Rangkuman Materi Pembahasan: ${judul}`,
       mata_pelajaran: mapel,
       tingkat_kelas: kelas,
-      ringkasan_cakupan: `Ulangan ini mencakup ${soalList.length} butir soal (${jenisRingkas.join(', ') || 'Campuran'}) pada mata pelajaran ${mapel} untuk kelas ${kelas}. Fokus evaluasi meliputi pemahaman konsep dasar, penerapan logika, serta pemecahan masalah secara analitis.`,
+      ringkasan_cakupan: `Dokumen kisi-kisi terpadu ini merangkum ${soalList.length} butir soal (${jenisRingkas.join(', ') || 'Campuran'}) yang dikelompokkan ke dalam ${daftarKisiKisi.length} Pokok Pembahasan Utama untuk tingkat ${kelas}. Soal-soal yang berada dalam satu rumpun materi telah disatukan lengkap dengan rincian indikator soal dan uraian materi konsep kunci agar siswa dapat belajar secara terarah dan mendalam.`,
       komposisi_soal: komposisi,
       daftar_kisi_kisi: daftarKisiKisi,
-      rangkuman_materi_penting: Array.from(topikSet).slice(0, 8).map(t => `Memahami konsep, karakteristik, dan penerapan dari ${t}.`),
+      rangkuman_materi_penting: daftarKisiKisi.map(d => `${d.materi_pokok} (${d.nomor_soal})`),
       tips_sukses_ujian: [
-        'Pelajari setiap indikator materi dan fokus belajar pada tabel kisi-kisi di atas sebelum memulai ujian.',
-        'Kerjakan terlebih dahulu butir soal yang dianggap paling mudah untuk menghemat waktu.',
-        komposisi.pg_kompleks > 0 ? 'Perhatikan soal Pilihan Ganda Kompleks yang meminta lebih dari satu jawaban benar (kotak centang).' : 'Teliti setiap pilihan jawaban pada soal objektif dan pastikan istilah pada soal isian ditulis dengan tepat.',
-        komposisi.koding_game > 0 ? 'Pada soal Game Koding, perhatikan jumlah target bintang, rintangan, dan batas efisiensi jumlah balok (Par Limit) sebelum menjalankan simulasi.' : 'Pada soal uraian/essay, tuliskan penjelasan secara runtut dengan kalimat yang jelas.',
-        'Periksa kembali seluruh jawaban sebelum menekan tombol Kumpulkan.'
+        'Pelajari uraian materi dan konsep kunci pada setiap Pokok Pembahasan di tabel kisi-kisi ini.',
+        'Perhatikan nomor soal dan bentuk soal pada setiap pembahasan untuk memahami cara menjawab yang tepat.'
       ],
       generated_at: new Date().toISOString()
     };
   },
 
-  // Generator Kisi-Kisi Otomatis Berbantuan AI dari Daftar Soal Ulangan (Mendukung Soal Campuran)
+  // Generator Kisi-Kisi Otomatis Berbantuan AI dari Daftar Soal Ulangan (Menyatukan Pembahasan Sejenis & Detail Tingkat SMP)
   async generateKisiKisiFromQuestions(ulangan = {}, soalList = [], options = {}) {
     if (!Array.isArray(soalList) || soalList.length === 0) {
       throw new Error('Tidak ada soal dalam ulangan ini untuk dianalisis menjadi kisi-kisi.');
@@ -2131,7 +2233,7 @@ ${jsonExample}
 
     const fallback = this.buildFallbackKisiKisi(ulangan, soalList);
 
-    // Susun rincian soal untuk dianalisis AI (tanpa meminta AI membocorkan kunci jawaban ke siswa)
+    // Susun rincian soal lengkap untuk dianalisis AI
     const soalSummaryText = soalList.map((s, idx) => {
       const no = s.nomor || (idx + 1);
       const jenisRaw = (s.jenis || 'isian').toLowerCase();
@@ -2142,86 +2244,77 @@ ${jsonExample}
         const rawKunci = String(s.kunci_pg || '').trim();
         bentuk = (rawKunci.includes(',') || rawKunci.length > 1) ? 'Pilihan Ganda Kompleks (Multi-Jawaban)' : 'Pilihan Ganda';
         const opsiPreview = [s.opsi_a, s.opsi_b, s.opsi_c, s.opsi_d, s.opsi_e].filter(Boolean).join(' | ');
-        extraInfo = `Cakupan Opsi: [${opsiPreview}]`;
+        extraInfo = `Pilihan Konsep di Opsi: [${opsiPreview}]`;
       } else if (jenisRaw === 'essay') {
         bentuk = 'Uraian / Essay';
-        if (s.rubrik) extraInfo = `Fokus Rubrik: ${String(s.rubrik).slice(0, 120)}`;
+        if (s.rubrik) extraInfo = `Fokus Rubrik: ${String(s.rubrik).slice(0, 200)}`;
       } else if (jenisRaw === 'koding_game') {
         let gd = {};
         try { gd = typeof s.game_data === 'string' ? JSON.parse(s.game_data) : (s.game_data || {}); } catch (e) {}
         bentuk = `Game Koding (${gd.title || gd.mode || 'Algoritma'})`;
-        extraInfo = `Mekanika: ${gd.description || gd.mode || 'Penyusunan algoritma balok'}`;
+        extraInfo = `Mode: ${gd.mode || '-'}, Deskripsi Misi: ${gd.description || gd.hint || 'Penyusunan algoritma balok'}`;
+      } else if (s.pembahasan) {
+        extraInfo = `Catatan Pembahasan: ${String(s.pembahasan).slice(0, 200)}`;
       }
 
       return `Soal #${no} [${bentuk}] (Kesulitan: ${s.tingkat_kesulitan || 'sedang'}, Bobot: ${s.bobot || 1}):
-Pertanyaan: ${String(s.pertanyaan || '').slice(0, 350)}
+Pertanyaan: ${String(s.pertanyaan || '').slice(0, 450)}
 ${extraInfo}`;
     }).join('\n\n');
 
-    const prompt = `Anda adalah Pakar Kurikulum dan Penyusun Kisi-Kisi Asesmen Pendidikan Nasional (Kurikulum Merdeka).
-Tugas Anda adalah menganalisis seluruh daftar butir soal ulangan berikut (termasuk jika soalnya campuran: Pilihan Ganda, Pilihan Ganda Kompleks, Isian Singkat, Essay/Uraian, maupun Game Koding) dan menyusun dokumen **KISI-KISI PENULISAN SOAL & PANDUAN BELAJAR SISWA** yang komprehensif, rapi, dan edukatif.
+    const prompt = `Anda adalah Pakar Kurikulum SMP/MTs Sederajat dan Penyusun Kisi-Kisi Asesmen Pendidikan Nasional.
+Tugas Anda adalah menganalisis seluruh ${soalList.length} butir soal ulangan berikut (termasuk soal campuran: Pilihan Ganda, PG Kompleks, Isian Singkat, Essay, maupun Game Koding) dan menyusun **KISI-KISI & URAIAN MATERI PEMBAHASAN DETAIL TINGKAT SMP** yang terpadu, sangat jelas, dan tidak terlalu umum.
 
-ATURAN SANGAT PENTING:
-1. JANGAN MEMBOCORKAN kunci jawaban persis (seperti "Jawabannya adalah A" atau menyebutkan jawaban akhir secara eksplisit), melainkan tuliskan **Materi Pokok**, **Indikator Pencapaian Kompetensi / Indikator Soal** (contoh: "Disajikan kasus ..., peserta didik dapat menentukan/menganalisis ..."), **Level Kognitif (C1-C6)**, dan **Fokus Materi Belajar** yang harus dikuasai siswa!
-2. Analisis tepat untuk SELURUH ${soalList.length} butir soal yang diberikan secara berurutan dari nomor 1 sampai ${soalList.length}.
-3. Jika terdapat soal **Game Koding**, jelaskan kompetensi berpikir komputasional / algoritmik yang diujikan (misal: navigasi sekuensial, efisiensi perulangan/loop, sensor percabangan if-else, debugging, pengenalan pola, atau penyusunan algoritma).
-4. Sajikan juga ringkasan cakupan materi, poin rangkuman konsep penting yang perlu dipelajari siswa, dan tips sukses mengerjakan ulangan ini.
-5. Instruksi tambahan dari guru (jika ada): ${options.instruksiTambahan || 'Buat kisi-kisi yang jelas, akademis, dan mudah dipahami oleh guru maupun siswa.'}
+ATURAN WAJIB (SANGAT PENTING):
+1. **SATUKAN SOAL YANG MASIH DALAM SATU PEMBAHASAN**:
+   - Jangan memecah kisi-kisi menjadi terlalu banyak bagian yang berulang! Jika ada beberapa nomor soal (misalnya Soal No. 1 dan No. 9, atau Soal PG No. 2 dan Isian No. 3) yang membahas topik/konsep yang sama atau serumpun, **GABUNGKAN / SATUKAN ke dalam satu baris Pokok Pembahasan** (contoh \`"nomor_soal": "No. 2 & 3"\`, \`"bentuk_soal": "Pilihan Ganda & Isian Singkat"\`).
+   - Pastikan seluruh nomor soal dari 1 sampai ${soalList.length} tercakup di dalam kelompok-kelompok pembahasan tersebut.
+2. **JANGAN TERLALU UMUM — BUAT SANGAT DETAIL & JELAS UNTUK SISWA SMP**:
+   - Hindari kalimat klise/umum seperti *"Disajikan soal, siswa dapat memilih jawaban yang tepat"*.
+   - Pada kolom \`"indikator_soal"\`, jelaskan secara **spesifik dan konkret** apa yang ditanyakan di masing-masing nomor soal dalam pembahasan tersebut (tanpa menyebutkan huruf kunci jawaban A/B/C/D secara mentah).
+   - Pada kolom \`"fokus_belajar"\`, tuliskan **Uraian Materi & Konsep Kunci yang Lengkap untuk Tingkat SMP**: jelaskan langsung pengertian istilah-istilah yang muncul di soal/opsi, perbedaan konsep, rumus/cara hitung (jika ada konversi/hitungan), atau cara kerja logika blok koding (jika ada soal Game Koding), sehingga siswa SMP cukup membaca tabel ini untuk memahami seluruh materi ulangan!
+3. Instruksi tambahan dari guru (jika ada): ${options.instruksiTambahan || 'Satukan soal yang satu pembahasan dan berikan penjelasan materi yang sangat detail serta mudah dipahami siswa tingkat SMP sederajat.'}
 
 IDENTITAS ULANGAN:
 - Judul Ulangan: ${ulangan.judul || '-'}
 - Mata Pelajaran: ${ulangan.mata_pelajaran || '-'}
-- Kelas / Tingkat: ${ulangan.tingkat_kelas || '-'}
-- KKM: ${ulangan.kkm || 75}
+- Kelas / Tingkat: ${ulangan.tingkat_kelas || 'SMP / Sederajat'}
 
-DAFTAR BUTIR SOAL YANG DIANALISIS (${soalList.length} SOAL):
+DAFTAR SELURUH BUTIR SOAL (${soalList.length} SOAL):
 ${soalSummaryText}
 
-Kembalikan HASIL HANYA dalam format JSON valid sesuai struktur berikut tanpa teks pembuka/penutup di luar JSON:
+Kembalikan HASIL HANYA dalam format JSON valid sesuai struktur berikut tanpa teks di luar JSON:
 {
-  "judul_kisi_kisi": "Kisi-Kisi & Panduan Belajar: ${ulangan.judul || 'Ulangan'}",
-  "ringkasan_cakupan": "Paragraf ringkasan menyeluruh tentang cakupan materi dan kompetensi yang diujikan...",
+  "judul_kisi_kisi": "Kisi-Kisi & Materi Pembahasan: ${ulangan.judul || 'Ulangan'}",
+  "ringkasan_cakupan": "Ringkasan padat (2-3 kalimat) mengenai fokus materi ulangan ini...",
   "daftar_kisi_kisi": [
     {
-      "nomor_soal": "1",
-      "bentuk_soal": "Pilihan Ganda / PG Kompleks / Isian Singkat / Essay / Game Koding",
-      "materi_pokok": "Nama topik / konsep materi pokok...",
-      "indikator_soal": "Disajikan ..., peserta didik mampu ...",
-      "level_kognitif": "C1 / C2 / C3 / C4 / C5 / C6 beserta keterangannya",
-      "fokus_belajar": "Konsep spesifik yang perlu dibaca/dipelajari siswa..."
+      "nomor_soal": "No. 1 & 4 (atau No. 1 jika tunggal)",
+      "bentuk_soal": "Pilihan Ganda & Essay",
+      "materi_pokok": "1. Judul Pokok Pembahasan / Bab Materi yang Jelas",
+      "indikator_soal": "Penjelasan detail dan spesifik mengenai apa yang diujikan pada nomor-nomor soal tersebut...",
+      "level_kognitif": "C2 - C3 (Memahami & Menerapkan)",
+      "fokus_belajar": "Uraian materi detail untuk siswa SMP: jelaskan definisi istilah, perbandingan konsep di opsi, contoh konkret, atau langkah penyelesaian..."
     }
-  ],
-  "rangkuman_materi_penting": [
-    "Poin rangkuman konsep penting 1...",
-    "Poin rangkuman konsep penting 2..."
-  ],
-  "tips_sukses_ujian": [
-    "Tips belajar & strategi mengerjakan 1...",
-    "Tips belajar & strategi mengerjakan 2..."
   ]
 }`;
 
     try {
       const aiResult = await this.callJsonPrompt(prompt, {
         temperature: 0.25,
-        timeout: 30000,
+        timeout: 35000,
         apiKey: options.apiKey
       });
 
       if (aiResult && Array.isArray(aiResult.daftar_kisi_kisi) && aiResult.daftar_kisi_kisi.length > 0) {
-        // Pastikan setiap nomor soal tetap lengkap & terstruktur
-        const normalizedList = fallback.daftar_kisi_kisi.map((fbItem, idx) => {
-          const matched = aiResult.daftar_kisi_kisi.find(it => String(it.nomor_soal) === String(fbItem.nomor_soal)) || aiResult.daftar_kisi_kisi[idx];
-          if (!matched) return fbItem;
-          return {
-            nomor_soal: String(fbItem.nomor_soal),
-            bentuk_soal: matched.bentuk_soal || fbItem.bentuk_soal,
-            materi_pokok: matched.materi_pokok || fbItem.materi_pokok,
-            indikator_soal: matched.indikator_soal || fbItem.indikator_soal,
-            level_kognitif: matched.level_kognitif || fbItem.level_kognitif,
-            fokus_belajar: matched.fokus_belajar || fbItem.fokus_belajar
-          };
-        });
+        const cleanedList = aiResult.daftar_kisi_kisi.map((item, idx) => ({
+          nomor_soal: String(item.nomor_soal || `Bagian ${idx + 1}`).trim(),
+          bentuk_soal: String(item.bentuk_soal || 'Campuran').trim(),
+          materi_pokok: String(item.materi_pokok || `Pokok Pembahasan ${idx + 1}`).trim(),
+          indikator_soal: String(item.indikator_soal || '-').trim(),
+          level_kognitif: String(item.level_kognitif || 'C2 - C3').trim(),
+          fokus_belajar: String(item.fokus_belajar || '-').trim()
+        }));
 
         return {
           judul_kisi_kisi: aiResult.judul_kisi_kisi || fallback.judul_kisi_kisi,
@@ -2229,13 +2322,9 @@ Kembalikan HASIL HANYA dalam format JSON valid sesuai struktur berikut tanpa tek
           tingkat_kelas: fallback.tingkat_kelas,
           ringkasan_cakupan: aiResult.ringkasan_cakupan || fallback.ringkasan_cakupan,
           komposisi_soal: fallback.komposisi_soal,
-          daftar_kisi_kisi: normalizedList,
-          rangkuman_materi_penting: Array.isArray(aiResult.rangkuman_materi_penting) && aiResult.rangkuman_materi_penting.length > 0
-            ? aiResult.rangkuman_materi_penting
-            : fallback.rangkuman_materi_penting,
-          tips_sukses_ujian: Array.isArray(aiResult.tips_sukses_ujian) && aiResult.tips_sukses_ujian.length > 0
-            ? aiResult.tips_sukses_ujian
-            : fallback.tips_sukses_ujian,
+          daftar_kisi_kisi: cleanedList,
+          rangkuman_materi_penting: cleanedList.map(d => `${d.materi_pokok} (${d.nomor_soal})`),
+          tips_sukses_ujian: fallback.tips_sukses_ujian,
           generated_by: 'gemini_ai',
           generated_at: new Date().toISOString()
         };
