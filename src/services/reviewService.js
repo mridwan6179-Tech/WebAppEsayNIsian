@@ -21,6 +21,9 @@ const reviewService = {
         p.id as pengerjaan_id,
         p.ulangan_id,
         p.peserta_id,
+        p.sesi_id,
+        COALESCE(us.nama_sesi, p.nama_sesi) as nama_sesi,
+        us.kode_sesi,
         p.status,
         p.started_at,
         p.submitted_at,
@@ -40,6 +43,7 @@ const reviewService = {
         CAST(ROUND((julianday('now') - julianday(COALESCE(p.last_active_at, p.started_at))) * 86400) AS INTEGER) as detik_sejak_aktif
       FROM pengerjaan p
       JOIN peserta pes ON p.peserta_id = pes.id
+      LEFT JOIN ulangan_sesi us ON p.sesi_id = us.id
       LEFT JOIN jawaban j ON p.id = j.pengerjaan_id
       LEFT JOIN soal s ON j.soal_id = s.id
       WHERE p.ulangan_id = ?
@@ -724,8 +728,8 @@ const reviewService = {
     };
   },
 
-  // Laporan Rekapitulasi Nilai per Kelas & per Ulangan untuk Dicetak
-  getLaporanNilai(ulanganId, guruId, kelasFilter = null) {
+  // Laporan Rekapitulasi Nilai per Kelas & per Ulangan untuk Dicetak (Mendukung Multi-Sesi)
+  getLaporanNilai(ulanganId, guruId, kelasFilter = null, sesiFilter = null) {
     const isOwner = (Number(guruId) === 1 || Number(guruId) === 3);
     const ulangan = db.prepare(`
       SELECT u.*, g.nama as nama_guru, g.email as email_guru
@@ -745,10 +749,24 @@ const reviewService = {
       ORDER BY pes.kelas ASC
     `).all(ulanganId).map(r => r.kelas);
 
+    // Ambil semua sesi yang tersedia pada ulangan ini
+    let sesiList = [];
+    try {
+      sesiList = db.prepare(`
+        SELECT id, nama_sesi, kode_sesi, kelas, waktu_mulai, waktu_selesai, status
+        FROM ulangan_sesi
+        WHERE ulangan_id = ?
+        ORDER BY waktu_mulai ASC, id ASC
+      `).all(ulanganId);
+    } catch (e) {}
+
     // Ambil peserta dan nilai
     let query = `
       SELECT 
         p.id as pengerjaan_id,
+        p.sesi_id,
+        COALESCE(us.nama_sesi, p.nama_sesi) as nama_sesi,
+        us.kode_sesi,
         p.status,
         p.started_at,
         p.submitted_at,
@@ -764,6 +782,7 @@ const reviewService = {
         SUM(CASE WHEN j.status_penilaian = 'selesai' THEN 1 ELSE 0 END) as total_dinilai
       FROM pengerjaan p
       JOIN peserta pes ON p.peserta_id = pes.id
+      LEFT JOIN ulangan_sesi us ON p.sesi_id = us.id
       LEFT JOIN jawaban j ON p.id = j.pengerjaan_id
       WHERE p.ulangan_id = ?
     `;
@@ -772,6 +791,11 @@ const reviewService = {
     if (kelasFilter && kelasFilter.trim() !== '' && kelasFilter !== 'all') {
       query += ' AND pes.kelas = ?';
       params.push(kelasFilter.trim());
+    }
+
+    if (sesiFilter && sesiFilter.trim() !== '' && sesiFilter !== 'all') {
+      query += ' AND (p.sesi_id = ? OR us.kode_sesi = ?)';
+      params.push(sesiFilter.trim(), sesiFilter.trim());
     }
 
     query += `
@@ -790,20 +814,50 @@ const reviewService = {
     const examKkm = ulangan.kkm || 75;
     let tuntasCount = 0;
 
+    // Perhitungan statistik tersegmentasi per sesi
+    const sesiStatsMap = new Map();
+
     pesertaList.forEach(st => {
+      const sKey = st.sesi_id || 0;
+      const sName = st.nama_sesi || 'Tanpa Sesi / Utama';
+      if (!sesiStatsMap.has(sKey)) {
+        sesiStatsMap.set(sKey, {
+          sesi_id: st.sesi_id || null,
+          nama_sesi: sName,
+          kode_sesi: st.kode_sesi || '-',
+          total_peserta: 0,
+          submitted_count: 0,
+          total_score: 0,
+          tuntas_count: 0
+        });
+      }
+      const sItem = sesiStatsMap.get(sKey);
+      sItem.total_peserta++;
+
       if (st.status === 'submitted') {
         submittedCount++;
+        sItem.submitted_count++;
+
         const finalScore = st.nilai_final !== null ? st.nilai_final : (st.nilai_ai !== null ? st.nilai_ai : null);
         if (finalScore !== null) {
           totalScore += finalScore;
+          sItem.total_score += finalScore;
+
           if (highestScore === null || finalScore > highestScore) highestScore = finalScore;
           if (lowestScore === null || finalScore < lowestScore) lowestScore = finalScore;
-          if (finalScore >= examKkm) tuntasCount++;
+          if (finalScore >= examKkm) {
+            tuntasCount++;
+            sItem.tuntas_count++;
+          }
         }
       }
     });
 
     const averageScore = submittedCount > 0 ? Number((totalScore / submittedCount).toFixed(1)) : 0;
+    const statistikSesi = Array.from(sesiStatsMap.values()).map(s => ({
+      ...s,
+      rata_rata: s.submitted_count > 0 ? Number((s.total_score / s.submitted_count).toFixed(1)) : 0
+    }));
 
     return {
       ulangan: {
@@ -823,7 +877,9 @@ const reviewService = {
         email_guru: ulangan.email_guru
       },
       filter_kelas: kelasFilter || 'all',
+      filter_sesi: sesiFilter || 'all',
       available_classes: kelasList,
+      available_sesi: sesiList,
       statistik: {
         total_peserta: totalPeserta,
         total_submitted: submittedCount,
@@ -834,6 +890,7 @@ const reviewService = {
         tuntas_count: tuntasCount,
         belum_tuntas_count: Math.max(0, submittedCount - tuntasCount)
       },
+      statistik_sesi: statistikSesi,
       peserta: pesertaList
     };
   },

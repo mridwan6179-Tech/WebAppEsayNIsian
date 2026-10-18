@@ -701,6 +701,155 @@ describe('=== SUITE: ULANGAN MODE PERMAINAN KODING (SMP) & HYBRID ===', () => {
     assert.strictEqual(statusAfter.skorLangsungAi, true);
     assert.ok(statusAfter.nilaiFinal !== null && statusAfter.nilaiFinal >= 50, `Nilai final harus keluar otomatis: ${statusAfter.nilaiFinal}`);
   });
+
+  test('17. Fitur Multi-Sesi Ujian (Beda Kelas, Tanggal, Jam, Rentang Waktu, Token Unik, Optional & Rekapitulasi Tersegmentasi)', async () => {
+    const reviewService = require('../src/services/reviewService');
+    const tokenSesi1 = 'S1' + Math.random().toString(36).substring(2, 6).toUpperCase();
+    const tokenSesi3 = 'S3' + Math.random().toString(36).substring(2, 6).toUpperCase();
+
+    // 1. Buat ulangan induk (Multi-sesi bersifat optional)
+    const ulangan = examService.createUlangan(testGuruId, {
+      judul: 'Ulangan Semester Multi-Sesi Informatika',
+      mata_pelajaran: 'Informatika',
+      tingkat_kelas: '7A, 7B, 7C',
+      jenis_ulangan: 'pilihan_ganda'
+    });
+    const soal = examService.createSoal(ulangan.id, {
+      jenis: 'pilihan_ganda',
+      pertanyaan: 'Manakah yang merupakan perangkat input komputer?',
+      opsi_a: 'Keyboard',
+      opsi_b: 'Monitor',
+      opsi_c: 'Printer',
+      opsi_d: 'Speaker',
+      kunci_pg: 'A',
+      bobot: 100
+    });
+    examService.updateUlangan(ulangan.id, testGuruId, { status: 'dibuka' });
+
+    // 2. Ulangan tanpa sesi tetap bekerja normal menggunakan master kode_ujian (fitur optional)
+    const checkMaster = studentService.validateExamCode(ulangan.kode_ujian);
+    assert.strictEqual(checkMaster.valid, true);
+    assert.strictEqual(checkMaster.sesi, null);
+    assert.strictEqual(checkMaster.daftar_sesi.length, 0);
+
+    // 3. Guru membuat Sesi 1 (Kelas 7A, aktif sekarang, token custom tokenSesi1)
+    const now = new Date();
+    const sesi1Start = new Date(now.getTime() - 10 * 60000).toISOString();
+    const sesi1End = new Date(now.getTime() + 60 * 60000).toISOString();
+    const sesi1 = examService.createSesi(ulangan.id, testGuruId, {
+      nama_sesi: 'Sesi Pagi - Kelas 7A',
+      kode_sesi: tokenSesi1,
+      kelas: '7A',
+      waktu_mulai: sesi1Start,
+      waktu_selesai: sesi1End,
+      kuota_peserta: 35
+    });
+    assert.strictEqual(sesi1.nama_sesi, 'Sesi Pagi - Kelas 7A');
+    assert.strictEqual(sesi1.kode_sesi, tokenSesi1);
+    assert.strictEqual(sesi1.status_waktu, 'berlangsung');
+
+    // 4. Guru membuat Sesi 2 (Kelas 7B, jadwal masa depan / akan datang, auto token)
+    const sesi2Start = new Date(now.getTime() + 2 * 3600000).toISOString();
+    const sesi2End = new Date(now.getTime() + 4 * 3600000).toISOString();
+    const sesi2 = examService.createSesi(ulangan.id, testGuruId, {
+      nama_sesi: 'Sesi Siang - Kelas 7B',
+      kelas: '7B',
+      waktu_mulai: sesi2Start,
+      waktu_selesai: sesi2End
+    });
+    assert.ok(sesi2.kode_sesi.startsWith('S'));
+    assert.strictEqual(sesi2.status_waktu, 'akan_datang');
+
+    // 5. Guru membuat Sesi 3 (Kelas 7C, jadwal masa lalu / expired)
+    const sesi3Start = new Date(now.getTime() - 4 * 3600000).toISOString();
+    const sesi3End = new Date(now.getTime() - 2 * 3600000).toISOString();
+    const sesi3 = examService.createSesi(ulangan.id, testGuruId, {
+      nama_sesi: 'Sesi Kemarin - Kelas 7C',
+      kode_sesi: tokenSesi3,
+      kelas: '7C',
+      waktu_mulai: sesi3Start,
+      waktu_selesai: sesi3End
+    });
+    assert.strictEqual(sesi3.status_waktu, 'selesai');
+
+    // 6. Validasi duplikasi token sesi ditolak
+    assert.throws(() => {
+      examService.createSesi(ulangan.id, testGuruId, {
+        nama_sesi: 'Sesi Duplikat Token',
+        kode_sesi: tokenSesi1
+      });
+    }, /sudah digunakan|sudah dipakai/i);
+
+    // 7. Siswa cek dengan kode master ujian sekarang mendeteksi daftar sesi yang tersedia
+    const checkMasterWithSessions = studentService.validateExamCode(ulangan.kode_ujian);
+    assert.strictEqual(checkMasterWithSessions.valid, true);
+    assert.strictEqual(checkMasterWithSessions.daftar_sesi.length, 3);
+
+    // 8. Siswa cek dengan token Sesi 1 (Aktif)
+    const checkSesi1 = studentService.validateExamCode(tokenSesi1);
+    assert.strictEqual(checkSesi1.valid, true);
+    assert.ok(checkSesi1.sesi);
+    assert.strictEqual(checkSesi1.sesi.nama_sesi, 'Sesi Pagi - Kelas 7A');
+    assert.deepStrictEqual(checkSesi1.available_classes, ['7A']);
+
+    // 9. Siswa cek dengan token Sesi 2 (Akan datang / belum buka)
+    const checkSesi2 = studentService.validateExamCode(sesi2.kode_sesi);
+    assert.strictEqual(checkSesi2.valid, false);
+    assert.strictEqual(checkSesi2.status, 'sesi_belum_buka');
+
+    // 10. Siswa cek dengan token Sesi 3 (Expired / sesi sudah tutup)
+    const checkSesi3 = studentService.validateExamCode(tokenSesi3);
+    assert.strictEqual(checkSesi3.valid, false);
+    assert.strictEqual(checkSesi3.status, 'sesi_sudah_tutup');
+
+    // 11. Siswa masuk Sesi 1 dengan kelas yang tidak terdaftar (7B coba masuk sesi 7A) -> Ditolak
+    assert.throws(() => {
+      studentService.startExam(tokenSesi1, 'Ahmad Dani', '7B');
+    }, /khusus untuk kelas 7A/i);
+
+    // 12. Siswa masuk Sesi 1 dengan kelas yang benar (7A) -> Berhasil & sesi_id tercatat di pengerjaan
+    const sess1 = studentService.startExam(tokenSesi1, 'Budi Santoso', '7A');
+    assert.strictEqual(sess1.peserta.nama, 'Budi Santoso');
+    const pRecord1 = db.prepare('SELECT sesi_id, nama_sesi FROM pengerjaan WHERE id = ?').get(sess1.pengerjaanId);
+    assert.strictEqual(pRecord1.sesi_id, sesi1.id);
+    assert.strictEqual(pRecord1.nama_sesi, 'Sesi Pagi - Kelas 7A');
+
+    // Kumpulkan jawaban siswa Sesi 1
+    const sub1 = studentService.submitExam(sess1.pengerjaanId, [{ soal_id: soal.id, jawaban_siswa: 'A' }]);
+    assert.strictEqual(sub1.success, true);
+
+    // Siswa lain masuk tanpa sesi menggunakan kode induk master
+    const sessMaster = studentService.startExam(ulangan.kode_ujian, 'Citra Lestari', '7C');
+    const pRecordMaster = db.prepare('SELECT sesi_id, nama_sesi FROM pengerjaan WHERE id = ?').get(sessMaster.pengerjaanId);
+    assert.strictEqual(pRecordMaster.sesi_id, null);
+    studentService.submitExam(sessMaster.pengerjaanId, [{ soal_id: soal.id, jawaban_siswa: 'A' }]);
+
+    // 13. Evaluasi Rekapitulasi / Laporan Nilai Tersegmentasi per Sesi
+    const laporanSemua = reviewService.getLaporanNilai(ulangan.id, testGuruId, 'all', 'all');
+    assert.strictEqual(laporanSemua.statistik.total_peserta, 2);
+    assert.strictEqual(laporanSemua.available_sesi.length, 3);
+    assert.ok(Array.isArray(laporanSemua.statistik_sesi));
+    assert.strictEqual(laporanSemua.statistik_sesi.length, 2); // 1 untuk Sesi 1, 1 untuk Tanpa Sesi
+
+    // Filter laporan khusus Sesi 1
+    const laporanSesi1 = reviewService.getLaporanNilai(ulangan.id, testGuruId, 'all', String(sesi1.id));
+    assert.strictEqual(laporanSesi1.statistik.total_peserta, 1);
+    assert.strictEqual(laporanSesi1.peserta[0].nama_siswa, 'Budi Santoso');
+    assert.strictEqual(laporanSesi1.peserta[0].nama_sesi, 'Sesi Pagi - Kelas 7A');
+    assert.strictEqual(laporanSesi1.peserta[0].kode_sesi, tokenSesi1);
+
+    // 14. Guru mengedit dan menghapus sesi
+    const updatedSesi = examService.updateSesi(sesi1.id, testGuruId, {
+      nama_sesi: 'Sesi Pagi Kelas 7A (Diperbarui)',
+      kuota_peserta: 40
+    });
+    assert.strictEqual(updatedSesi.nama_sesi, 'Sesi Pagi Kelas 7A (Diperbarui)');
+    assert.strictEqual(updatedSesi.kuota_peserta, 40);
+
+    const deleteRes = examService.deleteSesi(sesi2.id, testGuruId);
+    assert.strictEqual(deleteRes.success, true);
+    assert.strictEqual(examService.getSesiById(sesi2.id), null);
+  });
 });
 
 

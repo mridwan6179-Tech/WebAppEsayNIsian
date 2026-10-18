@@ -13,6 +13,16 @@ const examService = {
     return code;
   },
 
+  // Generate kode sesi unik (diawali huruf S)
+  generateSessionCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = 'S';
+    for (let i = 0; i < 5; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  },
+
   // Helper konversi tanggal dan zona waktu Indonesia (WIB, WITA, WIT)
   parseIndonesianDateTime(dateStr, zonaWaktu = 'WIB') {
     if (!dateStr) return null;
@@ -1188,6 +1198,229 @@ const examService = {
       paket_list: paketList,
       master_keys: masterKeys
     };
+  },
+
+  // =========================================================================
+  // MANAJEMEN SESI UJIAN (Multi-Sesi: Beda Kelas, Jam, Tanggal & Token)
+  // =========================================================================
+
+  getSesiByUlangan(ulanganId, guruId = null) {
+    const ulangan = this.getUlanganById(ulanganId, guruId);
+    if (!ulangan) {
+      throw new Error('Ulangan tidak ditemukan atau akses ditolak');
+    }
+
+    const sesiList = db.prepare(`
+      SELECT 
+        s.id,
+        s.ulangan_id,
+        s.nama_sesi,
+        s.kode_sesi,
+        s.kelas,
+        s.waktu_mulai,
+        s.waktu_selesai,
+        s.kuota_peserta,
+        s.status,
+        s.created_at,
+        COUNT(p.id) as total_peserta,
+        SUM(CASE WHEN p.status = 'submitted' THEN 1 ELSE 0 END) as total_selesai,
+        SUM(CASE WHEN p.status = 'mengerjakan' THEN 1 ELSE 0 END) as total_mengerjakan
+      FROM ulangan_sesi s
+      LEFT JOIN pengerjaan p ON s.id = p.sesi_id
+      WHERE s.ulangan_id = ?
+      GROUP BY s.id
+      ORDER BY s.waktu_mulai ASC, s.id ASC
+    `).all(ulanganId);
+
+    const zw = ulangan.zona_waktu || 'WIB';
+
+    return sesiList.map(s => {
+      const now = new Date();
+      let statusWaktu = 'berlangsung';
+      if (s.waktu_mulai && new Date(s.waktu_mulai) > now) {
+        statusWaktu = 'akan_datang';
+      } else if (s.waktu_selesai && new Date(s.waktu_selesai) < now) {
+        statusWaktu = 'selesai';
+      }
+
+      return {
+        ...s,
+        zona_waktu: zw,
+        status_waktu: statusWaktu,
+        waktu_mulai_formatted: s.waktu_mulai ? this.formatIndonesianDateTime(s.waktu_mulai, zw) : null,
+        waktu_selesai_formatted: s.waktu_selesai ? this.formatIndonesianDateTime(s.waktu_selesai, zw) : null
+      };
+    });
+  },
+
+  createSesi(ulanganId, guruId, data) {
+    const ulangan = this.getUlanganById(ulanganId, guruId);
+    if (!ulangan) {
+      throw new Error('Ulangan tidak ditemukan atau akses ditolak');
+    }
+
+    const namaSesi = (data.nama_sesi || '').trim();
+    if (!namaSesi) {
+      throw new Error('Nama sesi wajib diisi (misal: Sesi 1 - Kelas 7A)');
+    }
+
+    let kodeSesi = (data.kode_sesi || '').trim().toUpperCase();
+    if (kodeSesi) {
+      kodeSesi = kodeSesi.replace(/[^A-Z0-9_-]/g, '');
+      if (kodeSesi.length < 3) {
+        throw new Error('Token/kode sesi minimal 3 karakter');
+      }
+      const existing = db.prepare('SELECT id FROM ulangan_sesi WHERE kode_sesi = ?').get(kodeSesi);
+      if (existing) {
+        throw new Error(`Token sesi "${kodeSesi}" sudah digunakan pada sesi lain. Gunakan token yang berbeda.`);
+      }
+      const existingMaster = db.prepare('SELECT id FROM ulangan WHERE kode_ujian = ?').get(kodeSesi);
+      if (existingMaster) {
+        throw new Error(`Token "${kodeSesi}" sama dengan kode ujian utama. Gunakan token sesi yang berbeda.`);
+      }
+    } else {
+      let isUnique = false;
+      while (!isUnique) {
+        kodeSesi = this.generateSessionCode();
+        const existing = db.prepare('SELECT id FROM ulangan_sesi WHERE kode_sesi = ?').get(kodeSesi);
+        const existingMaster = db.prepare('SELECT id FROM ulangan WHERE kode_ujian = ?').get(kodeSesi);
+        if (!existing && !existingMaster) isUnique = true;
+      }
+    }
+
+    const zw = ulangan.zona_waktu || 'WIB';
+    const cleanMulai = data.waktu_mulai ? this.parseIndonesianDateTime(data.waktu_mulai, zw) : null;
+    const cleanSelesai = data.waktu_selesai ? this.parseIndonesianDateTime(data.waktu_selesai, zw) : null;
+
+    if (cleanMulai && cleanSelesai && new Date(cleanMulai) > new Date(cleanSelesai)) {
+      throw new Error('Waktu mulai sesi tidak boleh melewati batas waktu selesai');
+    }
+
+    const cleanKelas = (data.kelas || '').trim() || null;
+    const kuota = (data.kuota_peserta !== undefined && data.kuota_peserta !== null && data.kuota_peserta !== '') 
+      ? Math.max(1, Number(data.kuota_peserta)) 
+      : null;
+    const status = data.status === 'nonaktif' ? 'nonaktif' : 'aktif';
+
+    const info = db.prepare(`
+      INSERT INTO ulangan_sesi (ulangan_id, nama_sesi, kode_sesi, kelas, waktu_mulai, waktu_selesai, kuota_peserta, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(ulanganId, namaSesi, kodeSesi, cleanKelas, cleanMulai, cleanSelesai, kuota, status);
+
+    if (typeof db.syncCloud === 'function') {
+      try { db.syncCloud(true); } catch (e) {}
+    }
+
+    return this.getSesiById(info.lastInsertRowid, guruId);
+  },
+
+  getSesiById(sesiId, guruId = null) {
+    const sesi = db.prepare(`
+      SELECT s.*, u.judul as judul_ulangan, u.zona_waktu, u.guru_id
+      FROM ulangan_sesi s
+      JOIN ulangan u ON s.ulangan_id = u.id
+      WHERE s.id = ?
+    `).get(sesiId);
+
+    if (!sesi) return null;
+    if (guruId && String(sesi.guru_id) !== String(guruId)) {
+      throw new Error('Akses ke sesi ini ditolak');
+    }
+
+    const zw = sesi.zona_waktu || 'WIB';
+    const now = new Date();
+    let statusWaktu = 'berlangsung';
+    if (sesi.waktu_mulai && new Date(sesi.waktu_mulai) > now) {
+      statusWaktu = 'akan_datang';
+    } else if (sesi.waktu_selesai && new Date(sesi.waktu_selesai) < now) {
+      statusWaktu = 'selesai';
+    }
+
+    return {
+      ...sesi,
+      status_waktu: statusWaktu,
+      waktu_mulai_formatted: sesi.waktu_mulai ? this.formatIndonesianDateTime(sesi.waktu_mulai, zw) : null,
+      waktu_selesai_formatted: sesi.waktu_selesai ? this.formatIndonesianDateTime(sesi.waktu_selesai, zw) : null
+    };
+  },
+
+  updateSesi(sesiId, guruId, data) {
+    const existing = this.getSesiById(sesiId, guruId);
+    if (!existing) {
+      throw new Error('Sesi tidak ditemukan atau akses ditolak');
+    }
+
+    const namaSesi = (data.nama_sesi !== undefined) ? String(data.nama_sesi).trim() : existing.nama_sesi;
+    if (!namaSesi) {
+      throw new Error('Nama sesi tidak boleh kosong');
+    }
+
+    let kodeSesi = existing.kode_sesi;
+    if (data.kode_sesi) {
+      const cleanKode = String(data.kode_sesi).trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+      if (cleanKode.length < 3) {
+        throw new Error('Token/kode sesi minimal 3 karakter');
+      }
+      if (cleanKode !== existing.kode_sesi) {
+        const checkDup = db.prepare('SELECT id FROM ulangan_sesi WHERE kode_sesi = ? AND id != ?').get(cleanKode, sesiId);
+        if (checkDup) {
+          throw new Error(`Token "${cleanKode}" sudah dipakai oleh sesi lain.`);
+        }
+        kodeSesi = cleanKode;
+      }
+    }
+
+    const zw = existing.zona_waktu || 'WIB';
+    const cleanMulai = (data.waktu_mulai !== undefined) 
+      ? (data.waktu_mulai ? this.parseIndonesianDateTime(data.waktu_mulai, zw) : null)
+      : existing.waktu_mulai;
+    const cleanSelesai = (data.waktu_selesai !== undefined) 
+      ? (data.waktu_selesai ? this.parseIndonesianDateTime(data.waktu_selesai, zw) : null)
+      : existing.waktu_selesai;
+
+    if (cleanMulai && cleanSelesai && new Date(cleanMulai) > new Date(cleanSelesai)) {
+      throw new Error('Waktu mulai sesi tidak boleh melewati batas waktu selesai');
+    }
+
+    const cleanKelas = (data.kelas !== undefined) ? (String(data.kelas).trim() || null) : existing.kelas;
+    const kuota = (data.kuota_peserta !== undefined)
+      ? ((data.kuota_peserta !== null && data.kuota_peserta !== '') ? Math.max(1, Number(data.kuota_peserta)) : null)
+      : existing.kuota_peserta;
+    const status = (data.status !== undefined) ? (data.status === 'nonaktif' ? 'nonaktif' : 'aktif') : existing.status;
+
+    db.prepare(`
+      UPDATE ulangan_sesi
+      SET nama_sesi = ?, kode_sesi = ?, kelas = ?, waktu_mulai = ?, waktu_selesai = ?, kuota_peserta = ?, status = ?
+      WHERE id = ?
+    `).run(namaSesi, kodeSesi, cleanKelas, cleanMulai, cleanSelesai, kuota, status, sesiId);
+
+    // Update nama_sesi di pengerjaan yang tertaut
+    try {
+      db.prepare('UPDATE pengerjaan SET nama_sesi = ? WHERE sesi_id = ?').run(namaSesi, sesiId);
+    } catch (e) {}
+
+    if (typeof db.syncCloud === 'function') {
+      try { db.syncCloud(true); } catch (e) {}
+    }
+
+    return this.getSesiById(sesiId, guruId);
+  },
+
+  deleteSesi(sesiId, guruId) {
+    const existing = this.getSesiById(sesiId, guruId);
+    if (!existing) {
+      throw new Error('Sesi tidak ditemukan atau akses ditolak');
+    }
+
+    // Lepaskan tautan sesi_id di pengerjaan tapi pertahankan nama_sesi
+    db.prepare('UPDATE pengerjaan SET sesi_id = NULL WHERE sesi_id = ?').run(sesiId);
+    db.prepare('DELETE FROM ulangan_sesi WHERE id = ?').run(sesiId);
+
+    if (typeof db.syncCloud === 'function') {
+      try { db.syncCloud(true); } catch (e) {}
+    }
+
+    return { success: true, message: `Sesi "${existing.nama_sesi}" berhasil dihapus` };
   }
 };
 

@@ -62,7 +62,7 @@ const waitingRoomService = {
   // GERBANG 1: Masuk Ujian (Entry Gate)
   // Memastikan siswa yang sedang mengerjakan di dalam bisa mencapai kapasitas penuh (200 siswa),
   // namun jika ada lonjakan serentak > 20 siswa dalam detik yang sama, siswa diantrekan beberapa detik secara halus.
-  checkEntry(kodeUjian, nama, kelas, customMax = null) {
+  checkEntry(kodeUjian, nama, kelas, customMax = null, sesiId = null) {
     const maxCapacity = customMax || this.getMaxInside();
     const burstLimit = this.getMaxBurst();
     const cleanKode = (kodeUjian || '').trim().toUpperCase();
@@ -100,14 +100,14 @@ const waitingRoomService = {
 
     // Jika ruang ujian sudah penuh total (misal 200 siswa)
     if (activeCount >= maxCapacity) {
-      return this.createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, 'Ruang ujian sedang penuh');
+      return this.createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, 'Ruang ujian sedang penuh', sesiId);
     }
 
     // 4. Cek apakah terjadi lonjakan serentak masuk (Burst Entry Gate > 20)
     // Jika antrean tiket sedang ada siswa yang mengantre, siswa baru harus antre di belakangnya
     const waitingForThisExam = this.getWaitingListForExam(ulanganId);
     if (waitingForThisExam.length > 0 || activeEnteringCount >= burstLimit) {
-      return this.createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, 'Sistem sedang mengatur antrean gerbang masuk');
+      return this.createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, 'Sistem sedang mengatur antrean gerbang masuk', sesiId);
     }
 
     // Lolos masuk ke lembar ujian
@@ -130,7 +130,7 @@ const waitingRoomService = {
     return list;
   },
 
-  createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, reason) {
+  createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, reason, sesiId = null) {
     for (const [tId, t] of waitingTickets.entries()) {
       if (
         t.ulanganId === ulanganId &&
@@ -158,6 +158,7 @@ const waitingRoomService = {
       kodeUjian: cleanKode,
       nama: cleanNama,
       kelas: cleanKelas,
+      sesiId: sesiId || null,
       status: 'waiting',
       createdAt: Date.now(),
       lastPolledAt: Date.now()

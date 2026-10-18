@@ -188,10 +188,10 @@ app.get('/api/siswa/sedang-mengerjakan/:kode', (req, res) => {
 
 app.post('/api/siswa/mulai', (req, res) => {
   try {
-    const { kode_ujian, nama, kelas } = req.body;
+    const { kode_ujian, nama, kelas, sesi_id } = req.body;
 
     // Periksa batas kuota bersamaan (maks 20 siswa) & sistem antrean ruang tunggu
-    const check = waitingRoomService.checkEntry(kode_ujian, nama, kelas);
+    const check = waitingRoomService.checkEntry(kode_ujian, nama, kelas, null, sesi_id);
     if (!check.allowed && check.inQueue) {
       return res.json({
         success: true,
@@ -205,7 +205,7 @@ app.post('/api/siswa/mulai', (req, res) => {
       });
     }
 
-    const result = studentService.startExam(kode_ujian, nama, kelas);
+    const result = studentService.startExam(kode_ujian, nama, kelas, sesi_id);
     res.json({ success: true, inQueue: false, ...result });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -223,7 +223,7 @@ app.get('/api/siswa/antrean/:ticketId', (req, res) => {
     if (status.status === 'ready') {
       const { ticket } = status;
       // Giliran tiba: mulai ujian dan konsumsi tiket
-      const examData = studentService.startExam(ticket.kodeUjian, ticket.nama, ticket.kelas);
+      const examData = studentService.startExam(ticket.kodeUjian, ticket.nama, ticket.kelas, ticket.sesiId);
       waitingRoomService.consumeTicket(req.params.ticketId);
       return res.json({
         success: true,
@@ -515,11 +515,58 @@ app.post('/api/guru/ulangan/:id/generate-kisi-kisi', requireGuru, async (req, re
   }
 });
 
-// Laporan Nilai per Kelas & Ulangan (Cetak / PDF)
+// Laporan Nilai per Kelas & Ulangan (Cetak / PDF - Mendukung Multi-Sesi)
 app.get('/api/guru/ulangan/:id/laporan', requireGuru, (req, res) => {
   try {
-    const laporan = reviewService.getLaporanNilai(req.params.id, req.guru.guruId, req.query.kelas);
+    const laporan = reviewService.getLaporanNilai(req.params.id, req.guru.guruId, req.query.kelas, req.query.sesi);
     res.json({ success: true, data: laporan });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// Manajemen Multi-Sesi Ujian (Beda Kelas, Tanggal, Jam, dan Token)
+app.get('/api/guru/ulangan/:id/sesi', requireGuru, (req, res) => {
+  try {
+    const list = examService.getSesiByUlangan(req.params.id, req.guru.guruId);
+    res.json({ success: true, data: list });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+app.post('/api/guru/ulangan/:id/sesi', requireGuru, (req, res) => {
+  try {
+    const sesi = examService.createSesi(req.params.id, req.guru.guruId, req.body);
+    res.json({ success: true, message: 'Sesi ujian berhasil dibuat', data: sesi });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+app.get('/api/guru/sesi/:sesiId', requireGuru, (req, res) => {
+  try {
+    const sesi = examService.getSesiById(req.params.sesiId, req.guru.guruId);
+    if (!sesi) return res.status(404).json({ success: false, message: 'Sesi tidak ditemukan' });
+    res.json({ success: true, data: sesi });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+app.put('/api/guru/sesi/:sesiId', requireGuru, (req, res) => {
+  try {
+    const sesi = examService.updateSesi(req.params.sesiId, req.guru.guruId, req.body);
+    res.json({ success: true, message: 'Sesi ujian berhasil diperbarui', data: sesi });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+app.delete('/api/guru/sesi/:sesiId', requireGuru, (req, res) => {
+  try {
+    const result = examService.deleteSesi(req.params.sesiId, req.guru.guruId);
+    res.json(result);
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }

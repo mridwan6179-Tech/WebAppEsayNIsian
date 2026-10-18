@@ -28,7 +28,30 @@ const studentService = {
     }
 
     const cleanCode = kodeUjian.trim().toUpperCase();
-    const ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, konten_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening, pin_aktif, token_ujian FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
+
+    // 1. Cek apakah kode yang dimasukkan adalah Token Sesi (ulangan_sesi)
+    let sesiActive = null;
+    try {
+      const sesiRow = db.prepare(`
+        SELECT s.*, u.id as ulangan_id
+        FROM ulangan_sesi s
+        JOIN ulangan u ON s.ulangan_id = u.id
+        WHERE UPPER(s.kode_sesi) = ?
+      `).get(cleanCode);
+      if (sesiRow) {
+        sesiActive = sesiRow;
+      }
+    } catch (e) {}
+
+    let ulangan = null;
+    if (sesiActive) {
+      if (sesiActive.status !== 'aktif') {
+        return { valid: false, message: `Sesi ujian "${sesiActive.nama_sesi}" sedang dinonaktifkan oleh guru.` };
+      }
+      ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, konten_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening, pin_aktif, token_ujian FROM ulangan WHERE id = ?').get(sesiActive.ulangan_id);
+    } else {
+      ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, konten_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening, pin_aktif, token_ujian FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
+    }
 
     if (!ulangan) {
       return { valid: false, message: 'Kode ulangan tidak ditemukan' };
@@ -45,34 +68,62 @@ const studentService = {
     const now = new Date();
     const zw = ulangan.zona_waktu || 'WIB';
 
-    if (ulangan.tanggal_mulai) {
-      const startTime = new Date(ulangan.tanggal_mulai);
-      if (now < startTime) {
-        const scheduleStr = examService.formatIndonesianDateTime(ulangan.tanggal_mulai, zw);
-        const serverNowStr = examService.formatIndonesianDateTime(now.toISOString(), zw);
-        return {
-          valid: false,
-          status: 'belum_buka',
-          tanggal_mulai: ulangan.tanggal_mulai,
-          zona_waktu: zw,
-          server_time: now.toISOString(),
-          message: `Ulangan belum dibuka. Jadwal buka: ${scheduleStr} (Waktu server saat ini: ${serverNowStr})`
-        };
+    // Jika masuk melalui Token Sesi, periksa rentang tanggal dan jam sesi
+    if (sesiActive) {
+      if (sesiActive.waktu_mulai) {
+        const startSesi = new Date(sesiActive.waktu_mulai);
+        if (now < startSesi) {
+          const scheduleStr = examService.formatIndonesianDateTime(sesiActive.waktu_mulai, zw);
+          const serverNowStr = examService.formatIndonesianDateTime(now.toISOString(), zw);
+          return {
+            valid: false,
+            status: 'sesi_belum_buka',
+            message: `Sesi "${sesiActive.nama_sesi}" belum dibuka. Jadwal buka sesi: ${scheduleStr} (Waktu server saat ini: ${serverNowStr})`
+          };
+        }
       }
-    }
+      if (sesiActive.waktu_selesai) {
+        const endSesi = new Date(sesiActive.waktu_selesai);
+        if (now > endSesi) {
+          const scheduleStr = examService.formatIndonesianDateTime(sesiActive.waktu_selesai, zw);
+          return {
+            valid: false,
+            status: 'sesi_sudah_tutup',
+            message: `Sesi "${sesiActive.nama_sesi}" telah berakhir pada: ${scheduleStr}`
+          };
+        }
+      }
+    } else {
+      // Validasi jadwal umum ulangan jika tidak menggunakan sesi
+      if (ulangan.tanggal_mulai) {
+        const startTime = new Date(ulangan.tanggal_mulai);
+        if (now < startTime) {
+          const scheduleStr = examService.formatIndonesianDateTime(ulangan.tanggal_mulai, zw);
+          const serverNowStr = examService.formatIndonesianDateTime(now.toISOString(), zw);
+          return {
+            valid: false,
+            status: 'belum_buka',
+            tanggal_mulai: ulangan.tanggal_mulai,
+            zona_waktu: zw,
+            server_time: now.toISOString(),
+            message: `Ulangan belum dibuka. Jadwal buka: ${scheduleStr} (Waktu server saat ini: ${serverNowStr})`
+          };
+        }
+      }
 
-    if (ulangan.tanggal_selesai) {
-      const endTime = new Date(ulangan.tanggal_selesai);
-      if (now > endTime) {
-        const scheduleStr = examService.formatIndonesianDateTime(ulangan.tanggal_selesai, zw);
-        return {
-          valid: false,
-          status: 'sudah_tutup',
-          tanggal_selesai: ulangan.tanggal_selesai,
-          zona_waktu: zw,
-          server_time: now.toISOString(),
-          message: `Ulangan telah ditutup pada: ${scheduleStr}`
-        };
+      if (ulangan.tanggal_selesai) {
+        const endTime = new Date(ulangan.tanggal_selesai);
+        if (now > endTime) {
+          const scheduleStr = examService.formatIndonesianDateTime(ulangan.tanggal_selesai, zw);
+          return {
+            valid: false,
+            status: 'sudah_tutup',
+            tanggal_selesai: ulangan.tanggal_selesai,
+            zona_waktu: zw,
+            server_time: now.toISOString(),
+            message: `Ulangan telah ditutup pada: ${scheduleStr}`
+          };
+        }
       }
     }
 
@@ -121,6 +172,14 @@ const studentService = {
       }
     }
 
+    // Jika masuk dengan sesi dan sesi memiliki batasan kelas khusus, batasi pilihan kelas
+    if (sesiActive && sesiActive.kelas && sesiActive.kelas.trim()) {
+      const parsedSesiKelas = sesiActive.kelas.split(/[,;/]+/).map(s => s.trim()).filter(Boolean);
+      if (parsedSesiKelas.length > 0) {
+        kelasList = parsedSesiKelas;
+      }
+    }
+
     const soalDikerjakan = (ulangan.jumlah_soal_tampil && ulangan.jumlah_soal_tampil < stats.total_soal)
       ? ulangan.jumlah_soal_tampil
       : stats.total_soal;
@@ -129,8 +188,33 @@ const studentService = {
     const hasKisiKonten = Boolean(ulangan.konten_kisi_kisi && String(ulangan.konten_kisi_kisi).trim());
     const isKisiShown = Boolean(ulangan.tampilkan_kisi_kisi && (hasKisiLink || hasKisiKonten));
 
+    // Ambil daftar sesi aktif ulangan jika ada (untuk info bagi siswa)
+    let daftarSesi = [];
+    try {
+      daftarSesi = db.prepare(`
+        SELECT id, nama_sesi, kode_sesi, kelas, waktu_mulai, waktu_selesai
+        FROM ulangan_sesi
+        WHERE ulangan_id = ? AND status = 'aktif'
+        ORDER BY waktu_mulai ASC, id ASC
+      `).all(ulangan.id);
+    } catch (e) {}
+
+    const sesiFormatted = sesiActive ? {
+      id: sesiActive.id,
+      nama_sesi: sesiActive.nama_sesi,
+      kode_sesi: sesiActive.kode_sesi,
+      kelas: sesiActive.kelas,
+      waktu_mulai: sesiActive.waktu_mulai,
+      waktu_selesai: sesiActive.waktu_selesai,
+      waktu_mulai_formatted: sesiActive.waktu_mulai ? examService.formatIndonesianDateTime(sesiActive.waktu_mulai, zw) : null,
+      waktu_selesai_formatted: sesiActive.waktu_selesai ? examService.formatIndonesianDateTime(sesiActive.waktu_selesai, zw) : null
+    } : null;
+
     return {
       valid: true,
+      sesi: sesiFormatted,
+      daftar_sesi: daftarSesi,
+      available_classes: kelasList,
       ulangan: {
         id: ulangan.id,
         judul: ulangan.judul,
@@ -162,8 +246,8 @@ const studentService = {
     };
   },
 
-  // FR-07: Identitas Siswa & Memulai Pengerjaan (Mendukung Paket Soal Acak per Siswa)
-  startExam(kodeUjian, nama, kelas) {
+  // FR-07: Identitas Siswa & Memulai Pengerjaan (Mendukung Paket Soal Acak per Siswa & Multi-Sesi)
+  startExam(kodeUjian, nama, kelas, sesiId = null) {
     const val = this.validateExamCode(kodeUjian);
     if (!val.valid) {
       throw new Error(val.message);
@@ -179,6 +263,22 @@ const studentService = {
     const cleanNama = nama.trim();
     const cleanKelas = kelas.trim();
     const ulanganId = val.ulangan.id;
+
+    // Cek pembatasan sesi (jika ulangan menggunakan sesi atau token sesi)
+    let activeSesi = val.sesi || null;
+    if (!activeSesi && sesiId) {
+      try {
+        const sRow = db.prepare('SELECT * FROM ulangan_sesi WHERE id = ? AND ulangan_id = ? AND status = "aktif"').get(sesiId, ulanganId);
+        if (sRow) activeSesi = sRow;
+      } catch (e) {}
+    }
+
+    if (activeSesi && activeSesi.kelas && activeSesi.kelas.trim()) {
+      const allowedClasses = activeSesi.kelas.split(/[,;/]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
+      if (allowedClasses.length > 0 && !allowedClasses.includes(cleanKelas.toLowerCase())) {
+        throw new Error(`Sesi "${activeSesi.nama_sesi}" khusus untuk kelas ${activeSesi.kelas}. Kelas "${cleanKelas}" tidak diizinkan masuk ke sesi ini.`);
+      }
+    }
 
     // Cek batas token ujian (jika aktif)
     try {
@@ -418,18 +518,27 @@ const studentService = {
       const soalIdsJson = JSON.stringify(assignedQuestionIds);
 
       const nowIso = new Date().toISOString();
+      const sesiIdToSave = activeSesi?.id || null;
+      const namaSesiToSave = activeSesi?.nama_sesi || null;
+
       if (!pengerjaan) {
         const info = db.prepare(`
-          INSERT INTO pengerjaan (ulangan_id, peserta_id, status, soal_ids, started_at, last_active_at)
-          VALUES (?, ?, 'mengerjakan', ?, ?, ?)
-        `).run(ulanganId, peserta.id, soalIdsJson, nowIso, nowIso);
+          INSERT INTO pengerjaan (ulangan_id, peserta_id, status, soal_ids, started_at, last_active_at, sesi_id, nama_sesi)
+          VALUES (?, ?, 'mengerjakan', ?, ?, ?, ?, ?)
+        `).run(ulanganId, peserta.id, soalIdsJson, nowIso, nowIso, sesiIdToSave, namaSesiToSave);
         pengerjaan = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(info.lastInsertRowid);
         // Segera dorong pengerjaan baru ke Turso Cloud agar instance Vercel lain dapat langsung menemukannya
         if (typeof db.sync === 'function') {
           try { db.sync(); } catch (syncErr) {}
         }
       } else {
-        db.prepare('UPDATE pengerjaan SET soal_ids = ?, last_active_at = CURRENT_TIMESTAMP WHERE id = ?').run(soalIdsJson, pengerjaan.id);
+        db.prepare(`
+          UPDATE pengerjaan 
+          SET soal_ids = ?, last_active_at = CURRENT_TIMESTAMP, 
+              sesi_id = COALESCE(sesi_id, ?), 
+              nama_sesi = COALESCE(nama_sesi, ?) 
+          WHERE id = ?
+        `).run(soalIdsJson, sesiIdToSave, namaSesiToSave, pengerjaan.id);
         pengerjaan.soal_ids = soalIdsJson;
         if (typeof db.sync === 'function') {
           try { db.sync(); } catch (syncErr) {}
@@ -467,10 +576,18 @@ const studentService = {
       }
     }
 
+    if (activeSesi && activeSesi.waktu_selesai) {
+      const sessionClose = new Date(activeSesi.waktu_selesai);
+      if (!deadlineAt || sessionClose < deadlineAt) {
+        deadlineAt = sessionClose;
+      }
+    }
+
     return {
       alreadySubmitted: false,
       pengerjaanId: pengerjaan.id,
       peserta: { id: peserta.id, nama: cleanNama, kelas: cleanKelas },
+      sesi: activeSesi || null,
       ulangan: val.ulangan,
       deadline_at: deadlineAt ? deadlineAt.toISOString() : null,
       server_time: new Date().toISOString(),
@@ -1491,7 +1608,18 @@ const studentService = {
       return { success: false, message: 'Kode ujian wajib diisi' };
     }
     const cleanKode = kodeUjian.trim();
-    const ulangan = db.prepare('SELECT id, judul, zona_waktu FROM ulangan WHERE LOWER(kode_ujian) = LOWER(?)').get(cleanKode);
+    let sesi = null;
+    try {
+      sesi = db.prepare('SELECT id, ulangan_id, nama_sesi, kode_sesi FROM ulangan_sesi WHERE UPPER(kode_sesi) = ?').get(cleanKode.toUpperCase());
+    } catch (e) {}
+
+    let ulangan = null;
+    if (sesi) {
+      ulangan = db.prepare('SELECT id, judul, zona_waktu FROM ulangan WHERE id = ?').get(sesi.ulangan_id);
+    } else {
+      ulangan = db.prepare('SELECT id, judul, zona_waktu FROM ulangan WHERE LOWER(kode_ujian) = LOWER(?)').get(cleanKode);
+    }
+
     if (!ulangan) {
       return { success: false, message: 'Ulangan tidak ditemukan' };
     }
@@ -1500,11 +1628,21 @@ const studentService = {
     const l = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
     const offset = (p - 1) * l;
 
+    let whereSql = `WHERE p.ulangan_id = ? AND p.status = 'submitted'`;
+    const countParams = [ulangan.id];
+    const rowParams = [ulangan.id];
+    if (sesi) {
+      whereSql += ` AND p.sesi_id = ?`;
+      countParams.push(sesi.id);
+      rowParams.push(sesi.id);
+    }
+    rowParams.push(l, offset);
+
     const totalRow = db.prepare(`
       SELECT COUNT(*) as total
       FROM pengerjaan p
-      WHERE p.ulangan_id = ? AND p.status = 'submitted'
-    `).get(ulangan.id);
+      ${whereSql}
+    `).get(...countParams);
     const total = totalRow ? totalRow.total : 0;
 
     const rows = db.prepare(`
@@ -1515,10 +1653,10 @@ const studentService = {
         p.submitted_at
       FROM pengerjaan p
       JOIN peserta pes ON p.peserta_id = pes.id
-      WHERE p.ulangan_id = ? AND p.status = 'submitted'
+      ${whereSql}
       ORDER BY p.submitted_at DESC
       LIMIT ? OFFSET ?
-    `).all(ulangan.id, l, offset);
+    `).all(...rowParams);
 
     const tzMap = {
       'WIB': 'Asia/Jakarta',
@@ -1564,6 +1702,7 @@ const studentService = {
         totalPages: Math.max(1, Math.ceil(total / l)),
         limit: l,
         items,
+        nama_sesi: sesi ? sesi.nama_sesi : null,
         judul_ulangan: ulangan.judul,
         zona_waktu: ulangan.zona_waktu || 'WITA'
       }
@@ -1576,7 +1715,18 @@ const studentService = {
       return { success: false, message: 'Kode ujian wajib diisi' };
     }
     const cleanKode = kodeUjian.trim();
-    const ulangan = db.prepare('SELECT id, judul, durasi_menit, zona_waktu FROM ulangan WHERE LOWER(kode_ujian) = LOWER(?)').get(cleanKode);
+    let sesi = null;
+    try {
+      sesi = db.prepare('SELECT id, ulangan_id, nama_sesi, kode_sesi FROM ulangan_sesi WHERE UPPER(kode_sesi) = ?').get(cleanKode.toUpperCase());
+    } catch (e) {}
+
+    let ulangan = null;
+    if (sesi) {
+      ulangan = db.prepare('SELECT id, judul, durasi_menit, zona_waktu FROM ulangan WHERE id = ?').get(sesi.ulangan_id);
+    } else {
+      ulangan = db.prepare('SELECT id, judul, durasi_menit, zona_waktu FROM ulangan WHERE LOWER(kode_ujian) = LOWER(?)').get(cleanKode);
+    }
+
     if (!ulangan) {
       return { success: false, message: 'Ulangan tidak ditemukan' };
     }
@@ -1589,6 +1739,13 @@ const studentService = {
     const p = Math.max(1, parseInt(page, 10) || 1);
     const l = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
     const offset = (p - 1) * l;
+
+    let whereSql = `WHERE p.ulangan_id = ? AND p.status = 'mengerjakan'`;
+    const params = [ulangan.id];
+    if (sesi) {
+      whereSql += ` AND p.sesi_id = ?`;
+      params.push(sesi.id);
+    }
 
     const allRows = db.prepare(`
       SELECT 
@@ -1605,9 +1762,9 @@ const studentService = {
       FROM pengerjaan p
       JOIN peserta pes ON p.peserta_id = pes.id
       LEFT JOIN jawaban j ON p.id = j.pengerjaan_id
-      WHERE p.ulangan_id = ? AND p.status = 'mengerjakan'
+      ${whereSql}
       GROUP BY p.id
-    `).all(ulangan.id);
+    `).all(...params);
 
     const durasiMenit = Number(ulangan.durasi_menit || 0);
 

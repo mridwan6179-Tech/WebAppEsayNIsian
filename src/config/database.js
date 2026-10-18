@@ -526,6 +526,34 @@ function initDatabase() {
   safeAddColumn('bank_soal', 'game_data', 'TEXT DEFAULT NULL');
   safeAddColumn('jawaban', 'jawaban_koding', 'TEXT DEFAULT NULL');
 
+  safeAddColumn('pengerjaan', 'sesi_id', 'INTEGER DEFAULT NULL');
+  safeAddColumn('pengerjaan', 'nama_sesi', 'TEXT DEFAULT NULL');
+
+  // Tabel Baru: Multi-Sesi Ujian (Beda Kelas, Tanggal, Jam, dan Token)
+  if (!existingObjects.has('ulangan_sesi')) {
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS ulangan_sesi (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ulangan_id INTEGER NOT NULL,
+          nama_sesi TEXT NOT NULL,
+          kode_sesi TEXT UNIQUE NOT NULL,
+          kelas TEXT DEFAULT NULL,
+          waktu_mulai DATETIME DEFAULT NULL,
+          waktu_selesai DATETIME DEFAULT NULL,
+          kuota_peserta INTEGER DEFAULT NULL,
+          status TEXT CHECK(status IN ('aktif', 'nonaktif')) DEFAULT 'aktif',
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (ulangan_id) REFERENCES ulangan(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_ulangan_sesi_ulangan ON ulangan_sesi(ulangan_id);
+        CREATE INDEX IF NOT EXISTS idx_ulangan_sesi_kode ON ulangan_sesi(kode_sesi);
+      `);
+    } catch (e) {
+      console.warn('⚠️ Gagal inisialisasi tabel ulangan_sesi:', e.message);
+    }
+  }
+
   // Tabel Baru: Multi-Paket Soal & Log Scan Kamera LJK
   if (!existingObjects.has('paket_soal') || !existingObjects.has('omr_scan_log')) {
     try {
