@@ -64,75 +64,58 @@ if (tursoUrl && tursoToken) {
     }
   }
 
+  function isTursoConcurrencyError(err) {
+    if (!err) return false;
+    const msg = String(err.message || err);
+    return msg.includes('429') || msg.includes('limit exceeded') || msg.includes('concurrency') || msg.includes('PullFrame') || msg.includes('locked') || msg.includes('busy');
+  }
+
+  function sleepSync(ms) {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {}
+  }
+
+  function executeWithRetry(fn, sql = '', maxRetries = 3) {
+    let lastErr;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return fn();
+      } catch (err) {
+        lastErr = err;
+        if (isHranaStreamError(err)) {
+          reconnectTurso();
+        } else if (isTursoConcurrencyError(err)) {
+          console.warn(`⚠️ Turso concurrency busy/429 (percobaan ${attempt + 1}/${maxRetries}):`, err.message);
+          sleepSync(150 * (attempt + 1));
+        } else {
+          throw err;
+        }
+      }
+    }
+    throw lastErr;
+  }
+
   db = {
     prepare(sql) {
       const wrapStmt = (stmt) => ({
         all(...args) {
-          try {
-            return stmt.all(...args);
-          } catch (err) {
-            if (isHranaStreamError(err)) {
-              reconnectTurso();
-              return currentDb.prepare(sql).all(...args);
-            }
-            throw err;
-          }
+          return executeWithRetry(() => stmt.all(...args), sql);
         },
         get(...args) {
-          try {
-            return stmt.get(...args);
-          } catch (err) {
-            if (isHranaStreamError(err)) {
-              reconnectTurso();
-              return currentDb.prepare(sql).get(...args);
-            }
-            throw err;
-          }
+          return executeWithRetry(() => stmt.get(...args), sql);
         },
         run(...args) {
-          try {
-            return stmt.run(...args);
-          } catch (err) {
-            if (isHranaStreamError(err)) {
-              reconnectTurso();
-              return currentDb.prepare(sql).run(...args);
-            }
-            throw err;
-          }
+          return executeWithRetry(() => stmt.run(...args), sql);
         }
       });
 
-      try {
-        return wrapStmt(currentDb.prepare(sql));
-      } catch (err) {
-        if (isHranaStreamError(err)) {
-          reconnectTurso();
-          return wrapStmt(currentDb.prepare(sql));
-        }
-        throw err;
-      }
+      return executeWithRetry(() => wrapStmt(currentDb.prepare(sql)), sql);
     },
     exec(sql) {
-      try {
-        return currentDb.exec(sql);
-      } catch (err) {
-        if (isHranaStreamError(err)) {
-          reconnectTurso();
-          return currentDb.exec(sql);
-        }
-        throw err;
-      }
+      return executeWithRetry(() => currentDb.exec(sql), sql);
     },
     pragma(sql) {
-      try {
-        return currentDb.pragma(sql);
-      } catch (err) {
-        if (isHranaStreamError(err)) {
-          reconnectTurso();
-          return currentDb.pragma(sql);
-        }
-        throw err;
-      }
+      return executeWithRetry(() => currentDb.pragma(sql), sql);
     },
     sync() {
       try {
@@ -140,6 +123,10 @@ if (tursoUrl && tursoToken) {
           return currentDb.sync();
         }
       } catch (err) {
+        if (isTursoConcurrencyError(err)) {
+          console.warn('⚠️ Turso replica sync concurrency 429 ditangguhkan:', err.message);
+          return;
+        }
         if (isHranaStreamError(err)) {
           reconnectTurso();
           if (typeof currentDb.sync === 'function') {
@@ -150,7 +137,7 @@ if (tursoUrl && tursoToken) {
             }
           }
         } else {
-          throw err;
+          console.warn('⚠️ db.sync() notice:', err.message);
         }
       }
     },

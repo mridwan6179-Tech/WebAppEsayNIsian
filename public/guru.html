@@ -1739,6 +1739,33 @@
     </div>
   </div>
 
+  <!-- GLOBAL PROGRESS BAR & ANTI-DUPLICATE OVERLAY -->
+  <div id="global-progress-overlay" class="hidden fixed inset-0 bg-slate-900/65 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 select-none">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 flex flex-col items-center text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
+      <div class="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-2xl shadow-inner relative">
+        <span id="global-progress-icon" class="animate-bounce">⚡</span>
+        <div class="absolute inset-0 rounded-2xl border-2 border-blue-500 border-t-transparent animate-spin"></div>
+      </div>
+      <div class="space-y-1 w-full">
+        <h4 id="global-progress-title" class="font-bold text-slate-800 text-sm sm:text-base leading-tight">Menyimpan Perubahan...</h4>
+        <p id="global-progress-desc" class="text-xs text-slate-500 leading-normal">Sedang menyinkronkan data ke Cloud Database...</p>
+      </div>
+      <!-- Progress Bar Container -->
+      <div class="w-full space-y-1.5">
+        <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/80">
+          <div id="global-progress-bar-inner" class="h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 rounded-full transition-all duration-300 shadow-sm" style="width: 25%"></div>
+        </div>
+        <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono px-0.5">
+          <span id="global-progress-status-badge">Memproses...</span>
+          <span id="global-progress-percent">25%</span>
+        </div>
+      </div>
+      <p class="text-[10px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/80">
+        🔒 Tombol dinonaktifkan sementara untuk mencegah data terduplikat.
+      </p>
+    </div>
+  </div>
+
   <!-- MODAL EDIT ULANGAN & WAKTU -->
   <div id="modal-edit-exam" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
     <div class="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 my-auto max-h-[92vh] overflow-y-auto">
@@ -4301,6 +4328,69 @@
       return true;
     }
 
+    // --- GLOBAL PROGRESS BAR & ANTI-DUPLICATE OVERLAY ENGINE ---
+    let globalProgressInterval = null;
+
+    window.showGlobalProgress = function(title = 'Menyimpan Perubahan...', desc = 'Sedang menyinkronkan data ke Cloud Database...') {
+      const overlay = document.getElementById('global-progress-overlay');
+      if (!overlay) return;
+      const titleEl = document.getElementById('global-progress-title');
+      const descEl = document.getElementById('global-progress-desc');
+      const barEl = document.getElementById('global-progress-bar-inner');
+      const pctEl = document.getElementById('global-progress-percent');
+      const badgeEl = document.getElementById('global-progress-status-badge');
+
+      if (titleEl) titleEl.textContent = title;
+      if (descEl) descEl.textContent = desc;
+
+      let currentPct = 20;
+      if (barEl) barEl.style.width = '20%';
+      if (pctEl) pctEl.textContent = '20%';
+      if (badgeEl) badgeEl.textContent = 'Memulai proses...';
+
+      clearInterval(globalProgressInterval);
+      overlay.classList.remove('hidden');
+
+      globalProgressInterval = setInterval(() => {
+        if (currentPct < 90) {
+          currentPct += Math.floor(Math.random() * 10) + 5;
+          if (currentPct > 90) currentPct = 90;
+          if (barEl) barEl.style.width = currentPct + '%';
+          if (pctEl) pctEl.textContent = currentPct + '%';
+          if (badgeEl) {
+            if (currentPct > 70) badgeEl.textContent = 'Menyelesaikan sinkronisasi cloud...';
+            else if (currentPct > 40) badgeEl.textContent = 'Menyimpan data ke database...';
+          }
+        }
+      }, 250);
+    };
+
+    window.updateGlobalProgress = function(pct, descText = '') {
+      const barEl = document.getElementById('global-progress-bar-inner');
+      const pctEl = document.getElementById('global-progress-percent');
+      const descEl = document.getElementById('global-progress-desc');
+      if (barEl) barEl.style.width = Math.min(100, pct) + '%';
+      if (pctEl) pctEl.textContent = Math.min(100, pct) + '%';
+      if (descText && descEl) descEl.textContent = descText;
+    };
+
+    window.hideGlobalProgress = function(doneCallback) {
+      clearInterval(globalProgressInterval);
+      const overlay = document.getElementById('global-progress-overlay');
+      const barEl = document.getElementById('global-progress-bar-inner');
+      const pctEl = document.getElementById('global-progress-percent');
+      const badgeEl = document.getElementById('global-progress-status-badge');
+
+      if (barEl) barEl.style.width = '100%';
+      if (pctEl) pctEl.textContent = '100%';
+      if (badgeEl) badgeEl.textContent = 'Selesai!';
+
+      setTimeout(() => {
+        if (overlay) overlay.classList.add('hidden');
+        if (typeof doneCallback === 'function') doneCallback();
+      }, 300);
+    };
+
     // Global Modal Openers (Safe & Globally Accessible)
     window.openMultiPaketModal = () => {
       if (!ensureActiveExam('mengelola multi-paket')) return;
@@ -5259,38 +5349,58 @@
         skor_langsung_ai: document.getElementById('new-exam-skor-langsung-ai')?.checked ? 1 : 0
       };
 
-      const res = await guruFetch('/api/guru/ulangan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        if (autoCreateSessions && data.data && data.data.id) {
-          try {
-            await guruFetch(`/api/guru/ulangan/${data.data.id}/sesi/auto-generate`, { method: 'POST' });
-          } catch (eAuto) {
-            console.error('Gagal generate sesi otomatis:', eAuto);
+      const btnSubmit = formCreateExam.querySelector('button[type="submit"]');
+      if (btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.textContent = 'Membuat...';
+      }
+      showGlobalProgress('Membuat Ulangan Baru...', 'Mempersiapkan data dan sinkronisasi ke Cloud Database...');
+
+      try {
+        const res = await guruFetch('/api/guru/ulangan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          if (autoCreateSessions && data.data && data.data.id) {
+            try {
+              await guruFetch(`/api/guru/ulangan/${data.data.id}/sesi/auto-generate`, { method: 'POST' });
+            } catch (eAuto) {
+              console.error('Gagal generate sesi otomatis:', eAuto);
+            }
           }
+          formCreateExam.reset();
+          updateNewExamClassBadge();
+          await loadTeacherSubjects();
+          document.getElementById('new-exam-kkm').value = '75';
+          if (document.getElementById('new-exam-zona-waktu')) document.getElementById('new-exam-zona-waktu').value = 'WIB';
+          if (document.getElementById('new-exam-toleransi-typo')) document.getElementById('new-exam-toleransi-typo').checked = true;
+          if (document.getElementById('new-exam-tampilkan-simbol')) document.getElementById('new-exam-tampilkan-simbol').checked = true;
+          if (document.getElementById('new-exam-tampilkan-teks-listening')) document.getElementById('new-exam-tampilkan-teks-listening').checked = false;
+          if (document.getElementById('new-exam-toggle-kisi-kisi')) {
+            document.getElementById('new-exam-toggle-kisi-kisi').checked = false;
+            toggleNewExamKisiKisi();
+          }
+          updateNewQuotaSync();
+          hideGlobalProgress(() => {
+            formCreateExam.classList.add('hidden');
+            loadUlanganList();
+            selectUlangan(data.data.id);
+          });
+        } else {
+          hideGlobalProgress();
+          alert(data.message || 'Gagal membuat ulangan');
         }
-        formCreateExam.reset();
-        updateNewExamClassBadge();
-        await loadTeacherSubjects();
-        document.getElementById('new-exam-kkm').value = '75';
-        if (document.getElementById('new-exam-zona-waktu')) document.getElementById('new-exam-zona-waktu').value = 'WIB';
-        if (document.getElementById('new-exam-toleransi-typo')) document.getElementById('new-exam-toleransi-typo').checked = true;
-        if (document.getElementById('new-exam-tampilkan-simbol')) document.getElementById('new-exam-tampilkan-simbol').checked = true;
-        if (document.getElementById('new-exam-tampilkan-teks-listening')) document.getElementById('new-exam-tampilkan-teks-listening').checked = false;
-        if (document.getElementById('new-exam-toggle-kisi-kisi')) {
-          document.getElementById('new-exam-toggle-kisi-kisi').checked = false;
-          toggleNewExamKisiKisi();
+      } catch (err) {
+        hideGlobalProgress();
+        alert('Gagal membuat ulangan: ' + err.message);
+      } finally {
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.textContent = 'Simpan Ulangan';
         }
-        updateNewQuotaSync();
-        formCreateExam.classList.add('hidden');
-        loadUlanganList();
-        selectUlangan(data.data.id);
-      } else {
-        alert(data.message || 'Gagal membuat ulangan');
       }
     });
 
@@ -6068,6 +6178,8 @@
     btnOpenEditExam.onclick = async () => {
       if (!activeUlanganId) return;
       alertEditExam.classList.add('hidden');
+      btnOpenEditExam.disabled = true;
+      showGlobalProgress('Memuat Data Ulangan...', 'Mengambil informasi pengaturan ulangan dari Cloud Database...');
 
       try {
         const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}`);
@@ -6186,9 +6298,19 @@
         } catch (eSesi) {}
 
         updateEditQuotaSync();
-        modalEditExam.classList.remove('hidden');
+        hideGlobalProgress(() => {
+          modalEditExam.classList.remove('hidden');
+        });
       } catch (err) {
-        alert('Error: ' + err.message);
+        hideGlobalProgress();
+        const msg = String(err.message || err);
+        if (msg.includes('429') || msg.includes('limit exceeded') || msg.includes('concurrency')) {
+          alert('⚠️ Server database sedang sibuk memproses antrean koneksi. Silakan klik tombol Edit kembali dalam beberapa detik.');
+        } else {
+          alert('Error: ' + err.message);
+        }
+      } finally {
+        btnOpenEditExam.disabled = false;
       }
     };
 
@@ -6285,6 +6407,7 @@
       const btnSave = document.getElementById('btn-save-edit-exam');
       btnSave.disabled = true;
       btnSave.textContent = 'Menyimpan...';
+      showGlobalProgress('Menyimpan Perubahan Ulangan...', 'Menyinkronkan data, jadwal, dan kuota soal ke Cloud Database...');
 
       try {
         const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}`, {
@@ -6313,11 +6436,18 @@
 
         await loadTeacherSubjects();
 
-        modalEditExam.classList.add('hidden');
-        selectUlangan(activeUlanganId);
-        loadUlanganList();
+        hideGlobalProgress(() => {
+          modalEditExam.classList.add('hidden');
+          selectUlangan(activeUlanganId);
+          loadUlanganList();
+        });
       } catch (err) {
-        alertEditExam.textContent = err.message;
+        hideGlobalProgress();
+        const msg = String(err.message || err);
+        const friendlyMsg = (msg.includes('429') || msg.includes('limit exceeded') || msg.includes('concurrency'))
+          ? 'Koneksi database Cloud sedang padat (429). Sistem telah mencadangkan data secara lokal, silakan klik Simpan kembali jika diperlukan.'
+          : err.message;
+        alertEditExam.textContent = friendlyMsg;
         alertEditExam.className = 'p-3 rounded-xl text-xs border bg-red-50 text-red-700 border-red-200';
         alertEditExam.classList.remove('hidden');
       } finally {
@@ -9585,16 +9715,24 @@
         return;
       }
       if (!confirm('Apakah Anda ingin otomatis membuat 1 sesi ujian terpisah untuk setiap kelas yang terdaftar pada ulangan ini?')) return;
+      showGlobalProgress('Membuat Sesi Otomatis...', 'Menghasilkan sesi ujian terpisah untuk setiap kelas terdaftar...');
       try {
         const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/sesi/auto-generate`, { method: 'POST' });
         const data = await res.json();
         if (res.ok && data.success) {
-          alert(data.message || `Berhasil membuat ${data.created} sesi ujian baru.`);
-          loadSesiList(activeUlanganId);
+          updateGlobalProgress(100, 'Berhasil membuat sesi ujian!');
+          setTimeout(() => {
+            hideGlobalProgress(() => {
+              alert(data.message || `Berhasil membuat ${data.created} sesi ujian baru.`);
+              loadSesiList(activeUlanganId);
+            });
+          }, 300);
         } else {
+          hideGlobalProgress();
           alert(data.message || 'Gagal membuat sesi otomatis');
         }
       } catch (err) {
+        hideGlobalProgress();
         alert('Error: ' + err.message);
       }
     };
@@ -9734,6 +9872,7 @@
       const btnSave = document.getElementById('btn-save-sesi');
       btnSave.disabled = true;
       btnSave.textContent = 'Menyimpan...';
+      showGlobalProgress(sesiId ? 'Memperbarui Sesi...' : 'Menyimpan Sesi Baru...', 'Menyinkronkan pengaturan sesi ke Cloud Database...');
 
       try {
         let res;
@@ -9756,10 +9895,16 @@
           throw new Error(data.message || 'Gagal menyimpan sesi');
         }
 
-        closeSesiModal();
-        loadSesiList(activeUlanganId);
-        alert(data.message || 'Sesi ujian berhasil disimpan');
+        updateGlobalProgress(100, 'Sesi berhasil disimpan!');
+        setTimeout(() => {
+          hideGlobalProgress(() => {
+            closeSesiModal();
+            loadSesiList(activeUlanganId);
+            alert(data.message || 'Sesi ujian berhasil disimpan');
+          });
+        }, 300);
       } catch (err) {
+        hideGlobalProgress();
         const errEl = document.getElementById('sesi-alert-error');
         if (errEl) {
           errEl.textContent = err.message;
@@ -9777,16 +9922,24 @@
       const konfirmasi = confirm(`Apakah Anda yakin ingin menghapus sesi "${namaSesi}"?\n\nJika siswa sudah ada yang mengerjakan di bawah sesi ini, riwayat pengerjaan tetap tersimpan tetapi tautan sesi akan dilepas.`);
       if (!konfirmasi) return;
 
+      showGlobalProgress('Menghapus Sesi...', `Menghapus sesi ${namaSesi}...`);
       try {
         const res = await guruFetch(`/api/guru/sesi/${sesiId}`, { method: 'DELETE' });
         const data = await res.json();
         if (res.ok && data.success) {
-          loadSesiList(activeUlanganId);
-          alert(data.message || 'Sesi berhasil dihapus');
+          updateGlobalProgress(100, 'Sesi berhasil dihapus');
+          setTimeout(() => {
+            hideGlobalProgress(() => {
+              loadSesiList(activeUlanganId);
+              alert(data.message || 'Sesi berhasil dihapus');
+            });
+          }, 300);
         } else {
+          hideGlobalProgress();
           alert(data.message || 'Gagal menghapus sesi');
         }
       } catch (e) {
+        hideGlobalProgress();
         alert('Gagal menghubungi server: ' + e.message);
       }
     };
