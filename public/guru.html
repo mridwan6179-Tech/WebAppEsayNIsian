@@ -387,24 +387,48 @@
               </div>
               <div class="pt-1.5 border-t border-slate-100">
                 <span class="block text-[11px] font-semibold text-purple-900 mb-1">🎯 Kuota Wajib per Tipe Soal (Opsional):</span>
-                <div class="grid grid-cols-2 gap-2">
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label class="block text-[10px] text-slate-500 mb-0.5">Wajib PG Tunggal:</label>
+                    <input type="number" id="new-exam-limit-pg" min="0" placeholder="Cth: 10" class="w-full px-2 py-1 text-xs rounded border border-slate-300">
+                  </div>
+                  <div>
+                    <label class="block text-[10px] text-slate-500 mb-0.5">Wajib PG Kompleks:</label>
+                    <input type="number" id="new-exam-limit-pg-kompleks" min="0" placeholder="Cth: 3" class="w-full px-2 py-1 text-xs rounded border border-slate-300">
+                  </div>
                   <div>
                     <label class="block text-[10px] text-slate-500 mb-0.5">Wajib Soal Isian:</label>
                     <input type="number" id="new-exam-limit-isian" min="0" placeholder="Cth: 4" class="w-full px-2 py-1 text-xs rounded border border-slate-300">
                   </div>
                   <div>
                     <label class="block text-[10px] text-slate-500 mb-0.5">Wajib Soal Essay:</label>
-                    <input type="number" id="new-exam-limit-essay" min="0" placeholder="Cth: 1" class="w-full px-2 py-1 text-xs rounded border border-slate-300">
+                    <input type="number" id="new-exam-limit-essay" min="0" placeholder="Cth: 2" class="w-full px-2 py-1 text-xs rounded border border-slate-300">
+                  </div>
+                  <div>
+                    <label class="block text-[10px] text-slate-500 mb-0.5">Wajib Game Koding:</label>
+                    <input type="number" id="new-exam-limit-koding" min="0" placeholder="Cth: 1" class="w-full px-2 py-1 text-xs rounded border border-slate-300">
+                  </div>
+                  <div>
+                    <label class="block text-[10px] text-slate-500 mb-0.5">🎧 Maks. Listening:</label>
+                    <input type="number" id="new-exam-limit-listening" min="0" placeholder="Cth: 2" class="w-full px-2 py-1 text-xs rounded border border-slate-300">
                   </div>
                 </div>
-                <div class="mt-1.5">
-                  <label class="block text-[10px] text-slate-500 mb-0.5">🎧 Maks. Soal Listening (Audio) yang Keluar:</label>
-                  <input type="number" id="new-exam-limit-listening" min="0" placeholder="Kosongkan jika bebas (cth: 2)" class="w-full px-2 py-1 text-xs rounded border border-slate-300">
-                  <span class="block text-[10px] text-slate-400 mt-0.5">Membatasi agar siswa tidak mendapatkan terlalu banyak soal audio listening dari bank soal.</span>
-                </div>
-                <span class="block text-[10px] text-slate-400 mt-1">Contoh: Wajib 4 Isian + 1 Essay. Siswa akan otomatis mendapatkan kombinasi acak sesuai ketentuan ini.</span>
+                <span class="block text-[10px] text-slate-400 mt-1">Dukung seluruh tipe: PG, PG Kompleks, Isian, Essay, dan Game Koding. Siswa menerima kombinasi acak sesuai ketentuan ini.</span>
                 <div id="new-quota-calc-badge" class="mt-1.5 text-[11px] font-medium"></div>
               </div>
+            </div>
+            <div class="p-2.5 bg-indigo-50/70 rounded-lg border border-indigo-200 space-y-1.5">
+              <span class="block font-semibold text-indigo-950 text-xs flex items-center space-x-1.5">
+                <span>📅</span>
+                <span>Multi-Sesi Ujian (Satu Ulangan, Banyak Kelas/Sesi)</span>
+              </span>
+              <p class="text-[11px] text-indigo-900 leading-tight">
+                Satu ulangan dapat digunakan untuk banyak sesi (misal: Sesi 1 Kelas 7A, Sesi 2 Kelas 7B) dengan kumpulan bank soal yang sama.
+              </p>
+              <label class="flex items-center space-x-2 cursor-pointer pt-0.5">
+                <input type="checkbox" id="new-exam-auto-create-sessions" class="rounded text-indigo-600 focus:ring-indigo-500">
+                <span class="text-xs font-semibold text-indigo-950">⚡ Buat Sesi Otomatis untuk setiap kelas yang dipilih setelah disimpan</span>
+              </label>
             </div>
             <div class="p-2.5 bg-white rounded-lg border border-slate-200 space-y-2">
               <span class="block font-semibold text-slate-700">⏰ Jadwal & Batas Durasi</span>
@@ -1151,9 +1175,12 @@
                     Fitur opsional untuk membagi satu ulangan menjadi beberapa jadwal/sesi dengan token berbeda untuk masing-masing kelas. Rekapitulasi nilai akhir tetap bersatu dan dapat difilter per sesi.
                   </p>
                 </div>
-                <div>
+                <div class="flex items-center space-x-2">
+                  <button type="button" onclick="autoGenerateExamSessions()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5 cursor-pointer" title="Buat 1 sesi terpisah otomatis untuk tiap kelas terdaftar">
+                    <span>⚡ Buat Sesi Otomatis per Kelas</span>
+                  </button>
                   <button type="button" onclick="openCreateSesiModal()" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5 cursor-pointer">
-                    <span>➕ Buat Sesi Baru</span>
+                    <span>➕ Buat Sesi Manual</span>
                   </button>
                 </div>
               </div>
@@ -1798,22 +1825,33 @@
 
           <div class="p-2.5 bg-white rounded-lg border border-purple-100 space-y-1.5">
             <span class="block text-[11px] font-semibold text-purple-900">🎯 Kuota Wajib per Tipe Soal (Opsional):</span>
-            <div class="grid grid-cols-2 gap-2">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div>
+                <label class="block text-[10px] text-slate-500 mb-0.5">Wajib PG Tunggal:</label>
+                <input type="number" id="edit-exam-limit-pg" min="0" placeholder="Cth: 10" class="w-full px-2 py-1 text-xs rounded border border-slate-300 bg-white">
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-500 mb-0.5">Wajib PG Kompleks:</label>
+                <input type="number" id="edit-exam-limit-pg-kompleks" min="0" placeholder="Cth: 3" class="w-full px-2 py-1 text-xs rounded border border-slate-300 bg-white">
+              </div>
               <div>
                 <label class="block text-[10px] text-slate-500 mb-0.5">Wajib Soal Isian:</label>
                 <input type="number" id="edit-exam-limit-isian" min="0" placeholder="Cth: 4" class="w-full px-2 py-1 text-xs rounded border border-slate-300 bg-white">
               </div>
               <div>
                 <label class="block text-[10px] text-slate-500 mb-0.5">Wajib Soal Essay:</label>
-                <input type="number" id="edit-exam-limit-essay" min="0" placeholder="Cth: 1" class="w-full px-2 py-1 text-xs rounded border border-slate-300 bg-white">
+                <input type="number" id="edit-exam-limit-essay" min="0" placeholder="Cth: 2" class="w-full px-2 py-1 text-xs rounded border border-slate-300 bg-white">
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-500 mb-0.5">Wajib Game Koding:</label>
+                <input type="number" id="edit-exam-limit-koding" min="0" placeholder="Cth: 1" class="w-full px-2 py-1 text-xs rounded border border-slate-300 bg-white">
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-500 mb-0.5">🎧 Maks. Listening:</label>
+                <input type="number" id="edit-exam-limit-listening" min="0" placeholder="Cth: 2" class="w-full px-2 py-1 text-xs rounded border border-slate-300 bg-white">
               </div>
             </div>
-            <div class="mt-1.5">
-              <label class="block text-[10px] text-slate-500 mb-0.5">🎧 Maks. Soal Listening (Audio) yang Keluar:</label>
-              <input type="number" id="edit-exam-limit-listening" min="0" placeholder="Kosongkan jika bebas (cth: 2)" class="w-full px-2 py-1 text-xs rounded border border-slate-300 bg-white">
-              <span class="block text-[10px] text-slate-400 mt-0.5">Membatasi agar siswa tidak mendapatkan terlalu banyak soal audio listening dari bank soal.</span>
-            </div>
-            <span class="block text-[10px] text-slate-400">Contoh: Wajib 4 Isian + 1 Essay. Siswa akan otomatis mendapatkan kombinasi acak sesuai ketentuan ini.</span>
+            <span class="block text-[10px] text-slate-400">Dukung seluruh tipe: PG, PG Kompleks, Isian, Essay, dan Game Koding. Siswa menerima kombinasi acak sesuai ketentuan ini.</span>
             <div id="edit-quota-calc-badge" class="mt-1.5 text-[11px] font-medium"></div>
           </div>
 
@@ -1821,7 +1859,21 @@
             <input type="checkbox" id="edit-exam-acak" value="1" class="rounded text-purple-600 focus:ring-purple-500">
             <span class="font-medium text-[11px]">Acak urutan paket soal untuk setiap siswa</span>
           </label>
-          <p class="text-[10px] text-slate-500">Jika Anda punya 20 butir soal di bank dan mengatur 5 soal (4 Isian + 1 Essay), setiap siswa otomatis mendapat 5 butir soal acak sesuai kuota dengan nilai maksimum 100.</p>
+          <p class="text-[10px] text-slate-500">Nilai maksimum siswa akan otomatis terkalibrasi ke skala 100 sesuai bobot komposisi soal.</p>
+        </div>
+
+        <!-- Sesi Ujian Quick Access -->
+        <div class="p-3 bg-indigo-50/70 rounded-xl border border-indigo-200 flex items-center justify-between">
+          <div>
+            <span class="font-bold text-indigo-950 text-xs flex items-center space-x-1.5">
+              <span>📅</span>
+              <span>Multi-Sesi Ujian (<span id="edit-exam-sesi-count-badge">0</span> Sesi Terdaftar)</span>
+            </span>
+            <p class="text-[11px] text-indigo-800 mt-0.5">Satu ulangan dapat digunakan untuk banyak sesi/kelas dengan bank soal yang sama.</p>
+          </div>
+          <button type="button" onclick="openSesiTabFromEditModal()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1 cursor-pointer">
+            <span>Kelola Sesi &rarr;</span>
+          </button>
         </div>
 
         <div>
@@ -3990,15 +4042,23 @@
         <!-- TAB 3: VISUAL EDITOR & TEST SIMULATOR -->
         <div id="cg-content-editor" class="hidden space-y-4">
           <!-- Form Header Level Settings -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+          <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
             <div class="sm:col-span-2">
               <label class="block font-bold text-slate-700 mb-1">Teks Pertanyaan / Misi untuk Siswa:</label>
-              <textarea id="cg-edit-pertanyaan" rows="2" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Instruksi tantangan untuk siswa..."></textarea>
+              <textarea id="cg-edit-pertanyaan" rows="3" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs" placeholder="Instruksi tantangan untuk siswa..."></textarea>
             </div>
             <div class="space-y-2">
               <div>
-                <label class="block font-bold text-slate-700 mb-1">Bobot Soal:</label>
-                <input type="number" id="cg-edit-bobot" value="20" min="1" max="100" class="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs">
+                <label class="block font-bold text-slate-700 mb-1">Jenis / Mode Tantangan:</label>
+                <select id="cg-edit-subtipe" onchange="changeCgSubtipe(this.value)" class="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-indigo-900 bg-white">
+                  <option value="grid_robot">🚀 Grid Robot Runner (Algoritma)</option>
+                  <option value="loop_master">🔁 Loop Master (Looping)</option>
+                  <option value="decision_gate">⚖️ Decision Gate (Percabangan)</option>
+                  <option value="bug_doctor">🩺 Bug Doctor (Debugging)</option>
+                  <option value="scratch_puzzle">🧩 Scratch Puzzle (Event & Aksi)</option>
+                  <option value="pattern_guesser">🔍 Tebak Pola (Pattern)</option>
+                  <option value="parsons_puzzle">📋 Susun Algoritma (Parsons)</option>
+                </select>
               </div>
               <div>
                 <label class="block font-bold text-slate-700 mb-1">Tingkat Kesulitan:</label>
@@ -4008,6 +4068,10 @@
                   <option value="sulit">Sulit</option>
                 </select>
               </div>
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Bobot Soal:</label>
+              <input type="number" id="cg-edit-bobot" value="20" min="1" max="100" class="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs">
             </div>
           </div>
 
@@ -4695,77 +4759,93 @@
     }
 
     // Helper sinkronisasi kuota tipe soal dengan batas jumlah total soal
-    function setupQuotaSync(limitId, isianId, essayId, badgeId, listeningId) {
+    function setupQuotaSync(limitId, isianId, essayId, badgeId, listeningId, pgId, pgKompleksId, kodingId) {
       const elLimit = document.getElementById(limitId);
+      const elPg = pgId ? document.getElementById(pgId) : null;
+      const elPgKompleks = pgKompleksId ? document.getElementById(pgKompleksId) : null;
       const elIsian = document.getElementById(isianId);
       const elEssay = document.getElementById(essayId);
+      const elKoding = kodingId ? document.getElementById(kodingId) : null;
       const elBadge = document.getElementById(badgeId);
       const elListening = listeningId ? document.getElementById(listeningId) : null;
       if (!elLimit || !elIsian || !elEssay || !elBadge) return () => {};
 
       function update() {
         let limit = elLimit.value.trim() !== '' ? parseInt(elLimit.value, 10) : null;
+        let pg = (elPg && elPg.value.trim() !== '') ? parseInt(elPg.value, 10) : null;
+        let pgKompleks = (elPgKompleks && elPgKompleks.value.trim() !== '') ? parseInt(elPgKompleks.value, 10) : null;
         let isian = elIsian.value.trim() !== '' ? parseInt(elIsian.value, 10) : null;
         let essay = elEssay.value.trim() !== '' ? parseInt(elEssay.value, 10) : null;
+        let koding = (elKoding && elKoding.value.trim() !== '') ? parseInt(elKoding.value, 10) : null;
         let listening = (elListening && elListening.value.trim() !== '') ? parseInt(elListening.value, 10) : null;
 
-        // Terapkan batas max dinamis mengikuti batas jumlah soal siswa
+        const allInputs = [elPg, elPgKompleks, elIsian, elEssay, elKoding].filter(Boolean);
+
+        // Terapkan batas max dinamis mengikuti batas jumlah total soal siswa
         if (limit !== null && limit > 0) {
-          elIsian.max = limit;
-          elEssay.max = limit;
+          allInputs.forEach(inp => { inp.max = limit; });
           if (elListening) elListening.max = limit;
 
-          if (isian !== null && isian > limit) {
-            elIsian.value = limit;
-            isian = limit;
-          }
-          if (essay !== null && essay > limit) {
-            elEssay.value = limit;
-            essay = limit;
-          }
-          if (listening !== null && listening > limit) {
-            elListening.value = limit;
-            listening = limit;
-          }
+          if (pg !== null && pg > limit) { elPg.value = limit; pg = limit; }
+          if (pgKompleks !== null && pgKompleks > limit) { elPgKompleks.value = limit; pgKompleks = limit; }
+          if (isian !== null && isian > limit) { elIsian.value = limit; isian = limit; }
+          if (essay !== null && essay > limit) { elEssay.value = limit; essay = limit; }
+          if (koding !== null && koding > limit) { elKoding.value = limit; koding = limit; }
+          if (listening !== null && listening > limit) { elListening.value = limit; listening = limit; }
         } else {
-          elIsian.removeAttribute('max');
-          elEssay.removeAttribute('max');
+          allInputs.forEach(inp => { inp.removeAttribute('max'); });
           if (elListening) elListening.removeAttribute('max');
         }
 
+        const typeParts = [];
+        if (pg) typeParts.push(`${pg} PG`);
+        if (pgKompleks) typeParts.push(`${pgKompleks} PG Kompleks`);
+        if (isian) typeParts.push(`${isian} Isian`);
+        if (essay) typeParts.push(`${essay} Essay`);
+        if (koding) typeParts.push(`${koding} Koding`);
+
+        const countPg = pg || 0;
+        const countPgKompleks = pgKompleks || 0;
         const countIsian = isian || 0;
         const countEssay = essay || 0;
-        const total = (isian !== null ? countIsian : 0) + (essay !== null ? countEssay : 0);
+        const countKoding = koding || 0;
+        const total = countPg + countPgKompleks + countIsian + countEssay + countKoding;
+        const hasAnyQuota = (pg !== null || pgKompleks !== null || isian !== null || essay !== null || koding !== null);
         const listeningBadge = (listening !== null) ? `<span class="inline-flex items-center ml-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">🎧 Maks. ${listening} Listening</span>` : '';
 
-        if (isian === null && essay === null && listening === null) {
+        if (!hasAnyQuota && listening === null) {
           elBadge.innerHTML = '';
           return;
         }
 
+        const formulaStr = typeParts.length > 0 ? typeParts.join(' + ') : '0 Butir';
+
         if (limit !== null && limit > 0) {
           if (total === limit) {
-            elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200"><span>✅</span> <span><strong>Pas:</strong> ${countIsian} Isian + ${countEssay} Essay = ${total} / ${limit} Soal</span></span> ${listeningBadge}`;
+            elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200"><span>✅</span> <span><strong>Pas:</strong> ${formulaStr} = ${total} / ${limit} Soal</span></span> ${listeningBadge}`;
           } else if (total < limit) {
             const sisa = limit - total;
-            elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200"><span>ℹ️</span> <span>${countIsian} Isian + ${countEssay} Essay = ${total} / ${limit} Soal (${sisa} sisa acak bebas)</span></span> ${listeningBadge}`;
+            elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200"><span>ℹ️</span> <span>${formulaStr} = ${total} / ${limit} Soal (${sisa} sisa acak bebas)</span></span> ${listeningBadge}`;
           } else {
             const lebih = total - limit;
             elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-red-700 bg-red-50 px-2.5 py-1 rounded-md border border-red-200"><span>⚠️</span> <span><strong>Melebihi Batas!</strong> Total ${total} soal (Batas maks: ${limit}, lebih ${lebih})</span></span> ${listeningBadge}`;
           }
         } else {
-          elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-200"><span>🎯</span> <span>Total kuota: ${total} soal (${countIsian} Isian + ${countEssay} Essay)</span></span> ${listeningBadge}`;
+          elBadge.innerHTML = `<span class="inline-flex items-center space-x-1 text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-200"><span>🎯</span> <span>Total kuota: ${total} soal (${formulaStr})</span></span> ${listeningBadge}`;
         }
       }
 
       elLimit.addEventListener('input', update);
+      if (elPg) elPg.addEventListener('input', update);
+      if (elPgKompleks) elPgKompleks.addEventListener('input', update);
       elIsian.addEventListener('input', update);
       elEssay.addEventListener('input', update);
+      if (elKoding) elKoding.addEventListener('input', update);
       if (elListening) elListening.addEventListener('input', update);
       return update;
     }
 
-    const updateNewQuotaSync = setupQuotaSync('new-exam-limit', 'new-exam-limit-isian', 'new-exam-limit-essay', 'new-quota-calc-badge', 'new-exam-limit-listening');
+    const updateNewQuotaSync = setupQuotaSync('new-exam-limit', 'new-exam-limit-isian', 'new-exam-limit-essay', 'new-quota-calc-badge', 'new-exam-limit-listening', 'new-exam-limit-pg', 'new-exam-limit-pg-kompleks', 'new-exam-limit-koding');
 
     // --- MANAJEMEN DAFTAR MATA PELAJARAN (RIWAYAT GURU & STANDAR NASIONAL) ---
     const STANDARD_SUBJECTS = [
@@ -4928,13 +5008,23 @@
 
       const selectedClassIds = Array.from(document.querySelectorAll('input[name="kelas_choice"]:checked')).map(cb => Number(cb.value));
       const limitVal = document.getElementById('new-exam-limit').value.trim();
+      const limitPgVal = document.getElementById('new-exam-limit-pg')?.value.trim();
+      const limitPgKompleksVal = document.getElementById('new-exam-limit-pg-kompleks')?.value.trim();
       const limitIsianVal = document.getElementById('new-exam-limit-isian')?.value.trim();
       const limitEssayVal = document.getElementById('new-exam-limit-essay')?.value.trim();
+      const limitKodingVal = document.getElementById('new-exam-limit-koding')?.value.trim();
       const limitListeningVal = document.getElementById('new-exam-limit-listening')?.value.trim();
+      const autoCreateSessions = document.getElementById('new-exam-auto-create-sessions')?.checked;
 
-      if (limitVal && ((limitIsianVal ? parseInt(limitIsianVal, 10) : 0) + (limitEssayVal ? parseInt(limitEssayVal, 10) : 0)) > parseInt(limitVal, 10)) {
-        const totalQ = (limitIsianVal ? parseInt(limitIsianVal, 10) : 0) + (limitEssayVal ? parseInt(limitEssayVal, 10) : 0);
-        alert(`Total kuota isian (${limitIsianVal || 0}) + essay (${limitEssayVal || 0}) = ${totalQ} butir, melebihi batas jumlah soal siswa (${limitVal} butir)! Silakan sesuaikan.`);
+      const qPg = limitPgVal ? parseInt(limitPgVal, 10) : 0;
+      const qPgK = limitPgKompleksVal ? parseInt(limitPgKompleksVal, 10) : 0;
+      const qIsian = limitIsianVal ? parseInt(limitIsianVal, 10) : 0;
+      const qEssay = limitEssayVal ? parseInt(limitEssayVal, 10) : 0;
+      const qKoding = limitKodingVal ? parseInt(limitKodingVal, 10) : 0;
+      const totalQ = qPg + qPgK + qIsian + qEssay + qKoding;
+
+      if (limitVal && totalQ > parseInt(limitVal, 10)) {
+        alert(`Total kuota tipe (${totalQ} butir: ${qPg} PG, ${qPgK} PG Kompleks, ${qIsian} Isian, ${qEssay} Essay, ${qKoding} Koding) melebihi batas jumlah soal siswa (${limitVal} butir)! Silakan sesuaikan.`);
         return;
       }
       if (limitVal && limitListeningVal && parseInt(limitListeningVal, 10) > parseInt(limitVal, 10)) {
@@ -4969,8 +5059,11 @@
         kelas_ids: selectedClassIds,
         deskripsi: document.getElementById('new-exam-desc').value.trim(),
         jumlah_soal_tampil: limitVal ? parseInt(limitVal, 10) : null,
+        jumlah_soal_pg: (limitPgVal !== undefined && limitPgVal !== '') ? parseInt(limitPgVal, 10) : null,
+        jumlah_soal_pg_kompleks: (limitPgKompleksVal !== undefined && limitPgKompleksVal !== '') ? parseInt(limitPgKompleksVal, 10) : null,
         jumlah_soal_isian: (limitIsianVal !== undefined && limitIsianVal !== '') ? parseInt(limitIsianVal, 10) : null,
         jumlah_soal_essay: (limitEssayVal !== undefined && limitEssayVal !== '') ? parseInt(limitEssayVal, 10) : null,
+        jumlah_soal_koding: (limitKodingVal !== undefined && limitKodingVal !== '') ? parseInt(limitKodingVal, 10) : null,
         jumlah_soal_listening: (limitListeningVal !== undefined && limitListeningVal !== '') ? parseInt(limitListeningVal, 10) : null,
         acak_soal: acakChecked ? 1 : 0,
         zona_waktu: zonaWaktuVal,
@@ -4998,6 +5091,13 @@
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        if (autoCreateSessions && data.data && data.data.id) {
+          try {
+            await guruFetch(`/api/guru/ulangan/${data.data.id}/sesi/auto-generate`, { method: 'POST' });
+          } catch (eAuto) {
+            console.error('Gagal generate sesi otomatis:', eAuto);
+          }
+        }
         formCreateExam.reset();
         await loadTeacherSubjects();
         document.getElementById('new-exam-kkm').value = '75';
@@ -5787,7 +5887,7 @@
       }
     };
 
-    const updateEditQuotaSync = setupQuotaSync('edit-exam-limit', 'edit-exam-limit-isian', 'edit-exam-limit-essay', 'edit-quota-calc-badge', 'edit-exam-limit-listening');
+    const updateEditQuotaSync = setupQuotaSync('edit-exam-limit', 'edit-exam-limit-isian', 'edit-exam-limit-essay', 'edit-quota-calc-badge', 'edit-exam-limit-listening', 'edit-exam-limit-pg', 'edit-exam-limit-pg-kompleks', 'edit-exam-limit-koding');
 
     btnOpenEditExam.onclick = async () => {
       if (!activeUlanganId) return;
@@ -5815,11 +5915,20 @@
         document.getElementById('edit-exam-durasi').value = u.durasi_menit || '';
         document.getElementById('edit-exam-kkm').value = u.kkm || 75;
         document.getElementById('edit-exam-limit').value = u.jumlah_soal_tampil || '';
+        if (document.getElementById('edit-exam-limit-pg')) {
+          document.getElementById('edit-exam-limit-pg').value = (u.jumlah_soal_pg !== null && u.jumlah_soal_pg !== undefined) ? u.jumlah_soal_pg : '';
+        }
+        if (document.getElementById('edit-exam-limit-pg-kompleks')) {
+          document.getElementById('edit-exam-limit-pg-kompleks').value = (u.jumlah_soal_pg_kompleks !== null && u.jumlah_soal_pg_kompleks !== undefined) ? u.jumlah_soal_pg_kompleks : '';
+        }
         if (document.getElementById('edit-exam-limit-isian')) {
           document.getElementById('edit-exam-limit-isian').value = (u.jumlah_soal_isian !== null && u.jumlah_soal_isian !== undefined) ? u.jumlah_soal_isian : '';
         }
         if (document.getElementById('edit-exam-limit-essay')) {
           document.getElementById('edit-exam-limit-essay').value = (u.jumlah_soal_essay !== null && u.jumlah_soal_essay !== undefined) ? u.jumlah_soal_essay : '';
+        }
+        if (document.getElementById('edit-exam-limit-koding')) {
+          document.getElementById('edit-exam-limit-koding').value = (u.jumlah_soal_koding !== null && u.jumlah_soal_koding !== undefined) ? u.jumlah_soal_koding : '';
         }
         if (document.getElementById('edit-exam-limit-listening')) {
           document.getElementById('edit-exam-limit-listening').value = (u.jumlah_soal_listening !== null && u.jumlah_soal_listening !== undefined) ? u.jumlah_soal_listening : '';
@@ -5889,6 +5998,17 @@
           };
         }
 
+        // Muat jumlah sesi aktif untuk badge multi-sesi di modal
+        try {
+          const sRes = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/sesi`);
+          const sData = await sRes.json();
+          const sBadge = document.getElementById('edit-exam-sesi-count-badge');
+          if (sBadge) {
+            const cnt = (sData.success && Array.isArray(sData.data)) ? sData.data.length : 0;
+            sBadge.textContent = `${cnt} Sesi Aktif`;
+          }
+        } catch (eSesi) {}
+
         updateEditQuotaSync();
         modalEditExam.classList.remove('hidden');
       } catch (err) {
@@ -5904,13 +6024,22 @@
       if (!activeUlanganId) return;
 
       const limitVal = document.getElementById('edit-exam-limit').value.trim();
+      const limitPgVal = document.getElementById('edit-exam-limit-pg')?.value.trim();
+      const limitPgKompleksVal = document.getElementById('edit-exam-limit-pg-kompleks')?.value.trim();
       const limitIsianVal = document.getElementById('edit-exam-limit-isian')?.value.trim();
       const limitEssayVal = document.getElementById('edit-exam-limit-essay')?.value.trim();
+      const limitKodingVal = document.getElementById('edit-exam-limit-koding')?.value.trim();
       const limitListeningVal = document.getElementById('edit-exam-limit-listening')?.value.trim();
 
-      if (limitVal && ((limitIsianVal ? parseInt(limitIsianVal, 10) : 0) + (limitEssayVal ? parseInt(limitEssayVal, 10) : 0)) > parseInt(limitVal, 10)) {
-        const totalQ = (limitIsianVal ? parseInt(limitIsianVal, 10) : 0) + (limitEssayVal ? parseInt(limitEssayVal, 10) : 0);
-        alert(`Total kuota isian (${limitIsianVal || 0}) + essay (${limitEssayVal || 0}) = ${totalQ} butir, melebihi batas jumlah soal siswa (${limitVal} butir)! Silakan sesuaikan.`);
+      const qPg = limitPgVal ? parseInt(limitPgVal, 10) : 0;
+      const qPgK = limitPgKompleksVal ? parseInt(limitPgKompleksVal, 10) : 0;
+      const qIsian = limitIsianVal ? parseInt(limitIsianVal, 10) : 0;
+      const qEssay = limitEssayVal ? parseInt(limitEssayVal, 10) : 0;
+      const qKoding = limitKodingVal ? parseInt(limitKodingVal, 10) : 0;
+      const totalQ = qPg + qPgK + qIsian + qEssay + qKoding;
+
+      if (limitVal && totalQ > parseInt(limitVal, 10)) {
+        alert(`Total kuota tipe (${totalQ} butir: ${qPg} PG, ${qPgK} PG Kompleks, ${qIsian} Isian, ${qEssay} Essay, ${qKoding} Koding) melebihi batas jumlah soal siswa (${limitVal} butir)! Silakan sesuaikan.`);
         return;
       }
       if (limitVal && limitListeningVal && parseInt(limitListeningVal, 10) > parseInt(limitVal, 10)) {
@@ -5956,8 +6085,11 @@
         durasi_menit: durasiVal ? parseInt(durasiVal, 10) : null,
         kkm: kkmVal ? parseInt(kkmVal, 10) : 75,
         jumlah_soal_tampil: limitVal ? parseInt(limitVal, 10) : null,
+        jumlah_soal_pg: (limitPgVal !== undefined && limitPgVal !== '') ? parseInt(limitPgVal, 10) : null,
+        jumlah_soal_pg_kompleks: (limitPgKompleksVal !== undefined && limitPgKompleksVal !== '') ? parseInt(limitPgKompleksVal, 10) : null,
         jumlah_soal_isian: (limitIsianVal !== undefined && limitIsianVal !== '') ? parseInt(limitIsianVal, 10) : null,
         jumlah_soal_essay: (limitEssayVal !== undefined && limitEssayVal !== '') ? parseInt(limitEssayVal, 10) : null,
+        jumlah_soal_koding: (limitKodingVal !== undefined && limitKodingVal !== '') ? parseInt(limitKodingVal, 10) : null,
         jumlah_soal_listening: (limitListeningVal !== undefined && limitListeningVal !== '') ? parseInt(limitListeningVal, 10) : null,
         acak_soal: acakChecked ? 1 : 0,
         kelas_ids: selectedKelas,
@@ -9220,6 +9352,7 @@
                 <div class="inline-flex items-center space-x-1.5 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg">
                   <span class="font-mono font-bold text-blue-700 tracking-wider text-xs">${escapeHtml(s.kode_sesi)}</span>
                   <button type="button" onclick="copySessionToken('${escapeHtml(s.kode_sesi)}')" class="text-blue-600 hover:text-blue-800 text-[11px] cursor-pointer" title="Salin Token Sesi">📋</button>
+                  <button type="button" onclick="copySessionLink('${escapeHtml(s.kode_sesi)}')" class="text-emerald-600 hover:text-emerald-800 text-[11px] cursor-pointer" title="Salin Tautan Langsung Siswa">🔗</button>
                 </div>
               </td>
               <td class="py-2.5 px-3 text-slate-700 font-medium text-xs">
@@ -9258,6 +9391,44 @@
       }).catch(() => {
         prompt('Salin token sesi di bawah:', token);
       });
+    };
+
+    window.copySessionLink = function(token) {
+      if (!token) return;
+      const url = `${window.location.origin}/?kode=${encodeURIComponent(token)}`;
+      navigator.clipboard.writeText(url).then(() => {
+        alert(`Tautan langsung ujian siswa berhasil disalin:\n${url}\n\nSiswa yang membuka link ini akan otomatis terisi kode ujiannya!`);
+      }).catch(() => {
+        prompt('Salin tautan langsung ujian siswa di bawah:', url);
+      });
+    };
+
+    window.autoGenerateExamSessions = async function() {
+      if (!activeUlanganId) {
+        alert('Pilih ulangan terlebih dahulu');
+        return;
+      }
+      if (!confirm('Apakah Anda ingin otomatis membuat 1 sesi ujian terpisah untuk setiap kelas yang terdaftar pada ulangan ini?')) return;
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/sesi/auto-generate`, { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert(data.message || `Berhasil membuat ${data.created} sesi ujian baru.`);
+          loadSesiList(activeUlanganId);
+        } else {
+          alert(data.message || 'Gagal membuat sesi otomatis');
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    };
+
+    window.openSesiTabFromEditModal = function() {
+      modalEditExam.classList.add('hidden');
+      const btnTabSesi = document.getElementById('tab-btn-sesi');
+      if (btnTabSesi) {
+        btnTabSesi.click();
+      }
     };
 
     window.openCreateSesiModal = function() {
@@ -14283,10 +14454,13 @@
 
     function renderCgEditorUI() {
       cgCurrentConfig = normalizeCgConfig(cgCurrentConfig);
-      const sub = (cgCurrentConfig.subtipe || cgCurrentConfig.mode || '').toLowerCase();
+      const sub = (cgCurrentConfig.subtipe || cgCurrentConfig.mode || 'grid_robot').toLowerCase();
       const isScratch = sub === 'scratch_puzzle';
       const isPattern = sub === 'pattern_guesser';
       const isParsons = sub === 'parsons_puzzle';
+
+      const subSel = document.getElementById('cg-edit-subtipe');
+      if (subSel) subSel.value = sub;
 
       const gridContainer = document.getElementById('cg-grid-config-container');
       const scratchContainer = document.getElementById('cg-scratch-config-container');
@@ -14314,6 +14488,13 @@
         resetCgTestSim();
       }
     }
+
+    function changeCgSubtipe(sub) {
+      cgCurrentConfig.subtipe = sub;
+      cgCurrentConfig.mode = sub;
+      renderCgEditorUI();
+    }
+    window.changeCgSubtipe = changeCgSubtipe;
 
     function renderCgPatternEditor() {
       const container = document.getElementById('cg-pattern-editor-content');
@@ -14606,13 +14787,14 @@
       }
 
       if (cgCurrentBrush === 'start') {
-        // Hapus start lama
         const oldS = cgCurrentConfig.start_pos;
         if (oldS && cgCurrentConfig.grid[oldS.y]) {
           cgCurrentConfig.grid[oldS.y][oldS.x] = 'empty';
         }
         cgCurrentConfig.start_pos = { x, y };
         cgCurrentConfig.grid[y][x] = 'start';
+        cgCurrentConfig.obstacles = (cgCurrentConfig.obstacles || []).filter(o => !(o.x === x && o.y === y));
+        cgCurrentConfig.stars = (cgCurrentConfig.stars || []).filter(s => !(s.x === x && s.y === y));
       } else if (cgCurrentBrush === 'finish') {
         const oldF = cgCurrentConfig.finish_pos;
         if (oldF && cgCurrentConfig.grid[oldF.y]) {
@@ -14620,10 +14802,20 @@
         }
         cgCurrentConfig.finish_pos = { x, y };
         cgCurrentConfig.grid[y][x] = 'finish';
-      } else if (cgCurrentBrush === 'wall') {
-        cgCurrentConfig.grid[y][x] = (cgCurrentConfig.grid[y][x] === 'wall') ? 'empty' : 'wall';
-        // Hapus dari bintang jika ada
+        cgCurrentConfig.obstacles = (cgCurrentConfig.obstacles || []).filter(o => !(o.x === x && o.y === y));
         cgCurrentConfig.stars = (cgCurrentConfig.stars || []).filter(s => !(s.x === x && s.y === y));
+      } else if (cgCurrentBrush === 'wall') {
+        const isNowWall = (cgCurrentConfig.grid[y][x] !== 'wall');
+        cgCurrentConfig.grid[y][x] = isNowWall ? 'wall' : 'empty';
+        cgCurrentConfig.stars = (cgCurrentConfig.stars || []).filter(s => !(s.x === x && s.y === y));
+        if (isNowWall) {
+          if (!cgCurrentConfig.obstacles) cgCurrentConfig.obstacles = [];
+          if (!cgCurrentConfig.obstacles.some(o => o.x === x && o.y === y)) {
+            cgCurrentConfig.obstacles.push({ x, y });
+          }
+        } else {
+          cgCurrentConfig.obstacles = (cgCurrentConfig.obstacles || []).filter(o => !(o.x === x && o.y === y));
+        }
       } else if (cgCurrentBrush === 'star') {
         const starIdx = (cgCurrentConfig.stars || []).findIndex(s => s.x === x && s.y === y);
         if (starIdx >= 0) {
@@ -14632,10 +14824,12 @@
         } else {
           cgCurrentConfig.stars.push({ x, y });
           cgCurrentConfig.grid[y][x] = 'star';
+          cgCurrentConfig.obstacles = (cgCurrentConfig.obstacles || []).filter(o => !(o.x === x && o.y === y));
         }
       } else if (cgCurrentBrush === 'empty') {
         cgCurrentConfig.grid[y][x] = 'empty';
         cgCurrentConfig.stars = (cgCurrentConfig.stars || []).filter(s => !(s.x === x && s.y === y));
+        cgCurrentConfig.obstacles = (cgCurrentConfig.obstacles || []).filter(o => !(o.x === x && o.y === y));
       }
 
       renderCgInteractiveGrid();
@@ -15274,9 +15468,11 @@
         document.getElementById('cg-edit-kesulitan').value = soal.tingkat_kesulitan || 'sedang';
         document.getElementById('cg-par-limit').value = cgCurrentConfig.par_limit || 6;
         cgSimBlocks = cgCurrentConfig.initial_blocks ? JSON.parse(JSON.stringify(cgCurrentConfig.initial_blocks)) : [];
+        cgSimRobot = null;
 
         modalCodingGameBuilder.classList.remove('hidden');
         switchCgTab('editor');
+        resetCgTestSim();
       } catch (e) {
         alert('Format data game koding tidak valid: ' + e.message);
       }

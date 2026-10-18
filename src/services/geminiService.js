@@ -1557,15 +1557,19 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
       lines.push(`*Durasi:* ${ulangan.durasi_menit} Menit`);
     }
 
-    if (ulangan.jumlah_soal_tampil || ulangan.jumlah_soal_isian || ulangan.jumlah_soal_essay || ulangan.jumlah_soal_listening) {
+    if (ulangan.jumlah_soal_tampil || ulangan.jumlah_soal_pg || ulangan.jumlah_soal_pg_kompleks || ulangan.jumlah_soal_isian || ulangan.jumlah_soal_essay || ulangan.jumlah_soal_koding || ulangan.jumlah_soal_listening) {
       const typeParts = [];
+      if (ulangan.jumlah_soal_pg) typeParts.push(`${ulangan.jumlah_soal_pg} PG`);
+      if (ulangan.jumlah_soal_pg_kompleks) typeParts.push(`${ulangan.jumlah_soal_pg_kompleks} PG Kompleks`);
       if (ulangan.jumlah_soal_isian) typeParts.push(`${ulangan.jumlah_soal_isian} Isian`);
       if (ulangan.jumlah_soal_essay) typeParts.push(`${ulangan.jumlah_soal_essay} Essay`);
+      if (ulangan.jumlah_soal_koding) typeParts.push(`${ulangan.jumlah_soal_koding} Koding`);
       const parts = [];
       if (typeParts.length > 0) parts.push(typeParts.join(' + '));
       if (ulangan.jumlah_soal_listening) parts.push(`Maks. ${ulangan.jumlah_soal_listening} Listening`);
       const detail = parts.length > 0 ? ` (${parts.join(', ')})` : '';
-      const total = ulangan.jumlah_soal_tampil || (typeParts.length > 0 ? (ulangan.jumlah_soal_isian || 0) + (ulangan.jumlah_soal_essay || 0) : null);
+      const sumQuota = (ulangan.jumlah_soal_pg || 0) + (ulangan.jumlah_soal_pg_kompleks || 0) + (ulangan.jumlah_soal_isian || 0) + (ulangan.jumlah_soal_essay || 0) + (ulangan.jumlah_soal_koding || 0);
+      const total = ulangan.jumlah_soal_tampil || (sumQuota > 0 ? sumQuota : null);
       if (total) {
         lines.push(`*Jumlah Soal:* ${total} Soal Acak${detail}`);
       }

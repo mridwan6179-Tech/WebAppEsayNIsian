@@ -279,4 +279,111 @@ test('T-24: Fitur Distribusi & Kuota Wajib per Tipe Soal saat Pengacakan (misal:
     const broadcastText = geminiService.formatDefaultWhatsAppBroadcast(uUpdated, 'https://contoh.sch.id');
     assert.ok(broadcastText.includes('Maks. 2 Listening'));
   });
+
+  await t.test('12. Distribusi kuota lengkap 5 tipe (PG, PG Kompleks, Isian, Essay, Koding) & Multi-Sesi Otomatis per Kelas', async () => {
+    // Daftarkan kelas di database jika belum ada
+    let k7A = db.prepare("SELECT id FROM kelas WHERE nama_kelas = '7A'").get();
+    if (!k7A) {
+      const ins = db.prepare("INSERT INTO kelas (nama_kelas) VALUES ('7A')").run();
+      k7A = { id: ins.lastInsertRowid };
+    }
+    let k7B = db.prepare("SELECT id FROM kelas WHERE nama_kelas = '7B'").get();
+    if (!k7B) {
+      const ins = db.prepare("INSERT INTO kelas (nama_kelas) VALUES ('7B')").run();
+      k7B = { id: ins.lastInsertRowid };
+    }
+
+    // Buat ulangan dengan kuota lengkap: 1 PG + 1 PG Kompleks + 1 Isian + 1 Essay + 1 Koding = 5 soal
+    const examFull = examService.createUlangan(guru.id, {
+      judul: 'Ulangan Informatika Komprehensif',
+      mata_pelajaran: 'Informatika',
+      tingkat_kelas: '7A, 7B',
+      kelas_ids: [k7A.id, k7B.id],
+      jumlah_soal_tampil: 5,
+      jumlah_soal_pg: 1,
+      jumlah_soal_pg_kompleks: 1,
+      jumlah_soal_isian: 1,
+      jumlah_soal_essay: 1,
+      jumlah_soal_koding: 1,
+      acak_soal: 1
+    });
+
+    assert.strictEqual(examFull.jumlah_soal_pg, 1);
+    assert.strictEqual(examFull.jumlah_soal_pg_kompleks, 1);
+    assert.strictEqual(examFull.jumlah_soal_isian, 1);
+    assert.strictEqual(examFull.jumlah_soal_essay, 1);
+    assert.strictEqual(examFull.jumlah_soal_koding, 1);
+
+    // Tambahkan bank butir soal:
+    // 3 PG biasa
+    examService.createSoal(examFull.id, { nomor: 1, jenis: 'pilihan_ganda', pertanyaan: 'PG 1', bobot: 10, urutan: 1, opsi_a: 'A', opsi_b: 'B', kunci_pg: 'A' });
+    examService.createSoal(examFull.id, { nomor: 2, jenis: 'pilihan_ganda', pertanyaan: 'PG 2', bobot: 10, urutan: 2, opsi_a: 'A', opsi_b: 'B', kunci_pg: 'B' });
+    examService.createSoal(examFull.id, { nomor: 3, jenis: 'pilihan_ganda', pertanyaan: 'PG 3', bobot: 10, urutan: 3, opsi_a: 'A', opsi_b: 'B', kunci_pg: 'A' });
+
+    // 2 PG Kompleks (kunci memiliki koma)
+    examService.createSoal(examFull.id, { nomor: 4, jenis: 'pilihan_ganda', pertanyaan: 'PGK 1', bobot: 15, urutan: 4, opsi_a: 'A', opsi_b: 'B', opsi_c: 'C', kunci_pg: 'A, B' });
+    examService.createSoal(examFull.id, { nomor: 5, jenis: 'pilihan_ganda', pertanyaan: 'PGK 2', bobot: 15, urutan: 5, opsi_a: 'A', opsi_b: 'B', opsi_c: 'C', kunci_pg: 'B, C' });
+
+    // 2 Isian
+    examService.createSoal(examFull.id, { nomor: 6, jenis: 'isian', pertanyaan: 'Isian 1', bobot: 15, urutan: 6, kunci_jawaban: 'RAM' });
+    examService.createSoal(examFull.id, { nomor: 7, jenis: 'isian', pertanyaan: 'Isian 2', bobot: 15, urutan: 7, kunci_jawaban: 'ROM' });
+
+    // 2 Essay
+    examService.createSoal(examFull.id, { nomor: 8, jenis: 'essay', pertanyaan: 'Essay 1', bobot: 30, urutan: 8, kunci_jawaban: 'Jelaskan...' });
+    examService.createSoal(examFull.id, { nomor: 9, jenis: 'essay', pertanyaan: 'Essay 2', bobot: 30, urutan: 9, kunci_jawaban: 'Uraikan...' });
+
+    // 2 Koding Game
+    examService.createSoal(examFull.id, {
+      nomor: 10,
+      jenis: 'koding_game',
+      pertanyaan: 'Misi Robot 1',
+      bobot: 30,
+      urutan: 10,
+      game_data: JSON.stringify({ subtipe: 'grid_robot', grid_width: 5, grid_height: 5, par_limit: 6 })
+    });
+    examService.createSoal(examFull.id, {
+      nomor: 11,
+      jenis: 'koding_game',
+      pertanyaan: 'Misi Robot 2',
+      bobot: 30,
+      urutan: 11,
+      game_data: JSON.stringify({ subtipe: 'loop_master', grid_width: 5, grid_height: 5, par_limit: 8 })
+    });
+
+    examService.updateUlangan(examFull.id, guru.id, { status: 'dibuka' });
+
+    // Generate sesi otomatis per kelas (Kelas 7A & 7B)
+    const autoGenResult = examService.autoGenerateSessions(examFull.id, guru.id);
+    assert.strictEqual(autoGenResult.success, true);
+    assert.strictEqual(autoGenResult.created, 2, 'Harus membuat 2 sesi untuk 2 kelas');
+
+    const sesiList = examService.getSessionsByUlanganId(examFull.id, guru.id);
+    assert.strictEqual(sesiList.length, 2);
+    const sesi7A = sesiList.find(s => s.kelas === '7A');
+    assert.ok(sesi7A, 'Sesi 7A harus terbentuk');
+    assert.ok(sesi7A.kode_sesi.startsWith('SESI-'), 'Kode sesi berawalan SESI-');
+
+    // Siswa masuk lewat token sesi spesifik
+    const studentSesi = studentService.startExam(sesi7A.kode_sesi, 'Budi Santoso', '7A');
+    assert.strictEqual(studentSesi.soal.length, 5, 'Harus menerima tepat 5 soal');
+    assert.strictEqual(studentSesi.sesi.nama_sesi, sesi7A.nama_sesi);
+
+    // Verifikasi masing-masing tipe soal diterima tepat 1 butir
+    const countPG = studentSesi.soal.filter(s => s.jenis === 'pilihan_ganda' && s.tipe_pg !== 'pg_kompleks').length;
+    const countPGK = studentSesi.soal.filter(s => s.jenis === 'pilihan_ganda' && s.tipe_pg === 'pg_kompleks').length;
+    const countIsian = studentSesi.soal.filter(s => s.jenis === 'isian').length;
+    const countEssay = studentSesi.soal.filter(s => s.jenis === 'essay').length;
+    const countKoding = studentSesi.soal.filter(s => s.jenis === 'koding_game').length;
+
+    assert.strictEqual(countPG, 1, 'Tepat 1 PG biasa');
+    assert.strictEqual(countPGK, 1, 'Tepat 1 PG Kompleks');
+    assert.strictEqual(countIsian, 1, 'Tepat 1 Isian');
+    assert.strictEqual(countEssay, 1, 'Tepat 1 Essay');
+    assert.strictEqual(countKoding, 1, 'Tepat 1 Koding Game');
+
+    // Pastikan kunci_pg tidak bocor ke siswa namun tipe_pg terpasang
+    const qPgk = studentSesi.soal.find(s => s.tipe_pg === 'pg_kompleks');
+    assert.strictEqual(qPgk.kunci_pg, undefined, 'kunci_pg harus dihapus dari respon siswa');
+    assert.strictEqual(qPgk.tipe_pg, 'pg_kompleks', 'tipe_pg harus terpasang');
+  });
 });

@@ -22,29 +22,148 @@ if (tursoUrl && tursoToken) {
   const LibsqlDatabase = require('libsql');
   dbPath = path.join(dataDir, 'turso.sqlite');
   console.log('📡 Menghubungkan ke Turso Cloud Database (libSQL Embedded Replica)...');
-  try {
-    db = new LibsqlDatabase(dbPath, {
-      syncUrl: tursoUrl,
-      authToken: tursoToken
-      // Catatan: syncInterval dimatikan agar tidak melakukan background polling otomatis
-      // yang menghabiskan kuota sinkronisasi Turso saat server menganggur (idle).
-    });
-  } catch (err) {
-    console.error('⚠️ Gagal koneksi replica Turso, mencoba fallback:', err.message);
-    db = new LibsqlDatabase(dbPath);
+
+  function initTursoDb() {
+    try {
+      const inst = new LibsqlDatabase(dbPath, {
+        syncUrl: tursoUrl,
+        authToken: tursoToken
+      });
+      try {
+        inst.pragma('journal_mode = WAL');
+        inst.pragma('foreign_keys = ON');
+        inst.pragma('busy_timeout = 5000');
+      } catch (e) {}
+      return inst;
+    } catch (err) {
+      console.error('⚠️ Gagal koneksi replica Turso, mencoba fallback lokal:', err.message);
+      const inst = new LibsqlDatabase(dbPath);
+      try {
+        inst.pragma('journal_mode = WAL');
+        inst.pragma('foreign_keys = ON');
+        inst.pragma('busy_timeout = 5000');
+      } catch (e) {}
+      return inst;
+    }
   }
 
-  // libSQL embedded replica tidak mendukung transaksi manual "BEGIN " via exec()
-  // Bungkus db.transaction agar kompatibel dengan better-sqlite3 tanpa memicu InvalidParserState("Init")
-  db.transaction = function(fn) {
-    const wrapped = function(...args) {
-      return fn(...args);
-    };
-    wrapped.default = wrapped;
-    wrapped.deferred = wrapped;
-    wrapped.immediate = wrapped;
-    wrapped.exclusive = wrapped;
-    return wrapped;
+  let currentDb = initTursoDb();
+
+  function isHranaStreamError(err) {
+    if (!err) return false;
+    const msg = String(err.message || err);
+    return msg.includes('stream not found') || msg.includes('Hrana|Api') || (msg.includes('status=404') && msg.includes('stream'));
+  }
+
+  function reconnectTurso() {
+    console.warn('🔄 Mendeteksi stream Turso kedaluwarsa (Hrana 404), memperbarui instance Libsql...');
+    try {
+      currentDb = initTursoDb();
+    } catch (e) {
+      console.error('⚠️ Gagal menyambung ulang ke Turso:', e.message);
+    }
+  }
+
+  db = {
+    prepare(sql) {
+      const wrapStmt = (stmt) => ({
+        all(...args) {
+          try {
+            return stmt.all(...args);
+          } catch (err) {
+            if (isHranaStreamError(err)) {
+              reconnectTurso();
+              return currentDb.prepare(sql).all(...args);
+            }
+            throw err;
+          }
+        },
+        get(...args) {
+          try {
+            return stmt.get(...args);
+          } catch (err) {
+            if (isHranaStreamError(err)) {
+              reconnectTurso();
+              return currentDb.prepare(sql).get(...args);
+            }
+            throw err;
+          }
+        },
+        run(...args) {
+          try {
+            return stmt.run(...args);
+          } catch (err) {
+            if (isHranaStreamError(err)) {
+              reconnectTurso();
+              return currentDb.prepare(sql).run(...args);
+            }
+            throw err;
+          }
+        }
+      });
+
+      try {
+        return wrapStmt(currentDb.prepare(sql));
+      } catch (err) {
+        if (isHranaStreamError(err)) {
+          reconnectTurso();
+          return wrapStmt(currentDb.prepare(sql));
+        }
+        throw err;
+      }
+    },
+    exec(sql) {
+      try {
+        return currentDb.exec(sql);
+      } catch (err) {
+        if (isHranaStreamError(err)) {
+          reconnectTurso();
+          return currentDb.exec(sql);
+        }
+        throw err;
+      }
+    },
+    pragma(sql) {
+      try {
+        return currentDb.pragma(sql);
+      } catch (err) {
+        if (isHranaStreamError(err)) {
+          reconnectTurso();
+          return currentDb.pragma(sql);
+        }
+        throw err;
+      }
+    },
+    sync() {
+      try {
+        if (typeof currentDb.sync === 'function') {
+          return currentDb.sync();
+        }
+      } catch (err) {
+        if (isHranaStreamError(err)) {
+          reconnectTurso();
+          if (typeof currentDb.sync === 'function') {
+            try {
+              return currentDb.sync();
+            } catch (retryErr) {
+              console.warn('⚠️ db.sync() retry notice:', retryErr.message);
+            }
+          }
+        } else {
+          throw err;
+        }
+      }
+    },
+    transaction(fn) {
+      const wrapped = function(...args) {
+        return fn(...args);
+      };
+      wrapped.default = wrapped;
+      wrapped.deferred = wrapped;
+      wrapped.immediate = wrapped;
+      wrapped.exclusive = wrapped;
+      return wrapped;
+    }
   };
 } else {
   // Lazy-load hanya di mode lokal (tidak ada env Turso). Di Vercel, ini tidak akan pernah dieksekusi
@@ -132,8 +251,11 @@ function initDatabase() {
       kode_ujian TEXT UNIQUE NOT NULL,
       status TEXT CHECK(status IN ('draft', 'dibuka', 'ditutup', 'selesai')) DEFAULT 'draft',
       jumlah_soal_tampil INTEGER DEFAULT NULL,
+      jumlah_soal_pg INTEGER DEFAULT NULL,
+      jumlah_soal_pg_kompleks INTEGER DEFAULT NULL,
       jumlah_soal_isian INTEGER DEFAULT NULL,
       jumlah_soal_essay INTEGER DEFAULT NULL,
+      jumlah_soal_koding INTEGER DEFAULT NULL,
       jumlah_soal_listening INTEGER DEFAULT NULL,
       acak_soal INTEGER DEFAULT 0,
       tanggal_mulai DATETIME,
@@ -499,6 +621,8 @@ function initDatabase() {
   safeAddColumn('ulangan', 'bobot_essay', 'REAL DEFAULT 40');
   safeAddColumn('ulangan', 'opsi_pg_count', 'INTEGER DEFAULT 4');
   safeAddColumn('ulangan', 'jumlah_soal_pg', 'INTEGER DEFAULT NULL');
+  safeAddColumn('ulangan', 'jumlah_soal_pg_kompleks', 'INTEGER DEFAULT NULL');
+  safeAddColumn('ulangan', 'jumlah_soal_koding', 'INTEGER DEFAULT NULL');
   safeAddColumn('ulangan', 'skor_langsung_ai', 'INTEGER DEFAULT 0');
 
   safeAddColumn('soal', 'opsi_a', 'TEXT DEFAULT NULL');

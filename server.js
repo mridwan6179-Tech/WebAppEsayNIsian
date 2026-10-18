@@ -544,6 +544,15 @@ app.post('/api/guru/ulangan/:id/sesi', requireGuru, (req, res) => {
   }
 });
 
+app.post('/api/guru/ulangan/:id/sesi/auto-generate', requireGuru, (req, res) => {
+  try {
+    const result = examService.autoGenerateSessions(req.params.id, req.guru.guruId);
+    res.json({ success: true, message: `Berhasil membuat ${result.count} sesi otomatis untuk kelas terdaftar`, data: result });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 app.get('/api/guru/sesi/:sesiId', requireGuru, (req, res) => {
   try {
     const sesi = examService.getSesiById(req.params.sesiId, req.guru.guruId);

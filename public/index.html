@@ -1110,6 +1110,15 @@
     const inputKelas = document.getElementById('input-kelas');
     const examFoundInfo = document.getElementById('exam-found-info');
 
+    // Auto-fill kode ujian atau token sesi dari query URL (cth: ?kode=SESI-XXX atau ?ujian=XXX atau ?token=XXX)
+    const paramDirectKode = urlParams.get('kode') || urlParams.get('ujian') || urlParams.get('token') || urlParams.get('sesi');
+    if (paramDirectKode && inputKode) {
+      inputKode.value = paramDirectKode.trim().toUpperCase();
+      setTimeout(() => {
+        inputKode.dispatchEvent(new Event('input', { bubbles: true }));
+      }, 50);
+    }
+
     function applyRangkumanTaskFound(task) {
       currentRangkumanTask = task;
       authAlert.classList.add('hidden');
@@ -2564,30 +2573,48 @@
       const hiddenInput = document.getElementById(`input_soal_${soal.id}`);
       if (!container || !hiddenInput) return;
 
-      let cfg = {};
       try {
-        cfg = typeof soal.game_data === 'string' ? JSON.parse(soal.game_data) : (soal.game_data || {});
-      } catch (e) {
-        cfg = {};
-      }
-
-      let parsedSaved = null;
-      if (initialAnswer) {
+        let cfg = {};
         try {
-          parsedSaved = typeof initialAnswer === 'string' ? JSON.parse(initialAnswer) : initialAnswer;
-        } catch (e) {}
-      }
+          cfg = typeof soal.game_data === 'string' ? JSON.parse(soal.game_data) : (soal.game_data || {});
+        } catch (e) {
+          cfg = {};
+        }
 
-      const sub = (cfg.subtipe || cfg.mode || '').toLowerCase();
+        let parsedSaved = null;
+        if (initialAnswer) {
+          try {
+            parsedSaved = typeof initialAnswer === 'string' ? JSON.parse(initialAnswer) : initialAnswer;
+          } catch (e) {}
+        }
 
-      if (sub === 'scratch_puzzle') {
-        initStudentScratchPuzzle(container, hiddenInput, cfg, parsedSaved, soal.id);
-      } else if (sub === 'pattern_guesser') {
-        initStudentPatternGuesser(container, hiddenInput, cfg, parsedSaved, soal.id);
-      } else if (sub === 'parsons_puzzle') {
-        initStudentParsonsPuzzle(container, hiddenInput, cfg, parsedSaved, soal.id);
-      } else {
-        initStudentGridRobotGame(container, hiddenInput, cfg, parsedSaved, soal.id);
+        const sub = (cfg.subtipe || cfg.mode || 'grid_robot').toLowerCase();
+
+        if (sub === 'scratch_puzzle') {
+          initStudentScratchPuzzle(container, hiddenInput, cfg, parsedSaved, soal.id);
+        } else if (sub === 'pattern_guesser') {
+          initStudentPatternGuesser(container, hiddenInput, cfg, parsedSaved, soal.id);
+        } else if (sub === 'parsons_puzzle') {
+          initStudentParsonsPuzzle(container, hiddenInput, cfg, parsedSaved, soal.id);
+        } else {
+          initStudentGridRobotGame(container, hiddenInput, cfg, parsedSaved, soal.id);
+        }
+      } catch (errInit) {
+        console.error('Error rendering interactive coding game:', errInit);
+        container.innerHTML = `
+          <div class="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-900 space-y-2">
+            <p class="font-bold">🎮 Tantangan Berpikir Komputasional & Koding</p>
+            <p class="text-[11px] text-indigo-700">Tuliskan rancangan algoritma, urutan langkah instruksi, atau analisis kode jawaban Anda pada kotak di bawah ini:</p>
+            <textarea class="w-full p-2 border border-indigo-300 rounded-lg text-xs font-mono" rows="3" placeholder="Contoh: Maju 2 langkah, Belok Kanan, Maju 1 langkah...">${escapeHtml(typeof initialAnswer === 'string' ? initialAnswer : '')}</textarea>
+          </div>
+        `;
+        const ta = container.querySelector('textarea');
+        if (ta) {
+          ta.oninput = () => {
+            hiddenInput.value = ta.value;
+            hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+          };
+        }
       }
     };
 

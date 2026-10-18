@@ -13,11 +13,11 @@ const examService = {
     return code;
   },
 
-  // Generate kode sesi unik (diawali huruf S)
+  // Generate kode sesi unik (diawali SESI-)
   generateSessionCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let code = 'S';
-    for (let i = 0; i < 5; i++) {
+    let code = 'SESI-';
+    for (let i = 0; i < 4; i++) {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return code;
@@ -102,20 +102,25 @@ const examService = {
     const cleanZonaWaktu = (data.zona_waktu && ['WIB', 'WITA', 'WIT'].includes(String(data.zona_waktu).toUpperCase()))
       ? String(data.zona_waktu).toUpperCase()
       : 'WIB';
+    const cleanPg = (data.jumlah_soal_pg !== undefined && data.jumlah_soal_pg !== null && data.jumlah_soal_pg !== '') ? Math.max(0, Number(data.jumlah_soal_pg)) : null;
+    const cleanPgKompleks = (data.jumlah_soal_pg_kompleks !== undefined && data.jumlah_soal_pg_kompleks !== null && data.jumlah_soal_pg_kompleks !== '') ? Math.max(0, Number(data.jumlah_soal_pg_kompleks)) : null;
     const cleanIsian = (jumlah_soal_isian !== undefined && jumlah_soal_isian !== null && jumlah_soal_isian !== '') ? Math.max(0, Number(jumlah_soal_isian)) : null;
     const cleanEssay = (jumlah_soal_essay !== undefined && jumlah_soal_essay !== null && jumlah_soal_essay !== '') ? Math.max(0, Number(jumlah_soal_essay)) : null;
+    const cleanKoding = (data.jumlah_soal_koding !== undefined && data.jumlah_soal_koding !== null && data.jumlah_soal_koding !== '') ? Math.max(0, Number(data.jumlah_soal_koding)) : null;
     const cleanListening = (data.jumlah_soal_listening !== undefined && data.jumlah_soal_listening !== null && data.jumlah_soal_listening !== '') ? Math.max(0, Number(data.jumlah_soal_listening)) : null;
+    
+    const totalWajib = (cleanPg || 0) + (cleanPgKompleks || 0) + (cleanIsian || 0) + (cleanEssay || 0) + (cleanKoding || 0);
     let limitSoal = (jumlah_soal_tampil !== undefined && jumlah_soal_tampil !== null && jumlah_soal_tampil !== '') ? Math.max(1, Number(jumlah_soal_tampil)) : null;
-    if (!limitSoal && ((cleanIsian && cleanIsian > 0) || (cleanEssay && cleanEssay > 0))) {
-      limitSoal = (cleanIsian || 0) + (cleanEssay || 0);
+    if (!limitSoal && totalWajib > 0) {
+      limitSoal = totalWajib;
     }
-    if (limitSoal && ((cleanIsian || 0) + (cleanEssay || 0) > limitSoal)) {
-      throw new Error(`Total kuota wajib (${(cleanIsian || 0) + (cleanEssay || 0)} soal) tidak boleh melebihi batas jumlah soal siswa (${limitSoal} soal)`);
+    if (limitSoal && totalWajib > limitSoal) {
+      throw new Error(`Total kuota wajib (${totalWajib} soal) tidak boleh melebihi batas jumlah soal siswa (${limitSoal} soal)`);
     }
     if (limitSoal && cleanListening !== null && cleanListening > limitSoal) {
       throw new Error(`Batas soal listening (${cleanListening} soal) tidak boleh melebihi batas jumlah soal siswa (${limitSoal} soal)`);
     }
-    const isAcak = (acak_soal !== undefined && acak_soal !== null) ? (acak_soal ? 1 : 0) : ((limitSoal || cleanIsian || cleanEssay || cleanListening !== null) ? 1 : 0);
+    const isAcak = (acak_soal !== undefined && acak_soal !== null) ? (acak_soal ? 1 : 0) : ((limitSoal || totalWajib > 0 || cleanListening !== null) ? 1 : 0);
     const cleanTanggalMulai = tanggal_mulai ? this.parseIndonesianDateTime(tanggal_mulai, cleanZonaWaktu) : null;
     const cleanTanggalSelesai = tanggal_selesai ? this.parseIndonesianDateTime(tanggal_selesai, cleanZonaWaktu) : null;
     const cleanDurasi = (durasi_menit !== undefined && durasi_menit !== null && durasi_menit !== '') ? Math.max(1, Number(durasi_menit)) : null;
@@ -142,7 +147,6 @@ const examService = {
     const cleanBobotEssay = (data.bobot_essay !== undefined && data.bobot_essay !== null && data.bobot_essay !== '') ? Math.max(0, Math.min(100, Number(data.bobot_essay))) : (cleanJenisUlangan === 'pg_saja' ? 0 : 40);
     const cleanBobotKoding = (data.bobot_koding !== undefined && data.bobot_koding !== null && data.bobot_koding !== '') ? Math.max(0, Math.min(100, Number(data.bobot_koding))) : 0;
     const cleanOpsiPgCount = Number(data.opsi_pg_count) === 5 ? 5 : 4;
-    const cleanJumlahSoalPg = (data.jumlah_soal_pg !== undefined && data.jumlah_soal_pg !== null && data.jumlah_soal_pg !== '') ? Math.max(0, Number(data.jumlah_soal_pg)) : null;
     const cleanPinAktif = (data.pin_aktif !== undefined && data.pin_aktif !== null) ? (data.pin_aktif ? 1 : 0) : 0;
     const cleanTokenUjian = (data.token_ujian !== undefined && data.token_ujian !== null && data.token_ujian !== '') ? Math.max(0, Number(data.token_ujian)) : null;
     const cleanSkorLangsungAi = (data.skor_langsung_ai !== undefined && data.skor_langsung_ai !== null) ? (data.skor_langsung_ai ? 1 : 0) : 0;
@@ -150,21 +154,29 @@ const examService = {
     const stmt = db.prepare(`
       INSERT INTO ulangan (
         guru_id, judul, mata_pelajaran, tingkat_kelas, deskripsi, kode_ujian, status,
-        jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, acak_soal,
+        jumlah_soal_tampil, jumlah_soal_pg, jumlah_soal_pg_kompleks, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_koding, jumlah_soal_listening, acak_soal,
         tanggal_mulai, tanggal_selesai, durasi_menit, kkm, instruksi_remedial, link_remedial, zona_waktu,
         izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus, tampilkan_simbol,
         link_kisi_kisi, konten_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening,
-        jenis_ulangan, jumlah_paket, bobot_pg, bobot_essay, bobot_koding, opsi_pg_count, jumlah_soal_pg,
+        jenis_ulangan, jumlah_paket, bobot_pg, bobot_essay, bobot_koding, opsi_pg_count,
         pin_aktif, token_ujian, skor_langsung_ai
       )
-      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (
+        ?, ?, ?, ?, ?, ?, 'draft',
+        ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?,
+        ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?,
+        ?, ?, ?
+      )
     `);
     const info = stmt.run(
       guruId, judul, mata_pelajaran, tingkat_kelas, deskripsi || '', kode_ujian,
-      limitSoal, cleanIsian, cleanEssay, cleanListening, isAcak, cleanTanggalMulai, cleanTanggalSelesai, cleanDurasi,
+      limitSoal, cleanPg, cleanPgKompleks, cleanIsian, cleanEssay, cleanKoding, cleanListening, isAcak, cleanTanggalMulai, cleanTanggalSelesai, cleanDurasi,
       cleanKkm, cleanInstruksiRemedial, cleanLinkRemedial, cleanZonaWaktu,
       izinkanSingkatan, izinkanInformal, toleransiTypo, cleanInstruksiKhusus, tampilkanSimbol, cleanLinkKisiKisi, cleanKontenKisiKisi, tampilkanKisiKisi, tampilkanTeksListening,
-      cleanJenisUlangan, cleanJumlahPaket, cleanBobotPg, cleanBobotEssay, cleanBobotKoding, cleanOpsiPgCount, cleanJumlahSoalPg,
+      cleanJenisUlangan, cleanJumlahPaket, cleanBobotPg, cleanBobotEssay, cleanBobotKoding, cleanOpsiPgCount,
       cleanPinAktif, cleanTokenUjian, cleanSkorLangsungAi
     );
     const ulanganId = info.lastInsertRowid;
@@ -282,6 +294,16 @@ const examService = {
       updates.push('jumlah_soal_tampil = ?');
       params.push(limit);
     }
+    if (data.jumlah_soal_pg !== undefined) {
+      const limitPg = (data.jumlah_soal_pg !== null && data.jumlah_soal_pg !== '') ? Math.max(0, Number(data.jumlah_soal_pg)) : null;
+      updates.push('jumlah_soal_pg = ?');
+      params.push(limitPg);
+    }
+    if (data.jumlah_soal_pg_kompleks !== undefined) {
+      const limitPgKompleks = (data.jumlah_soal_pg_kompleks !== null && data.jumlah_soal_pg_kompleks !== '') ? Math.max(0, Number(data.jumlah_soal_pg_kompleks)) : null;
+      updates.push('jumlah_soal_pg_kompleks = ?');
+      params.push(limitPgKompleks);
+    }
     if (data.jumlah_soal_isian !== undefined) {
       const limitIsian = (data.jumlah_soal_isian !== null && data.jumlah_soal_isian !== '') ? Math.max(0, Number(data.jumlah_soal_isian)) : null;
       updates.push('jumlah_soal_isian = ?');
@@ -291,6 +313,11 @@ const examService = {
       const limitEssay = (data.jumlah_soal_essay !== null && data.jumlah_soal_essay !== '') ? Math.max(0, Number(data.jumlah_soal_essay)) : null;
       updates.push('jumlah_soal_essay = ?');
       params.push(limitEssay);
+    }
+    if (data.jumlah_soal_koding !== undefined) {
+      const limitKoding = (data.jumlah_soal_koding !== null && data.jumlah_soal_koding !== '') ? Math.max(0, Number(data.jumlah_soal_koding)) : null;
+      updates.push('jumlah_soal_koding = ?');
+      params.push(limitKoding);
     }
     if (data.jumlah_soal_listening !== undefined) {
       const limitListening = (data.jumlah_soal_listening !== null && data.jumlah_soal_listening !== '') ? Math.max(0, Number(data.jumlah_soal_listening)) : null;
@@ -302,22 +329,32 @@ const examService = {
       params.push(acak_soal ? 1 : 0);
     }
     // Validasi kuota tipe soal tidak boleh melebihi batas jumlah soal siswa
-    const existingRow = db.prepare('SELECT jumlah_soal_tampil, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_listening, zona_waktu FROM ulangan WHERE id = ?').get(id);
+    const existingRow = db.prepare('SELECT jumlah_soal_tampil, jumlah_soal_pg, jumlah_soal_pg_kompleks, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_koding, jumlah_soal_listening, zona_waktu FROM ulangan WHERE id = ?').get(id);
     const finalLimit = jumlah_soal_tampil !== undefined 
       ? ((jumlah_soal_tampil !== null && jumlah_soal_tampil !== '') ? Math.max(1, Number(jumlah_soal_tampil)) : null)
       : existingRow?.jumlah_soal_tampil;
+    const finalPg = data.jumlah_soal_pg !== undefined
+      ? ((data.jumlah_soal_pg !== null && data.jumlah_soal_pg !== '') ? Math.max(0, Number(data.jumlah_soal_pg)) : 0)
+      : (existingRow?.jumlah_soal_pg || 0);
+    const finalPgKompleks = data.jumlah_soal_pg_kompleks !== undefined
+      ? ((data.jumlah_soal_pg_kompleks !== null && data.jumlah_soal_pg_kompleks !== '') ? Math.max(0, Number(data.jumlah_soal_pg_kompleks)) : 0)
+      : (existingRow?.jumlah_soal_pg_kompleks || 0);
     const finalIsian = data.jumlah_soal_isian !== undefined
       ? ((data.jumlah_soal_isian !== null && data.jumlah_soal_isian !== '') ? Math.max(0, Number(data.jumlah_soal_isian)) : 0)
       : (existingRow?.jumlah_soal_isian || 0);
     const finalEssay = data.jumlah_soal_essay !== undefined
       ? ((data.jumlah_soal_essay !== null && data.jumlah_soal_essay !== '') ? Math.max(0, Number(data.jumlah_soal_essay)) : 0)
       : (existingRow?.jumlah_soal_essay || 0);
+    const finalKoding = data.jumlah_soal_koding !== undefined
+      ? ((data.jumlah_soal_koding !== null && data.jumlah_soal_koding !== '') ? Math.max(0, Number(data.jumlah_soal_koding)) : 0)
+      : (existingRow?.jumlah_soal_koding || 0);
     const finalListening = data.jumlah_soal_listening !== undefined
       ? ((data.jumlah_soal_listening !== null && data.jumlah_soal_listening !== '') ? Math.max(0, Number(data.jumlah_soal_listening)) : null)
       : (existingRow?.jumlah_soal_listening !== undefined ? existingRow.jumlah_soal_listening : null);
 
-    if (finalLimit && (finalIsian + finalEssay > finalLimit)) {
-      throw new Error(`Total kuota wajib (${finalIsian + finalEssay} soal) tidak boleh melebihi batas jumlah soal siswa (${finalLimit} soal)`);
+    const totalWajib = finalPg + finalPgKompleks + finalIsian + finalEssay + finalKoding;
+    if (finalLimit && (totalWajib > finalLimit)) {
+      throw new Error(`Total kuota wajib (${totalWajib} soal) tidak boleh melebihi batas jumlah soal siswa (${finalLimit} soal)`);
     }
     if (finalLimit && finalListening !== null && finalListening > finalLimit) {
       throw new Error(`Batas soal listening (${finalListening} soal) tidak boleh melebihi batas jumlah soal siswa (${finalLimit} soal)`);
@@ -426,11 +463,6 @@ const examService = {
       const opc = Number(data.opsi_pg_count) === 5 ? 5 : 4;
       updates.push('opsi_pg_count = ?');
       params.push(opc);
-    }
-    if (data.jumlah_soal_pg !== undefined) {
-      const jsp = (data.jumlah_soal_pg !== null && data.jumlah_soal_pg !== '') ? Math.max(0, Number(data.jumlah_soal_pg)) : null;
-      updates.push('jumlah_soal_pg = ?');
-      params.push(jsp);
     }
     if (data.pin_aktif !== undefined) {
       updates.push('pin_aktif = ?');
@@ -1204,6 +1236,10 @@ const examService = {
   // MANAJEMEN SESI UJIAN (Multi-Sesi: Beda Kelas, Jam, Tanggal & Token)
   // =========================================================================
 
+  getSessionsByUlanganId(ulanganId, guruId = null) {
+    return this.getSesiByUlangan(ulanganId, guruId);
+  },
+
   getSesiByUlangan(ulanganId, guruId = null) {
     const ulangan = this.getUlanganById(ulanganId, guruId);
     if (!ulangan) {
@@ -1421,6 +1457,56 @@ const examService = {
     }
 
     return { success: true, message: `Sesi "${existing.nama_sesi}" berhasil dihapus` };
+  },
+
+  autoGenerateSessions(ulanganId, guruId) {
+    const ulangan = this.getUlanganById(ulanganId, guruId);
+    if (!ulangan) {
+      throw new Error('Ulangan tidak ditemukan atau akses ditolak');
+    }
+
+    let classes = [];
+    if (ulangan.kelas && Array.isArray(ulangan.kelas) && ulangan.kelas.length > 0) {
+      classes = ulangan.kelas.map(k => k.nama_kelas);
+    } else if (ulangan.tingkat_kelas && ulangan.tingkat_kelas.toLowerCase() !== 'umum') {
+      classes = ulangan.tingkat_kelas.split(/[,;/]+/).map(s => s.trim()).filter(Boolean);
+    }
+
+    if (classes.length === 0) {
+      classes = ['Sesi 1', 'Sesi 2'];
+    }
+
+    const existingSessions = db.prepare('SELECT id, nama_sesi, kelas FROM ulangan_sesi WHERE ulangan_id = ?').all(ulanganId);
+    const existingClasses = new Set(existingSessions.map(s => (s.kelas || '').toLowerCase()));
+
+    const createdSessions = [];
+    for (let i = 0; i < classes.length; i++) {
+      const cls = classes[i];
+      if (existingClasses.has(cls.toLowerCase())) continue;
+
+      let namaSesi = `Sesi ${existingSessions.length + createdSessions.length + 1} - Kelas ${cls}`;
+      if (cls.toLowerCase().startsWith('sesi')) {
+        namaSesi = cls;
+      }
+
+      const newSesi = this.createSesi(ulanganId, guruId, {
+        nama_sesi: namaSesi,
+        kelas: cls,
+        waktu_mulai: ulangan.tanggal_mulai || null,
+        waktu_selesai: ulangan.tanggal_selesai || null,
+        kuota_peserta: null,
+        status: 'aktif'
+      });
+      createdSessions.push(newSesi);
+    }
+
+    return {
+      success: true,
+      count: createdSessions.length,
+      created: createdSessions.length,
+      sessions: createdSessions,
+      allSessions: this.getSesiByUlangan(ulanganId, guruId)
+    };
   }
 };
 
