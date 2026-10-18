@@ -365,8 +365,23 @@
               <div id="new-subject-chips" class="flex flex-wrap gap-1 mt-1.5 max-h-20 overflow-y-auto"></div>
             </div>
             <div>
-              <label class="block font-semibold mb-1">Pilih Kelas yang Mengikuti</label>
-              <div id="exam-class-checkboxes" class="space-y-1.5 max-h-32 overflow-y-auto p-2 bg-white rounded-lg border border-slate-300">
+              <div class="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                <div class="flex items-center space-x-1.5">
+                  <label class="font-semibold text-slate-800 text-xs">Pilih Kelas yang Mengikuti</label>
+                  <span id="new-exam-selected-kelas-badge" class="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">0 dipilih</span>
+                </div>
+                <div class="flex items-center space-x-2 text-[11px]">
+                  <button type="button" onclick="selectAllExamClasses(true)" class="text-blue-600 hover:text-blue-800 font-bold hover:underline cursor-pointer flex items-center space-x-0.5" title="Centang seluruh kelas">
+                    <span>✓</span> <span>Tandai Semua</span>
+                  </button>
+                  <span class="text-slate-300">|</span>
+                  <button type="button" onclick="selectAllExamClasses(false)" class="text-slate-500 hover:text-red-600 font-medium hover:underline cursor-pointer flex items-center space-x-0.5" title="Hapus semua centang">
+                    <span>✗</span> <span>Kosongkan</span>
+                  </button>
+                </div>
+              </div>
+              <div id="new-exam-grade-quick-filters" class="flex flex-wrap gap-1 mb-1.5"></div>
+              <div id="exam-class-checkboxes" class="flex flex-wrap gap-1.5 p-2.5 bg-slate-50/80 rounded-xl border border-slate-300 min-h-[46px] max-h-48 overflow-y-auto items-center">
                 <p class="text-slate-400 text-[11px]">Memuat kelas...</p>
               </div>
             </div>
@@ -1886,8 +1901,23 @@
         </div>
 
         <div>
-          <label class="block font-semibold text-slate-700 mb-1">Target Kelas yang Mengikuti Ulangan</label>
-          <div id="edit-exam-kelas-checkboxes" class="flex flex-wrap gap-2 max-h-28 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
+          <div class="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+            <div class="flex items-center space-x-1.5">
+              <label class="font-semibold text-slate-700 text-xs">Target Kelas yang Mengikuti Ulangan</label>
+              <span id="edit-exam-selected-kelas-badge" class="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">0 dipilih</span>
+            </div>
+            <div class="flex items-center space-x-2 text-[11px]">
+              <button type="button" onclick="selectAllEditExamClasses(true)" class="text-blue-600 hover:text-blue-800 font-bold hover:underline cursor-pointer flex items-center space-x-0.5" title="Centang seluruh kelas">
+                <span>✓</span> <span>Tandai Semua</span>
+              </button>
+              <span class="text-slate-300">|</span>
+              <button type="button" onclick="selectAllEditExamClasses(false)" class="text-slate-500 hover:text-red-600 font-medium hover:underline cursor-pointer flex items-center space-x-0.5" title="Hapus semua centang">
+                <span>✗</span> <span>Kosongkan</span>
+              </button>
+            </div>
+          </div>
+          <div id="edit-exam-grade-quick-filters" class="flex flex-wrap gap-1 mb-1.5"></div>
+          <div id="edit-exam-kelas-checkboxes" class="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-2.5 bg-slate-50 rounded-xl border border-slate-200 min-h-[46px] items-center">
             <!-- Checkboxes kelas -->
           </div>
         </div>
@@ -4655,6 +4685,135 @@
       loadKelasList();
     };
 
+    function syncClassChipStyles(container) {
+      if (!container) return;
+      const labels = container.querySelectorAll('label.class-picker-chip');
+      labels.forEach(lbl => {
+        const cb = lbl.querySelector('input[type="checkbox"]');
+        if (cb && cb.checked) {
+          lbl.classList.remove('bg-white', 'text-slate-700', 'border-slate-300', 'hover:border-blue-400', 'hover:bg-blue-50/50');
+          lbl.classList.add('bg-blue-600', 'text-white', 'border-blue-600', 'shadow-xs');
+        } else {
+          lbl.classList.remove('bg-blue-600', 'text-white', 'border-blue-600', 'shadow-xs');
+          lbl.classList.add('bg-white', 'text-slate-700', 'border-slate-300', 'hover:border-blue-400', 'hover:bg-blue-50/50');
+        }
+      });
+    }
+
+    function updateNewExamClassBadge() {
+      const container = document.getElementById('exam-class-checkboxes');
+      const badge = document.getElementById('new-exam-selected-kelas-badge');
+      if (!container) return;
+      syncClassChipStyles(container);
+      const checked = container.querySelectorAll('input[name="kelas_choice"]:checked');
+      if (badge) {
+        badge.textContent = `${checked.length} dipilih`;
+        if (checked.length > 0) {
+          badge.className = 'text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold shadow-2xs';
+        } else {
+          badge.className = 'text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium';
+        }
+      }
+    }
+
+    window.selectAllExamClasses = function(select = true) {
+      const container = document.getElementById('exam-class-checkboxes');
+      if (!container) return;
+      const cbs = container.querySelectorAll('input[name="kelas_choice"]');
+      cbs.forEach(cb => { cb.checked = select; });
+      updateNewExamClassBadge();
+    };
+
+    window.selectGradeClasses = function(gradePrefix) {
+      const container = document.getElementById('exam-class-checkboxes');
+      if (!container) return;
+      const cbs = container.querySelectorAll('input[name="kelas_choice"]');
+      const gradeCbs = Array.from(cbs).filter(cb => {
+        const name = cb.getAttribute('data-nama') || '';
+        return name.toUpperCase().startsWith(gradePrefix.toUpperCase());
+      });
+      if (gradeCbs.length === 0) return;
+      const allChecked = gradeCbs.every(cb => cb.checked);
+      gradeCbs.forEach(cb => { cb.checked = !allChecked; });
+      updateNewExamClassBadge();
+    };
+
+    function updateEditExamClassBadge() {
+      const container = document.getElementById('edit-exam-kelas-checkboxes');
+      const badge = document.getElementById('edit-exam-selected-kelas-badge');
+      if (!container) return;
+      syncClassChipStyles(container);
+      const checked = container.querySelectorAll('input[name="edit_kelas_choice"]:checked');
+      if (badge) {
+        badge.textContent = `${checked.length} dipilih`;
+        if (checked.length > 0) {
+          badge.className = 'text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold shadow-2xs';
+        } else {
+          badge.className = 'text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium';
+        }
+      }
+      const names = Array.from(checked).map(cb => cb.getAttribute('data-nama') || cb.parentElement.textContent.trim());
+      const tingkatInput = document.getElementById('edit-exam-tingkat');
+      if (tingkatInput && names.length > 0) {
+        tingkatInput.value = names.join(', ');
+      }
+    }
+
+    window.selectAllEditExamClasses = function(select = true) {
+      const container = document.getElementById('edit-exam-kelas-checkboxes');
+      if (!container) return;
+      const cbs = container.querySelectorAll('input[name="edit_kelas_choice"]');
+      cbs.forEach(cb => { cb.checked = select; });
+      updateEditExamClassBadge();
+    };
+
+    window.selectEditGradeClasses = function(gradePrefix) {
+      const container = document.getElementById('edit-exam-kelas-checkboxes');
+      if (!container) return;
+      const cbs = container.querySelectorAll('input[name="edit_kelas_choice"]');
+      const gradeCbs = Array.from(cbs).filter(cb => {
+        const name = cb.getAttribute('data-nama') || '';
+        return name.toUpperCase().startsWith(gradePrefix.toUpperCase());
+      });
+      if (gradeCbs.length === 0) return;
+      const allChecked = gradeCbs.every(cb => cb.checked);
+      gradeCbs.forEach(cb => { cb.checked = !allChecked; });
+      updateEditExamClassBadge();
+    };
+
+    function renderGradeQuickFilters(targetElementId, onClickFnName) {
+      const container = document.getElementById(targetElementId);
+      if (!container) return;
+      container.innerHTML = '';
+      if (!globalKelasList || globalKelasList.length === 0) return;
+
+      const gradesSet = new Set();
+      globalKelasList.forEach(k => {
+        const match = (k.nama_kelas || '').match(/^([0-9]+|[IVXLCDM]+)/i);
+        if (match) gradesSet.add(match[1].toUpperCase());
+      });
+
+      if (gradesSet.size > 1) {
+        const label = document.createElement('span');
+        label.className = 'text-[10px] font-semibold text-slate-400 self-center mr-1';
+        label.textContent = 'Pilih per Tingkat:';
+        container.appendChild(label);
+
+        Array.from(gradesSet).sort().forEach(g => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 hover:bg-blue-100 text-slate-700 hover:text-blue-800 border border-slate-200 transition cursor-pointer';
+          btn.textContent = `+ Kelas ${g}`;
+          btn.onclick = () => {
+            if (typeof window[onClickFnName] === 'function') {
+              window[onClickFnName](g);
+            }
+          };
+          container.appendChild(btn);
+        });
+      }
+    }
+
     async function loadKelasList() {
       try {
         const res = await guruFetch('/api/guru/kelas');
@@ -4680,20 +4839,27 @@
           const badge = document.createElement('span');
           badge.className = 'inline-flex items-center gap-1 bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded-lg text-xs';
           badge.innerHTML = `
-            ${k.nama_kelas}
+            ${escapeHtml(k.nama_kelas)}
             <button onclick="hapusKelas(${k.id})" class="text-slate-400 hover:text-red-600 font-bold ml-0.5">&times;</button>
           `;
           container.appendChild(badge);
 
-          // Checkbox di Form Buat Ulangan
+          // Checkbox di Form Buat Ulangan (Chip Horizontal Cepat)
           const label = document.createElement('label');
-          label.className = 'flex items-center space-x-2 text-xs text-slate-700 cursor-pointer hover:bg-slate-50 p-1 rounded';
+          label.className = 'class-picker-chip inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition select-none bg-white text-slate-700 border-slate-300 hover:border-blue-400 hover:bg-blue-50/50';
           label.innerHTML = `
-            <input type="checkbox" name="kelas_choice" value="${k.id}" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
-            <span>${k.nama_kelas}</span>
+            <input type="checkbox" name="kelas_choice" value="${k.id}" data-nama="${escapeHtml(k.nama_kelas)}" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+            <span>${escapeHtml(k.nama_kelas)}</span>
           `;
           checkboxContainer.appendChild(label);
         });
+
+        checkboxContainer.onchange = () => {
+          updateNewExamClassBadge();
+        };
+
+        renderGradeQuickFilters('new-exam-grade-quick-filters', 'selectGradeClasses');
+        updateNewExamClassBadge();
 
         if (typeof renderRangkumanClassCheckboxes === 'function') {
           const currentVal = document.getElementById('form-rangkuman-kelas')?.value || '';
@@ -5108,6 +5274,7 @@
           }
         }
         formCreateExam.reset();
+        updateNewExamClassBadge();
         await loadTeacherSubjects();
         document.getElementById('new-exam-kkm').value = '75';
         if (document.getElementById('new-exam-zona-waktu')) document.getElementById('new-exam-zona-waktu').value = 'WIB';
@@ -5988,23 +6155,23 @@
           container.innerHTML = '<p class="text-[11px] text-slate-400">Belum ada kelas terdaftar.</p>';
         } else {
           globalKelasList.forEach(k => {
-            const label = document.createElement('label');
-            label.className = 'inline-flex items-center space-x-1.5 px-2.5 py-1 bg-white rounded-lg border border-slate-200 text-slate-700 cursor-pointer text-xs hover:bg-slate-50';
             const isChecked = activeKelasIds.includes(k.id) || activeKelasNames.includes(k.nama_kelas.toLowerCase());
+            const label = document.createElement('label');
+            label.className = 'class-picker-chip inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition select-none ' + 
+              (isChecked ? 'bg-blue-600 text-white border-blue-600 shadow-xs' : 'bg-white text-slate-700 border-slate-300 hover:border-blue-400 hover:bg-blue-50/50');
             label.innerHTML = `
-              <input type="checkbox" name="edit_kelas_choice" value="${k.id}" ${isChecked ? 'checked' : ''} class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+              <input type="checkbox" name="edit_kelas_choice" value="${k.id}" data-nama="${escapeHtml(k.nama_kelas)}" ${isChecked ? 'checked' : ''} class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
               <span>${escapeHtml(k.nama_kelas)}</span>
             `;
             container.appendChild(label);
           });
 
           container.onchange = () => {
-            const checked = Array.from(container.querySelectorAll('input[name="edit_kelas_choice"]:checked'));
-            const names = checked.map(cb => cb.parentElement.textContent.trim());
-            if (names.length > 0) {
-              document.getElementById('edit-exam-tingkat').value = names.join(', ');
-            }
+            updateEditExamClassBadge();
           };
+
+          renderGradeQuickFilters('edit-exam-grade-quick-filters', 'selectEditGradeClasses');
+          updateEditExamClassBadge();
         }
 
         // Muat jumlah sesi aktif untuk badge multi-sesi di modal
