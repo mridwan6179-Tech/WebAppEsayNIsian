@@ -2578,7 +2578,7 @@
         } catch (e) {}
       }
 
-      const sub = (cfg.subtipe || '').toLowerCase();
+      const sub = (cfg.subtipe || cfg.mode || '').toLowerCase();
 
       if (sub === 'scratch_puzzle') {
         initStudentScratchPuzzle(container, hiddenInput, cfg, parsedSaved, soal.id);
@@ -3419,7 +3419,12 @@
     function initStudentGridRobotGame(container, hiddenInput, cfg, parsedSaved, soalId) {
       const w = Number(cfg.grid_width || cfg.gridSize?.cols) || 5;
       const h = Number(cfg.grid_height || cfg.gridSize?.rows) || 5;
-      const startPos = cfg.start_pos || cfg.start || { x: 0, y: h - 1 };
+
+      const rawStart = cfg.start_pos || cfg.start || { x: 0, y: h - 1 };
+      const startPos = {
+        x: Number(rawStart.x ?? 0),
+        y: Number(rawStart.y ?? (h - 1))
+      };
 
       const dirMap = {
         right: 'E', up: 'N', down: 'S', left: 'W',
@@ -3429,8 +3434,20 @@
       const rawStartDir = cfg.start_dir || cfg.start?.dir || 'E';
       const startDir = (dirMap[rawStartDir] || rawStartDir).toUpperCase();
 
-      const finishPos = cfg.finish_pos || cfg.finish || { x: w - 1, y: 0 };
-      const stars = Array.isArray(cfg.stars) ? cfg.stars : [];
+      const rawFinish = cfg.finish_pos || cfg.finish || { x: w - 1, y: 0 };
+      const finishPos = {
+        x: Number(rawFinish.x ?? (w - 1)),
+        y: Number(rawFinish.y ?? 0)
+      };
+
+      const stars = (Array.isArray(cfg.stars) ? cfg.stars : []).map(s => ({
+        x: Number(s.x),
+        y: Number(s.y)
+      }));
+      const obstacles = (Array.isArray(cfg.obstacles) ? cfg.obstacles : []).map(o => ({
+        x: Number(o.x),
+        y: Number(o.y)
+      }));
       const parLimit = Number(cfg.par_limit || cfg.parBlocks) || 6;
 
       let rawAllowed = cfg.allowed_blocks || cfg.allowedBlocks || ['MAJU', 'MUNDUR', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'];
@@ -3717,19 +3734,20 @@
 
       // Helper Renderer Grid
       const boardElem = document.getElementById(`cg-board-${soalId}`);
-      boardElem.style.gridTemplateColumns = `repeat(${w}, minmax(0, 1fr))`;
+      if (boardElem) boardElem.style.gridTemplateColumns = `repeat(${w}, minmax(0, 1fr))`;
 
       function renderGrid() {
+        if (!boardElem) return;
         boardElem.innerHTML = '';
         for (let y = 0; y < h; y++) {
           for (let x = 0; x < w; x++) {
             const cell = document.createElement('div');
             cell.className = `w-9 h-9 sm:w-10 sm:h-10 rounded-lg border flex items-center justify-center font-bold text-xs select-none transition-all relative ${theme.cellBg}`;
 
-            const isRobot = (robotState.x === x && robotState.y === y);
-            const isFinish = (finishPos.x === x && finishPos.y === y);
+            const isRobot = (Number(robotState.x) === x && Number(robotState.y) === y);
+            const isFinish = (Number(finishPos.x) === x && Number(finishPos.y) === y);
             const isWall = (cfg.grid && cfg.grid[y] && (cfg.grid[y][x] === 'wall' || cfg.grid[y][x] === 'rock' || cfg.grid[y][x] === 'obstacle')) ||
-                           (Array.isArray(cfg.obstacles) && cfg.obstacles.some(o => o.x === x && o.y === y));
+                           obstacles.some(o => o.x === x && o.y === y);
             const isStar = stars.some(s => s.x === x && s.y === y);
 
             if (isRobot) {
@@ -3759,7 +3777,7 @@
             } else if (isStar && !collectedStars.has(`${x},${y}`)) {
               cell.className = `w-9 h-9 sm:w-10 sm:h-10 rounded-lg border flex items-center justify-center font-bold text-xs select-none transition-all relative ${theme.starBg}`;
               cell.innerHTML = theme.starIcon;
-            } else if (startPos.x === x && startPos.y === y) {
+            } else if (Number(startPos.x) === x && Number(startPos.y) === y) {
               // Tandai titik start awal jika robot sedang melangkah ke petak lain
               cell.innerHTML = '<span class="text-[9px] font-bold text-indigo-400/80">START</span>';
             } else {
@@ -3986,12 +4004,11 @@
           W: { dx: -1, dy: 0 }
         };
         const grid = cfg.grid || [];
-        const obstaclesArr = Array.isArray(cfg.obstacles) ? cfg.obstacles : [];
 
         const isWallAt = (cx, cy) => {
           return (cx < 0 || cx >= w || cy < 0 || cy >= h) ||
                  (grid[cy] && (grid[cy][cx] === 'wall' || grid[cy][cx] === 'rock' || grid[cy][cx] === 'obstacle')) ||
-                 obstaclesArr.some(o => o.x === cx && o.y === cy);
+                 obstacles.some(o => o.x === cx && o.y === cy);
         };
 
         for (let i = 0; i < ops.length; i++) {
@@ -4091,12 +4108,11 @@
           W: { dx: -1, dy: 0 }
         };
         const grid = cfg.grid || [];
-        const obstaclesArr = Array.isArray(cfg.obstacles) ? cfg.obstacles : [];
 
         const isWallAt = (cx, cy) => {
           return (cx < 0 || cx >= w || cy < 0 || cy >= h) ||
                  (grid[cy] && (grid[cy][cx] === 'wall' || grid[cy][cx] === 'rock' || grid[cy][cx] === 'obstacle')) ||
-                 obstaclesArr.some(o => o.x === cx && o.y === cy);
+                 obstacles.some(o => o.x === cx && o.y === cy);
         };
 
         let op = ops[stepIndex];
