@@ -8316,6 +8316,75 @@
         const hasInjectionAlert = j.has_injection_alert || (j.alasan_ai && (j.alasan_ai.toLowerCase().includes('manipulasi') || j.alasan_ai.toLowerCase().includes('prompt injection') || j.alasan_ai.toLowerCase().includes('pengelabu')));
         const noSoal = j.nomor_tampil || (idx + 1);
 
+        let jawabanDisplayHtml = '';
+        if (j.jenis === 'koding_game') {
+          let parsedCode = null;
+          let parsedGameData = null;
+          try {
+            parsedCode = j.jawaban_koding || (typeof j.jawaban_siswa === 'string' ? JSON.parse(j.jawaban_siswa) : j.jawaban_siswa);
+          } catch(e) {}
+          try {
+            parsedGameData = j.game_data ? (typeof j.game_data === 'string' ? JSON.parse(j.game_data) : j.game_data) : null;
+          } catch(e) {}
+
+          if (parsedCode && typeof parsedCode === 'object') {
+            const blockList = Array.isArray(parsedCode.blocks) ? parsedCode.blocks : (Array.isArray(parsedCode) ? parsedCode : null);
+            const pairsList = Array.isArray(parsedCode.pairs) ? parsedCode.pairs : null;
+            const parLimit = parsedGameData?.par_limit || parsedGameData?.parBlocks || null;
+
+            if (blockList && blockList.length > 0) {
+              const blockBadges = blockList.map((b, bIdx) => {
+                const bType = typeof b === 'string' ? b : (b?.type || 'BALOK');
+                const bCount = b?.count ? ` (${b.count}x)` : '';
+                let color = 'bg-blue-100 text-blue-800 border-blue-300';
+                if (bType.includes('KIRI') || bType.includes('KANAN') || bType.includes('turn')) color = 'bg-indigo-100 text-indigo-800 border-indigo-300';
+                else if (bType.includes('ULANGI') || bType.includes('repeat')) color = 'bg-amber-100 text-amber-800 border-amber-300';
+                else if (bType.includes('RINTANGAN') || bType.includes('if')) color = 'bg-purple-100 text-purple-800 border-purple-300';
+                else if (bType.includes('MUNDUR') || bType.includes('back')) color = 'bg-cyan-100 text-cyan-800 border-cyan-300';
+                return `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold border ${color}">#${bIdx + 1} ${escapeHtml(bType + bCount)}</span>`;
+              }).join(' ');
+
+              jawabanDisplayHtml = `
+                <div class="space-y-1.5">
+                  <div class="flex items-center justify-between text-xs text-slate-500 font-semibold">
+                    <span>🎮 Susunan Balok Siswa (${blockList.length} balok):</span>
+                    ${parLimit ? `<span class="px-2 py-0.5 rounded bg-slate-100 border border-slate-300 text-slate-700">Target Par: ${parLimit} balok</span>` : ''}
+                  </div>
+                  <div class="flex flex-wrap gap-1.5 p-2 bg-slate-50 rounded-lg border border-slate-200">
+                    ${blockBadges}
+                  </div>
+                </div>
+              `;
+            } else if (pairsList && pairsList.length > 0) {
+              const pairItems = pairsList.map((p, pIdx) => {
+                return `<div class="text-xs p-1.5 bg-slate-50 border border-slate-200 rounded flex items-center justify-between">
+                  <span class="font-bold text-indigo-700">⚡ ${escapeHtml(p.event || p.id || '')}</span>
+                  <span class="text-slate-400 font-bold mx-2">➔</span>
+                  <span class="font-bold text-emerald-700">🎯 ${escapeHtml(p.action || '')}</span>
+                </div>`;
+              }).join('');
+              jawabanDisplayHtml = `
+                <div class="space-y-1">
+                  <span class="text-xs font-semibold text-slate-500">Pasangan Logika Scratch (${pairsList.length} pasang):</span>
+                  <div class="space-y-1">${pairItems}</div>
+                </div>
+              `;
+            } else if (parsedCode.selectedId || parsedCode.selected || parsedCode.answer) {
+              const ansVal = parsedCode.selectedId || parsedCode.selected || parsedCode.answer;
+              jawabanDisplayHtml = `<span class="font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded text-xs">Pilihan Pola: ${escapeHtml(String(ansVal))}</span>`;
+            } else if (Array.isArray(parsedCode.order) || Array.isArray(parsedCode.steps)) {
+              const stepArr = parsedCode.order || parsedCode.steps;
+              jawabanDisplayHtml = `<div class="text-xs font-semibold text-slate-600">Urutan Algoritma: ${stepArr.map((s, idx) => `<span class="inline-block px-1.5 py-0.5 bg-slate-100 rounded border border-slate-300 m-0.5 font-mono">${idx + 1}. ${escapeHtml(String(s))}</span>`).join(' ')}</div>`;
+            } else {
+              jawabanDisplayHtml = `<code class="text-xs bg-slate-100 p-1.5 rounded block whitespace-pre-wrap font-mono text-slate-700">${escapeHtml(typeof j.jawaban_siswa === 'string' ? j.jawaban_siswa : JSON.stringify(j.jawaban_siswa))}</code>`;
+            }
+          } else {
+            jawabanDisplayHtml = `<span class="italic text-slate-400">(siswa belum menyusun balok / kosong)</span>`;
+          }
+        } else {
+          jawabanDisplayHtml = j.jawaban_siswa ? escapeHtml(j.jawaban_siswa) : '<span class="italic text-slate-400">(belum diisi / kosong)</span>';
+        }
+
         item.innerHTML = `
           <div class="flex justify-between items-start font-semibold text-slate-800" dir="auto">
             <span>#${noSoal} (${j.jenis}): ${j.pertanyaan}</span>
@@ -8337,7 +8406,7 @@
                 </span>
               ` : ''}
             </div>
-            <p class="text-slate-800 mt-0.5 text-sm" dir="auto">${j.jawaban_siswa || '<span class="italic text-slate-400">(belum diisi / kosong)</span>'}</p>
+            <div class="text-slate-800 mt-0.5 text-sm" dir="auto">${jawabanDisplayHtml}</div>
           </div>
           ${j.paste_count > 0 ? `
             <div class="p-2 bg-amber-50/90 border border-amber-300 rounded-lg text-xs text-amber-900 font-bold flex items-center justify-between">
@@ -14984,18 +15053,18 @@
           if (res.ok && json.success && json.data) {
             const lvl = json.data;
             cgCurrentConfig = {
-              subtipe: lvl.subtipe || subtipe,
-              grid_width: lvl.grid_width || 5,
-              grid_height: lvl.grid_height || 5,
+              subtipe: lvl.subtipe || lvl.mode || subtipe,
+              grid_width: Number(lvl.grid_width || lvl.gridSize?.cols) || 5,
+              grid_height: Number(lvl.grid_height || lvl.gridSize?.rows) || 5,
               grid: lvl.grid || null,
-              start_pos: lvl.start_pos || { x: 0, y: 4 },
-              start_dir: lvl.start_dir || 'N',
-              finish_pos: lvl.finish_pos || { x: 4, y: 0 },
-              stars: lvl.stars || [],
-              par_limit: lvl.par_limit || 6,
-              max_steps: lvl.max_steps || 30,
-              allowed_blocks: lvl.allowed_blocks || ['MAJU', 'MUNDUR', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'],
-              initial_blocks: lvl.initial_blocks || [],
+              start_pos: lvl.start_pos || lvl.start || { x: 0, y: 4 },
+              start_dir: lvl.start_dir || lvl.start?.dir || 'N',
+              finish_pos: lvl.finish_pos || lvl.finish || { x: 4, y: 0 },
+              stars: Array.isArray(lvl.stars) ? lvl.stars : [],
+              par_limit: Number(lvl.par_limit || lvl.parBlocks) || 6,
+              max_steps: Number(lvl.max_steps || lvl.maxSteps) || 30,
+              allowed_blocks: lvl.allowed_blocks || lvl.allowedBlocks || ['MAJU', 'MUNDUR', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'],
+              initial_blocks: lvl.initial_blocks || lvl.initialBlocks || [],
               target_pairs: lvl.target_pairs || lvl.pairs || [],
               sequence: lvl.sequence || [],
               options: lvl.options || [],
@@ -15010,14 +15079,14 @@
             document.getElementById('cg-edit-pertanyaan').value = lvl.pertanyaan || lvl.deskripsi || '';
             document.getElementById('cg-edit-bobot').value = lvl.bobot || 20;
             document.getElementById('cg-edit-kesulitan').value = lvl.tingkat_kesulitan || kesulitan;
-            document.getElementById('cg-par-limit').value = lvl.par_limit || 6;
+            document.getElementById('cg-par-limit').value = cgCurrentConfig.par_limit;
 
             const sizeSel = document.getElementById('cg-grid-size');
-            if (sizeSel && lvl.grid_width) {
-              sizeSel.value = `${lvl.grid_width}x${lvl.grid_height}`;
+            if (sizeSel && cgCurrentConfig.grid_width) {
+              sizeSel.value = `${cgCurrentConfig.grid_width}x${cgCurrentConfig.grid_height}`;
             }
 
-            cgSimBlocks = lvl.initial_blocks ? JSON.parse(JSON.stringify(lvl.initial_blocks)) : [];
+            cgSimBlocks = cgCurrentConfig.initial_blocks ? JSON.parse(JSON.stringify(cgCurrentConfig.initial_blocks)) : [];
 
             alert('✨ Level Game Koding berhasil dibuat oleh AI! Anda sekarang dapat memeriksa dan mengujinya.');
             switchCgTab('editor');

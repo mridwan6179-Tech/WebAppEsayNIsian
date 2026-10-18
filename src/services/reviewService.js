@@ -320,6 +320,8 @@ const reviewService = {
         s.kunci_jawaban,
         s.rubrik,
         s.bobot,
+        s.game_data,
+        j.jawaban_koding,
         rg.id as review_id,
         rg.skor_final,
         rg.keputusan,

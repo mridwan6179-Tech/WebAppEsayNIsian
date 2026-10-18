@@ -430,12 +430,15 @@ class CodingGameService {
     let count = 0;
     for (const b of blocks) {
       count++;
-      if (b && b.type === 'repeat' && Array.isArray(b.blocks)) {
-        count += this.countBlocks(b.blocks);
+      if (b && (b.type === 'repeat' || b.type === 'ULANGI' || b.type === 'ulangi')) {
+        const subList = Array.isArray(b.blocks) ? b.blocks : (Array.isArray(b.body) ? b.body : []);
+        count += this.countBlocks(subList);
       }
-      if (b && (b.type === 'if' || b.type === 'if_obstacle')) {
+      if (b && (b.type === 'if' || b.type === 'if_obstacle' || b.type === 'JIKA_RINTANGAN')) {
         if (Array.isArray(b.thenBlocks)) count += this.countBlocks(b.thenBlocks);
         if (Array.isArray(b.elseBlocks)) count += this.countBlocks(b.elseBlocks);
+        if (Array.isArray(b.then_body)) count += this.countBlocks(b.then_body);
+        if (Array.isArray(b.else_body)) count += this.countBlocks(b.else_body);
       }
     }
     return count;
@@ -446,37 +449,43 @@ class CodingGameService {
    * Mendukung instruksi: Maju, Mundur, Belok Kiri, Belok Kanan, Ulangi (Loop), dan Jika Rintangan
    */
   simulateGridExecution(levelData, blocks) {
+    if (!levelData || typeof levelData !== 'object') levelData = {};
     const rows = Number(levelData.grid_height || levelData.gridSize?.rows) || 5;
     const cols = Number(levelData.grid_width || levelData.gridSize?.cols) || 5;
-    let x = (levelData.start_pos?.x ?? levelData.start?.x) ?? 0;
-    let y = (levelData.start_pos?.y ?? levelData.start?.y) ?? 0;
+    let x = Number((levelData.start_pos?.x ?? levelData.start?.x) ?? 0);
+    let y = Number((levelData.start_pos?.y ?? levelData.start?.y) ?? 0);
 
     const dirMap = {
       N: 'up', E: 'right', S: 'down', W: 'left',
+      UP: 'up', RIGHT: 'right', DOWN: 'down', LEFT: 'left',
       up: 'up', right: 'right', down: 'down', left: 'left',
+      NORTH: 'up', EAST: 'right', SOUTH: 'down', WEST: 'left',
       UTARA: 'up', TIMUR: 'right', SELATAN: 'down', BARAT: 'left'
     };
-    let dir = dirMap[levelData.start_dir] || dirMap[levelData.start?.dir] || 'right';
+    const rawStartDir = String(levelData.start_dir || levelData.start?.dir || '').trim().toUpperCase();
+    let dir = dirMap[rawStartDir] || dirMap[levelData.start_dir] || dirMap[levelData.start?.dir] || 'right';
 
-    const finishX = (levelData.finish_pos?.x ?? levelData.finish?.x) ?? (cols - 1);
-    const finishY = (levelData.finish_pos?.y ?? levelData.finish?.y) ?? (rows - 1);
+    const finishX = Number((levelData.finish_pos?.x ?? levelData.finish?.x) ?? (cols - 1));
+    const finishY = Number((levelData.finish_pos?.y ?? levelData.finish?.y) ?? (rows - 1));
 
     const obstacles = new Set();
     if (Array.isArray(levelData.obstacles)) {
-      levelData.obstacles.forEach(o => obstacles.add(`${o.x},${o.y}`));
+      levelData.obstacles.forEach(o => {
+        if (o && o.x !== undefined && o.y !== undefined) obstacles.add(`${Number(o.x)},${Number(o.y)}`);
+      });
     }
     if (Array.isArray(levelData.grid)) {
       levelData.grid.forEach((row, gy) => {
         if (Array.isArray(row)) {
           row.forEach((cell, gx) => {
-            if (cell === 'wall' || cell === 'rock' || cell === 'obstacle') obstacles.add(`${gx},${gy}`);
+            if (cell === 'wall' || cell === 'rock' || cell === 'obstacle') obstacles.add(`${Number(gx)},${Number(gy)}`);
           });
         }
       });
     }
 
-    const starsList = Array.isArray(levelData.stars) ? levelData.stars : [];
-    const remainingStars = new Set(starsList.map(s => `${s.x},${s.y}`));
+    const starsList = Array.isArray(levelData.stars) ? levelData.stars.filter(s => s && s.x !== undefined && s.y !== undefined) : [];
+    const remainingStars = new Set(starsList.map(s => `${Number(s.x)},${Number(s.y)}`));
     const totalStars = remainingStars.size;
     let collectedStars = 0;
 
@@ -493,6 +502,7 @@ class CodingGameService {
     const logs = [];
     let hitObstacle = false;
     let obstacleReason = null;
+    let reachedFinishSuccessfully = false;
     let totalStepsExecuted = 0;
     const MAX_STEPS = 200; // Safeguard loop tak terbatas
 
@@ -507,7 +517,7 @@ class CodingGameService {
     const runList = (subBlocks) => {
       if (!Array.isArray(subBlocks)) return;
       for (const block of subBlocks) {
-        if (hitObstacle || totalStepsExecuted >= MAX_STEPS) break;
+        if (hitObstacle || reachedFinishSuccessfully || totalStepsExecuted >= MAX_STEPS) break;
         totalStepsExecuted++;
 
         const rawType = (block?.type || block || '').toString();
@@ -552,6 +562,8 @@ class CodingGameService {
               });
             } else {
               logs.push({ step: totalStepsExecuted, action: 'reached_finish', x, y, dir });
+              reachedFinishSuccessfully = true;
+              break;
             }
           }
         } else if (type === 'move_back' || type === 'MUNDUR' || type === 'mundur' || type === 'back') {
@@ -594,12 +606,14 @@ class CodingGameService {
               });
             } else {
               logs.push({ step: totalStepsExecuted, action: 'reached_finish', x, y, dir });
+              reachedFinishSuccessfully = true;
+              break;
             }
           }
-        } else if (type === 'turn_right' || type === 'BELOK_KANAN' || type === 'kanan') {
+        } else if (type === 'turn_right' || type === 'BELOK_KANAN' || type === 'kanan' || type === 'right') {
           dir = turnClockwise[dir];
           logs.push({ step: totalStepsExecuted, action: 'turn_right', x, y, dir });
-        } else if (type === 'turn_left' || type === 'BELOK_KIRI' || type === 'kiri') {
+        } else if (type === 'turn_left' || type === 'BELOK_KIRI' || type === 'kiri' || type === 'left') {
           dir = turnCounter[dir];
           logs.push({ step: totalStepsExecuted, action: 'turn_left', x, y, dir });
         } else if (type === 'collect') {
@@ -612,22 +626,24 @@ class CodingGameService {
           const count = Math.min(20, Math.max(1, Number(block.count) || 2));
           const subList = Array.isArray(block.blocks) ? block.blocks : (Array.isArray(block.body) ? block.body : [{ type: 'MAJU' }]);
           for (let iter = 0; iter < count; iter++) {
-            if (hitObstacle || totalStepsExecuted >= MAX_STEPS) break;
+            if (hitObstacle || reachedFinishSuccessfully || totalStepsExecuted >= MAX_STEPS) break;
             runList(subList);
           }
         } else if (type === 'if' || type === 'if_obstacle' || type === 'JIKA_RINTANGAN') {
           const obstacleAhead = isObstacleAhead(x, y, dir);
           if (obstacleAhead) {
-            if (Array.isArray(block.thenBlocks) && block.thenBlocks.length > 0) {
-              runList(block.thenBlocks);
+            const thenList = Array.isArray(block.thenBlocks) ? block.thenBlocks : (Array.isArray(block.then_body) ? block.then_body : null);
+            if (thenList && thenList.length > 0) {
+              runList(thenList);
             } else {
               // Default jika percabangan sederhana: belok kanan menghindar
               dir = turnClockwise[dir];
               logs.push({ step: totalStepsExecuted, action: 'turn_right', x, y, dir });
             }
           } else {
-            if (Array.isArray(block.elseBlocks) && block.elseBlocks.length > 0) {
-              runList(block.elseBlocks);
+            const elseList = Array.isArray(block.elseBlocks) ? block.elseBlocks : (Array.isArray(block.else_body) ? block.else_body : null);
+            if (elseList && elseList.length > 0) {
+              runList(elseList);
             } else {
               // Default jika aman: maju
               runList([{ type: 'MAJU' }]);
@@ -641,7 +657,7 @@ class CodingGameService {
 
     const allStarsCollected = totalStars === 0 || collectedStars >= totalStars;
     const isAtFinish = (x === finishX && y === finishY);
-    const isFinished = !hitObstacle && isAtFinish && allStarsCollected;
+    const isFinished = !hitObstacle && (reachedFinishSuccessfully || isAtFinish) && allStarsCollected;
     if (!hitObstacle && isAtFinish && !allStarsCollected) {
       obstacleReason = `Garis finish terkunci! Kumpulkan seluruh ${totalStars} bintang target terlebih dahulu (baru ${collectedStars}/${totalStars} terkumpul).`;
     }
@@ -699,6 +715,7 @@ class CodingGameService {
    * Evaluasi Mode Scratch Puzzle (Matching Event -> Action)
    */
   evaluateScratchPuzzle(levelData, studentPairs) {
+    if (!levelData || typeof levelData !== 'object') levelData = {};
     const correctPairs = levelData.target_pairs || levelData.pairs || [];
     if (correctPairs.length === 0) {
       return { score: 100, starsEarned: 3, isFinished: true, correctCount: 0, total: 0 };
@@ -706,29 +723,34 @@ class CodingGameService {
 
     const pairMap = new Map();
     correctPairs.forEach(p => {
-      pairMap.set(String(p.event || p.id).trim().toLowerCase(), String(p.action).trim().toLowerCase());
+      if (p) pairMap.set(String(p.event || p.id).trim().toLowerCase(), String(p.action).trim().toLowerCase());
     });
 
     let correctCount = 0;
     const feedback = [];
+    const evaluatedEvents = new Set();
 
     if (Array.isArray(studentPairs)) {
       for (const sp of studentPairs) {
+        if (!sp || typeof sp !== 'object') continue;
         const evKey = String(sp.event || sp.id || '').trim().toLowerCase();
-        const expectedAct = pairMap.get(evKey);
+        if (!evKey || evaluatedEvents.has(evKey)) continue;
+        evaluatedEvents.add(evKey);
+
+        const expectedAct = pairMap.get(evKey) || (sp.id ? pairMap.get(String(sp.id).trim().toLowerCase()) : null);
         const actualAct = String(sp.action || '').trim().toLowerCase();
 
-        const match = expectedAct && (expectedAct === actualAct);
+        const match = Boolean(expectedAct && (expectedAct === actualAct));
         if (match) correctCount++;
         feedback.push({
           event: sp.event,
           action: sp.action,
-          isCorrect: Boolean(match)
+          isCorrect: match
         });
       }
     }
 
-    const ratio = correctCount / correctPairs.length;
+    const ratio = correctPairs.length > 0 ? (correctCount / correctPairs.length) : 1;
     const score = Math.round(ratio * 100);
     const starsEarned = ratio === 1 ? 3 : (ratio >= 0.5 ? 2 : (ratio > 0 ? 1 : 0));
 
@@ -747,20 +769,38 @@ class CodingGameService {
    * Evaluasi Mode Tebak Pola Komputasional (Pattern Recognition)
    */
   evaluatePatternGuesser(levelData, studentAnswer) {
-    const rawVal = typeof studentAnswer === 'object' && studentAnswer !== null
-      ? (studentAnswer.selected || studentAnswer.answer || studentAnswer.option_id || '')
-      : String(studentAnswer || '');
+    if (!levelData || typeof levelData !== 'object') levelData = {};
+    let rawVal = '';
+    if (typeof studentAnswer === 'object' && studentAnswer !== null) {
+      rawVal = studentAnswer.selected || studentAnswer.answer || studentAnswer.option_id || studentAnswer.choice || '';
+    } else {
+      rawVal = String(studentAnswer || '');
+    }
 
     const correct = String(levelData.correct_answer || '').trim().toLowerCase();
     const correctOptId = String(levelData.correct_option_id || '').trim().toLowerCase();
     const studentStr = String(rawVal).trim().toLowerCase();
 
-    const isMatch = Boolean(
+    let isMatch = Boolean(
       (correct && studentStr === correct) ||
       (correctOptId && studentStr === correctOptId) ||
-      (studentAnswer?.option_id && studentAnswer.option_id.toLowerCase() === correctOptId) ||
-      (studentAnswer?.selected && studentAnswer.selected.trim().toLowerCase() === correct)
+      (studentAnswer?.option_id && String(studentAnswer.option_id).trim().toLowerCase() === correctOptId) ||
+      (studentAnswer?.selected && String(studentAnswer.selected).trim().toLowerCase() === correct)
     );
+
+    // Cross-match antara label opsi dan ID opsi jika salah satunya cocok
+    if (!isMatch && Array.isArray(levelData.options) && (correctOptId || correct)) {
+      const matchedOpt = levelData.options.find(o => 
+        (correctOptId && String(o.id).trim().toLowerCase() === correctOptId) ||
+        (correct && String(o.label).trim().toLowerCase() === correct)
+      );
+      if (matchedOpt) {
+        if (studentStr === String(matchedOpt.label).trim().toLowerCase() ||
+            studentStr === String(matchedOpt.id).trim().toLowerCase()) {
+          isMatch = true;
+        }
+      }
+    }
 
     const score = isMatch ? 100 : 0;
     const starsEarned = isMatch ? 3 : 0;
@@ -781,11 +821,15 @@ class CodingGameService {
    * Evaluasi Mode Susun Urutan Algoritma (Parsons Programming Puzzle)
    */
   evaluateParsonsPuzzle(levelData, studentOrder) {
-    const order = Array.isArray(studentOrder)
+    if (!levelData || typeof levelData !== 'object') levelData = {};
+    const rawOrder = Array.isArray(studentOrder)
       ? studentOrder
       : (studentOrder?.order || (studentOrder?.blocks ? studentOrder.blocks.map(b => b.id || b) : []));
+    const order = (Array.isArray(rawOrder) ? rawOrder : []).map(x => String(x).trim());
 
-    const correctOrder = levelData.correct_order || (levelData.steps || []).sort((a, b) => a.order - b.order).map(s => s.id);
+    const rawCorrect = levelData.correct_order || (levelData.steps ? [...levelData.steps].sort((a, b) => a.order - b.order).map(s => s.id) : []);
+    const correctOrder = (Array.isArray(rawCorrect) ? rawCorrect : []).map(x => String(x).trim());
+
     if (!correctOrder || correctOrder.length === 0) {
       return { score: 100, starsEarned: 3, isFinished: true, exactMatches: 0, correctPositions: 0, totalSteps: 0 };
     }
@@ -795,7 +839,7 @@ class CodingGameService {
     let totalPairs = 0;
 
     for (let i = 0; i < correctOrder.length; i++) {
-      if (order[i] && String(order[i]).trim() === String(correctOrder[i]).trim()) {
+      if (order[i] && order[i] === correctOrder[i]) {
         exactMatches++;
       }
       for (let j = i + 1; j < correctOrder.length; j++) {
@@ -810,7 +854,7 @@ class CodingGameService {
 
     const isExact = (exactMatches === correctOrder.length);
     const relRatio = totalPairs > 0 ? (relativePairsCorrect / totalPairs) : 1;
-    const posRatio = exactMatches / correctOrder.length;
+    const posRatio = correctOrder.length > 0 ? (exactMatches / correctOrder.length) : 1;
 
     let score = 0;
     if (isExact) {
@@ -849,6 +893,9 @@ class CodingGameService {
         levelData = {};
       }
     }
+    if (!levelData || typeof levelData !== 'object') {
+      levelData = {};
+    }
 
     let submission = studentSubmission;
     if (typeof submission === 'string') {
@@ -858,8 +905,11 @@ class CodingGameService {
         submission = studentSubmission;
       }
     }
+    if (submission === null || submission === undefined) {
+      submission = {};
+    }
 
-    const subtipe = levelData.subtipe || levelData.mode;
+    const subtipe = String(levelData.subtipe || levelData.mode || '').trim().toLowerCase();
 
     if (subtipe === 'scratch_puzzle') {
       const studentPairs = Array.isArray(submission) ? submission : (submission?.pairs || []);
@@ -985,6 +1035,33 @@ Jika mode "parsons_puzzle":
     if (!parsed.mode) parsed.mode = mode;
     if (!parsed.subtipe) parsed.subtipe = mode === 'scratch_puzzle' ? 'scratch_puzzle' : (mode === 'pattern_guesser' ? 'pattern_guesser' : (mode === 'parsons_puzzle' ? 'parsons_puzzle' : 'grid_robot'));
     if (!parsed.title) parsed.title = `Tantangan Koding: ${topic}`;
+
+    // Normalisasi properti ganda agar kompatibel dengan seluruh komponen UI & simulator
+    if (parsed.gridSize) {
+      parsed.grid_width = parsed.grid_width || parsed.gridSize.cols || 5;
+      parsed.grid_height = parsed.grid_height || parsed.gridSize.rows || 5;
+    }
+    if (parsed.start) {
+      parsed.start_pos = parsed.start_pos || { x: parsed.start.x, y: parsed.start.y };
+      const dMap = { right: 'E', up: 'N', down: 'S', left: 'W', east: 'E', north: 'N', south: 'S', west: 'W' };
+      parsed.start_dir = parsed.start_dir || dMap[String(parsed.start.dir).toLowerCase()] || 'E';
+    }
+    if (parsed.finish) {
+      parsed.finish_pos = parsed.finish_pos || { x: parsed.finish.x, y: parsed.finish.y };
+    }
+    if (parsed.parBlocks && !parsed.par_limit) {
+      parsed.par_limit = parsed.parBlocks;
+    }
+    if (parsed.allowedBlocks && (!parsed.allowed_blocks || parsed.allowed_blocks.length === 0)) {
+      parsed.allowed_blocks = parsed.allowedBlocks;
+    }
+    if (parsed.initialBlocks && (!parsed.initial_blocks || parsed.initial_blocks.length === 0)) {
+      parsed.initial_blocks = parsed.initialBlocks;
+    }
+    if (parsed.pairs && (!parsed.target_pairs || parsed.target_pairs.length === 0)) {
+      parsed.target_pairs = parsed.pairs;
+    }
+
     return parsed;
   }
 }

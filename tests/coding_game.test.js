@@ -18,6 +18,7 @@ describe('=== SUITE: ULANGAN MODE PERMAINAN KODING (SMP) & HYBRID ===', () => {
   let testKodeUjian;
   let testSoalPgId;
   let testSoalKodingId;
+  let testPengerjaanId;
 
   before(async () => {
     const guru = db.prepare('SELECT id, email, password FROM guru LIMIT 1').get();
@@ -241,6 +242,7 @@ describe('=== SUITE: ULANGAN MODE PERMAINAN KODING (SMP) & HYBRID ===', () => {
       WHERE p.ulangan_id = ? AND pes.nama = 'Arya Saputra'
     `).get(testUlanganId);
     assert.ok(pengerjaan);
+    testPengerjaanId = pengerjaan.id;
 
     const answers = [
       { soal_id: testSoalPgId, jawaban_siswa: 'A' },
@@ -849,6 +851,141 @@ describe('=== SUITE: ULANGAN MODE PERMAINAN KODING (SMP) & HYBRID ===', () => {
     const deleteRes = examService.deleteSesi(sesi2.id, testGuruId);
     assert.strictEqual(deleteRes.success, true);
     assert.strictEqual(examService.getSesiById(sesi2.id), null);
+  });
+
+  test('18. Multi-Skenario Edge Cases Engine Permainan Koding', () => {
+    // Skenario A: Robot mencapai finish dengan perulangan berlebih (loop overrun)
+    // Robot berada di (0,0) menghadap kanan, finish di (2,0). Siswa menggunakan Ulangi 10x Maju.
+    // Robot harus berhenti di (2,0) saat mencapai finish dan tidak menabrak dinding batas arena (x=5)!
+    const levelOverrun = {
+      mode: 'grid_runner',
+      gridSize: { rows: 5, cols: 5 },
+      start: { x: 0, y: 0, dir: 'right' },
+      finish: { x: 2, y: 0 },
+      obstacles: [],
+      stars: [],
+      parBlocks: 3
+    };
+    const blocksOverrun = [
+      { type: 'ULANGI', count: 10, body: [{ type: 'MAJU' }] }
+    ];
+    const resOverrun = codingGameService.evaluateSolution(levelOverrun, blocksOverrun);
+    assert.strictEqual(resOverrun.isFinished, true, 'Harus sukses finish');
+    assert.strictEqual(resOverrun.hitObstacle, false, 'Tidak boleh menabrak batas arena');
+    assert.strictEqual(resOverrun.finalPos.x, 2, 'Posisi akhir harus persis di finish x=2');
+    assert.strictEqual(resOverrun.finalPos.y, 0, 'Posisi akhir harus persis di finish y=0');
+
+    // Skenario B: Perhitungan Efisiensi Balok (Par) dengan Balok Indonesia & Struktur Bersarang
+    const indonesianBlocks = [
+      { type: 'MAJU' },
+      {
+        type: 'ULANGI',
+        count: 3,
+        body: [
+          { type: 'MAJU' },
+          { type: 'BELOK_KANAN' }
+        ]
+      },
+      {
+        type: 'JIKA_RINTANGAN',
+        then_body: [{ type: 'BELOK_KIRI' }],
+        else_body: [{ type: 'MAJU' }]
+      }
+    ];
+    // Total balok: 1 (MAJU) + 1 (ULANGI) + 2 (body) + 1 (JIKA_RINTANGAN) + 1 (then) + 1 (else) = 7 balok
+    const blockCount = codingGameService.countBlocks(indonesianBlocks);
+    assert.strictEqual(blockCount, 7, 'countBlocks harus menghitung balok bersarang bahasa Indonesia dengan akurat');
+
+    // Skenario C: Arah hadap Bahasa Indonesia (UTARA, TIMUR, SELATAN, BARAT) & string koordinat
+    const levelIndoDir = {
+      subtipe: 'grid_robot',
+      grid_width: '4',
+      grid_height: '4',
+      start_pos: { x: '1', y: '2' },
+      start_dir: 'selatan',
+      finish_pos: { x: '1', y: '3' },
+      stars: [],
+      par_limit: '3'
+    };
+    // Menghadap selatan di (1,2) -> maju 1 petak -> ke (1,3) yang merupakan finish
+    const resIndoDir = codingGameService.evaluateSolution(levelIndoDir, [{ type: 'MAJU' }]);
+    assert.strictEqual(resIndoDir.isFinished, true);
+    assert.strictEqual(resIndoDir.finalPos.x, 1);
+    assert.strictEqual(resIndoDir.finalPos.y, 3);
+    assert.strictEqual(resIndoDir.score, 100);
+
+    // Skenario D: Scratch Puzzle Exploit Duplikasi Pasangan
+    const levelScratch = {
+      mode: 'scratch_puzzle',
+      pairs: [
+        { id: 'p1', event: 'Ketika Spasi Ditekan', action: 'Melompat' },
+        { id: 'p2', event: 'Ketika Klik Hijau', action: 'Mulai Game' }
+      ]
+    };
+    // Siswa mengirim duplikasi pasangan yang sama 5 kali
+    const exploitPairs = [
+      { event: 'Ketika Spasi Ditekan', action: 'Melompat' },
+      { event: 'Ketika Spasi Ditekan', action: 'Melompat' },
+      { event: 'Ketika Spasi Ditekan', action: 'Melompat' },
+      { event: 'Ketika Spasi Ditekan', action: 'Melompat' },
+      { event: 'Ketika Spasi Ditekan', action: 'Melompat' }
+    ];
+    const resScratch = codingGameService.evaluateSolution(levelScratch, exploitPairs);
+    assert.strictEqual(resScratch.correctCount, 1, 'Hanya boleh dihitung 1 kali untuk event yang sama');
+    assert.strictEqual(resScratch.score, 50, 'Skor harus 50% karena baru 1 dari 2 target');
+    assert.strictEqual(resScratch.isFinished, false);
+
+    // Skenario E: Tebak Pola dengan kecocokan ID maupun Label (Cross-match)
+    const levelPattern = {
+      subtipe: 'pattern_guesser',
+      options: [
+        { id: 'opt_1', label: 'Maju 2 Kotak' },
+        { id: 'opt_2', label: 'Belok Kanan 90°' }
+      ],
+      correct_answer: 'Maju 2 Kotak',
+      correct_option_id: 'opt_1'
+    };
+    const resPatternById = codingGameService.evaluateSolution(levelPattern, { selected: 'opt_1' });
+    assert.strictEqual(resPatternById.matched, true);
+    assert.strictEqual(resPatternById.score, 100);
+
+    const resPatternByLabel = codingGameService.evaluateSolution(levelPattern, { answer: 'maju 2 kotak' });
+    assert.strictEqual(resPatternByLabel.matched, true);
+    assert.strictEqual(resPatternByLabel.score, 100);
+
+    // Skenario F: Parsons Puzzle tidak memutasi array asli levelData.steps
+    const levelParsons = {
+      subtipe: 'parsons_puzzle',
+      steps: [
+        { id: 's2', text: 'Langkah Dua', order: 2 },
+        { id: 's1', text: 'Langkah Satu', order: 1 }
+      ]
+    };
+    const stepsCopyBefore = JSON.stringify(levelParsons.steps);
+    const resParsons = codingGameService.evaluateSolution(levelParsons, ['s1', 's2']);
+    assert.strictEqual(resParsons.score, 100);
+    assert.strictEqual(JSON.stringify(levelParsons.steps), stepsCopyBefore, 'levelData.steps tidak boleh termutasi');
+
+    // Skenario G: Ketahanan input error / malformed submission (null, undefined, invalid type)
+    const resNull = codingGameService.evaluateSolution(null, null);
+    assert.ok(typeof resNull.score === 'number');
+    assert.strictEqual(resNull.score, 0);
+
+    const resEmpty = codingGameService.evaluateSolution(levelOverrun, null);
+    assert.strictEqual(resEmpty.isFinished, false);
+    assert.strictEqual(resEmpty.score, 0);
+  });
+
+  test('19. Review Pengerjaan Siswa menampilkan data koding (game_data & jawaban_koding)', () => {
+    const reviewService = require('../src/services/reviewService');
+    assert.ok(testPengerjaanId, 'testPengerjaanId harus terisi');
+    const detail = reviewService.getPengerjaanDetail(testPengerjaanId, testGuruId);
+    assert.ok(detail);
+    assert.ok(Array.isArray(detail.jawabanList));
+    const kodingAns = detail.jawabanList.find(j => j.jenis === 'koding_game');
+    assert.ok(kodingAns, 'Butir soal koding_game harus ada di jawabanList');
+    assert.ok(kodingAns.game_data !== undefined, 'game_data harus ada');
+    assert.ok(kodingAns.jawaban_koding !== undefined, 'jawaban_koding harus ada');
   });
 });
 

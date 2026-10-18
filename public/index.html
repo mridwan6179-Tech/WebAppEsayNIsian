@@ -3417,15 +3417,30 @@
     }
 
     function initStudentGridRobotGame(container, hiddenInput, cfg, parsedSaved, soalId) {
-      const w = Number(cfg.grid_width) || 5;
-      const h = Number(cfg.grid_height) || 5;
-      const startPos = cfg.start_pos || { x: 0, y: h - 1 };
-      const startDir = (cfg.start_dir || 'E').toUpperCase();
-      const finishPos = cfg.finish_pos || { x: w - 1, y: 0 };
+      const w = Number(cfg.grid_width || cfg.gridSize?.cols) || 5;
+      const h = Number(cfg.grid_height || cfg.gridSize?.rows) || 5;
+      const startPos = cfg.start_pos || cfg.start || { x: 0, y: h - 1 };
+
+      const dirMap = {
+        right: 'E', up: 'N', down: 'S', left: 'W',
+        RIGHT: 'E', UP: 'N', DOWN: 'S', LEFT: 'W',
+        timur: 'E', utara: 'N', selatan: 'S', barat: 'W'
+      };
+      const rawStartDir = cfg.start_dir || cfg.start?.dir || 'E';
+      const startDir = (dirMap[rawStartDir] || rawStartDir).toUpperCase();
+
+      const finishPos = cfg.finish_pos || cfg.finish || { x: w - 1, y: 0 };
       const stars = Array.isArray(cfg.stars) ? cfg.stars : [];
-      const parLimit = Number(cfg.par_limit) || 6;
-      const allowedBlocks = Array.isArray(cfg.allowed_blocks) ? cfg.allowed_blocks : ['MAJU', 'MUNDUR', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'];
-      const subtipe = cfg.subtipe || 'grid_robot';
+      const parLimit = Number(cfg.par_limit || cfg.parBlocks) || 6;
+
+      let rawAllowed = cfg.allowed_blocks || cfg.allowedBlocks || ['MAJU', 'MUNDUR', 'BELOK_KIRI', 'BELOK_KANAN', 'ULANGI'];
+      const blockMap = {
+        move: 'MAJU', move_back: 'MUNDUR', back: 'MUNDUR',
+        turn_left: 'BELOK_KIRI', turn_right: 'BELOK_KANAN',
+        repeat: 'ULANGI', if_obstacle: 'JIKA_RINTANGAN', if: 'JIKA_RINTANGAN'
+      };
+      const allowedBlocks = rawAllowed.map(b => blockMap[b] || b);
+      const subtipe = cfg.subtipe || cfg.mode || 'grid_robot';
 
       // Pilihan Tema Visual Arena (Anti-Repetisi & Segar)
       const themeKey = cfg.theme || (subtipe === 'loop_master' ? 'pyramid' : (subtipe === 'decision_gate' ? 'volcano' : (subtipe === 'bug_doctor' ? 'ocean' : 'space')));
@@ -3524,10 +3539,11 @@
 
       // State Pengerjaan Siswa
       let studentBlocks = [];
+      const rawInit = cfg.initial_blocks || cfg.initialBlocks;
       if (parsedSaved && Array.isArray(parsedSaved.blocks)) {
         studentBlocks = parsedSaved.blocks;
-      } else if (cfg.initial_blocks && Array.isArray(cfg.initial_blocks) && cfg.initial_blocks.length > 0) {
-        studentBlocks = JSON.parse(JSON.stringify(cfg.initial_blocks));
+      } else if (rawInit && Array.isArray(rawInit) && rawInit.length > 0) {
+        studentBlocks = JSON.parse(JSON.stringify(rawInit));
       }
 
       let robotState = { x: startPos.x, y: startPos.y, dir: startDir };
@@ -3786,7 +3802,57 @@
             item.innerHTML = `<span class="truncate">#${idx + 1} ↪ Belok Kanan</span>`;
           } else if (b.type === 'ULANGI') {
             item.classList.add('bg-amber-600');
-            item.innerHTML = `<span class="truncate">#${idx + 1} 🔁 Ulangi (${b.count}x): Maju</span>`;
+            const count = Math.min(10, Math.max(2, Number(b.count) || 2));
+            b.count = count;
+
+            const labelWrap = document.createElement('div');
+            labelWrap.className = 'flex items-center space-x-1.5 truncate';
+            labelWrap.innerHTML = `<span>#${idx + 1} 🔁 Ulangi</span>`;
+
+            const stepper = document.createElement('span');
+            stepper.className = 'inline-flex items-center bg-amber-950/80 rounded border border-amber-400/50 px-1 py-0.5 space-x-1 ml-1';
+
+            const btnDec = document.createElement('button');
+            btnDec.type = 'button';
+            btnDec.className = 'text-[11px] px-1 hover:bg-amber-700/60 rounded font-black text-amber-200 cursor-pointer';
+            btnDec.title = 'Kurangi perulangan';
+            btnDec.textContent = '−';
+            btnDec.onclick = (e) => {
+              e.stopPropagation();
+              b.count = Math.max(2, (b.count || 2) - 1);
+              renderWorkspace();
+              syncHiddenInput();
+              resetSim();
+            };
+
+            const countDisplay = document.createElement('span');
+            countDisplay.className = 'text-amber-200 font-extrabold text-[10px] min-w-[18px] text-center';
+            countDisplay.textContent = `${count}x`;
+
+            const btnInc = document.createElement('button');
+            btnInc.type = 'button';
+            btnInc.className = 'text-[11px] px-1 hover:bg-amber-700/60 rounded font-black text-amber-200 cursor-pointer';
+            btnInc.title = 'Tambah perulangan';
+            btnInc.textContent = '+';
+            btnInc.onclick = (e) => {
+              e.stopPropagation();
+              b.count = Math.min(10, (b.count || 2) + 1);
+              renderWorkspace();
+              syncHiddenInput();
+              resetSim();
+            };
+
+            stepper.appendChild(btnDec);
+            stepper.appendChild(countDisplay);
+            stepper.appendChild(btnInc);
+            labelWrap.appendChild(stepper);
+
+            const suffix = document.createElement('span');
+            suffix.className = 'ml-1 text-[11px]';
+            suffix.textContent = ': Maju';
+            labelWrap.appendChild(suffix);
+
+            item.appendChild(labelWrap);
           } else if (b.type === 'JIKA_RINTANGAN') {
             item.classList.add('bg-purple-600');
             item.innerHTML = `<span class="truncate">#${idx + 1} ⚖️ Jika Rintangan ➔ Belok, Lainnya ➔ Maju</span>`;
