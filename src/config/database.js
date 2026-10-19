@@ -580,6 +580,11 @@ function initDatabase() {
   safeAddColumn('peserta', 'pin_used_at', 'DATETIME DEFAULT NULL');
   safeAddColumn('peserta', 'pin_device_id', 'TEXT DEFAULT NULL');
 
+  // Migrasi: kolom Remedial Langsung Mandiri (Siswa < KKM)
+  safeAddColumn('ulangan', 'remedial_langsung', 'INTEGER DEFAULT 0');
+  safeAddColumn('pengerjaan', 'original_soal_ids', 'TEXT DEFAULT NULL');
+  safeAddColumn('pengerjaan', 'remedial_ke', 'INTEGER DEFAULT 0');
+
   if (!existingObjects.has('idx_jawaban_pengerjaan_soal')) {
     try {
       db.exec("UPDATE pengerjaan SET last_active_at = COALESCE(last_active_at, started_at, CURRENT_TIMESTAMP) WHERE last_active_at IS NULL;");

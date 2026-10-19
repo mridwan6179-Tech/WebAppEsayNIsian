@@ -48,9 +48,9 @@ const studentService = {
       if (sesiActive.status !== 'aktif') {
         return { valid: false, message: `Sesi ujian "${sesiActive.nama_sesi}" sedang dinonaktifkan oleh guru.` };
       }
-      ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_pg, jumlah_soal_pg_kompleks, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_koding, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, konten_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening, pin_aktif, token_ujian FROM ulangan WHERE id = ?').get(sesiActive.ulangan_id);
+      ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_pg, jumlah_soal_pg_kompleks, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_koding, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, konten_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening, pin_aktif, token_ujian, remedial_langsung FROM ulangan WHERE id = ?').get(sesiActive.ulangan_id);
     } else {
-      ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_pg, jumlah_soal_pg_kompleks, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_koding, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, konten_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening, pin_aktif, token_ujian FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
+      ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_pg, jumlah_soal_pg_kompleks, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_koding, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, konten_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening, pin_aktif, token_ujian, remedial_langsung FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
     }
 
     if (!ulangan) {
@@ -246,6 +246,7 @@ const studentService = {
         tampilkan_teks_listening: (ulangan.tampilkan_teks_listening !== undefined && ulangan.tampilkan_teks_listening !== null) ? Number(ulangan.tampilkan_teks_listening) : 0,
         pin_aktif: (Number(ulangan.pin_aktif) === 1 || (ulangan.token_ujian && Number(ulangan.token_ujian) > 0)) ? 1 : 0,
         token_ujian: ulangan.token_ujian || null,
+        remedial_langsung: Number(ulangan.remedial_langsung || 0),
         available_classes: kelasList
       }
     };
@@ -1018,6 +1019,53 @@ const studentService = {
       }
     }
 
+    // Penanganan Pengumpulan Jawaban Sesi Remedial Langsung
+    if (pengerjaan.remedial_ke && pengerjaan.remedial_ke > 0) {
+      // 1. Evaluasi otomatis jika ada butir isian/essay pada sesi remedial
+      const pendingAnswers = db.prepare(`
+        SELECT j.id, j.jawaban_siswa, s.kunci_jawaban, s.rubrik, s.bobot, s.jenis, s.pertanyaan
+        FROM jawaban j
+        JOIN soal s ON j.soal_id = s.id
+        WHERE j.pengerjaan_id = ? AND j.status_penilaian = 'menunggu'
+      `).all(pengerjaanId);
+
+      if (pendingAnswers.length > 0) {
+        try {
+          const geminiService = require('./geminiService');
+          for (const pa of pendingAnswers) {
+            const evalRes = geminiService.fallbackOfflineEvaluation({
+              pertanyaan: pa.pertanyaan,
+              kunci_jawaban: pa.kunci_jawaban || '',
+              rubrik: pa.rubrik || '',
+              jawaban_siswa: pa.jawaban_siswa || '',
+              bobot: pa.bobot,
+              skor_maksimum: pa.bobot,
+              jenis: pa.jenis
+            });
+            db.prepare(`
+              UPDATE jawaban 
+              SET skor_rekomendasi = ?, status_jawaban = ?, alasan_ai = ?, status_penilaian = 'selesai'
+              WHERE id = ?
+            `).run(evalRes.skor_rekomendasi, evalRes.status_jawaban, evalRes.alasan_ai || 'Penilaian otomatis remedial.', pa.id);
+          }
+        } catch (evalErr) {
+          console.warn('⚠️ Auto-evaluation remedial notice:', evalErr.message);
+        }
+      }
+
+      // 2. Pulihkan daftar soal lengkap ulangan dan hitung ulang nilai total seluruh pengerjaan
+      try {
+        db.prepare('UPDATE pengerjaan SET soal_ids = COALESCE(original_soal_ids, soal_ids) WHERE id = ?').run(pengerjaanId);
+        const reviewService = require('./reviewService');
+        const recalc = reviewService.recalculatePengerjaanTotal(pengerjaanId);
+        if (recalc && recalc.nilai_final !== null) {
+          db.prepare('UPDATE pengerjaan SET nilai_final = ?, nilai_ai = ?, skor_pg = COALESCE(?, skor_pg), skor_koding = COALESCE(?, skor_koding), released_at = CURRENT_TIMESTAMP WHERE id = ?').run(recalc.nilai_final, recalc.nilai_ai, recalc.skor_pg, recalc.skor_koding, pengerjaanId);
+        }
+      } catch (errRecalc) {
+        console.warn('⚠️ Recalculate remedial notice:', errRecalc.message);
+      }
+    }
+
     // Segera dorong jawaban dan status submitted ke Turso Cloud agar tersimpan permanen
     if (typeof db.sync === 'function') {
       try { db.sync(); } catch (syncErr) {}
@@ -1039,6 +1087,190 @@ const studentService = {
       is_released: Boolean(updated?.released_at),
       auto_released: Boolean(updated?.released_at),
       nilai_final: updated?.nilai_final ?? null
+    };
+  },
+
+  // Sesi Remedial Langsung Mandiri (Hanya butir soal yang salah / belum sempurna)
+  startDirectRemedial(pengerjaanId) {
+    if (!pengerjaanId) throw new Error('ID pengerjaan tidak valid');
+    const pengerjaan = this.findPengerjaanWithSync(pengerjaanId);
+    if (!pengerjaan) throw new Error('Data pengerjaan tidak ditemukan');
+
+    const ulangan = db.prepare('SELECT * FROM ulangan WHERE id = ?').get(pengerjaan.ulangan_id);
+    if (!ulangan) throw new Error('Data ulangan tidak ditemukan');
+
+    if (Number(ulangan.remedial_langsung || 0) !== 1) {
+      throw new Error('Fitur remedial langsung tidak diaktifkan untuk ulangan ini.');
+    }
+
+    const kkm = Number(ulangan.kkm) || 75;
+    const currentScore = pengerjaan.nilai_final !== null ? Number(pengerjaan.nilai_final) : (pengerjaan.nilai_ai !== null ? Number(pengerjaan.nilai_ai) : null);
+    if (currentScore !== null && currentScore >= kkm) {
+      throw new Error('Nilai Anda sudah mencapai atau melampaui KKM, tidak memerlukan remedial.');
+    }
+
+    const peserta = db.prepare('SELECT id, nama, kelas FROM peserta WHERE id = ?').get(pengerjaan.peserta_id);
+    if (!peserta) throw new Error('Data peserta tidak ditemukan');
+
+    // Ambil basis ID seluruh soal dari pengerjaan awal
+    let baseSoalIds = [];
+    if (pengerjaan.original_soal_ids) {
+      try {
+        baseSoalIds = JSON.parse(pengerjaan.original_soal_ids);
+      } catch (e) {
+        baseSoalIds = [];
+      }
+    }
+    if (!Array.isArray(baseSoalIds) || baseSoalIds.length === 0) {
+      if (pengerjaan.soal_ids) {
+        try {
+          baseSoalIds = JSON.parse(pengerjaan.soal_ids);
+        } catch (e) {
+          baseSoalIds = [];
+        }
+      }
+    }
+    if (!Array.isArray(baseSoalIds) || baseSoalIds.length === 0) {
+      const allSoal = db.prepare('SELECT id FROM soal WHERE ulangan_id = ? ORDER BY urutan ASC, nomor ASC').all(pengerjaan.ulangan_id);
+      baseSoalIds = allSoal.map(s => s.id);
+    }
+
+    // Ambil jawaban saat ini untuk menentukan soal yang salah / belum sempurna
+    const jawabanRows = db.prepare(`
+      SELECT j.id as jawaban_id, j.soal_id, j.skor_rekomendasi, j.skor_maksimum, j.status_jawaban,
+             rg.skor_final, s.bobot, s.jenis
+      FROM jawaban j
+      JOIN soal s ON j.soal_id = s.id
+      LEFT JOIN review_guru rg ON j.id = rg.jawaban_id
+      WHERE j.pengerjaan_id = ?
+    `).all(pengerjaan.id);
+
+    const jawabanMap = new Map(jawabanRows.map(j => [j.soal_id, j]));
+
+    const wrongSoalIds = [];
+    for (const sId of baseSoalIds) {
+      const j = jawabanMap.get(sId);
+      if (!j) {
+        // Belum ada jawaban -> termasuk yang harus diperbaiki
+        wrongSoalIds.push(sId);
+      } else {
+        const itemScore = (j.skor_final !== null && j.skor_final !== undefined) 
+          ? Number(j.skor_final) 
+          : (j.skor_rekomendasi !== null && j.skor_rekomendasi !== undefined ? Number(j.skor_rekomendasi) : 0);
+        const maxScore = Number(j.skor_maksimum || j.bobot || 1);
+        // Jika skor belum sempurna (di bawah skor maksimum butir soal)
+        if (itemScore < maxScore) {
+          wrongSoalIds.push(sId);
+        }
+      }
+    }
+
+    if (wrongSoalIds.length === 0) {
+      throw new Error('Tidak ada butir soal yang memerlukan perbaikan.');
+    }
+
+    // Simpan pengerjaan dalam mode remedial
+    const originalSoalIdsJson = pengerjaan.original_soal_ids || JSON.stringify(baseSoalIds);
+    const remedialSoalIdsJson = JSON.stringify(wrongSoalIds);
+    const newRemedialKe = Number(pengerjaan.remedial_ke || 0) + 1;
+    const nowIso = new Date().toISOString();
+
+    db.transaction(() => {
+      db.prepare(`
+        UPDATE pengerjaan
+        SET status = 'mengerjakan',
+            soal_ids = ?,
+            original_soal_ids = COALESCE(original_soal_ids, ?),
+            remedial_ke = ?,
+            submitted_at = NULL,
+            released_at = NULL,
+            last_active_at = ?
+        WHERE id = ?
+      `).run(remedialSoalIdsJson, originalSoalIdsJson, newRemedialKe, nowIso, pengerjaan.id);
+
+      // Reset jawaban butir yang salah agar bersih dan siap dikerjakan ulang
+      const resetJawabanStmt = db.prepare(`
+        UPDATE jawaban
+        SET jawaban_siswa = '',
+            status_penilaian = 'menunggu',
+            skor_rekomendasi = NULL,
+            status_jawaban = NULL,
+            alasan_ai = NULL
+        WHERE pengerjaan_id = ? AND soal_id = ?
+      `);
+
+      const deleteReviewStmt = db.prepare(`
+        DELETE FROM review_guru
+        WHERE jawaban_id IN (
+          SELECT id FROM jawaban WHERE pengerjaan_id = ? AND soal_id = ?
+        )
+      `);
+
+      for (const wId of wrongSoalIds) {
+        resetJawabanStmt.run(pengerjaan.id, wId);
+        deleteReviewStmt.run(pengerjaan.id, wId);
+      }
+    })();
+
+    if (typeof db.sync === 'function') {
+      try { db.sync(); } catch (syncErr) {}
+    }
+
+    // Ambil data butir soal yang salah (DIRAHASIAKAN dari kunci jawaban dan status salah sebelumnya)
+    const placeholders = wrongSoalIds.map(() => '?').join(',');
+    const rawSoalList = db.prepare(`
+      SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script,
+             is_listening, bahasa, tampilkan_teks_listening, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, game_data, kunci_pg
+      FROM soal
+      WHERE id IN (${placeholders})
+    `).all(...wrongSoalIds);
+
+    // Pertahankan urutan soal sesuai urutan pengerjaan asli
+    rawSoalList.sort((a, b) => {
+      const idxA = baseSoalIds.indexOf(a.id);
+      const idxB = baseSoalIds.indexOf(b.id);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      return (a.urutan - b.urutan) || (a.nomor - b.nomor);
+    });
+
+    const displaySoalList = rawSoalList.map((s, idx) => {
+      const isKompleks = s.jenis === 'pilihan_ganda' && (s.tipe_pg === 'pg_kompleks' || (typeof s.kunci_pg === 'string' && (s.kunci_pg.includes(',') || s.kunci_pg.trim().length > 1)));
+      const item = {
+        ...s,
+        nomor: idx + 1,
+        tipe_pg: isKompleks ? 'pg_kompleks' : 'pg_biasa',
+        jawaban_siswa: ''
+      };
+      delete item.kunci_pg;
+      delete item.kunci_jawaban;
+      delete item.rubrik;
+      return item;
+    });
+
+    return {
+      success: true,
+      isRemedial: true,
+      remedial_ke: newRemedialKe,
+      pengerjaanId: pengerjaan.id,
+      peserta: {
+        id: peserta.id,
+        nama: peserta.nama,
+        kelas: peserta.kelas
+      },
+      ulangan: {
+        id: ulangan.id,
+        judul: ulangan.judul,
+        mata_pelajaran: ulangan.mata_pelajaran,
+        tingkat_kelas: ulangan.tingkat_kelas,
+        deskripsi: ulangan.deskripsi,
+        durasi_menit: ulangan.durasi_menit,
+        kkm: ulangan.kkm,
+        tipe_ujian: ulangan.tipe_ujian,
+        remedial_langsung: ulangan.remedial_langsung
+      },
+      deadline_at: null,
+      server_time: new Date().toISOString(),
+      soal: displaySoalList
     };
   },
 
@@ -1200,7 +1432,7 @@ const studentService = {
   getPengerjaanStatus(pengerjaanId) {
     const query = `
       SELECT p.*, u.judul, u.mata_pelajaran, u.status as status_ulangan, u.kkm, u.kode_ujian,
-             u.instruksi_remedial, u.link_remedial, u.skor_langsung_ai, pes.nama, pes.kelas,
+             u.instruksi_remedial, u.link_remedial, u.skor_langsung_ai, u.remedial_langsung, pes.nama, pes.kelas,
              g.nama as nama_guru, g.email as email_guru, g.no_wa as no_wa_guru
       FROM pengerjaan p
       JOIN ulangan u ON p.ulangan_id = u.id
@@ -1286,6 +1518,7 @@ const studentService = {
     const examKkm = pengerjaan.kkm || 75;
     const finalScore = isReleased ? (pengerjaan.nilai_final !== null ? pengerjaan.nilai_final : pengerjaan.nilai_ai) : null;
     const isRemedial = Boolean(isReleased && finalScore !== null && finalScore < examKkm);
+    const isRemedialLangsungActive = Boolean(Number(pengerjaan.remedial_langsung || 0) === 1);
 
     // Normalisasi nomor WA untuk link wa.me
     let cleanWa = (pengerjaan.no_wa_guru || '').replace(/\D/g, '');
@@ -1299,16 +1532,22 @@ const studentService = {
     let rekapNilaiKelas = [];
 
     if (isReleased) {
-      jawabanList = db.prepare(`
-        SELECT j.id, j.soal_id, j.jawaban_siswa, j.skor_rekomendasi, j.skor_maksimum, 
-               j.status_jawaban, j.alasan_ai, s.pertanyaan, s.gambar_url, s.nomor, s.jenis, s.kunci_jawaban,
-               rg.skor_final, rg.catatan_guru
-        FROM jawaban j
-        JOIN soal s ON j.soal_id = s.id
-        LEFT JOIN review_guru rg ON j.id = rg.jawaban_id
-        WHERE j.pengerjaan_id = ?
-        ORDER BY s.urutan ASC, s.nomor ASC
-      `).all(pengerjaanId);
+      if (isRemedial && isRemedialLangsungActive) {
+        // "tapi ingat ini jangan diberitahukan mana yang salah dan benar"
+        // Rahasiakan perincian kunci dan benar/salah per butir soal agar siswa mandiri saat remedial langsung
+        jawabanList = [];
+      } else {
+        jawabanList = db.prepare(`
+          SELECT j.id, j.soal_id, j.jawaban_siswa, j.skor_rekomendasi, j.skor_maksimum, 
+                 j.status_jawaban, j.alasan_ai, s.pertanyaan, s.gambar_url, s.nomor, s.jenis, s.kunci_jawaban,
+                 rg.skor_final, rg.catatan_guru
+          FROM jawaban j
+          JOIN soal s ON j.soal_id = s.id
+          LEFT JOIN review_guru rg ON j.id = rg.jawaban_id
+          WHERE j.pengerjaan_id = ?
+          ORDER BY s.urutan ASC, s.nomor ASC
+        `).all(pengerjaanId);
+      }
 
       // Ambil seluruh rekap nilai peserta yang sudah dirilis pada ulangan ini untuk tabel leaderboard
       rekapNilaiKelas = db.prepare(`
@@ -1356,6 +1595,8 @@ const studentService = {
       kkm: examKkm,
       nilaiFinal: finalScore,
       isRemedial,
+      remedial_langsung: isRemedialLangsungActive ? 1 : 0,
+      canDirectRemedial: Boolean(isRemedial && isRemedialLangsungActive),
       instruksi_remedial: pengerjaan.instruksi_remedial || null,
       link_remedial: pengerjaan.link_remedial || null,
       guru: {

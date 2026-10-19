@@ -577,6 +577,15 @@
                   </div>
                 </label>
               </div>
+              <div class="pt-2 border-t border-amber-200/80">
+                <label class="flex items-start space-x-2 cursor-pointer p-2 rounded-lg bg-white border border-amber-300 hover:bg-amber-50/50 transition">
+                  <input type="checkbox" id="new-exam-remedial-langsung" class="mt-0.5 rounded text-amber-600 focus:ring-amber-500">
+                  <div>
+                    <span class="block text-amber-950 text-[11px] font-extrabold">🔄 Remedial Langsung Mandiri (Siswa Nilai &lt; KKM Kerjakan Ulang Soal Salah)</span>
+                    <span class="block text-[10px] text-slate-600 mt-0.5 leading-relaxed">Jika diaktifkan, siswa yang nilainya di bawah KKM dapat langsung mengerjakan ulang butir soal yang salah. Kunci jawaban dan status salah/benar dirahasiakan selama remedial, kemudian dinilai otomatis lagi saat dikumpulkan.</span>
+                  </div>
+                </label>
+              </div>
             </div>
 
             <div class="flex justify-end space-x-2 pt-1">
@@ -2046,6 +2055,15 @@
               <div>
                 <span class="block text-emerald-950 text-xs font-extrabold">⚡ Skor Keluar Langsung Otomatis oleh AI (Antrean Dinamis Anti-Limit)</span>
                 <span class="block text-[10px] text-slate-600 mt-0.5 leading-relaxed">Jika dihidupkan, saat siswa mengumpulkan ujian, jawaban otomatis dinilai melalui antrean AI Dinamis (rotasi kunci &amp; model anti-rate-limit) dan skor akhir langsung muncul di layar siswa begitu selesai dinilai.</span>
+              </div>
+            </label>
+          </div>
+          <div class="pt-2 border-t border-amber-200/80">
+            <label class="flex items-start space-x-2.5 cursor-pointer p-2.5 rounded-xl bg-white border border-amber-300 hover:bg-amber-50/50 transition">
+              <input type="checkbox" id="edit-exam-remedial-langsung" class="mt-0.5 rounded text-amber-600 focus:ring-amber-500">
+              <div>
+                <span class="block text-amber-950 text-xs font-extrabold">🔄 Remedial Langsung Mandiri (Siswa Nilai &lt; KKM Kerjakan Ulang Soal Salah)</span>
+                <span class="block text-[10px] text-slate-600 mt-0.5 leading-relaxed">Jika diaktifkan, siswa yang nilainya di bawah KKM dapat langsung mengerjakan ulang butir soal yang salah. Kunci jawaban dan status salah/benar dirahasiakan selama remedial, kemudian dinilai otomatis lagi saat dikumpulkan.</span>
               </div>
             </label>
           </div>
@@ -5477,7 +5495,8 @@
         toleransi_typo: toleransiTypo,
         instruksi_penilaian_khusus: instruksiKhusus,
         tampilkan_simbol: document.getElementById('new-exam-tampilkan-simbol')?.checked ? 1 : 0,
-        skor_langsung_ai: document.getElementById('new-exam-skor-langsung-ai')?.checked ? 1 : 0
+        skor_langsung_ai: document.getElementById('new-exam-skor-langsung-ai')?.checked ? 1 : 0,
+        remedial_langsung: document.getElementById('new-exam-remedial-langsung')?.checked ? 1 : 0
       };
 
       const btnSubmit = formCreateExam.querySelector('button[type="submit"]');
@@ -5919,6 +5938,12 @@
           badges.push('<button type="button" onclick="window.quickToggleSkorLangsungAi && window.quickToggleSkorLangsungAi(1)" class="bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 px-2.5 py-0.5 rounded font-semibold border border-slate-300 hover:border-emerald-300 cursor-pointer transition" title="Klik untuk menghidupkan Skor Langsung AI">⚡ Skor Langsung AI: OFF (Klik Hidupkan)</button>');
         }
 
+        if (u.remedial_langsung) {
+          badges.push('<button type="button" onclick="window.quickToggleRemedialLangsung && window.quickToggleRemedialLangsung(0)" class="bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-0.5 rounded font-bold border border-amber-700 cursor-pointer shadow-2xs transition" title="Klik untuk mematikan Remedial Langsung">🔄 Remedial Langsung: ON</button>');
+        } else {
+          badges.push('<button type="button" onclick="window.quickToggleRemedialLangsung && window.quickToggleRemedialLangsung(1)" class="bg-slate-100 hover:bg-amber-50 text-slate-700 hover:text-amber-800 px-2.5 py-0.5 rounded font-semibold border border-slate-300 hover:border-amber-300 cursor-pointer transition" title="Klik untuk menghidupkan Remedial Langsung">🔄 Remedial Langsung: OFF (Klik Hidupkan)</button>');
+        }
+
         aiRulesEl.innerHTML = `<span class="text-slate-500 font-semibold text-[11px]">Toleransi & Pengaturan:</span> ${badges.join(' ')}`;
       }
 
@@ -5955,6 +5980,28 @@
           await selectUlangan(activeUlanganId);
         } else {
           alert(data.message || 'Gagal mengubah pengaturan Skor Langsung AI');
+        }
+      } catch (err) {
+        alert('Gagal menghubungi server: ' + err.message);
+      }
+    };
+
+    // Helper On/Off Toggle Remedial Langsung Cepat Guru
+    window.quickToggleRemedialLangsung = async function(explicitVal) {
+      if (!activeUlanganId) return;
+      const currentVal = Boolean(activeUlanganData?.remedial_langsung);
+      const nextVal = explicitVal !== undefined ? (explicitVal ? 1 : 0) : (currentVal ? 0 : 1);
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ remedial_langsung: nextVal })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          await selectUlangan(activeUlanganId);
+        } else {
+          alert(data.message || 'Gagal mengubah pengaturan Remedial Langsung');
         }
       } catch (err) {
         alert('Gagal menghubungi server: ' + err.message);
@@ -7038,6 +7085,9 @@
         if (document.getElementById('edit-exam-skor-langsung-ai')) {
           document.getElementById('edit-exam-skor-langsung-ai').checked = Boolean(u.skor_langsung_ai);
         }
+        if (document.getElementById('edit-exam-remedial-langsung')) {
+          document.getElementById('edit-exam-remedial-langsung').checked = Boolean(u.remedial_langsung);
+        }
 
         // Render target kelas checkboxes
         const activeKelasIds = (u.kelas || []).map(k => k.id);
@@ -7184,7 +7234,8 @@
         kode_ujian: document.getElementById('edit-exam-kode')?.value.trim() || undefined,
         pin_aktif: (document.getElementById('edit-exam-pin-aktif')?.checked || (document.getElementById('edit-exam-token-ujian')?.value.trim() && parseInt(document.getElementById('edit-exam-token-ujian').value.trim(), 10) > 0)) ? 1 : 0,
         token_ujian: document.getElementById('edit-exam-token-ujian')?.value.trim() ? parseInt(document.getElementById('edit-exam-token-ujian').value.trim(), 10) : null,
-        skor_langsung_ai: document.getElementById('edit-exam-skor-langsung-ai')?.checked ? 1 : 0
+        skor_langsung_ai: document.getElementById('edit-exam-skor-langsung-ai')?.checked ? 1 : 0,
+        remedial_langsung: document.getElementById('edit-exam-remedial-langsung')?.checked ? 1 : 0
       };
 
       const btnSave = document.getElementById('btn-save-edit-exam');

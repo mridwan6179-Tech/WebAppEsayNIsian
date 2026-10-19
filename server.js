@@ -375,6 +375,20 @@ app.get('/api/siswa/riwayat/:pengerjaan_id', (req, res) => {
   }
 });
 
+// Siswa: Mulai Sesi Remedial Langsung Mandiri (Hanya butir soal yang salah/belum sempurna)
+app.post('/api/siswa/remedial/mulai', (req, res) => {
+  try {
+    const { pengerjaan_id } = req.body;
+    if (!pengerjaan_id) {
+      return res.status(400).json({ success: false, message: 'pengerjaan_id wajib disertakan' });
+    }
+    const result = studentService.startDirectRemedial(pengerjaan_id);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 // ----------------------------------------------------
 // ROUTE: Modul Guru (FR-02 - FR-05, FR-09 - FR-23)
 // ----------------------------------------------------

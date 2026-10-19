@@ -912,6 +912,20 @@
                   <span>Buka Tautan Tugas Remedial</span>
                 </a>
               </div>
+
+              <!-- Tombol & Info Remedial Langsung Mandiri -->
+              <div id="remedial-direct-box" class="hidden mt-3 p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-xl space-y-2">
+                <div class="flex items-center space-x-2 text-amber-900 font-extrabold text-xs">
+                  <span class="text-base">🚀</span>
+                  <span>Remedial Mandiri Langsung Tersedia!</span>
+                </div>
+                <p class="text-[11px] text-amber-800 leading-relaxed font-medium">
+                  Guru telah mengaktifkan kesempatan remedial langsung. Anda dapat langsung memperbaiki butir-butir soal yang belum sempurna sekarang juga tanpa perlu meminta token ujian baru.
+                </p>
+                <button id="btn-start-direct-remedial" type="button" class="w-full sm:w-auto px-4 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-2 cursor-pointer">
+                  <span>🔄 Mulai Remedial Langsung Sekarang</span>
+                </button>
+              </div>
             </div>
           </div>
           <div class="pt-2 border-t border-rose-200 flex flex-wrap items-center justify-between gap-2.5">
@@ -5712,7 +5726,7 @@
 
       const pgCard = document.getElementById('pg-instant-score-card');
       if (pgCard) {
-        if (data.skor_pg !== null && data.skor_pg !== undefined) {
+        if (data.skor_pg !== null && data.skor_pg !== undefined && !data.canDirectRemedial) {
           pgCard.classList.remove('hidden');
           const pgScoreVal = document.getElementById('pg-instant-score-val');
           if (pgScoreVal) pgScoreVal.textContent = data.skor_pg;
@@ -5734,7 +5748,7 @@
 
       const codingCard = document.getElementById('coding-instant-score-card');
       if (codingCard) {
-        if (data.skor_koding !== null && data.skor_koding !== undefined) {
+        if (data.skor_koding !== null && data.skor_koding !== undefined && !data.canDirectRemedial) {
           codingCard.classList.remove('hidden');
           const cScoreVal = document.getElementById('coding-instant-score-val');
           if (cScoreVal) cScoreVal.textContent = data.skor_koding;
@@ -5761,48 +5775,62 @@
         // Render butir review
         const listContainer = document.getElementById('answers-review-list');
         listContainer.innerHTML = '';
-        (data.jawaban || []).forEach((j, idx) => {
-          const item = document.createElement('div');
-          item.className = 'p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-xs space-y-1.5';
-          const isPg = j.jenis === 'pilihan_ganda';
-          const isCoding = j.jenis === 'koding_game';
-          const studentAns = (j.jawaban_siswa || '').toUpperCase().trim();
-          const correctKey = (j.kunci_pg || j.kunci_jawaban || '').toUpperCase().trim();
-          const isCorrect = isPg ? (studentAns && studentAns === correctKey) : null;
-
-          item.innerHTML = `
-            <div class="flex justify-between font-semibold text-slate-700" dir="auto">
-              <span>Soal ${idx + 1} (${isCoding ? '🎮 Game Koding SMP' : (isPg ? 'Pilihan Ganda' : (j.jenis === 'essay' ? 'Essay' : 'Isian'))}): ${j.pertanyaan}</span>
-              <span class="text-blue-600 font-bold">Skor: ${j.skor_final ?? j.skor_rekomendasi ?? 0} / ${j.skor_maksimum}</span>
+        if (data.canDirectRemedial) {
+          listContainer.innerHTML = `
+            <div class="p-4 rounded-xl border border-amber-300 bg-amber-50/80 text-amber-900 text-xs flex items-start space-x-2.5 shadow-2xs">
+              <span class="text-xl">🔒</span>
+              <div class="space-y-1">
+                <strong class="font-bold block text-amber-950">Detail Butir Soal &amp; Kunci Jawaban Dirahasiakan Sementara</strong>
+                <p class="text-amber-800 leading-relaxed font-medium">
+                  Karena fitur Remedial Langsung aktif dan nilai Anda di bawah KKM, sistem merahasiakan rincian butir yang salah/benar dan kunci jawaban agar Anda dapat berlatih secara mandiri. Silakan klik tombol <strong>"Mulai Remedial Langsung Sekarang"</strong> di atas untuk memperbaiki jawaban Anda.
+                </p>
+              </div>
             </div>
-            ${j.gambar_url ? `
-              <div class="my-2">
-                <img src="${j.gambar_url}" alt="Gambar Soal ${idx + 1}" class="max-h-48 max-w-full rounded-lg border border-slate-200 object-contain bg-white">
-              </div>
-            ` : ''}
-            ${isCoding ? `
-              <div class="p-2 bg-indigo-50 rounded-lg border border-indigo-200 text-indigo-900 text-[11px] space-y-1">
-                <span class="font-bold">Logika & Eksekusi Koding Siswa:</span>
-                <p class="text-slate-600 font-mono break-all">${j.jawaban_siswa ? escapeHtml(j.jawaban_siswa) : '(Belum menyusun balok)'}</p>
-              </div>
-            ` : (isPg ? `
-              <div class="flex items-center space-x-2 my-1 flex-wrap gap-y-1">
-                <span class="font-bold text-slate-700">Pilihan Jawaban Anda:</span>
-                <span class="font-mono font-bold px-2 py-0.5 rounded ${isCorrect ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-rose-100 text-rose-800 border border-rose-300'}">
-                  ${studentAns ? `Pilihan ${studentAns}` : '(Tidak Dijawab)'}
-                </span>
-                <span class="text-slate-400">•</span>
-                <span class="text-slate-600 font-medium">Kunci: <strong class="text-emerald-700">Pilihan ${correctKey || '-'}</strong></span>
-                <span class="font-bold text-[11px] ${isCorrect ? 'text-emerald-600' : 'text-rose-600'}">${isCorrect ? '✓ Benar' : '✗ Salah'}</span>
-              </div>
-            ` : `
-              <p class="text-slate-600" dir="auto"><strong class="text-slate-500">Jawaban Anda:</strong> ${j.jawaban_siswa || '(kosong)'}</p>
-            `)}
-            ${j.umpan_balik_ai && !isPg ? `<p class="text-indigo-800 bg-indigo-50/80 p-2 rounded border border-indigo-100 font-medium" dir="auto">🤖 Evaluasi AI: ${j.umpan_balik_ai}</p>` : ''}
-            ${j.catatan_guru ? `<p class="text-emerald-700 bg-emerald-50 p-2 rounded border border-emerald-100 font-medium" dir="auto">Catatan Guru: ${j.catatan_guru}</p>` : ''}
           `;
-          listContainer.appendChild(item);
-        });
+        } else {
+          (data.jawaban || []).forEach((j, idx) => {
+            const item = document.createElement('div');
+            item.className = 'p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-xs space-y-1.5';
+            const isPg = j.jenis === 'pilihan_ganda';
+            const isCoding = j.jenis === 'koding_game';
+            const studentAns = (j.jawaban_siswa || '').toUpperCase().trim();
+            const correctKey = (j.kunci_pg || j.kunci_jawaban || '').toUpperCase().trim();
+            const isCorrect = isPg ? (studentAns && studentAns === correctKey) : null;
+
+            item.innerHTML = `
+              <div class="flex justify-between font-semibold text-slate-700" dir="auto">
+                <span>Soal ${idx + 1} (${isCoding ? '🎮 Game Koding SMP' : (isPg ? 'Pilihan Ganda' : (j.jenis === 'essay' ? 'Essay' : 'Isian'))}): ${j.pertanyaan}</span>
+                <span class="text-blue-600 font-bold">Skor: ${j.skor_final ?? j.skor_rekomendasi ?? 0} / ${j.skor_maksimum}</span>
+              </div>
+              ${j.gambar_url ? `
+                <div class="my-2">
+                  <img src="${j.gambar_url}" alt="Gambar Soal ${idx + 1}" class="max-h-48 max-w-full rounded-lg border border-slate-200 object-contain bg-white">
+                </div>
+              ` : ''}
+              ${isCoding ? `
+                <div class="p-2 bg-indigo-50 rounded-lg border border-indigo-200 text-indigo-900 text-[11px] space-y-1">
+                  <span class="font-bold">Logika & Eksekusi Koding Siswa:</span>
+                  <p class="text-slate-600 font-mono break-all">${j.jawaban_siswa ? escapeHtml(j.jawaban_siswa) : '(Belum menyusun balok)'}</p>
+                </div>
+              ` : (isPg ? `
+                <div class="flex items-center space-x-2 my-1 flex-wrap gap-y-1">
+                  <span class="font-bold text-slate-700">Pilihan Jawaban Anda:</span>
+                  <span class="font-mono font-bold px-2 py-0.5 rounded ${isCorrect ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-rose-100 text-rose-800 border border-rose-300'}">
+                    ${studentAns ? `Pilihan ${studentAns}` : '(Tidak Dijawab)'}
+                  </span>
+                  <span class="text-slate-400">•</span>
+                  <span class="text-slate-600 font-medium">Kunci: <strong class="text-emerald-700">Pilihan ${correctKey || '-'}</strong></span>
+                  <span class="font-bold text-[11px] ${isCorrect ? 'text-emerald-600' : 'text-rose-600'}">${isCorrect ? '✓ Benar' : '✗ Salah'}</span>
+                </div>
+              ` : `
+                <p class="text-slate-600" dir="auto"><strong class="text-slate-500">Jawaban Anda:</strong> ${j.jawaban_siswa || '(kosong)'}</p>
+              `)}
+              ${j.umpan_balik_ai && !isPg ? `<p class="text-indigo-800 bg-indigo-50/80 p-2 rounded border border-indigo-100 font-medium" dir="auto">🤖 Evaluasi AI: ${j.umpan_balik_ai}</p>` : ''}
+              ${j.catatan_guru ? `<p class="text-emerald-700 bg-emerald-50 p-2 rounded border border-emerald-100 font-medium" dir="auto">Catatan Guru: ${j.catatan_guru}</p>` : ''}
+            `;
+            listContainer.appendChild(item);
+          });
+        }
         renderMath(listContainer);
 
         // Update Total Nilai Kamu di Bagian Bawah
@@ -5844,6 +5872,16 @@
               customInstruksiBox.classList.remove('hidden');
             } else {
               customInstruksiBox.classList.add('hidden');
+            }
+
+            // Tampilkan Tombol & Info Remedial Mandiri Langsung jika diaktifkan guru
+            const directRemedialBox = document.getElementById('remedial-direct-box');
+            if (directRemedialBox) {
+              if (data.canDirectRemedial) {
+                directRemedialBox.classList.remove('hidden');
+              } else {
+                directRemedialBox.classList.add('hidden');
+              }
             }
 
             // Tampilkan Tombol Tautan Tugas Eksternal jika ada
@@ -5896,6 +5934,8 @@
             }
           } else {
             remedialCard.classList.add('hidden');
+            const directRemedialBox = document.getElementById('remedial-direct-box');
+            if (directRemedialBox) directRemedialBox.classList.add('hidden');
           }
         }
 
@@ -5989,6 +6029,74 @@
       // Selalu perbarui riwayat ulangan siswa
       loadExamHistory(currentPengerjaanId);
     }
+
+    // FR-Remedial: Mulai Sesi Remedial Mandiri Langsung
+    async function startDirectRemedial() {
+      const pid = currentPengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
+      if (!pid) {
+        alert('ID pengerjaan tidak ditemukan.');
+        return;
+      }
+
+      const btn = document.getElementById('btn-start-direct-remedial');
+      const originalText = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="animate-spin inline-block">⏳</span><span>Mempersiapkan Lembar Remedial...</span>';
+      }
+
+      try {
+        const res = await fetch('/api/siswa/remedial/mulai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pengerjaan_id: pid })
+        });
+        const result = await res.json();
+        if (!res.ok || !result.success) {
+          throw new Error(result.message || 'Gagal memulai sesi remedial.');
+        }
+
+        // Bersihkan draft jawaban lokal browser agar lembar soal remedial bersih
+        try {
+          localStorage.removeItem(`ujian_draft_${pid}`);
+          localStorage.removeItem(`exam_answers_${pid}`);
+        } catch (e) {}
+
+        // Tampilkan lembar ujian untuk butir-butir remedial
+        showExamStep(result);
+
+        // Tambahkan banner penanda remedial langsung di atas daftar butir soal
+        const questionsContainer = document.getElementById('questions-container');
+        if (questionsContainer) {
+          const oldBanner = document.getElementById('remedial-banner-top');
+          if (oldBanner) oldBanner.remove();
+
+          const banner = document.createElement('div');
+          banner.id = 'remedial-banner-top';
+          banner.className = 'p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl flex items-start space-x-3 text-amber-950 shadow-sm mb-4';
+          banner.innerHTML = `
+            <span class="text-2xl">🔄</span>
+            <div class="space-y-1">
+              <h3 class="font-black text-xs sm:text-sm uppercase tracking-wide text-amber-900">Sesi Remedial Mandiri Langsung (Percobaan #${result.remedial_ke || 1})</h3>
+              <p class="text-xs text-amber-800 leading-relaxed font-medium">
+                Berikut adalah butir-butir soal yang perlu Anda perbaiki. Kerjakan kembali secara teliti dan mandiri. Nilai akhir baru Anda akan otomatis dihitung seketika saat jawaban dikumpulkan.
+              </p>
+            </div>
+          `;
+          questionsContainer.insertBefore(banner, questionsContainer.firstChild);
+        }
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (err) {
+        alert(err.message || 'Terjadi kesalahan saat memulai remedial.');
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = originalText || '<span>🔄 Mulai Remedial Langsung Sekarang</span>';
+        }
+      }
+    }
+
+    document.getElementById('btn-start-direct-remedial')?.addEventListener('click', startDirectRemedial);
 
     // Muat Riwayat Nilai Ulangan Siswa (Urut Tanggal Descending)
     async function loadExamHistory(pengerjaanId) {

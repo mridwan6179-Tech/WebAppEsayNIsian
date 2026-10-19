@@ -151,6 +151,7 @@ const examService = {
     const cleanTokenUjian = (data.token_ujian !== undefined && data.token_ujian !== null && data.token_ujian !== '') ? Math.max(0, Number(data.token_ujian)) : null;
     const cleanPinAktif = (data.pin_aktif !== undefined && data.pin_aktif !== null) ? (data.pin_aktif ? 1 : 0) : ((cleanTokenUjian && cleanTokenUjian > 0) ? 1 : 0);
     const cleanSkorLangsungAi = (data.skor_langsung_ai !== undefined && data.skor_langsung_ai !== null) ? (data.skor_langsung_ai ? 1 : 0) : 0;
+    const cleanRemedialLangsung = (data.remedial_langsung !== undefined && data.remedial_langsung !== null) ? (data.remedial_langsung ? 1 : 0) : 0;
 
     const stmt = db.prepare(`
       INSERT INTO ulangan (
@@ -160,7 +161,7 @@ const examService = {
         izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus, tampilkan_simbol,
         link_kisi_kisi, konten_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening,
         jenis_ulangan, jumlah_paket, bobot_pg, bobot_essay, bobot_koding, opsi_pg_count,
-        pin_aktif, token_ujian, skor_langsung_ai
+        pin_aktif, token_ujian, skor_langsung_ai, remedial_langsung
       )
       VALUES (
         ?, ?, ?, ?, ?, ?, 'draft',
@@ -169,7 +170,7 @@ const examService = {
         ?, ?, ?, ?, ?,
         ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?,
-        ?, ?, ?
+        ?, ?, ?, ?
       )
     `);
     const info = stmt.run(
@@ -178,7 +179,7 @@ const examService = {
       cleanKkm, cleanInstruksiRemedial, cleanLinkRemedial, cleanZonaWaktu,
       izinkanSingkatan, izinkanInformal, toleransiTypo, cleanInstruksiKhusus, tampilkanSimbol, cleanLinkKisiKisi, cleanKontenKisiKisi, tampilkanKisiKisi, tampilkanTeksListening,
       cleanJenisUlangan, cleanJumlahPaket, cleanBobotPg, cleanBobotEssay, cleanBobotKoding, cleanOpsiPgCount,
-      cleanPinAktif, cleanTokenUjian, cleanSkorLangsungAi
+      cleanPinAktif, cleanTokenUjian, cleanSkorLangsungAi, cleanRemedialLangsung
     );
     const ulanganId = info.lastInsertRowid;
 
@@ -651,6 +652,10 @@ const examService = {
     if (data.skor_langsung_ai !== undefined) {
       updates.push('skor_langsung_ai = ?');
       params.push(data.skor_langsung_ai ? 1 : 0);
+    }
+    if (data.remedial_langsung !== undefined) {
+      updates.push('remedial_langsung = ?');
+      params.push(data.remedial_langsung ? 1 : 0);
     }
     if (status !== undefined) {
       if (!['draft', 'dibuka', 'ditutup', 'selesai'].includes(status)) {
