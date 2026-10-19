@@ -15353,7 +15353,16 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
-          const json = await res.json();
+          const rawText = await res.text();
+          let json;
+          try {
+            json = JSON.parse(rawText);
+          } catch (eParse) {
+            if (res.status === 504 || res.status === 502) {
+              throw new Error('Koneksi server / gateway timeout (504). Dokumen sangat besar, silakan coba klik kembali.');
+            }
+            throw new Error('Respon server tidak valid: ' + (rawText ? rawText.slice(0, 100) : 'Kosong'));
+          }
           if (!res.ok || !json.success) throw new Error(json.message || 'Gagal menghasilkan soal');
 
           generatedAiPgList = json.questions || json.data || [];

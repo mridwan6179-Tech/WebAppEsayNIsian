@@ -2132,7 +2132,7 @@ Kembalikan HANYA teks sebaran pesan WhatsApp siap kirim tanpa penjelasan pembuka
     let contextMateri = `Topik: ${topik}\nJenjang/Kelas: ${tingkatKelas}\nJumlah Soal Diminta: ${jumlahSoal}\nBahasa Pengantar: ${bahasa}\nTingkat Kesulitan: ${tingkatKesulitan}\n`;
 
     if (materiTeks && materiTeks.trim()) {
-      contextMateri += `\nBahan Bacaan Materi Utama (Ekstrak dari Sumber/Dokumen):\n${materiTeks.slice(0, 18000)}\n`;
+      contextMateri += `\nBahan Bacaan Materi Utama (Ekstrak dari Sumber/Dokumen):\n${materiTeks.slice(0, 30000)}\n`;
     }
 
     if (instruksiTambahan && instruksiTambahan.trim()) {
@@ -2238,223 +2238,63 @@ ${jsonExample}
     return prompt;
   },
 
-  // Generator Soal Pilihan Ganda Berbantuan AI (Mendukung PG Biasa, PG Kompleks, Campuran, Multi-Jawaban Benar, Berkas & Teks)
-  async generateMultipleChoiceQuestions({
-    topik,
-    tingkatKelas = 'SMP',
-    jumlahSoal = 10,
-    opsiCount = 4,
-    materiTeks = '',
-    fileBase64 = null,
-    fileName = '',
-    tipePg = 'pg_biasa',
-    jumlahPgBiasa = null,
-    jumlahPgKompleks = null,
-    kunciKompleksRule = 'acak_2_3',
-    instruksiTambahan = '',
-    tingkatKesulitan = 'sedang',
-    bahasa = 'Bahasa Indonesia',
-    soalSudahAda = []
-  }) {
-    // Jika mode Campuran atau disediakan jumlah spesifik untuk PG Biasa & PG Kompleks:
-    if (tipePg === 'campuran' || (jumlahPgBiasa !== null && jumlahPgKompleks !== null)) {
-      const numBiasa = (jumlahPgBiasa !== null && jumlahPgBiasa !== undefined) ? Math.max(1, Number(jumlahPgBiasa)) : Math.max(1, Math.round(jumlahSoal * 0.6));
-      const numKompleks = (jumlahPgKompleks !== null && jumlahPgKompleks !== undefined) ? Math.max(1, Number(jumlahPgKompleks)) : Math.max(1, jumlahSoal - numBiasa);
+  // Membagi teks panjang menjadi N segmen jendela materi yang seimbang & alami tanpa memotong kalimat
+  splitTextIntoBalancedWindows(text, numWindows, overlap = 400) {
+    if (!text || typeof text !== 'string') return [''];
+    const clean = text.trim();
+    if (numWindows <= 1 || clean.length < 3000) return [clean];
 
-      // Ekstrak berkas sekali di awal jika diperlukan
-      let cleanMateri = materiTeks || '';
-      if (fileBase64 && (!cleanMateri || !cleanMateri.trim())) {
-        try {
-          const fileParserService = require('./fileParserService');
-          const parsedDoc = await fileParserService.parseFile(fileBase64, fileName || 'materi.pdf');
-          if (parsedDoc && parsedDoc.text) cleanMateri = parsedDoc.text;
-        } catch (errParse) {
-          console.warn('⚠️ Gagal mengekstrak berkas di backend PG generator:', errParse.message);
-        }
+    const len = clean.length;
+    const targetChunkSize = Math.ceil(len / numWindows);
+    const windows = [];
+    let currentStart = 0;
+
+    for (let i = 0; i < numWindows; i++) {
+      if (i === numWindows - 1) {
+        windows.push(clean.slice(currentStart).trim());
+        break;
       }
 
-      // Pembagian porsi materi jika teks cukup panjang agar PG Biasa dan PG Kompleks mengambil sudut materi berbeda
-      let materiPartA = cleanMateri;
-      let materiPartB = cleanMateri;
-      if (cleanMateri && cleanMateri.length > 4000) {
-        const splitIdx = Math.floor(cleanMateri.length * 0.55);
-        materiPartA = cleanMateri.slice(0, Math.min(cleanMateri.length, splitIdx + 1500));
-        materiPartB = cleanMateri.slice(Math.max(0, splitIdx - 1500));
-      }
+      let targetEnd = currentStart + targetChunkSize;
+      let splitPoint = targetEnd;
+      const searchStart = Math.max(0, targetEnd - 350);
+      const searchEnd = Math.min(len, targetEnd + 350);
+      const searchRange = clean.slice(searchStart, searchEnd);
 
-      // 1. Eksekusi PG Biasa terlebih dahulu
-      const biasaList = await this.generateMultipleChoiceQuestions({
-        topik,
-        tingkatKelas,
-        jumlahSoal: numBiasa,
-        opsiCount,
-        materiTeks: materiPartA,
-        fileBase64: null,
-        fileName,
-        tipePg: 'pg_biasa',
-        instruksiTambahan: `${instruksiTambahan ? instruksiTambahan + '. ' : ''}Fokuskan pertanyaan pada konsep dasar, pemahaman inti, dan teori babak awal materi.`,
-        tingkatKesulitan,
-        bahasa,
-        soalSudahAda
-      });
-
-      // 2. Eksekusi PG Kompleks dengan mengoper seluruh soal PG Biasa yang telah dibuat (Anti-Duplikasi Mutlak)
-      const kompleksList = await this.generateMultipleChoiceQuestions({
-        topik,
-        tingkatKelas,
-        jumlahSoal: numKompleks,
-        opsiCount,
-        materiTeks: materiPartB,
-        fileBase64: null,
-        fileName,
-        tipePg: 'pg_kompleks',
-        kunciKompleksRule,
-        instruksiTambahan: `${instruksiTambahan ? instruksiTambahan + '. ' : ''}Fokuskan pertanyaan pada skenario kontekstual multi-kondisi, studi kasus, dan analisis babak lanjutan materi.`,
-        tingkatKesulitan,
-        bahasa,
-        soalSudahAda: [...(soalSudahAda || []), ...biasaList]
-      });
-
-      // 3. Filter deduplikasi otomatis di JavaScript untuk memastikan tidak ada pertanyaan yang mirip
-      const finalBiasa = this.deduplicateQuestions(biasaList);
-      const uniqueKompleks = [];
-      for (const kq of kompleksList) {
-        const kqText = kq.pertanyaan || kq.soal || '';
-        const isDup = finalBiasa.some(bq => this.isDuplicateQuestion(bq.pertanyaan, kqText)) ||
-                      uniqueKompleks.some(eq => this.isDuplicateQuestion(eq.pertanyaan, kqText));
-        if (!isDup) {
-          uniqueKompleks.push(kq);
+      const breakIdx = searchRange.lastIndexOf('\n\n');
+      if (breakIdx !== -1) {
+        splitPoint = searchStart + breakIdx;
+      } else {
+        const newlineIdx = searchRange.lastIndexOf('\n');
+        if (newlineIdx !== -1) {
+          splitPoint = searchStart + newlineIdx;
         } else {
-          console.warn('⚠️ Menghapus soal PG Kompleks duplikat:', kqText.slice(0, 60));
+          const sentenceIdx = searchRange.lastIndexOf('. ');
+          if (sentenceIdx !== -1) {
+            splitPoint = searchStart + sentenceIdx + 1;
+          }
         }
       }
 
-      const combined = [...finalBiasa, ...uniqueKompleks];
-      return combined.map((q, idx) => ({ ...q, nomor: idx + 1 }));
+      const chunkEnd = Math.min(len, splitPoint + overlap);
+      windows.push(clean.slice(currentStart, chunkEnd).trim());
+      currentStart = Math.max(0, splitPoint);
     }
+    return windows;
+  },
 
-    // Ekstrak berkas jika fileBase64 dikirimkan tanpa teks materi
-    if (fileBase64 && (!materiTeks || !materiTeks.trim())) {
-      try {
-        const fileParserService = require('./fileParserService');
-        const parsedDoc = await fileParserService.parseFile(fileBase64, fileName || 'materi.pdf');
-        if (parsedDoc && parsedDoc.text) {
-          materiTeks = parsedDoc.text;
-        }
-      } catch (errParse) {
-        console.warn('⚠️ Gagal mengekstrak berkas di backend PG generator:', errParse.message);
-      }
-    }
-
-    // Auto-chunking untuk batch soal besar (> 10 butir) agar output AI cepat & tidak terpotong
-    if (jumlahSoal > 10) {
-      const half1 = Math.ceil(jumlahSoal / 2);
-      const half2 = jumlahSoal - half1;
-
-      let partA = materiTeks;
-      let partB = materiTeks;
-      if (materiTeks && materiTeks.length > 4000) {
-        const splitIdx = Math.floor(materiTeks.length * 0.55);
-        partA = materiTeks.slice(0, Math.min(materiTeks.length, splitIdx + 1500));
-        partB = materiTeks.slice(Math.max(0, splitIdx - 1500));
-      }
-
-      // Sub-batch 1
-      const batch1 = await this.generateMultipleChoiceQuestions({
-        topik,
-        tingkatKelas,
-        jumlahSoal: half1,
-        opsiCount,
-        materiTeks: partA,
-        fileBase64: null,
-        fileName,
-        tipePg,
-        kunciKompleksRule,
-        instruksiTambahan: `${instruksiTambahan ? instruksiTambahan + '. ' : ''}Fokuskan pada materi babak awal.`,
-        tingkatKesulitan,
-        bahasa,
-        soalSudahAda
-      });
-
-      // Sub-batch 2 dengan mengoper daftar soal batch 1 agar TIDAK BERULANG
-      const batch2 = await this.generateMultipleChoiceQuestions({
-        topik,
-        tingkatKelas,
-        jumlahSoal: half2,
-        opsiCount,
-        materiTeks: partB,
-        fileBase64: null,
-        fileName,
-        tipePg,
-        kunciKompleksRule,
-        instruksiTambahan: `${instruksiTambahan ? instruksiTambahan + '. ' : ''}Fokuskan pada materi babak lanjutan & studi kasus.`,
-        tingkatKesulitan,
-        bahasa,
-        soalSudahAda: [...(soalSudahAda || []), ...batch1]
-      });
-
-      const uniqueBatch1 = this.deduplicateQuestions(batch1);
-      const uniqueBatch2 = [];
-      for (const q of batch2) {
-        const qText = q.pertanyaan || q.soal || '';
-        const isDup = uniqueBatch1.some(bq => this.isDuplicateQuestion(bq.pertanyaan, qText)) ||
-                      uniqueBatch2.some(eq => this.isDuplicateQuestion(eq.pertanyaan, qText));
-        if (!isDup) {
-          uniqueBatch2.push(q);
-        } else {
-          console.warn('⚠️ Menghapus soal duplikat antar sub-batch:', qText.slice(0, 60));
-        }
-      }
-
-      const merged = [...uniqueBatch1, ...uniqueBatch2];
-      return merged.map((q, idx) => ({ ...q, nomor: idx + 1 }));
-    }
-
-    const prompt = this.buildMultipleChoicePrompt({
-      topik,
-      tingkatKelas,
-      jumlahSoal,
-      opsiCount,
-      materiTeks,
-      tipePg,
-      jumlahPgBiasa,
-      jumlahPgKompleks,
-      kunciKompleksRule,
-      instruksiTambahan,
-      tingkatKesulitan,
-      bahasa,
-      soalSudahAda
-    });
-
-    const timeout = Math.max(35000, Number(jumlahSoal) * 2500);
-    const result = await this.callJsonPrompt(prompt, { temperature: 0.3, timeout });
-
-    // Ekstrak daftar soal secara adaptif & toleran terhadap berbagai variasi format JSON AI
-    const rawData = (result && result.data !== undefined) ? result.data : result;
-    let questionsList = this.extractQuestionsArray(rawData);
-    if (!questionsList) {
-      questionsList = this.extractQuestionsArray(result);
-    }
-    if (!questionsList && typeof rawData === 'string') {
-      const repaired = this.repairTruncatedJson(rawData);
-      if (repaired) questionsList = this.extractQuestionsArray(repaired);
-    }
-
-    if (!Array.isArray(questionsList) || questionsList.length === 0) {
-      console.warn('⚠️ Format output generator soal tidak valid. Raw data:', JSON.stringify(rawData)?.substring(0, 300));
-      throw new Error('Format output generator soal tidak valid');
-    }
-
-    // Normalisasi kunci, opsi (A-E), dan jenis pada setiap butir soal yang dikembalikan
+  // Menormalisasi array hasil butir soal PG dari AI ke format standar
+  normalizeMultipleChoiceQuestions(questionsList = [], tipePg = 'pg_biasa', opsiCount = 4) {
+    if (!Array.isArray(questionsList)) return [];
     return questionsList.map((q, idx) => {
       let kunci = String(q.kunci_pg || q.kunci_jawaban || q.kunci || 'A').toUpperCase().trim();
       let parts = kunci.replace(/[^A-E,]/g, '').split(',').map(s => s.trim()).filter(Boolean);
       if (parts.length === 0) {
-        parts = (tipePg === 'pg_kompleks') ? ['A', 'C'] : ['A'];
+        parts = (tipePg === 'pg_kompleks' || q.tipe_pg === 'pg_kompleks' || q.jenis_pg === 'pg_kompleks') ? ['A', 'C'] : ['A'];
       }
       parts = [...new Set(parts)].sort();
 
-      const isKompleks = (tipePg === 'pg_kompleks') || parts.length > 1;
+      const isKompleks = (tipePg === 'pg_kompleks') || (q.tipe_pg === 'pg_kompleks') || (q.jenis_pg === 'pg_kompleks') || parts.length > 1;
       if (tipePg === 'pg_biasa' && parts.length > 1) {
         parts = [parts[0]];
       }
@@ -2465,14 +2305,12 @@ ${jsonExample}
         pertanyaan = `${pertanyaan} (Pilihlah lebih dari satu jawaban yang benar)`;
       }
 
-      // Normalisasi nama properti opsi jawaban (opsi_a, pilihan_a, dsb.)
       let opsiA = q.opsi_a ?? q.pilihan_a ?? q.opsi?.a ?? q.options?.[0] ?? '';
       let opsiB = q.opsi_b ?? q.pilihan_b ?? q.opsi?.b ?? q.options?.[1] ?? '';
       let opsiC = q.opsi_c ?? q.pilihan_c ?? q.opsi?.c ?? q.options?.[2] ?? '';
       let opsiD = q.opsi_d ?? q.pilihan_d ?? q.opsi?.d ?? q.options?.[3] ?? '';
       let opsiE = q.opsi_e ?? q.pilihan_e ?? q.opsi?.e ?? q.options?.[4] ?? null;
 
-      // Bersihkan prefix A. B. jika ada
       opsiA = String(opsiA).replace(/^[A-Za-z][.)\-:]\s*/, '').trim();
       opsiB = String(opsiB).replace(/^[A-Za-z][.)\-:]\s*/, '').trim();
       opsiC = String(opsiC).replace(/^[A-Za-z][.)\-:]\s*/, '').trim();
@@ -2481,6 +2319,7 @@ ${jsonExample}
 
       return {
         ...q,
+        nomor: idx + 1,
         pertanyaan,
         opsi_a: opsiA,
         opsi_b: opsiB,
@@ -2494,6 +2333,447 @@ ${jsonExample}
         pembahasan: q.pembahasan || q.alasan || q.penjelasan || ''
       };
     });
+  },
+
+  // Generator Pilihan Ganda Offline/Heuristik Cerdas (Mendukung PG Biasa & PG Kompleks, Berbasis Teks Materi & Topik)
+  fallbackOfflineMultipleChoiceGenerator(options = {}) {
+    const {
+      topik = 'Materi Pembelajaran',
+      materiTeks = '',
+      jumlahSoal = 5,
+      tipePg = 'pg_biasa',
+      opsiCount = 4,
+      kunciKompleksRule = 'acak_2_3',
+      tingkatKesulitan = 'sedang',
+      bahasa = 'Bahasa Indonesia',
+      offsetIndex = 0
+    } = options;
+
+    const targetCount = Math.max(1, Number(jumlahSoal) || 5);
+    const nOpsi = Number(opsiCount) === 5 ? 5 : 4;
+    const questions = [];
+
+    // Ekstrak kalimat-kalimat fakta informatif dari materi bacaan jika tersedia
+    let sentences = [];
+    if (materiTeks && typeof materiTeks === 'string') {
+      const rawLines = materiTeks.split(/[\r\n]+|[.!?]\s+/);
+      for (let line of rawLines) {
+        line = line.replace(/^[\s*•\-–—\d.)]+/, '').trim();
+        if (line.length >= 35 && line.length <= 190 && /[a-zA-Z]{3,}/.test(line)) {
+          if (!sentences.includes(line)) sentences.push(line);
+        }
+      }
+    }
+
+    const defaultBank = [
+      {
+        sub: 'Konsep Dasar & Definisi',
+        q: `Manakah pernyataan yang paling tepat mengenai konsep dasar dalam materi ${topik}?`,
+        benar: `Memahami prinsip dasar, alur kerja sistem, dan penerapan terstruktur pada ${topik}.`,
+        distractors: [
+          `Mengabaikan prosedur kerja baku dan hanya berfokus pada hasil akhir sesaat.`,
+          `Membatasi seluruh komponen sistem agar tidak dapat berinteraksi satu sama lain.`,
+          `Menghilangkan data masukan sebelum proses analisis komputasi dimulai.`,
+          `Menonaktifkan pengujian validasi berkala pada keseluruhan sistem.`
+        ],
+        pembahasan: `Prinsip fundamental dari ${topik} menekankan pada pemahaman menyeluruh terhadap kaidah, alur proses logis, dan penerapan praktis.`
+      },
+      {
+        sub: 'Analisis & Karakteristik Komponen',
+        q: `Dalam mempelajari ${topik}, aspek manakah yang menjadi ciri utama dari komponen yang efektif?`,
+        benar: `Memiliki fungsi yang terdefinisi dengan jelas, modular, dan dapat diintegrasikan dengan baik.`,
+        distractors: [
+          `Struktur yang acak dan tidak saling terhubung antar-bagian komponen.`,
+          `Hanya beroperasi pada satu kondisi ekstrem tanpa kemampuan adaptasi.`,
+          `Memerlukan intervensi manual konstan tanpa ada otomasi logika dasar.`,
+          `Ketiadaan dokumentasi arsitektur dan parameter kinerja yang terukur.`
+        ],
+        pembahasan: `Komponen yang baik dirancang secara modular dan kohesif agar memudahkan pemeliharaan, integrasi, dan skalabilitas sistem.`
+      },
+      {
+        sub: 'Studi Kasus & Penerapan Praktis',
+        q: `Ketika menghadapi skenario pemecahan masalah pada ${topik}, langkah manakah yang harus diprioritaskan?`,
+        benar: `Melakukan identifikasi masalah secara mendalam, merumuskan hipotesis, dan memvalidasi solusi secara bertahap.`,
+        distractors: [
+          `Langsung menerapkan perubahan masif tanpa menguji akar permasalahan terlebih dahulu.`,
+          `Menghapus seluruh konfigurasi awal sebelum mempelajari pola kegagalan sistem.`,
+          `Mengabaikan masukan dari pengguna dan metrik kinerja yang sudah terekam.`,
+          `Menyalin solusi tanpa penyesuaian terhadap karakteristik lingkungan permasalahan.`
+        ],
+        pembahasan: `Penyelesaian masalah sistematis menuntut tahapan analisis akar masalah yang jelas dan validasi terukur sebelum tindakan final diterapkan.`
+      },
+      {
+        sub: 'Evaluasi & Refleksi Kritis',
+        q: `Apa tolak ukur keberhasilan utama dalam implementasi konsep ${topik}?`,
+        benar: `Efisiensi sumber daya, akurasi hasil keluaran, dan keandalan sistem yang konsisten.`,
+        distractors: [
+          `Peningkatan durasi pemrosesan tanpa adanya peningkatan kualitas output.`,
+          `Tingginya ketergantungan pada satu titik kegagalan (single point of failure).`,
+          `Kompleksitas yang berlebihan sehingga sulit dipahami oleh tim pelaksana.`,
+          `Penggunaan sumber daya berlebih yang tidak sebanding dengan manfaat yang diraih.`
+        ],
+        pembahasan: `Evaluasi keberhasilan sistem ditentukan oleh efisiensi proses, akurasi data yang dicapai, serta stabilitas jangka panjang.`
+      }
+    ];
+
+    for (let i = 0; i < targetCount; i++) {
+      const idxGlobal = offsetIndex + i + 1;
+      const isKompleks = (tipePg === 'pg_kompleks');
+      const seedBank = defaultBank[i % defaultBank.length];
+
+      let pertanyaan = '';
+      let opsiA = '', opsiB = '', opsiC = '', opsiD = '', opsiE = null;
+      let finalKunci = 'A';
+      let pembahasan = '';
+
+      if (sentences.length >= 4) {
+        const sentA = sentences[(i * 3) % sentences.length];
+        const sentB = sentences[(i * 3 + 1) % sentences.length];
+        const sentC = sentences[(i * 3 + 2) % sentences.length];
+
+        const snippetA = sentA.slice(0, 55).replace(/["\r\n]/g, '').trim();
+        if (isKompleks) {
+          pertanyaan = `Berdasarkan uraian materi "${topik}" mengenai "${snippetA}...", manakah dari pernyataan berikut yang BENAR? (Pilihlah lebih dari satu jawaban yang benar)`;
+          opsiA = sentA;
+          opsiB = `Secara umum, proses tersebut bertolak belakang dengan fakta bahwa "${snippetA}..."`;
+          opsiC = sentB;
+          opsiD = `Konsep ini meniadakan prosedur yang dijelaskan pada naskah materi pembelajaran.`;
+          if (nOpsi === 5) {
+            opsiE = sentC;
+          }
+
+          if (kunciKompleksRule === 'tepat_3' && nOpsi === 5) {
+            finalKunci = 'A, C, E';
+          } else if (kunciKompleksRule === 'tepat_3') {
+            opsiD = sentC;
+            finalKunci = 'A, C, D';
+          } else {
+            finalKunci = 'A, C';
+          }
+          pembahasan = `Pernyataan pada opsi ${finalKunci} mengutip langsung dan selaras dengan fakta yang dipaparkan pada materi pembelajaran naskah bacaan.`;
+        } else {
+          pertanyaan = `Berdasarkan uraian naskah materi "${topik}" tentang "${snippetA}...", manakah pernyataan yang tepat mengenai konsep tersebut?`;
+          opsiA = sentA;
+          opsiB = `Konsep ini menyatakan bahwa seluruh proses harus dihentikan tanpa pengolahan lebih lanjut.`;
+          opsiC = `Hal ini bertentangan dengan prinsip dasar pemrosesan data terstruktur pada bahan ajar.`;
+          opsiD = `Materi menegaskan bahwa variabel masukan tidak memiliki pengaruh terhadap hasil akhir.`;
+          if (nOpsi === 5) {
+            opsiE = `Semua komponen di atas tidak memiliki keterkaitan fungsional satu sama lain.`;
+          }
+          finalKunci = 'A';
+          pembahasan = `Pernyataan pada opsi A bersumber langsung dari fakta bahan bacaan: "${sentA}".`;
+        }
+      } else {
+        if (isKompleks) {
+          pertanyaan = `${seedBank.q} (Bagian ${idxGlobal}) (Pilihlah lebih dari satu jawaban yang benar)`;
+          opsiA = seedBank.benar;
+          opsiB = seedBank.distractors[0];
+          opsiC = `Menerapkan evaluasi berkala dan optimasi performa berkelanjutan pada ${topik}.`;
+          opsiD = seedBank.distractors[1];
+          if (nOpsi === 5) {
+            opsiE = seedBank.distractors[2];
+          }
+          finalKunci = 'A, C';
+          pembahasan = `${seedBank.pembahasan} Opsi A dan C merupakan kaidah yang valid.`;
+        } else {
+          pertanyaan = `${seedBank.q} (Bagian ${idxGlobal})`;
+          opsiA = seedBank.benar;
+          opsiB = seedBank.distractors[0];
+          opsiC = seedBank.distractors[1];
+          opsiD = seedBank.distractors[2];
+          if (nOpsi === 5) {
+            opsiE = seedBank.distractors[3] || 'Tidak ada opsi yang relevan.';
+          }
+          finalKunci = 'A';
+          pembahasan = seedBank.pembahasan;
+        }
+      }
+
+      questions.push({
+        nomor: idxGlobal,
+        pertanyaan,
+        opsi_a: opsiA,
+        opsi_b: opsiB,
+        opsi_c: opsiC,
+        opsi_d: opsiD,
+        opsi_e: (nOpsi === 5 || opsiE) ? opsiE : undefined,
+        kunci_pg: finalKunci,
+        kunci_jawaban: finalKunci,
+        tipe_pg: isKompleks ? 'pg_kompleks' : 'pg_biasa',
+        jenis_pg: isKompleks ? 'pg_kompleks' : 'pilihan_ganda',
+        pembahasan
+      });
+    }
+
+    return questions;
+  },
+
+  // Generator Soal Pilihan Ganda Berbantuan AI (Mendukung PG Biasa, PG Kompleks, Campuran, Multi-Jawaban Benar, Berkas & Teks)
+  async generateMultipleChoiceQuestions(options = {}) {
+    let {
+      topik,
+      tingkatKelas = 'SMP',
+      jumlahSoal = 10,
+      opsiCount = 4,
+      materiTeks = '',
+      fileBase64 = null,
+      fileName = '',
+      tipePg = 'pg_biasa',
+      jumlahPgBiasa = null,
+      jumlahPgKompleks = null,
+      kunciKompleksRule = 'acak_2_3',
+      instruksiTambahan = '',
+      tingkatKesulitan = 'sedang',
+      bahasa = 'Bahasa Indonesia',
+      soalSudahAda = [],
+      isSubBatch = false
+    } = options;
+
+    // Ekstraksi berkas sekali di awal jika ada fileBase64
+    let cleanMateri = materiTeks || '';
+    if (fileBase64 && (!cleanMateri || !cleanMateri.trim())) {
+      try {
+        const fileParserService = require('./fileParserService');
+        const parsedDoc = await fileParserService.parseFile(fileBase64, fileName || 'materi.pdf');
+        if (parsedDoc && parsedDoc.text) cleanMateri = parsedDoc.text;
+      } catch (errParse) {
+        console.warn('⚠️ Gagal mengekstrak berkas di backend PG generator:', errParse.message);
+      }
+    }
+
+    // Perencanaan sub-batch dan eksekusi paralel cerdas untuk skala besar / materi panjang
+    if (!isSubBatch) {
+      const isCampuran = (tipePg === 'campuran') || (jumlahPgBiasa !== null && jumlahPgKompleks !== null);
+      let plannedBatches = [];
+      let numBiasa = 0;
+      let numKompleks = 0;
+
+      if (isCampuran) {
+        if ((jumlahPgBiasa !== null && jumlahPgBiasa !== undefined) && (jumlahPgKompleks !== null && jumlahPgKompleks !== undefined)) {
+          jumlahSoal = Math.max(1, Number(jumlahPgBiasa) + Number(jumlahPgKompleks));
+        }
+        numBiasa = (jumlahPgBiasa !== null && jumlahPgBiasa !== undefined) ? Math.max(1, Number(jumlahPgBiasa)) : Math.max(1, Math.round(jumlahSoal * 0.6));
+        numKompleks = (jumlahPgKompleks !== null && jumlahPgKompleks !== undefined) ? Math.max(1, Number(jumlahPgKompleks)) : Math.max(1, jumlahSoal - numBiasa);
+        jumlahSoal = numBiasa + numKompleks;
+
+        if (numBiasa > 8) {
+          const b1 = Math.ceil(numBiasa / 2);
+          const b2 = numBiasa - b1;
+          plannedBatches = [
+            { count: b1, tipePg: 'pg_biasa', hint: 'Fokuskan pada konsep dasar, definisi kunci, dan teori babak awal materi.' },
+            { count: b2, tipePg: 'pg_biasa', hint: 'Fokuskan pada proses teknis, penerapan fungsional, dan teori babak pertengahan materi.' },
+            { count: numKompleks, tipePg: 'pg_kompleks', hint: 'Fokuskan pada analisis multi-kondisi, evaluasi kritis, dan studi kasus babak lanjutan materi.' }
+          ];
+        } else {
+          plannedBatches = [
+            { count: numBiasa, tipePg: 'pg_biasa', hint: 'Fokuskan pada konsep dasar dan teori materi babak awal hingga pertengahan.' },
+            { count: numKompleks, tipePg: 'pg_kompleks', hint: 'Fokuskan pada analisis multi-kondisi dan studi kasus babak lanjutan materi.' }
+          ];
+        }
+      } else if (tipePg === 'pg_biasa') {
+        if (jumlahSoal > 16) {
+          const b1 = Math.ceil(jumlahSoal / 3);
+          const b2 = Math.ceil((jumlahSoal - b1) / 2);
+          const b3 = jumlahSoal - b1 - b2;
+          plannedBatches = [
+            { count: b1, tipePg: 'pg_biasa', hint: 'Fokuskan pada materi babak awal.' },
+            { count: b2, tipePg: 'pg_biasa', hint: 'Fokuskan pada materi babak pertengahan.' },
+            { count: b3, tipePg: 'pg_biasa', hint: 'Fokuskan pada materi babak akhir & studi kasus.' }
+          ];
+        } else if (jumlahSoal > 8) {
+          const b1 = Math.ceil(jumlahSoal / 2);
+          const b2 = jumlahSoal - b1;
+          plannedBatches = [
+            { count: b1, tipePg: 'pg_biasa', hint: 'Fokuskan pada materi babak awal.' },
+            { count: b2, tipePg: 'pg_biasa', hint: 'Fokuskan pada materi babak lanjutan.' }
+          ];
+        }
+      } else if (tipePg === 'pg_kompleks') {
+        if (jumlahSoal > 8) {
+          const b1 = Math.ceil(jumlahSoal / 2);
+          const b2 = jumlahSoal - b1;
+          plannedBatches = [
+            { count: b1, tipePg: 'pg_kompleks', hint: 'Fokuskan pada analisis skenario babak awal.' },
+            { count: b2, tipePg: 'pg_kompleks', hint: 'Fokuskan pada analisis skenario babak lanjutan.' }
+          ];
+        }
+      }
+
+      // Jika batch perlu dipecah (multi-batch):
+      if (plannedBatches.length > 1) {
+        const windows = this.splitTextIntoBalancedWindows(cleanMateri, plannedBatches.length);
+
+        console.log(`🚀 [AI-PG-GENERATOR] Mengeksekusi ${plannedBatches.length} sub-batch secara paralel untuk total ${jumlahSoal} butir soal (${cleanMateri.length} karakter materi)...`);
+
+        const batchPromises = plannedBatches.map((batch, bIdx) => {
+          const windowText = windows[bIdx] || windows[0] || cleanMateri;
+          return this.generateMultipleChoiceQuestions({
+            ...options,
+            topik,
+            tingkatKelas,
+            jumlahSoal: batch.count,
+            tipePg: batch.tipePg,
+            jumlahPgBiasa: null,
+            jumlahPgKompleks: null,
+            kunciKompleksRule: (batch.tipePg === 'pg_kompleks') ? kunciKompleksRule : 'acak_2_3',
+            materiTeks: windowText,
+            fileBase64: null,
+            fileName,
+            instruksiTambahan: `${instruksiTambahan ? instruksiTambahan + '. ' : ''}${batch.hint}`,
+            tingkatKesulitan,
+            bahasa,
+            soalSudahAda,
+            isSubBatch: true
+          });
+        });
+
+        const settledResults = await Promise.allSettled(batchPromises);
+        let allQuestions = [];
+
+        for (let i = 0; i < settledResults.length; i++) {
+          const res = settledResults[i];
+          const batchPlan = plannedBatches[i];
+          if (res.status === 'fulfilled' && Array.isArray(res.value) && res.value.length > 0) {
+            allQuestions.push(...res.value);
+          } else {
+            console.warn(`⚠️ Sub-batch #${i + 1} (${batchPlan.tipePg}) gagal (${res.reason?.message}). Menjalankan generator cerdas cadangan...`);
+            const fallbackList = this.fallbackOfflineMultipleChoiceGenerator({
+              ...options,
+              topik,
+              materiTeks: windows[i] || cleanMateri,
+              jumlahSoal: batchPlan.count,
+              tipePg: batchPlan.tipePg,
+              kunciKompleksRule,
+              opsiCount,
+              tingkatKesulitan,
+              bahasa,
+              offsetIndex: allQuestions.length
+            });
+            allQuestions.push(...fallbackList);
+          }
+        }
+
+        // Deduplikasi pertanyaan
+        let finalQuestions = this.deduplicateQuestions(allQuestions);
+
+        if (isCampuran) {
+          let biasaList = finalQuestions.filter(q => q.tipe_pg === 'pg_biasa');
+          let kompleksList = finalQuestions.filter(q => q.tipe_pg === 'pg_kompleks');
+
+          if (biasaList.length < numBiasa) {
+            const missing = numBiasa - biasaList.length;
+            const extra = this.fallbackOfflineMultipleChoiceGenerator({
+              ...options,
+              topik,
+              materiTeks: cleanMateri,
+              jumlahSoal: missing,
+              tipePg: 'pg_biasa',
+              opsiCount,
+              tingkatKesulitan,
+              bahasa,
+              offsetIndex: biasaList.length
+            });
+            biasaList.push(...extra);
+          }
+
+          if (kompleksList.length < numKompleks) {
+            const missing = numKompleks - kompleksList.length;
+            const extra = this.fallbackOfflineMultipleChoiceGenerator({
+              ...options,
+              topik,
+              materiTeks: cleanMateri,
+              jumlahSoal: missing,
+              tipePg: 'pg_kompleks',
+              kunciKompleksRule,
+              opsiCount,
+              tingkatKesulitan,
+              bahasa,
+              offsetIndex: 100 + kompleksList.length
+            });
+            kompleksList.push(...extra);
+          }
+
+          finalQuestions = [
+            ...biasaList.slice(0, numBiasa),
+            ...kompleksList.slice(0, numKompleks)
+          ];
+        } else {
+          const targetTotal = Number(jumlahSoal) || finalQuestions.length;
+          if (finalQuestions.length < targetTotal) {
+            const missing = targetTotal - finalQuestions.length;
+            const extra = this.fallbackOfflineMultipleChoiceGenerator({
+              ...options,
+              topik,
+              materiTeks: cleanMateri,
+              jumlahSoal: missing,
+              tipePg,
+              kunciKompleksRule,
+              opsiCount,
+              tingkatKesulitan,
+              bahasa,
+              offsetIndex: finalQuestions.length
+            });
+            finalQuestions.push(...extra);
+          }
+          finalQuestions = finalQuestions.slice(0, targetTotal);
+        }
+
+        return finalQuestions.map((q, idx) => ({
+          ...q,
+          nomor: idx + 1
+        }));
+      }
+    }
+
+    // Eksekusi Single Batch / Sub-Batch Internal
+    const prompt = this.buildMultipleChoicePrompt({
+      topik,
+      tingkatKelas,
+      jumlahSoal,
+      opsiCount,
+      materiTeks: cleanMateri,
+      tipePg,
+      jumlahPgBiasa,
+      jumlahPgKompleks,
+      kunciKompleksRule,
+      instruksiTambahan,
+      tingkatKesulitan,
+      bahasa,
+      soalSudahAda
+    });
+
+    const timeout = Math.min(28000, Math.max(18000, Number(jumlahSoal) * 2500));
+
+    try {
+      const result = await this.callJsonPrompt(prompt, { temperature: 0.3, timeout });
+      const rawData = (result && result.data !== undefined) ? result.data : result;
+      let questionsList = this.extractQuestionsArray(rawData);
+      if (!questionsList) {
+        questionsList = this.extractQuestionsArray(result);
+      }
+      if (!questionsList && typeof rawData === 'string') {
+        const repaired = this.repairTruncatedJson(rawData);
+        if (repaired) questionsList = this.extractQuestionsArray(repaired);
+      }
+
+      if (!Array.isArray(questionsList) || questionsList.length === 0) {
+        throw new Error('Format output generator soal tidak valid');
+      }
+
+      return this.normalizeMultipleChoiceQuestions(questionsList, tipePg, opsiCount);
+    } catch (errCall) {
+      console.warn(`⚠️ [AI-PG-GENERATOR] Eksekusi Gemini gagal (${errCall.message}). Mengaktifkan fallback heuristik...`);
+      return this.fallbackOfflineMultipleChoiceGenerator({
+        topik,
+        materiTeks: cleanMateri,
+        jumlahSoal,
+        tipePg,
+        opsiCount,
+        kunciKompleksRule,
+        tingkatKesulitan,
+        bahasa
+      });
+    }
   },
 
   // Helper Pembangun Kisi-Kisi Cerdas Terpadu (Mengelompokkan Soal per Satu Pembahasan & Detail Tingkat SMP)
