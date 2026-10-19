@@ -497,7 +497,7 @@ const examService = {
       params.push(acak_soal ? 1 : 0);
     }
     // Validasi kuota tipe soal tidak boleh melebihi batas jumlah soal siswa
-    const existingRow = db.prepare('SELECT jumlah_soal_tampil, jumlah_soal_pg, jumlah_soal_pg_kompleks, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_koding, jumlah_soal_listening, zona_waktu FROM ulangan WHERE id = ?').get(id);
+    const existingRow = db.prepare('SELECT jumlah_soal_tampil, jumlah_soal_pg, jumlah_soal_pg_kompleks, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_koding, jumlah_soal_listening, zona_waktu, pin_aktif, token_ujian FROM ulangan WHERE id = ?').get(id);
     const finalLimit = jumlah_soal_tampil !== undefined 
       ? ((jumlah_soal_tampil !== null && jumlah_soal_tampil !== '') ? Math.max(1, Number(jumlah_soal_tampil)) : null)
       : existingRow?.jumlah_soal_tampil;
@@ -689,15 +689,21 @@ const examService = {
     // Sinkronisasi otomatis pool token PIN jika kuota token_ujian diset atau PIN diaktifkan
     try {
       const pinService = require('./pinService');
-      const targetToken = (data.token_ujian !== undefined && data.token_ujian !== null && data.token_ujian !== '')
-        ? Math.max(0, Number(data.token_ujian))
-        : null;
-      const isPinActive = data.pin_aktif !== undefined ? Boolean(data.pin_aktif) : Boolean(existingRow?.pin_aktif);
+      const isPinExplicitlyUpdated = (data.pin_aktif !== undefined || data.token_ujian !== undefined);
+      const isPinActive = data.pin_aktif !== undefined 
+        ? Boolean(data.pin_aktif) 
+        : Boolean(existingRow?.pin_aktif);
+      const targetToken = (data.token_ujian !== undefined)
+        ? ((data.token_ujian !== null && data.token_ujian !== '') ? Math.max(0, Number(data.token_ujian)) : null)
+        : (existingRow?.token_ujian ? Number(existingRow.token_ujian) : null);
 
-      if (targetToken && targetToken > 0) {
+      if (isPinExplicitlyUpdated && !isPinActive) {
+        // GURU MENONAKTIFKAN PIN / TOKEN: bersihkan status pin_aktif dan kuota token agar tidak memblokir siswa
+        db.prepare('UPDATE ulangan SET pin_aktif = 0, token_ujian = NULL WHERE id = ?').run(id);
+      } else if (data.token_ujian !== undefined && targetToken && targetToken > 0) {
         pinService.syncTokenPool(id, guruId, targetToken);
         db.prepare('UPDATE ulangan SET pin_aktif = 1 WHERE id = ?').run(id);
-      } else if (isPinActive) {
+      } else if (data.pin_aktif !== undefined && isPinActive) {
         const countRow = db.prepare('SELECT COUNT(*) as cnt FROM pin_sessions WHERE ulangan_id = ?').get(id);
         if (Number(countRow?.cnt || 0) === 0) {
           pinService.generatePoolPins(id, guruId, 30);

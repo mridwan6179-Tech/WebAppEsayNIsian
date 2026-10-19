@@ -7331,11 +7331,20 @@
           document.getElementById('edit-exam-kode').value = u.kode_ujian || '';
         }
         if (document.getElementById('edit-exam-pin-aktif')) {
-          document.getElementById('edit-exam-pin-aktif').checked = Boolean(u.pin_aktif);
+          const chk = document.getElementById('edit-exam-pin-aktif');
+          chk.checked = Boolean(u.pin_aktif);
+          if (!chk.dataset.clearBound) {
+            chk.dataset.clearBound = 'true';
+            chk.addEventListener('change', () => {
+              if (!chk.checked && document.getElementById('edit-exam-token-ujian')) {
+                document.getElementById('edit-exam-token-ujian').value = '';
+              }
+            });
+          }
         }
         if (document.getElementById('edit-exam-token-ujian')) {
           const tokenInput = document.getElementById('edit-exam-token-ujian');
-          tokenInput.value = (u.token_ujian !== null && u.token_ujian !== undefined) ? u.token_ujian : '';
+          tokenInput.value = (u.token_ujian !== null && u.token_ujian !== undefined && Boolean(u.pin_aktif)) ? u.token_ujian : '';
           if (!tokenInput.dataset.pinBound) {
             tokenInput.dataset.pinBound = 'true';
             tokenInput.addEventListener('input', () => {
@@ -7506,8 +7515,8 @@
         link_kisi_kisi: linkKisiKisi || null,
         tampilkan_teks_listening: document.getElementById('edit-exam-tampilkan-teks-listening')?.checked ? 1 : 0,
         kode_ujian: document.getElementById('edit-exam-kode')?.value.trim() || undefined,
-        pin_aktif: (document.getElementById('edit-exam-pin-aktif')?.checked || (document.getElementById('edit-exam-token-ujian')?.value.trim() && parseInt(document.getElementById('edit-exam-token-ujian').value.trim(), 10) > 0)) ? 1 : 0,
-        token_ujian: document.getElementById('edit-exam-token-ujian')?.value.trim() ? parseInt(document.getElementById('edit-exam-token-ujian').value.trim(), 10) : null,
+        pin_aktif: document.getElementById('edit-exam-pin-aktif')?.checked ? 1 : 0,
+        token_ujian: (document.getElementById('edit-exam-pin-aktif')?.checked && document.getElementById('edit-exam-token-ujian')?.value.trim()) ? parseInt(document.getElementById('edit-exam-token-ujian').value.trim(), 10) : null,
         skor_langsung_ai: document.getElementById('edit-exam-skor-langsung-ai')?.checked ? 1 : 0,
         remedial_langsung: document.getElementById('edit-exam-remedial-langsung')?.checked ? 1 : 0,
         maksimal_percobaan: parseInt(document.getElementById('edit-exam-maksimal-percobaan')?.value || '1', 10),

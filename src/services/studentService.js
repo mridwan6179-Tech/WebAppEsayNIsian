@@ -244,8 +244,8 @@ const studentService = {
         konten_kisi_kisi: (isKisiShown && hasKisiKonten) ? ulangan.konten_kisi_kisi : null,
         tampilkan_kisi_kisi: isKisiShown ? 1 : 0,
         tampilkan_teks_listening: (ulangan.tampilkan_teks_listening !== undefined && ulangan.tampilkan_teks_listening !== null) ? Number(ulangan.tampilkan_teks_listening) : 0,
-        pin_aktif: (Number(ulangan.pin_aktif) === 1 || (ulangan.token_ujian && Number(ulangan.token_ujian) > 0)) ? 1 : 0,
-        token_ujian: ulangan.token_ujian || null,
+        pin_aktif: Number(ulangan.pin_aktif) === 1 ? 1 : 0,
+        token_ujian: Number(ulangan.pin_aktif) === 1 ? (ulangan.token_ujian || null) : null,
         remedial_langsung: Number(ulangan.remedial_langsung || 0),
         maksimal_percobaan: (ulangan.maksimal_percobaan !== undefined && ulangan.maksimal_percobaan !== null) ? Number(ulangan.maksimal_percobaan) : 1,
         kebijakan_nilai: ulangan.kebijakan_nilai || 'tertinggi',
@@ -288,26 +288,26 @@ const studentService = {
       }
     }
 
-    // Cek batas token ujian (jika aktif)
-    try {
-      const pinServiceModule = require('./pinService');
-      // Cek apakah peserta ini sudah pernah ada di peserta table
-      const existingPeserta = db.prepare(
-        'SELECT id FROM peserta WHERE ulangan_id = ? AND LOWER(nama) = LOWER(?) AND LOWER(kelas) = LOWER(?)'
-      ).get(ulanganId, cleanNama, cleanKelas);
-      const tokenCheck = pinServiceModule.checkTokenAvailable(ulanganId, existingPeserta?.id || null);
-      if (!tokenCheck.allowed) {
-        throw new Error(tokenCheck.message);
+    // Cek batas token ujian & kewajiban PIN HANYA jika sistem PIN / token aktif
+    if (Number(val.ulangan.pin_aktif) === 1) {
+      try {
+        const pinServiceModule = require('./pinService');
+        // Cek apakah peserta ini sudah pernah ada di peserta table
+        const existingPeserta = db.prepare(
+          'SELECT id FROM peserta WHERE ulangan_id = ? AND LOWER(nama) = LOWER(?) AND LOWER(kelas) = LOWER(?)'
+        ).get(ulanganId, cleanNama, cleanKelas);
+        const tokenCheck = pinServiceModule.checkTokenAvailable(ulanganId, existingPeserta?.id || null);
+        if (!tokenCheck.allowed) {
+          throw new Error(tokenCheck.message);
+        }
+      } catch (tokenErr) {
+        if (tokenErr.message && tokenErr.message.includes('token')) {
+          throw tokenErr;
+        }
+        // Jika error lain (misal modul tidak ada), abaikan saja
       }
-    } catch (tokenErr) {
-      if (tokenErr.message && tokenErr.message.includes('token')) {
-        throw tokenErr;
-      }
-      // Jika error lain (misal modul tidak ada), abaikan saja
-    }
 
-    // Jika ulangan mewajibkan PIN sekali pakai, pastikan siswa sudah tervalidasi dengan PIN
-    if (val.ulangan.pin_aktif === 1) {
+      // Pastikan siswa sudah tervalidasi dengan PIN
       const pinSession = db.prepare(`
         SELECT id FROM pin_sessions 
         WHERE ulangan_id = ? AND is_used = 1 

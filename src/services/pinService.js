@@ -63,7 +63,12 @@ const pinService = {
     if (guruId && !isGuruAuthorized(guruId, ulangan.guru_id)) throw new Error('Akses ditolak: bukan ulangan milik Anda');
 
     const flag = aktif ? 1 : 0;
-    db.prepare('UPDATE ulangan SET pin_aktif = ? WHERE id = ?').run(flag, ulanganId);
+    if (flag === 0) {
+      db.prepare('UPDATE ulangan SET pin_aktif = 0, token_ujian = NULL WHERE id = ?').run(ulanganId);
+    } else {
+      db.prepare('UPDATE ulangan SET pin_aktif = 1 WHERE id = ?').run(ulanganId);
+    }
+    if (typeof db.syncCloud === 'function') db.syncCloud(true);
     return { success: true, pin_aktif: flag };
   },
 
@@ -198,6 +203,9 @@ const pinService = {
   checkTokenAvailable(ulanganId, pesertaId = null) {
     const ulangan = db.prepare('SELECT token_ujian, pin_aktif FROM ulangan WHERE id = ?').get(ulanganId);
     if (!ulangan) return { allowed: true };
+
+    // JIKA SISTEM PIN / TOKEN SUDAH DINONAKTIFKAN, JANGAN DIBATASI APAPUN!
+    if (Number(ulangan.pin_aktif) !== 1) return { allowed: true };
 
     const maxToken = Number(ulangan.token_ujian) || 0;
     if (!maxToken) return { allowed: true };

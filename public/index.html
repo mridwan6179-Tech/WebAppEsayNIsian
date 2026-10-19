@@ -1414,7 +1414,7 @@
           // Tampilkan field PIN jika ujian menggunakan sistem PIN atau kuota token peserta
           const pinContainer = document.getElementById('pin-input-container');
           const pinInput = document.getElementById('input-pin');
-          const isPinActive = (data.ulangan.pin_aktif === 1) || (data.ulangan.token_ujian && Number(data.ulangan.token_ujian) > 0);
+          const isPinActive = Number(data.ulangan.pin_aktif) === 1;
           if (isPinActive) {
             if (pinContainer) pinContainer.classList.remove('hidden');
             if (pinInput) { pinInput.required = true; pinInput.value = ''; }
