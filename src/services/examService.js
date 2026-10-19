@@ -96,7 +96,8 @@ const examService = {
     while (!isUnique) {
       kode_ujian = this.generateExamCode();
       const existing = db.prepare('SELECT id FROM ulangan WHERE kode_ujian = ?').get(kode_ujian);
-      if (!existing) isUnique = true;
+      const existingSesi = db.prepare('SELECT id FROM ulangan_sesi WHERE kode_sesi = ?').get(kode_ujian);
+      if (!existing && !existingSesi) isUnique = true;
     }
 
     const cleanZonaWaktu = (data.zona_waktu && ['WIB', 'WITA', 'WIT'].includes(String(data.zona_waktu).toUpperCase()))
@@ -261,6 +262,12 @@ const examService = {
     ulangan.total_bobot = ulangan.soal.reduce((acc, s) => acc + (s.bobot || 0), 0);
     ulangan.kelas = classService.getKelasByUlangan(id);
     ulangan.komposisi_status = this.checkUlanganComposition(ulangan);
+    try {
+      const sesiRow = db.prepare('SELECT COUNT(*) as count FROM ulangan_sesi WHERE ulangan_id = ?').get(id);
+      ulangan.sesi_count = sesiRow ? sesiRow.count : 0;
+    } catch (e) {
+      ulangan.sesi_count = 0;
+    }
     return ulangan;
   },
 
@@ -596,6 +603,10 @@ const examService = {
       const existingKode = db.prepare('SELECT id FROM ulangan WHERE kode_ujian = ? AND id != ?').get(cleanKode, id);
       if (existingKode) {
         throw new Error(`Token/Kode ujian "${cleanKode}" sudah digunakan oleh ulangan lain.`);
+      }
+      const existingSesi = db.prepare('SELECT id FROM ulangan_sesi WHERE kode_sesi = ?').get(cleanKode);
+      if (existingSesi) {
+        throw new Error(`Token/Kode ujian "${cleanKode}" sudah digunakan oleh salah satu sesi ujian. Gunakan kode yang berbeda.`);
       }
       updates.push('kode_ujian = ?');
       params.push(cleanKode);
@@ -1569,6 +1580,10 @@ const examService = {
         const checkDup = db.prepare('SELECT id FROM ulangan_sesi WHERE kode_sesi = ? AND id != ?').get(cleanKode, sesiId);
         if (checkDup) {
           throw new Error(`Token "${cleanKode}" sudah dipakai oleh sesi lain.`);
+        }
+        const checkMaster = db.prepare('SELECT id FROM ulangan WHERE kode_ujian = ?').get(cleanKode);
+        if (checkMaster) {
+          throw new Error(`Token "${cleanKode}" sama dengan kode ujian utama. Gunakan token sesi yang berbeda.`);
         }
         kodeSesi = cleanKode;
       }

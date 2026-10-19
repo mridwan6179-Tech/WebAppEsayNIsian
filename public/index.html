@@ -1193,14 +1193,14 @@
         clearTimeout(debounceTimer);
         let rawVal = inputKode.value.trim();
         let kode = extractCodeFromInput(rawVal);
-        if (kode && kode !== rawVal && kode.length <= 15) {
+        if (kode && kode !== rawVal && kode.length <= 50) {
           inputKode.value = kode;
         } else {
           kode = inputKode.value.trim().toUpperCase();
           inputKode.value = kode;
         }
 
-        if (kode.length >= 6) {
+        if (kode.length >= 3) {
           debounceTimer = setTimeout(() => checkKodeUlangan(kode), 300);
         } else {
           currentRangkumanTask = null;

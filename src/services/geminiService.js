@@ -214,6 +214,79 @@ const geminiService = {
     return Date.now() < until;
   },
 
+  // Helper cerdas pemulihan JSON yang terpotong di tengah jalan (misal output token terputus)
+  repairTruncatedJson(rawStr) {
+    if (!rawStr || typeof rawStr !== 'string') return null;
+    let str = rawStr.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+
+    // 1. Coba parse langsung jika valid
+    try {
+      return JSON.parse(str);
+    } catch (e) {}
+
+    const firstBrace = str.indexOf('{');
+    const firstBracket = str.indexOf('[');
+
+    // Kumpulkan seluruh indeks tanda '}' dari belakang ke depan
+    const braceIndices = [];
+    for (let i = str.length - 1; i >= 0; i--) {
+      if (str[i] === '}') {
+        braceIndices.push(i);
+        if (braceIndices.length >= 25) break;
+      }
+    }
+
+    for (const bIdx of braceIndices) {
+      // 1. Skema umum: { "questions": [ { ... } ] }
+      if (firstBrace !== -1 && firstBracket !== -1 && firstBrace < firstBracket && bIdx > firstBracket) {
+        try {
+          const candidate = str.slice(firstBrace, bIdx + 1) + ']}';
+          const parsed = JSON.parse(candidate);
+          if (parsed && typeof parsed === 'object') return parsed;
+        } catch (e) {}
+
+        // Bila ada dua lapis pembungkus { "data": { "questions": [ ... ] } }
+        try {
+          const candidate = str.slice(firstBrace, bIdx + 1) + ']}}';
+          const parsed = JSON.parse(candidate);
+          if (parsed && typeof parsed === 'object') return parsed;
+        } catch (e) {}
+      }
+
+      // 2. Skema array langsung: [ { ... }, { ... } ]
+      if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace) && bIdx > firstBracket) {
+        try {
+          const candidate = str.slice(firstBracket, bIdx + 1) + ']';
+          const parsed = JSON.parse(candidate);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch (e) {}
+      }
+
+      // 3. Skema objek standar yang terpotong { ... }
+      if (firstBrace !== -1 && bIdx > firstBrace) {
+        try {
+          const candidate = str.slice(firstBrace, bIdx + 1);
+          const parsed = JSON.parse(candidate);
+          if (parsed && typeof parsed === 'object') return parsed;
+        } catch (e) {}
+      }
+    }
+
+    return null;
+  },
+
+  // Helper pembersih respon teks mentah ke format JSON
+  cleanJsonOutput(text) {
+    if (!text || typeof text !== 'string') return null;
+    const match = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    const candidate = match ? match[1].trim() : text.replace(/```json/gi, '').replace(/```/g, '').trim();
+    try {
+      return JSON.parse(candidate);
+    } catch (e) {
+      return this.repairTruncatedJson(candidate);
+    }
+  },
+
   // Universal dynamic JSON generation engine across Gemini models & keys:
   // - Evaluasi urutan kandidat dinamis (getOrderedCandidateModels)
   // - Multi-key failover otomatis (getAllActiveApiKeys)
@@ -248,6 +321,7 @@ const geminiService = {
               contents: [{ parts: [{ text: prompt }] }],
               generationConfig: {
                 temperature,
+                maxOutputTokens: 8192,
                 responseMimeType: 'application/json'
               }
             })
@@ -290,10 +364,26 @@ const geminiService = {
               const lastBracket = candidateStr.lastIndexOf(']');
 
               if (firstBrace !== -1 && lastBrace > firstBrace && (firstBracket === -1 || firstBrace < firstBracket)) {
-                parsed = JSON.parse(candidateStr.slice(firstBrace, lastBrace + 1));
+                try {
+                  parsed = JSON.parse(candidateStr.slice(firstBrace, lastBrace + 1));
+                } catch (eBrace) {
+                  parsed = this.repairTruncatedJson(candidateStr);
+                }
               } else if (firstBracket !== -1 && lastBracket > firstBracket) {
-                parsed = JSON.parse(candidateStr.slice(firstBracket, lastBracket + 1));
+                try {
+                  parsed = JSON.parse(candidateStr.slice(firstBracket, lastBracket + 1));
+                } catch (eBracket) {
+                  parsed = this.repairTruncatedJson(candidateStr);
+                }
               } else {
+                parsed = this.repairTruncatedJson(candidateStr);
+              }
+
+              if (!parsed) {
+                parsed = this.repairTruncatedJson(textResponse);
+              }
+
+              if (!parsed) {
                 throw jsonErr;
               }
             }
@@ -2130,7 +2220,8 @@ ${jsonExample}
         });
       }
 
-      return [...biasaList, ...kompleksList];
+      const combined = [...biasaList, ...kompleksList];
+      return combined.map((q, idx) => ({ ...q, nomor: idx + 1 }));
     }
 
     // Ekstrak berkas jika fileBase64 dikirimkan tanpa teks materi
@@ -2144,6 +2235,81 @@ ${jsonExample}
       } catch (errParse) {
         console.warn('⚠️ Gagal mengekstrak berkas di backend PG generator:', errParse.message);
       }
+    }
+
+    // Auto-chunking untuk batch soal besar (> 15 butir) agar output AI tidak terpotong token limit & respons jauh lebih cepat
+    if (jumlahSoal > 15) {
+      const half1 = Math.ceil(jumlahSoal / 2);
+      const half2 = jumlahSoal - half1;
+
+      let batch1 = [];
+      let batch2 = [];
+
+      try {
+        [batch1, batch2] = await Promise.all([
+          this.generateMultipleChoiceQuestions({
+            topik,
+            tingkatKelas,
+            jumlahSoal: half1,
+            opsiCount,
+            materiTeks,
+            fileBase64: null,
+            fileName,
+            tipePg,
+            kunciKompleksRule,
+            instruksiTambahan: `${instruksiTambahan ? instruksiTambahan + '. ' : ''}Fokuskan pada materi konsep awal.`,
+            tingkatKesulitan,
+            bahasa
+          }),
+          this.generateMultipleChoiceQuestions({
+            topik,
+            tingkatKelas,
+            jumlahSoal: half2,
+            opsiCount,
+            materiTeks,
+            fileBase64: null,
+            fileName,
+            tipePg,
+            kunciKompleksRule,
+            instruksiTambahan: `${instruksiTambahan ? instruksiTambahan + '. ' : ''}Fokuskan pada materi konsep lanjutan dan aplikasi.`,
+            tingkatKesulitan,
+            bahasa
+          })
+        ]);
+      } catch (errParalelChunk) {
+        console.warn('⚠️ Sub-batch paralel soal > 15 butir gagal, beralih ke sekuensial:', errParalelChunk.message);
+        batch1 = await this.generateMultipleChoiceQuestions({
+          topik,
+          tingkatKelas,
+          jumlahSoal: half1,
+          opsiCount,
+          materiTeks,
+          fileBase64: null,
+          fileName,
+          tipePg,
+          kunciKompleksRule,
+          instruksiTambahan,
+          tingkatKesulitan,
+          bahasa
+        });
+        batch2 = await this.generateMultipleChoiceQuestions({
+          topik,
+          tingkatKelas,
+          jumlahSoal: half2,
+          opsiCount,
+          materiTeks,
+          fileBase64: null,
+          fileName,
+          tipePg,
+          kunciKompleksRule,
+          instruksiTambahan,
+          tingkatKesulitan,
+          bahasa
+        });
+      }
+
+      const merged = [...batch1, ...batch2];
+      return merged.map((q, idx) => ({ ...q, nomor: idx + 1 }));
     }
 
     const prompt = this.buildMultipleChoicePrompt({

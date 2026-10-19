@@ -638,7 +638,7 @@
             <div>
               <h2 id="detail-exam-title" class="text-lg sm:text-xl font-bold text-slate-900 leading-snug">Judul Ulangan</h2>
               <div class="mt-1.5 flex items-center space-x-3 text-xs flex-wrap gap-y-1">
-                <span class="text-slate-500">Kode Akses: <strong id="detail-exam-code" class="font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded font-bold">KODE</strong></span>
+                <span class="text-slate-500">Kode Akses: <strong id="detail-exam-code" class="font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded font-bold cursor-pointer" onclick="copyDetailExamCode()" title="Klik untuk menyalin kode akses ujian">KODE</strong> <span id="detail-exam-sesi-badge" class="hidden text-[10px] bg-indigo-50 border border-indigo-200 text-indigo-700 px-2 py-0.5 rounded-full font-bold ml-1" title="Kode ujian utama tetap aktif sebagai Master Token. Jika siswa masuk dengan kode ini, siswa dapat langsung memilih sesi ujiannya.">👑 Master Token</span></span>
                 <span class="text-slate-400">Total Bobot: <strong id="detail-exam-bobot" class="text-slate-700 font-bold">0</strong> <span class="text-[10px] text-slate-400 font-medium">(Skala Nilai: 0–100)</span></span>
                 <button id="btn-quick-calibrate-bobot" type="button" class="hidden text-[11px] bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-lg font-bold transition flex items-center space-x-1 cursor-pointer shadow-2xs" title="Sesuaikan atau seimbangkan bobot butir soal">
                   <span>⚖️ Kalibrasi Bobot</span>
@@ -5577,6 +5577,14 @@
         currentExamSessions = sesiList;
         const countSesiEl = document.getElementById('count-sesi');
         if (countSesiEl) countSesiEl.textContent = sesiList.length;
+        const sesiBadge = document.getElementById('detail-exam-sesi-badge');
+        if (sesiBadge) {
+          if (sesiList.length > 0) {
+            sesiBadge.classList.remove('hidden');
+          } else {
+            sesiBadge.classList.add('hidden');
+          }
+        }
         const tabContentSesi = document.getElementById('tab-content-sesi');
         if (tabContentSesi && !tabContentSesi.classList.contains('hidden')) {
           loadSesiList(id);
@@ -10232,6 +10240,16 @@
         if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="py-6 text-center text-red-500">Gagal memuat daftar sesi.</td></tr>';
       }
     }
+
+    window.copyDetailExamCode = function() {
+      const code = document.getElementById('detail-exam-code')?.textContent?.trim();
+      if (!code || code === 'KODE') return;
+      navigator.clipboard.writeText(code).then(() => {
+        alert(`Kode Akses Ujian "${code}" berhasil disalin ke clipboard!`);
+      }).catch(() => {
+        prompt('Salin kode akses ujian:', code);
+      });
+    };
 
     window.copySessionToken = function(token) {
       if (!token) return;
