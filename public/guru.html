@@ -17,19 +17,19 @@
     /* Universal Base Styling Ruang Tulis Jawaban Siswa (Layar & Cetak) */
     .print-answer-line {
       border-bottom: 1.5px dashed #94a3b8;
-      height: 20px;
+      height: 18px;
       width: 100%;
-      margin-top: 2px;
+      margin-top: 1.5px;
       box-sizing: border-box;
     }
     .mode-hemat-kertas .print-answer-line {
-      height: 18px;
-      margin-top: 1.5px;
+      height: 15px;
+      margin-top: 1px;
       border-bottom-color: #64748b;
     }
     .mode-satu-halaman .print-answer-line {
-      height: 22px;
-      margin-top: 2.5px;
+      height: 18px;
+      margin-top: 1.5px;
       border-bottom-color: #64748b;
     }
 
@@ -3872,13 +3872,13 @@
 
   <!-- Modal Print Naskah Soal Terformat per Paket -->
   <div id="modal-cetak-naskah-paket" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-    <div class="bg-white rounded-2xl max-w-4xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-4 my-auto max-h-[95vh] overflow-y-auto">
-      <div class="no-print flex items-center justify-between border-b border-slate-100 pb-3">
+    <div class="bg-white rounded-2xl max-w-5xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 space-y-3.5 my-auto max-h-[96vh] overflow-y-auto">
+      <div class="no-print flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
         <div class="flex items-center space-x-2">
           <span class="text-xl">🖨️</span>
           <div>
             <h3 class="font-bold text-slate-900 text-sm sm:text-base">Pratinjau Cetak Naskah Soal Fisik - <span id="naskah-paket-title-badge" class="text-indigo-600">Paket A</span></h3>
-            <p class="text-[11px] text-slate-500">Format tata letak lembar soal siap cetak di kertas A4 standar</p>
+            <p class="text-[11px] text-slate-500">Tata letak lembar soal siap cetak di kertas A4 (ukuran tulisan & kerapatan baris dapat disesuaikan agar hemat kertas)</p>
           </div>
         </div>
         <div class="flex items-center space-x-2">
@@ -3889,8 +3889,44 @@
         </div>
       </div>
 
+      <!-- Toolbar Pengaturan Kerapatan & Ukuran Tulisan Lembar Soal -->
+      <div class="no-print p-3 bg-slate-50 border border-slate-200 rounded-xl grid grid-cols-1 sm:grid-cols-4 gap-2.5 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Ukuran Tulisan Soal:</label>
+          <select id="select-naskah-font-size" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-xs">
+            <option value="compact" selected>Kecil / Hemat (10px - Muat Banyak)</option>
+            <option value="tiny">Sangat Kecil (9px - Super Hemat)</option>
+            <option value="medium">Sedang (11px)</option>
+            <option value="normal">Standar (12px)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Kerapatan Baris & Jarak:</label>
+          <select id="select-naskah-density" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-xs">
+            <option value="tight" selected>Sangat Rapat (Kompak Maksimal)</option>
+            <option value="medium">Rapat Sedang</option>
+            <option value="normal">Renggang Normal</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Kolom Halaman:</label>
+          <select id="select-naskah-columns" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-xs">
+            <option value="2" selected>2 Kolom (Hemat Kertas A4)</option>
+            <option value="1">1 Kolom (Penuh)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Ukuran Gambar:</label>
+          <select id="select-naskah-image-size" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-xs">
+            <option value="compact" selected>Kecil / Hemat Ruang (Maks 70px)</option>
+            <option value="medium">Sedang (Maks 110px)</option>
+            <option value="large">Normal (Maks 160px)</option>
+          </select>
+        </div>
+      </div>
+
       <!-- Container Sheet Printable -->
-      <div id="cetak-naskah-paket-sheet-container" class="bg-white text-black p-4 sm:p-6 text-sm">
+      <div id="cetak-naskah-paket-sheet-container" class="bg-white text-black p-3 sm:p-5 text-sm">
         <!-- Will be dynamically populated with Kop, Petunjuk, & Questions -->
       </div>
     </div>
@@ -11644,10 +11680,10 @@
 
       // Helper untuk merender 1 slip soal siswa
       function buildStudentSlipHtml(paket, slipIndex, isHalf) {
-        const paddingClass = isHalf ? 'p-3 sm:p-4' : 'p-6 sm:p-8';
-        const titleSize = isHalf ? 'text-xs sm:text-sm' : 'text-base sm:text-lg';
-        const textSize = isHalf ? 'text-[9.5px]' : 'text-xs';
-        const questionTextSize = isHalf ? 'text-[10.5px]' : 'text-xs sm:text-sm';
+        const paddingClass = isHalf ? 'p-2 sm:p-2.5' : 'p-3.5 sm:p-5';
+        const titleSize = isHalf ? 'text-[11px] sm:text-xs' : 'text-sm sm:text-base';
+        const textSize = isHalf ? 'text-[8.5px]' : 'text-[10px]';
+        const questionTextSize = isHalf ? 'text-[9.5px]' : 'text-[10.5px]';
 
         let questionsHtml = '';
         paket.soal.forEach((s) => {
@@ -11668,58 +11704,58 @@
           let tagJenis = '';
           if (isPg) {
             if (isPgKompleks) {
-              tagJenis = `<span class="uppercase text-[8px] font-black px-1.5 py-0.5 rounded border border-purple-300 text-purple-900 bg-purple-100 tracking-tight">☑️ PG Kompleks (Multi-Jawaban)</span>`;
+              tagJenis = `<span class="uppercase text-[7.5px] font-black px-1.5 py-0.2 rounded border border-purple-300 text-purple-900 bg-purple-100 tracking-tight">☑️ PG Kompleks</span>`;
             } else {
-              tagJenis = `<span class="uppercase text-[8px] font-black px-1.5 py-0.5 rounded border border-teal-300 text-teal-900 bg-teal-50 tracking-tight">🔘 PG Biasa (1 Jawaban)</span>`;
+              tagJenis = `<span class="uppercase text-[7.5px] font-black px-1.5 py-0.2 rounded border border-teal-300 text-teal-900 bg-teal-50 tracking-tight">🔘 PG Biasa</span>`;
             }
           } else if (s.jenis === 'koding_game') {
-            tagJenis = `<span class="uppercase text-[8px] font-bold px-1.5 py-0.5 rounded border border-indigo-200 text-indigo-900 bg-indigo-50">🎮 Koding</span>`;
+            tagJenis = `<span class="uppercase text-[7.5px] font-bold px-1.5 py-0.2 rounded border border-indigo-200 text-indigo-900 bg-indigo-50">🎮 Koding</span>`;
           } else if (s.jenis === 'essay') {
-            tagJenis = `<span class="uppercase text-[8px] font-bold px-1.5 py-0.5 rounded border border-amber-200 text-amber-900 bg-amber-50">📝 Essay</span>`;
+            tagJenis = `<span class="uppercase text-[7.5px] font-bold px-1.5 py-0.2 rounded border border-amber-200 text-amber-900 bg-amber-50">📝 Essay</span>`;
           } else {
-            tagJenis = `<span class="uppercase text-[8.5px] font-bold px-1.5 py-0.2 rounded border border-slate-300 text-slate-600">${s.jenis}</span>`;
+            tagJenis = `<span class="uppercase text-[7.5px] font-bold px-1.5 py-0.2 rounded border border-slate-300 text-slate-600">${s.jenis}</span>`;
           }
 
           const badgeBobot = options.tampilkan_bobot && s.bobot ? `<span class="font-bold text-slate-700">(Bobot: ${s.bobot})</span>` : '';
 
           const gambarHtml = s.gambar_url ? `
-            <div class="my-1">
-              <img src="${escapeHtml(s.gambar_url)}" alt="Diagram Soal" class="${isHalf ? 'max-h-16 sm:max-h-20' : 'max-h-24 sm:max-h-28'} object-contain rounded border border-slate-200">
+            <div class="my-0.5">
+              <img src="${escapeHtml(s.gambar_url)}" alt="Diagram Soal" class="${isHalf ? 'max-h-14 sm:max-h-16' : 'max-h-20 sm:max-h-24'} object-contain rounded border border-slate-200">
             </div>
           ` : '';
 
           let opsiHtml = '';
           if (isPg && (s.opsi_a || s.opsi_b)) {
             const badgeClass = isPgKompleks
-              ? 'w-3.5 h-3.5 rounded border-[1.5px] border-black text-[8.5px] font-black bg-white flex-shrink-0'
-              : 'w-3.5 h-3.5 rounded-full border border-black/80 text-[8.5px] font-bold bg-slate-50 flex-shrink-0';
+              ? 'w-3.5 h-3.5 rounded border-[1.5px] border-black text-[8px] font-black bg-white flex-shrink-0'
+              : 'w-3.5 h-3.5 rounded-full border border-black/80 text-[8px] font-bold bg-slate-50 flex-shrink-0';
             const hintPetunjuk = isHalf ? '' : (isPgKompleks
-              ? `<div class="text-[8.5px] font-bold text-purple-900 mb-0.5 select-none">👉 Petunjuk: Centang kotak [ ] untuk semua pernyataan/opsi yang benar.</div>`
-              : `<div class="text-[8.5px] font-medium text-teal-900 mb-0.5 select-none">👉 Petunjuk: Pilihlah tepat 1 bulatan ( ) jawaban yang paling tepat.</div>`);
+              ? `<div class="text-[8px] font-bold text-purple-900 mb-0.5 select-none">👉 Petunjuk: Centang kotak [ ] untuk semua pernyataan/opsi yang benar.</div>`
+              : `<div class="text-[8px] font-medium text-teal-900 mb-0.5 select-none">👉 Petunjuk: Pilihlah tepat 1 bulatan ( ) jawaban yang paling tepat.</div>`);
             opsiHtml = `
               <div class="pt-0.5 pb-0.5">
                 ${hintPetunjuk}
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 text-slate-900 ${isHalf ? 'text-[9.5px]' : 'text-xs'}">
-                <div class="flex items-start space-x-1.5">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-2.5 gap-y-0.5 text-slate-900 ${isHalf ? 'text-[8.5px]' : 'text-[9.5px]'}">
+                <div class="flex items-start space-x-1">
                   <span class="inline-flex items-center justify-center ${badgeClass}">A</span>
                   <span class="leading-tight">${escapeHtml(s.opsi_a || '')}</span>
                 </div>
-                <div class="flex items-start space-x-1.5">
+                <div class="flex items-start space-x-1">
                   <span class="inline-flex items-center justify-center ${badgeClass}">B</span>
                   <span class="leading-tight">${escapeHtml(s.opsi_b || '')}</span>
                 </div>
                 ${s.opsi_c ? `
-                <div class="flex items-start space-x-1.5">
+                <div class="flex items-start space-x-1">
                   <span class="inline-flex items-center justify-center ${badgeClass}">C</span>
                   <span class="leading-tight">${escapeHtml(s.opsi_c)}</span>
                 </div>` : ''}
                 ${s.opsi_d ? `
-                <div class="flex items-start space-x-1.5">
+                <div class="flex items-start space-x-1">
                   <span class="inline-flex items-center justify-center ${badgeClass}">D</span>
                   <span class="leading-tight">${escapeHtml(s.opsi_d)}</span>
                 </div>` : ''}
                 ${s.opsi_e ? `
-                <div class="flex items-start space-x-1.5">
+                <div class="flex items-start space-x-1">
                   <span class="inline-flex items-center justify-center ${badgeClass}">E</span>
                   <span class="leading-tight">${escapeHtml(s.opsi_e)}</span>
                 </div>` : ''}
@@ -11728,10 +11764,10 @@
           }
 
           questionsHtml += `
-            <div class="print-avoid-break ${isHalf ? 'py-0.5 space-y-0.5' : 'py-1.5 space-y-1'}">
-              <div class="flex items-start gap-1.5">
+            <div class="print-avoid-break py-0.5 space-y-0.5">
+              <div class="flex items-start gap-1">
                 <span class="font-bold ${questionTextSize} text-slate-900 select-none">${s.nomor_cetak}.</span>
-                <div class="flex-1 ${questionTextSize} text-slate-900 leading-snug">
+                <div class="flex-1 ${questionTextSize} text-slate-900 leading-tight">
                   ${escapeHtml(s.pertanyaan)}
                   <span class="inline-flex items-center gap-1 ml-1 select-none">
                     ${tagJenis}
@@ -11740,7 +11776,7 @@
                   ${gambarHtml}
                 </div>
               </div>
-              <div class="${isHalf ? 'pl-3.5' : 'pl-4 sm:pl-5'}">
+              <div class="${isHalf ? 'pl-3' : 'pl-4'}">
                 ${opsiHtml}
                 ${answerLinesHtml}
               </div>
@@ -14854,12 +14890,95 @@
       };
     }
 
+    let currentPrintablePackageData = null;
+
     function renderPrintablePackageSheet(data) {
       if (!cetakNaskahPaketSheetContainer) return;
+      currentPrintablePackageData = data;
       if (naskahPaketTitleBadge) naskahPaketTitleBadge.textContent = `Paket ${data.nama_paket}`;
 
       const u = data.ulangan || {};
       const questions = data.soal_list || [];
+
+      // Ambil opsi dari toolbar kerapatan & ukuran
+      const selectNaskahFontSize = document.getElementById('select-naskah-font-size');
+      const selectNaskahDensity = document.getElementById('select-naskah-density');
+      const selectNaskahColumns = document.getElementById('select-naskah-columns');
+      const selectNaskahImageSize = document.getElementById('select-naskah-image-size');
+
+      const fontChoice = selectNaskahFontSize?.value || 'compact';
+      const densityChoice = selectNaskahDensity?.value || 'tight';
+      const colChoice = selectNaskahColumns?.value || '2';
+      const imgChoice = selectNaskahImageSize?.value || 'compact';
+
+      // 1. Ukuran Font Soal
+      let qTextSize = 'text-[10px]';
+      let badgeSize = 'w-3.5 h-3.5 text-[8.5px]';
+      let noWidth = 'w-4 text-[10px]';
+      let tagJenisText = 'text-[7.5px] px-1 py-0.2';
+      if (fontChoice === 'tiny') {
+        qTextSize = 'text-[9.5px]';
+        badgeSize = 'w-3 h-3 text-[7.5px]';
+        noWidth = 'w-3.5 text-[9.5px]';
+        tagJenisText = 'text-[7px] px-1';
+      } else if (fontChoice === 'medium') {
+        qTextSize = 'text-[11px]';
+        badgeSize = 'w-4 h-4 text-[9.5px]';
+        noWidth = 'w-5 text-[11px]';
+        tagJenisText = 'text-[8px] px-1.5 py-0.5';
+      } else if (fontChoice === 'normal') {
+        qTextSize = 'text-xs';
+        badgeSize = 'w-4 h-4 text-[10px]';
+        noWidth = 'w-6 text-xs';
+        tagJenisText = 'text-[9.5px] px-2 py-0.5';
+      }
+
+      // 2. Kerapatan Baris & Jarak Antar Soal
+      let qContainerClass = 'mb-1.5 pb-1 border-b border-dashed border-slate-300 break-inside-avoid print-avoid-break';
+      let lineHeight = 'leading-tight';
+      let optionContainerClass = 'grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-0.5 pt-0.5 text-slate-900';
+      let hintClass = 'text-[8px] text-purple-900 mb-0.5 select-none font-bold';
+      let hintPgBiasaClass = 'text-[8px] text-teal-800 mb-0.5 select-none font-medium';
+      let kopClass = 'border-b-2 border-black pb-1 mb-1.5 text-center space-y-0';
+      let kopTitleSize = 'text-sm font-black uppercase tracking-wide text-slate-900';
+      let kopSubSize = 'text-[10px] font-semibold text-slate-700';
+      let identityClass = 'border border-black p-1.5 rounded bg-slate-50/50 mb-1.5 text-[9.5px]';
+      let identityGap = 'grid grid-cols-2 gap-2';
+
+      if (densityChoice === 'medium') {
+        qContainerClass = 'mb-2 pb-1.5 border-b border-dashed border-slate-300 break-inside-avoid print-avoid-break';
+        lineHeight = 'leading-snug';
+        optionContainerClass = 'grid grid-cols-1 sm:grid-cols-2 gap-x-3.5 gap-y-1 pt-0.5 text-slate-900';
+        hintClass = 'text-[8.5px] text-purple-900 mb-0.5 select-none font-bold';
+        hintPgBiasaClass = 'text-[8.5px] text-teal-800 mb-0.5 select-none font-medium';
+        kopClass = 'border-b-2 border-black pb-1.5 mb-2 text-center space-y-0.5';
+        kopTitleSize = 'text-base font-black uppercase tracking-wide text-slate-900';
+        kopSubSize = 'text-[11px] font-semibold text-slate-700';
+        identityClass = 'border border-black p-2 rounded bg-slate-50/50 mb-2 text-[10px]';
+        identityGap = 'grid grid-cols-2 gap-3';
+      } else if (densityChoice === 'normal') {
+        qContainerClass = 'mb-3 pb-2 border-b border-dashed border-slate-300 break-inside-avoid print-avoid-break';
+        lineHeight = 'leading-normal';
+        optionContainerClass = 'grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 pt-1 text-slate-900';
+        hintClass = 'text-[9px] text-purple-900 mb-1 select-none font-bold';
+        hintPgBiasaClass = 'text-[9px] text-teal-800 mb-1 select-none font-medium';
+        kopClass = 'border-b-2 border-black pb-2 mb-2.5 text-center space-y-0.5';
+        kopTitleSize = 'text-base sm:text-lg font-black uppercase tracking-wide text-slate-900';
+        kopSubSize = 'text-xs font-semibold text-slate-700';
+        identityClass = 'border border-black p-2.5 rounded bg-slate-50/50 mb-2.5 text-xs';
+        identityGap = 'grid grid-cols-2 gap-4';
+      }
+
+      // 3. Ukuran Gambar
+      let imgClass = 'max-h-20 max-w-[200px] rounded border border-slate-300 object-contain bg-white';
+      if (imgChoice === 'medium') {
+        imgClass = 'max-h-28 max-w-[280px] rounded border border-slate-300 object-contain bg-white';
+      } else if (imgChoice === 'large') {
+        imgClass = 'max-h-40 max-w-sm rounded border border-slate-300 object-contain bg-white';
+      }
+
+      // 4. Kolom Halaman
+      const colClass = colChoice === '1' ? 'columns-1 gap-4' : 'columns-1 sm:columns-2 gap-4';
 
       let qHtml = '';
       questions.forEach((q, idx) => {
@@ -14876,74 +14995,74 @@
         let typeBadge = '';
         if (isPg) {
           if (isPgKompleks) {
-            typeBadge = `<span class="inline-flex items-center gap-1 text-[9.5px] font-black px-2 py-0.5 rounded bg-purple-100 text-purple-900 border border-purple-300 ml-1.5 uppercase tracking-wide select-none">☑️ PG Kompleks (Jawaban Benar &gt; 1)</span>`;
+            typeBadge = `<span class="inline-flex items-center gap-0.5 ${tagJenisText} font-black rounded bg-purple-100 text-purple-900 border border-purple-300 ml-1 uppercase tracking-tight select-none">☑️ PG Kompleks (&gt;1)</span>`;
           } else {
-            typeBadge = `<span class="inline-flex items-center gap-1 text-[9.5px] font-black px-2 py-0.5 rounded bg-teal-50 text-teal-900 border border-teal-300 ml-1.5 uppercase tracking-wide select-none">🔘 PG Biasa (1 Jawaban Benar)</span>`;
+            typeBadge = `<span class="inline-flex items-center gap-0.5 ${tagJenisText} font-black rounded bg-teal-50 text-teal-900 border border-teal-300 ml-1 uppercase tracking-tight select-none">🔘 PG Biasa (1)</span>`;
           }
         } else if (q.jenis === 'koding_game') {
-          typeBadge = `<span class="inline-flex items-center gap-1 text-[9.5px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-900 border border-indigo-200 ml-1.5 uppercase select-none">🎮 Koding</span>`;
+          typeBadge = `<span class="inline-flex items-center gap-0.5 ${tagJenisText} font-bold rounded bg-indigo-50 text-indigo-900 border border-indigo-200 ml-1 uppercase select-none">🎮 Koding</span>`;
         } else if (q.jenis === 'essay') {
-          typeBadge = `<span class="inline-flex items-center gap-1 text-[9.5px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200 ml-1.5 uppercase select-none">📝 Uraian / Essay</span>`;
+          typeBadge = `<span class="inline-flex items-center gap-0.5 ${tagJenisText} font-bold rounded bg-amber-50 text-amber-900 border border-amber-200 ml-1 uppercase select-none">📝 Essay</span>`;
         } else {
-          typeBadge = `<span class="inline-flex items-center gap-1 text-[9.5px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-900 border border-blue-200 ml-1.5 uppercase select-none">✏️ Isian Singkat</span>`;
+          typeBadge = `<span class="inline-flex items-center gap-0.5 ${tagJenisText} font-bold rounded bg-blue-50 text-blue-900 border border-blue-200 ml-1 uppercase select-none">✏️ Isian</span>`;
         }
 
         const badgeClass = isPgKompleks
-          ? 'inline-flex items-center justify-center w-4 h-4 rounded border-[1.5px] border-black text-[10px] font-black bg-white flex-shrink-0'
-          : 'inline-flex items-center justify-center w-4 h-4 rounded-full border border-black/70 text-[10px] font-bold bg-slate-50 flex-shrink-0';
+          ? `inline-flex items-center justify-center ${badgeSize} rounded border-[1.5px] border-black font-black bg-white flex-shrink-0`
+          : `inline-flex items-center justify-center ${badgeSize} rounded-full border border-black/70 font-bold bg-slate-50 flex-shrink-0`;
 
         qHtml += `
-          <div class="mb-4 break-inside-avoid print-avoid-break text-xs page-break-inside-avoid border-b border-dashed border-slate-300 pb-3">
-            <div class="flex items-start space-x-2 mb-1.5">
-              <span class="w-6 font-bold text-slate-900 text-right flex-shrink-0">${no}.</span>
-              <div class="flex-1 font-medium text-slate-900 leading-relaxed text-justify" dir="auto">
+          <div class="naskah-q-item ${qContainerClass} ${qTextSize}">
+            <div class="flex items-start space-x-1.5 mb-1">
+              <span class="${noWidth} font-bold text-slate-900 text-right flex-shrink-0">${no}.</span>
+              <div class="flex-1 font-medium text-slate-900 ${lineHeight} text-justify" dir="auto">
                 ${escapeHtml(q.pertanyaan)}
                 ${typeBadge}
               </div>
             </div>
             ${q.gambar_url ? `
-              <div class="pl-8 py-1.5">
-                <img src="${q.gambar_url}" alt="Gambar Soal ${no}" class="max-h-40 max-w-sm rounded border border-slate-300 object-contain bg-white">
+              <div class="pl-6 py-1">
+                <img src="${q.gambar_url}" alt="Gambar Soal ${no}" class="${imgClass}">
               </div>
             ` : ''}
             ${isPg ? `
-              <div class="pl-8 space-y-1 pt-1 text-slate-900">
-                <div class="text-[9.5px] ${isPgKompleks ? 'font-bold text-purple-900' : 'font-medium text-teal-800'} mb-1 flex items-center space-x-1 select-none">
+              <div class="pl-6 space-y-0.5 pt-0.5 text-slate-900">
+                <div class="${isPgKompleks ? hintClass : hintPgBiasaClass}">
                   <span>👉</span>
-                  <span>${isPgKompleks ? 'Petunjuk: Beri tanda centang [✓] pada kotak [ ] untuk SETIAP jawaban yang benar (bisa lebih dari satu).' : 'Petunjuk: Pilihlah SATU bulatan ( ) jawaban yang paling tepat.'}</span>
+                  <span>${isPgKompleks ? 'Petunjuk: Centang kotak [ ] untuk SETIAP jawaban yang benar (bisa lebih dari satu).' : 'Petunjuk: Pilihlah SATU bulatan ( ) jawaban yang paling tepat.'}</span>
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
-                  <div class="flex items-start space-x-2">
+                <div class="${optionContainerClass}">
+                  <div class="flex items-start space-x-1.5">
                     <span class="${badgeClass}">A</span>
-                    <span class="leading-snug">${escapeHtml(q.opsi_a || '')}</span>
+                    <span class="${lineHeight}">${escapeHtml(q.opsi_a || '')}</span>
                   </div>
-                  <div class="flex items-start space-x-2">
+                  <div class="flex items-start space-x-1.5">
                     <span class="${badgeClass}">B</span>
-                    <span class="leading-snug">${escapeHtml(q.opsi_b || '')}</span>
+                    <span class="${lineHeight}">${escapeHtml(q.opsi_b || '')}</span>
                   </div>
                   ${q.opsi_c ? `
-                  <div class="flex items-start space-x-2">
+                  <div class="flex items-start space-x-1.5">
                     <span class="${badgeClass}">C</span>
-                    <span class="leading-snug">${escapeHtml(q.opsi_c)}</span>
+                    <span class="${lineHeight}">${escapeHtml(q.opsi_c)}</span>
                   </div>
                   ` : ''}
                   ${q.opsi_d ? `
-                  <div class="flex items-start space-x-2">
+                  <div class="flex items-start space-x-1.5">
                     <span class="${badgeClass}">D</span>
-                    <span class="leading-snug">${escapeHtml(q.opsi_d)}</span>
+                    <span class="${lineHeight}">${escapeHtml(q.opsi_d)}</span>
                   </div>
                   ` : ''}
                   ${q.opsi_e ? `
-                  <div class="flex items-start space-x-2">
+                  <div class="flex items-start space-x-1.5">
                     <span class="${badgeClass}">E</span>
-                    <span class="leading-snug">${escapeHtml(q.opsi_e)}</span>
+                    <span class="${lineHeight}">${escapeHtml(q.opsi_e)}</span>
                   </div>
                   ` : ''}
                 </div>
               </div>
             ` : `
-              <div class="pl-8 pt-1 text-slate-500 italic text-[11px]">
-                (Jawablah pertanyaan uraian/isian di atas pada lembar jawaban yang telah disediakan)
+              <div class="pl-6 pt-0.5 text-slate-500 italic text-[9.5px]">
+                (Jawablah pertanyaan di atas pada lembar jawaban yang telah disediakan)
               </div>
             `}
           </div>
@@ -14951,43 +15070,50 @@
       });
 
       cetakNaskahPaketSheetContainer.innerHTML = `
-        <div class="space-y-3 text-black leading-normal">
+        <div class="text-black">
           <!-- Kop Dokumen Naskah Soal -->
-          <div class="border-b-2 border-black pb-2.5 mb-3 text-center space-y-0.5">
-            <div class="flex justify-between items-center mb-1">
-              <span class="text-[10px] font-bold uppercase tracking-widest text-slate-600">DOKUMEN PENILAIAN / ULANGAN SEKOLAH</span>
-              <span class="border-2 border-black px-3 py-0.5 rounded bg-slate-100 font-black text-xs tracking-wider">PAKET ${escapeHtml(data.nama_paket)}</span>
+          <div class="${kopClass}">
+            <div class="flex justify-between items-center mb-0.5">
+              <span class="text-[9px] font-bold uppercase tracking-wider text-slate-600">DOKUMEN PENILAIAN / ULANGAN SEKOLAH</span>
+              <span class="border border-black px-2 py-0.2 rounded bg-slate-100 font-black text-[10px] tracking-wider">PAKET ${escapeHtml(data.nama_paket)}</span>
             </div>
-            <h1 class="text-base sm:text-lg font-black uppercase tracking-wide text-slate-900">${escapeHtml(u.judul || 'LEMBAR NASKAH SOAL UJIAN')}</h1>
-            <p class="text-xs font-semibold text-slate-700">Mata Pelajaran: ${escapeHtml(u.mata_pelajaran || '-')} &bull; Tingkat / Kelas: ${escapeHtml(u.tingkat_kelas || '-')} &bull; Waktu: ${u.durasi_menit ? u.durasi_menit + ' Menit' : 'Fleksibel'}</p>
+            <h1 class="${kopTitleSize}">${escapeHtml(u.judul || 'LEMBAR NASKAH SOAL UJIAN')}</h1>
+            <p class="${kopSubSize}">Mata Pelajaran: <strong>${escapeHtml(u.mata_pelajaran || '-')}</strong> &bull; Tingkat / Kelas: <strong>${escapeHtml(u.tingkat_kelas || '-')}</strong> &bull; Waktu: <strong>${u.durasi_menit ? u.durasi_menit + ' Menit' : 'Fleksibel'}</strong></p>
           </div>
 
           <!-- Kolom Identitas Siswa & Petunjuk -->
-          <div class="border border-black p-2.5 rounded bg-slate-50/50 mb-3 text-xs">
-            <div class="grid grid-cols-2 gap-4">
-              <div class="space-y-1">
-                <div class="flex"><span class="w-28 font-bold">Nama Lengkap</span><span>: .....................................................................</span></div>
-                <div class="flex"><span class="w-28 font-bold">Kelas / No. Absen</span><span>: .....................................................................</span></div>
+          <div class="${identityClass}">
+            <div class="${identityGap}">
+              <div class="space-y-0.5">
+                <div class="flex"><span class="w-24 font-bold shrink-0">Nama Lengkap</span><span>: ...........................................................</span></div>
+                <div class="flex"><span class="w-24 font-bold shrink-0">Kelas / No. Absen</span><span>: ...........................................................</span></div>
               </div>
-              <div class="space-y-1">
-                <div class="flex"><span class="w-28 font-bold">No. Peserta / NIS</span><span>: .....................................................................</span></div>
-                <div class="flex"><span class="w-28 font-bold">Tanda Tangan</span><span>: .....................................................................</span></div>
+              <div class="space-y-0.5">
+                <div class="flex"><span class="w-24 font-bold shrink-0">No. Peserta / NIS</span><span>: ...........................................................</span></div>
+                <div class="flex"><span class="w-24 font-bold shrink-0">Tanda Tangan</span><span>: ...........................................................</span></div>
               </div>
             </div>
-            <div class="pt-1.5 mt-1.5 border-t border-slate-300 flex justify-between text-[10px] text-slate-600">
+            <div class="pt-1 mt-1 border-t border-slate-300 flex justify-between text-[9px] text-slate-600">
               <span><strong>Petunjuk:</strong> Berdoalah sebelum mengerjakan. Kerjakan soal yang mudah terlebih dahulu. Teliti kembali sebelum dikumpulkan.</span>
               <span>Kode: <strong class="font-mono">${escapeHtml(u.kode_ujian || '-')}</strong></span>
             </div>
           </div>
 
-          <!-- Butir Soal Naskah Cetak (2 Kolom Rapi Anti-Potong) -->
-          <div class="columns-1 sm:columns-2 gap-6 leading-relaxed">
+          <!-- Butir Soal Naskah Cetak (Kolom Rapi Anti-Potong) -->
+          <div class="${colClass}">
             ${qHtml}
           </div>
         </div>
       `;
       renderMath(cetakNaskahPaketSheetContainer);
     }
+
+    ['select-naskah-font-size', 'select-naskah-density', 'select-naskah-columns', 'select-naskah-image-size'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', () => {
+        if (currentPrintablePackageData) renderPrintablePackageSheet(currentPrintablePackageData);
+      });
+    });
 
     if (btnCloseNaskahPaketModal) btnCloseNaskahPaketModal.onclick = () => modalCetakNaskahPaket.classList.add('hidden');
     if (btnDoPrintNaskahPaket) btnDoPrintNaskahPaket.onclick = () => window.print();
