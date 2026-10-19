@@ -42,8 +42,16 @@ app.use((req, res, next) => {
   next();
 });
 
-// Static Files
-app.use(express.static(path.join(__dirname, 'public')));
+// Static Files (dengan proteksi no-cache untuk file HTML agar browser selalu memuat kode UI terbaru)
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 
 // Header Anti-Cache untuk seluruh endpoint /api agar respons browser selalu segar (mencegah bug revert rilis nilai)
 app.use('/api', (req, res, next) => {

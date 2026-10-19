@@ -211,62 +211,76 @@
 
       /* Mode Cetak Presisi LJK OMR: 2 LJK per Kertas HVS A4 */
       .a4-ljk-page.mode-hemat-kertas {
-        height: 275mm !important;
-        max-height: 275mm !important;
+        height: auto !important;
+        max-height: 255mm !important;
         overflow: hidden !important;
         display: flex !important;
         flex-direction: column !important;
-        justify-content: space-between !important;
+        justify-content: flex-start !important;
         padding: 0 !important;
-        margin: 0 !important;
+        margin: 0 auto !important;
         box-sizing: border-box !important;
-        page-break-after: auto !important;
-        break-after: auto !important;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
       .mode-hemat-kertas .ljk-half-container {
-        height: 133mm !important;
-        max-height: 133mm !important;
+        height: auto !important;
+        max-height: 122mm !important;
         display: flex !important;
         flex-direction: column !important;
-        justify-content: center !important;
+        justify-content: flex-start !important;
+        align-items: stretch !important;
         overflow: hidden !important;
         box-sizing: border-box !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
       .mode-hemat-kertas .ljk-card {
         width: 100% !important;
-        max-height: 133mm !important;
+        max-height: 122mm !important;
         box-sizing: border-box !important;
-        border: 2px solid #000 !important;
+        border: 1.5px solid #000 !important;
         background: white !important;
+        padding: 2mm 3mm !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
       .mode-hemat-kertas .ljk-cut-line {
-        margin: 1.5mm 0 !important;
+        margin: 1mm 0 !important;
         padding: 0.5mm 0 !important;
-        border-bottom: 1.5px dashed #475569 !important;
+        border-bottom: 1.2px dashed #475569 !important;
         text-align: center !important;
-        font-size: 7.5pt !important;
+        font-size: 7pt !important;
         color: #475569 !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
         box-sizing: border-box !important;
       }
       .a4-ljk-page.mode-satu-halaman {
-        min-height: 265mm !important;
+        min-height: 250mm !important;
         display: block !important;
         padding: 0 !important;
-        margin: 0 !important;
+        margin: 0 auto !important;
         box-sizing: border-box !important;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
       .mode-satu-halaman .ljk-card {
         width: 100% !important;
         box-sizing: border-box !important;
         border: 2px solid #000 !important;
         background: white !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
 
       @page {
         size: A4 portrait;
-        margin: 8mm 10mm 8mm 10mm;
+        margin: 6mm 8mm 6mm 8mm;
       }
     }
   </style>
@@ -3876,8 +3890,8 @@
           <div>
             <label class="block font-semibold text-slate-700 mb-1">Format Lembar:</label>
             <select id="select-ljk-layout-mode" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
-              <option value="satu_halaman">1 Lembar Penuh (A4 Tunggal)</option>
-              <option value="hemat_kertas" selected>2 LJK per Kertas A4 (Hemat Kertas 50%)</option>
+              <option value="hemat_kertas" selected>2 LJK per Kertas A4 (Hemat Kertas 50% - Atas & Bawah)</option>
+              <option value="satu_halaman">1 Lembar Penuh (A4 Tunggal - Standar)</option>
             </select>
           </div>
           <div>
@@ -14899,15 +14913,15 @@
           const numStr = String(num).padStart(2, '0');
           let bubbles = '';
           opsiList.forEach(op => {
-            const bubbleSize = isHalf ? 'w-[15px] h-[15px] text-[8.5px]' : 'w-[18px] h-[18px] text-[10px]';
+            const bubbleSize = isHalf ? 'w-[13.5px] h-[13.5px] text-[8px]' : 'w-[18px] h-[18px] text-[10px]';
             bubbles += `
-              <div class="inline-flex items-center justify-center ${bubbleSize} rounded-full border-[1.2px] border-black font-black leading-none mx-[1px] select-none text-black bg-white" style="-webkit-print-color-adjust: exact !important;">
+              <div class="inline-flex items-center justify-center ${bubbleSize} rounded-full border-[1.2px] border-black font-black leading-none mx-[0.5px] select-none text-black bg-white" style="-webkit-print-color-adjust: exact !important;">
                 ${op}
               </div>
             `;
           });
-          const py = isHalf ? 'py-[1px]' : 'py-[2px]';
-          const numWidth = isHalf ? 'w-5 text-[9px]' : 'w-6 text-[10px]';
+          const py = isHalf ? 'py-[0.5px]' : 'py-[2px]';
+          const numWidth = isHalf ? 'w-4 text-[8px]' : 'w-6 text-[10px]';
           colItems += `
             <div class="flex items-center justify-center space-x-0.5 ${py}">
               <span class="${numWidth} font-black text-right text-black font-mono shrink-0">${numStr}.</span>
@@ -14915,9 +14929,9 @@
             </div>
           `;
         }
-        const headerPad = isHalf ? 'py-0.5 mb-1 text-[8.5px]' : 'py-1 mb-1.5 text-[10px]';
+        const headerPad = isHalf ? 'py-0.5 mb-0.5 text-[7.5px]' : 'py-1 mb-1.5 text-[10px]';
         bubbleColsHtml += `
-          <div class="flex-1 px-1">
+          <div class="flex-1 px-0.5">
             <div class="bg-slate-100 text-center font-black border border-black ${headerPad} uppercase tracking-wider" style="-webkit-print-color-adjust: exact !important;">
               No. ${String(startNo).padStart(2, '0')} - ${String(endNo).padStart(2, '0')}
             </div>
@@ -14927,20 +14941,20 @@
       }
 
       if (isHalf) {
-        // Layout Mode Hemat Kertas: 2 LJK per A4 (Maks tinggi ~125mm agar pas 1 lembar)
+        // Layout Mode Hemat Kertas: 2 LJK per A4 (Maks tinggi ~115mm agar pas 1 lembar tanpa terpotong)
         return `
-          <div class="ljk-card relative bg-white text-black p-2.5 sm:p-3 border-2 border-black rounded-lg shadow-none select-none w-full box-border" style="box-sizing: border-box !important;">
+          <div class="ljk-card relative bg-white text-black p-2 sm:p-2.5 border-2 border-black rounded-lg shadow-none select-none w-full box-border" style="box-sizing: border-box !important;">
             <!-- 4 Sudut Fiducial Black Square Anchors (Presisi Scanner OMR) -->
-            <div class="absolute top-1.5 left-1.5 w-3.5 h-3.5 bg-black" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor TL"></div>
-            <div class="absolute top-1.5 right-1.5 w-3.5 h-3.5 bg-black" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor TR"></div>
-            <div class="absolute bottom-1.5 left-1.5 w-3.5 h-3.5 bg-black" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor BL"></div>
-            <div class="absolute bottom-1.5 right-1.5 w-3.5 h-3.5 bg-black" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor BR"></div>
+            <div class="absolute top-1 left-1 w-3 h-3 bg-black" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor TL"></div>
+            <div class="absolute top-1 right-1 w-3 h-3 bg-black" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor TR"></div>
+            <div class="absolute bottom-1 left-1 w-3 h-3 bg-black" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor BL"></div>
+            <div class="absolute bottom-1 right-1 w-3 h-3 bg-black" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor BR"></div>
 
             <!-- Header Kop LJK -->
-            <div class="px-6 text-center border-b border-black pb-1 mb-1.5">
-              <h1 class="text-xs font-black uppercase tracking-wider leading-tight">${escapeHtml(title)}</h1>
-              <p class="text-[9.5px] font-bold text-slate-800 leading-tight">${escapeHtml(mapel)} • LEMBAR JAWABAN UJIAN OMR</p>
-              <div class="text-[7.5px] text-slate-600 mt-0.5 italic flex justify-center items-center space-x-2">
+            <div class="px-5 text-center border-b border-black pb-0.5 mb-1">
+              <h1 class="text-[11px] font-black uppercase tracking-wider leading-tight">${escapeHtml(title)}</h1>
+              <p class="text-[9px] font-bold text-slate-800 leading-tight">${escapeHtml(mapel)} • LEMBAR JAWABAN UJIAN OMR</p>
+              <div class="text-[7px] text-slate-600 mt-0.5 italic flex justify-center items-center space-x-2">
                 <span>PETUNJUK: Hitamkan bulatan penuh</span>
                 <span class="inline-flex items-center space-x-0.5 font-bold">[ ● ] Benar</span>
                 <span class="inline-flex items-center space-x-0.5 text-slate-400">[ ✕ ] [ ✓ ] Salah</span>
@@ -14948,27 +14962,27 @@
             </div>
 
             <!-- Kotak Identitas Siswa -->
-            <div class="px-2 grid grid-cols-12 gap-2 mb-1.5 text-[9px] border-b border-black pb-1.5">
+            <div class="px-1.5 grid grid-cols-12 gap-1.5 mb-1 text-[8.5px] border-b border-black pb-1">
               <!-- Nama Siswa & Kelas (7 col) -->
-              <div class="${showNis || showPaket || showTtd ? 'col-span-7' : 'col-span-12'} space-y-1">
+              <div class="${showNis || showPaket || showTtd ? 'col-span-7' : 'col-span-12'} space-y-0.5">
                 <div class="flex items-center space-x-1">
-                  <span class="font-bold w-16 shrink-0">Nama Siswa:</span>
-                  <div class="flex-1 border-b border-dotted border-black h-3.5"></div>
+                  <span class="font-bold w-14 shrink-0">Nama Siswa:</span>
+                  <div class="flex-1 border-b border-dotted border-black h-3"></div>
                 </div>
                 <div class="flex items-center space-x-1">
-                  <span class="font-bold w-16 shrink-0">Kelas / Sesi:</span>
-                  <div class="flex-1 border-b border-dotted border-black h-3.5"></div>
+                  <span class="font-bold w-14 shrink-0">Kelas / Sesi:</span>
+                  <div class="flex-1 border-b border-dotted border-black h-3"></div>
                 </div>
               </div>
 
               <!-- Paket & NIS (5 col) -->
-              <div class="col-span-5 flex flex-col justify-between space-y-1">
+              <div class="col-span-5 flex flex-col justify-between space-y-0.5">
                 ${showPaket ? `
                   <div class="flex items-center space-x-1">
-                    <span class="font-black text-[8.5px] uppercase">Paket:</span>
-                    <div class="flex items-center space-x-1">
+                    <span class="font-black text-[8px] uppercase">Paket:</span>
+                    <div class="flex items-center space-x-0.5">
                       ${['A', 'B', 'C', 'D'].map(p => `
-                        <div class="inline-flex items-center justify-center w-[14px] h-[14px] rounded-full border-[1.2px] border-black text-[8.5px] font-black">
+                        <div class="inline-flex items-center justify-center w-[13px] h-[13px] rounded-full border-[1px] border-black text-[8px] font-black">
                           ${p}
                         </div>
                       `).join('')}
@@ -14978,24 +14992,24 @@
 
                 ${showNis ? `
                   <div class="flex items-center space-x-1">
-                    <span class="font-bold text-[8.5px]">No. Peserta:</span>
+                    <span class="font-bold text-[8px]">No. Peserta:</span>
                     <div class="flex space-x-0.5">
-                      ${[1, 2, 3, 4, 5, 6].map(() => `<div class="w-3.5 h-3.5 border border-black"></div>`).join('')}
+                      ${[1, 2, 3, 4, 5, 6].map(() => `<div class="w-3 h-3 border border-black"></div>`).join('')}
                     </div>
                   </div>
                 ` : ''}
 
                 ${showTtd ? `
                   <div class="flex items-center space-x-1">
-                    <span class="font-bold text-[8.5px]">Tanda Tangan:</span>
-                    <div class="flex-1 border-b border-black h-2.5"></div>
+                    <span class="font-bold text-[8px]">Tanda Tangan:</span>
+                    <div class="flex-1 border-b border-black h-2"></div>
                   </div>
                 ` : ''}
               </div>
             </div>
 
             <!-- Matriks Bulatan Jawaban -->
-            <div class="px-1 grid divide-x divide-black pt-0.5" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));">
+            <div class="px-0.5 grid divide-x divide-black pt-0.5" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));">
               ${bubbleColsHtml}
             </div>
           </div>
