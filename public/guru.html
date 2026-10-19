@@ -22,13 +22,15 @@
   <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" as="style" crossorigin="anonymous">
 
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=Noto+Color+Emoji&display=swap" rel="stylesheet" crossorigin="anonymous">
   <!-- KaTeX for Math Formulas -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" crossorigin="anonymous">
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" crossorigin="anonymous"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
   <style>
-    body { font-family: 'Inter', 'Amiri', system-ui, sans-serif; }
+    body, button, input, select, textarea {
+      font-family: 'Inter', 'Amiri', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', sans-serif;
+    }
     :lang(ar), [dir="rtl"] { font-family: 'Amiri', serif; }
 
     /* Universal Base Styling Ruang Tulis Jawaban Siswa (Layar & Cetak) */
@@ -4123,24 +4125,27 @@
           <div class="space-y-2 text-xs">
             <div class="flex items-center space-x-2">
               <button type="button" id="btn-toggle-omr-camera" class="flex-1 px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl transition flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer">
-                <span id="omr-camera-btn-icon">▶</span>
+                <svg id="omr-camera-svg-icon" class="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                 <span id="omr-camera-btn-text">Buka Kamera</span>
               </button>
-              <button type="button" id="btn-switch-camera" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl border border-slate-300 transition flex items-center space-x-1 cursor-pointer" title="Ganti Kamera Depan/Belakang">
-                <span>🔄</span>
+              <button type="button" id="btn-switch-camera" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl border border-slate-300 transition flex items-center justify-center space-x-1 cursor-pointer" title="Ganti Kamera Depan/Belakang">
+                <svg class="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
               </button>
               <button type="button" id="btn-capture-omr" class="flex-1 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold rounded-xl transition flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer">
-                <span>📸 Pindai Lembar</span>
+                <svg class="w-4 h-4 stroke-current fill-none stroke-2 shrink-0" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="4"/></svg>
+                <span>Pindai Lembar</span>
               </button>
             </div>
 
             <div class="flex items-center space-x-2 pt-1">
               <label class="flex-1 px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-center text-slate-700 font-medium hover:bg-slate-50 cursor-pointer flex items-center justify-center space-x-1.5 shadow-2xs">
-                <span>📁 Unggah Foto LJK</span>
+                <svg class="w-3.5 h-3.5 stroke-current fill-none stroke-2 shrink-0 text-slate-500" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                <span>Unggah Foto LJK</span>
                 <input type="file" id="input-omr-file" accept="image/*" class="hidden">
               </label>
               <button type="button" id="btn-omr-scan-ai" class="flex-1 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold rounded-xl transition flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer" title="Gunakan Gemini Vision AI jika foto buram, kertas miring, atau koreksi pensil samar">
-                <span>✨ Scan AI Vision</span>
+                <svg class="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z"/></svg>
+                <span>Scan AI Vision</span>
               </button>
             </div>
           </div>
@@ -4167,10 +4172,7 @@
               <div class="flex items-center space-x-2">
                 <span class="font-bold text-slate-700">Paket Soal:</span>
                 <div class="flex space-x-1" id="omr-paket-picker-box">
-                  <button type="button" data-paket="A" class="btn-omr-paket px-2.5 py-1 rounded-lg border font-bold text-xs bg-indigo-600 text-white border-indigo-600">A</button>
-                  <button type="button" data-paket="B" class="btn-omr-paket px-2.5 py-1 rounded-lg border font-bold text-xs bg-white text-slate-700 border-slate-300">B</button>
-                  <button type="button" data-paket="C" class="btn-omr-paket px-2.5 py-1 rounded-lg border font-bold text-xs bg-white text-slate-700 border-slate-300">C</button>
-                  <button type="button" data-paket="D" class="btn-omr-paket px-2.5 py-1 rounded-lg border font-bold text-xs bg-white text-slate-700 border-slate-300">D</button>
+                  <!-- Rendered dynamically according to exam packages -->
                 </div>
               </div>
               <div id="omr-quick-student-select-box" class="w-full sm:w-auto">
@@ -15601,13 +15603,26 @@
       if (inputLjkCustomTitle && activeUlanganData) {
         inputLjkCustomTitle.value = activeUlanganData.judul || '';
       }
-      if (selectLjkSoalCount && activeUlanganData && Array.isArray(activeUlanganData.soal)) {
-        const pgCount = activeUlanganData.soal.filter(s => s.jenis === 'pilihan_ganda' || (s.kunci_pg && s.kunci_pg.trim() !== '')).length;
-        if (pgCount > 0) {
-          const validOpts = ['10', '15', '20', '25', '30', '40', '50'];
-          if (validOpts.includes(String(pgCount))) {
-            selectLjkSoalCount.value = String(pgCount);
+      if (selectLjkSoalCount && activeUlanganData) {
+        let exactCount = 0;
+        if (Array.isArray(currentPackagesData) && currentPackagesData.length > 0 && currentPackagesData[0]?.total_soal) {
+          exactCount = Number(currentPackagesData[0].total_soal);
+        } else if (Array.isArray(activeUlanganData.soal) && activeUlanganData.soal.length > 0) {
+          const pgCount = activeUlanganData.soal.filter(s => s.jenis === 'pilihan_ganda' || (s.kunci_pg && String(s.kunci_pg).trim() !== '')).length;
+          exactCount = pgCount > 0 ? pgCount : activeUlanganData.soal.length;
+        } else if (activeUlanganData.jumlah_soal) {
+          exactCount = Number(activeUlanganData.jumlah_soal);
+        }
+
+        if (exactCount > 0) {
+          const exists = Array.from(selectLjkSoalCount.options).some(o => o.value === String(exactCount));
+          if (!exists) {
+            const newOpt = document.createElement('option');
+            newOpt.value = String(exactCount);
+            newOpt.textContent = `${exactCount} Butir Soal (Sesuai Naskah)`;
+            selectLjkSoalCount.prepend(newOpt);
           }
+          selectLjkSoalCount.value = String(exactCount);
         }
       }
       renderLjkSheet();
@@ -15636,6 +15651,10 @@
       const showNis = chkLjkShowNis?.checked ? true : false;
       const showPaket = chkLjkShowPaket?.checked ? true : false;
       const showTtd = chkLjkShowTtd?.checked ? true : false;
+
+      const actualLjkPackages = (Array.isArray(currentPackagesData) && currentPackagesData.length > 0)
+        ? currentPackagesData.map(p => p.nama_paket)
+        : (activeUlanganData?.jumlah_paket ? ['A', 'B', 'C', 'D'].slice(0, Math.max(1, Math.min(4, Number(activeUlanganData.jumlah_paket)))) : ['A', 'B', 'C', 'D']);
 
       const opsiList = opsiCount === 5 ? ['A', 'B', 'C', 'D', 'E'] : ['A', 'B', 'C', 'D'];
 
@@ -15749,7 +15768,7 @@
                   <div class="flex items-center space-x-1">
                     <span class="font-black text-[7.5px] uppercase">Paket:</span>
                     <div class="flex items-center space-x-0.5">
-                      ${['A', 'B', 'C', 'D'].map(p => `
+                      ${actualLjkPackages.map(p => `
                         <div class="inline-flex items-center justify-center ${paketBadgeSize} rounded-full border-[1px] border-black text-[7.5px] font-black">
                           ${p}
                         </div>
@@ -15824,7 +15843,7 @@
                 <div class="flex items-center space-x-1.5">
                   <span class="font-black text-[9.5px] uppercase">Paket:</span>
                   <div class="flex items-center space-x-1">
-                    ${['A', 'B', 'C', 'D'].map(p => `
+                    ${actualLjkPackages.map(p => `
                       <div class="inline-flex items-center justify-center w-[17px] h-[17px] rounded-full border-[1.5px] border-black text-[9.5px] font-black">
                         ${p}
                       </div>
@@ -16011,11 +16030,112 @@
     let currentDetectedAnswers = {};
     let currentOmrSnapshotBase64 = null;
 
-    function openOmrScannerModal() {
+    function getActiveOmrPackages() {
+      if (Array.isArray(currentPackagesData) && currentPackagesData.length > 0) {
+        return currentPackagesData.map(p => p.nama_paket);
+      }
+      const count = Math.max(1, Math.min(4, Number(activeUlanganData?.jumlah_paket) || 1));
+      return ['A', 'B', 'C', 'D'].slice(0, count);
+    }
+
+    function renderOmrPackagePicker() {
+      const box = document.getElementById('omr-paket-picker-box');
+      if (!box) return;
+      const pkgs = getActiveOmrPackages();
+      if (!pkgs.includes(currentOmrScannedPackage)) {
+        currentOmrScannedPackage = pkgs[0] || 'A';
+      }
+      box.innerHTML = pkgs.map(p => {
+        const isActive = p === currentOmrScannedPackage;
+        return `<button type="button" data-paket="${p}" class="btn-omr-paket px-2.5 py-1 rounded-lg border font-bold text-xs transition cursor-pointer ${
+          isActive 
+            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs' 
+            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+        }">${p}</button>`;
+      }).join('');
+
+      box.querySelectorAll('.btn-omr-paket').forEach(btn => {
+        btn.onclick = () => {
+          setOmrSelectedPackage(btn.dataset.paket);
+          evaluateAndRenderOmrMatrix();
+        };
+      });
+    }
+
+    function setOmrSelectedPackage(pkgName) {
+      currentOmrScannedPackage = pkgName;
+      document.querySelectorAll('.btn-omr-paket').forEach(btn => {
+        if (btn.dataset.paket === pkgName) {
+          btn.className = 'btn-omr-paket px-2.5 py-1 rounded-lg border font-bold text-xs bg-indigo-600 text-white border-indigo-600 shadow-xs';
+        } else {
+          btn.className = 'btn-omr-paket px-2.5 py-1 rounded-lg border font-bold text-xs bg-white text-slate-700 border-slate-300 hover:bg-slate-100';
+        }
+      });
+    }
+
+    function getActiveOmrTotalSoal() {
+      // 1. Prioritaskan kunci atau urutan soal dari paket yang terpilih
+      const pkg = (currentPackagesData || []).find(p => p.nama_paket === currentOmrScannedPackage);
+      if (pkg) {
+        if (pkg.kunci_jawaban && typeof pkg.kunci_jawaban === 'object') {
+          const keys = Object.keys(pkg.kunci_jawaban);
+          if (keys.length > 0) return keys.length;
+        }
+        if (Array.isArray(pkg.mapping_soal) && pkg.mapping_soal.length > 0) {
+          return pkg.mapping_soal.length;
+        }
+        if (Array.isArray(pkg.urutan_soal_ids) && pkg.urutan_soal_ids.length > 0) {
+          return pkg.urutan_soal_ids.length;
+        }
+        if (pkg.total_soal && !isNaN(pkg.total_soal)) {
+          return Number(pkg.total_soal);
+        }
+      }
+
+      // 2. Jika paket belum digenerate, hitung dari soal pilihan ganda ulangan aktif
+      if (activeUlanganData?.soal && Array.isArray(activeUlanganData.soal) && activeUlanganData.soal.length > 0) {
+        const pgList = activeUlanganData.soal.filter(s => s.jenis === 'pilihan_ganda' || (s.kunci_pg && String(s.kunci_pg).trim() !== ''));
+        if (pgList.length > 0) return pgList.length;
+        return activeUlanganData.soal.length;
+      }
+
+      // 3. Jika hanya ada jumlah_soal terdaftar di ulangan
+      if (activeUlanganData?.jumlah_soal && !isNaN(Number(activeUlanganData.jumlah_soal))) {
+        return Number(activeUlanganData.jumlah_soal);
+      }
+
+      return 0;
+    }
+
+    function getActiveOmrOpsiList() {
+      const opsiCount = Number(activeUlanganData?.opsi_pg_count) === 5 ? 5 : 4;
+      return opsiCount === 5 ? ['A', 'B', 'C', 'D', 'E'] : ['A', 'B', 'C', 'D'];
+    }
+
+    async function openOmrScannerModal() {
       if (!ensureActiveExam('membuka OMR Scanner')) return;
       modalOmrScanner.classList.remove('hidden');
       populateOmrStudentDropdown();
       loadOmrLogs();
+
+      // Pastikan data ulangan dan paket soal terisi lengkap (anti-stale / jaringan lambat)
+      try {
+        if (!activeUlanganData?.soal || activeUlanganData.soal.length === 0) {
+          const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}`);
+          const json = await res.json();
+          if (res.ok && json.success && json.data) {
+            activeUlanganData = json.data;
+          }
+        }
+        if (!currentPackagesData || currentPackagesData.length === 0) {
+          await loadMultiPackages();
+        }
+      } catch (e) {
+        console.warn('Persiapan data OMR:', e.message);
+      }
+
+      renderOmrPackagePicker();
+      evaluateAndRenderOmrMatrix();
     }
     window.openOmrScannerModal = openOmrScannerModal;
 
@@ -16066,7 +16186,8 @@
         }
         if (omrCapturedImage) omrCapturedImage.classList.add('hidden');
         if (omrCameraBtnText) omrCameraBtnText.textContent = 'Matikan Kamera';
-        if (omrCameraBtnIcon) omrCameraBtnIcon.textContent = '⏹';
+        const svgIcon = document.getElementById('omr-camera-svg-icon');
+        if (svgIcon) svgIcon.innerHTML = '<rect x="6" y="6" width="12" height="12"/>';
       } catch (err) {
         alert('Gagal membuka kamera: ' + err.message + '\nPastikan izin akses kamera sudah diberikan pada browser Anda.');
       }
@@ -16079,7 +16200,8 @@
       }
       if (omrCameraVideo) omrCameraVideo.srcObject = null;
       if (omrCameraBtnText) omrCameraBtnText.textContent = 'Buka Kamera';
-      if (omrCameraBtnIcon) omrCameraBtnIcon.textContent = '▶';
+      const svgIcon = document.getElementById('omr-camera-svg-icon');
+      if (svgIcon) svgIcon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
     }
 
     if (btnToggleOmrCamera) {
@@ -16094,26 +16216,6 @@
         omrFacingMode = omrFacingMode === 'environment' ? 'user' : 'environment';
         if (omrStream) startOmrCamera();
       };
-    }
-
-    // Paket picker button event
-    document.querySelectorAll('.btn-omr-paket').forEach(btn => {
-      btn.onclick = () => {
-        const pkg = btn.dataset.paket;
-        setOmrSelectedPackage(pkg);
-        evaluateAndRenderOmrMatrix();
-      };
-    });
-
-    function setOmrSelectedPackage(pkgName) {
-      currentOmrScannedPackage = pkgName;
-      document.querySelectorAll('.btn-omr-paket').forEach(btn => {
-        if (btn.dataset.paket === pkgName) {
-          btn.className = 'btn-omr-paket px-2.5 py-1 rounded-lg border font-bold text-xs bg-indigo-600 text-white border-indigo-600';
-        } else {
-          btn.className = 'btn-omr-paket px-2.5 py-1 rounded-lg border font-bold text-xs bg-white text-slate-700 border-slate-300';
-        }
-      });
     }
 
     // Capture button
@@ -16171,22 +16273,18 @@
 
     // Fast Optical Sampling Algorithm (Client-Side)
     function processOmrImageLocal(canvas) {
-      const u = activeUlanganData;
-      const totalSoal = (u?.soal && u.soal.length) || 40;
-      const opsiList = ['A', 'B', 'C', 'D'];
+      const totalSoal = getActiveOmrTotalSoal();
+      if (totalSoal <= 0) return;
 
-      // Placeholder algorithm sampling based on brightness
-      // Simulasi deteksi awal dengan default answers bila pola terdeteksi
       const detected = {};
       for (let i = 1; i <= totalSoal; i++) {
-        // Ambil default atau biarkan kosong untuk diisi
         detected[i] = currentDetectedAnswers[i] || '';
       }
       currentDetectedAnswers = detected;
       evaluateAndRenderOmrMatrix();
     }
 
-    // AI Fallback Scanner via Gemini Vision
+    // AI Fallback Scanner via Gemini Vision (Resilient against bad network & timeout)
     if (btnOmrScanAi) {
       btnOmrScanAi.onclick = async () => {
         if (!currentOmrSnapshotBase64) {
@@ -16200,28 +16298,40 @@
           if (omrSpinnerLabel) omrSpinnerLabel.textContent = 'Memindai LJK dengan AI Vision...';
         }
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout guard untuk sinyal lambat
+
         try {
+          const totalSoal = getActiveOmrTotalSoal();
           const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/omr/scan-ai`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
             body: JSON.stringify({
+              imageBase64: currentOmrSnapshotBase64,
               image_base64: currentOmrSnapshotBase64,
               paket: currentOmrScannedPackage,
-              total_soal: activeUlanganData?.soal?.length || 40
+              total_soal: totalSoal
             })
           });
+          clearTimeout(timeoutId);
           const json = await res.json();
           if (!res.ok || !json.success) throw new Error(json.message || 'Gagal memindai AI');
 
-          const d = json.data;
-          if (d.paket_terdeteksi) {
-            setOmrSelectedPackage(d.paket_terdeteksi);
+          const d = json.data || json;
+          const detectedPkg = d.detected_info?.paket || d.paket_terdeteksi;
+          if (detectedPkg) {
+            setOmrSelectedPackage(detectedPkg);
           }
-          currentDetectedAnswers = d.jawaban_terdeteksi || {};
+          currentDetectedAnswers = d.answers || d.jawaban_terdeteksi || {};
           evaluateAndRenderOmrMatrix();
           alert(`✨ AI Vision selesai! Terbaca ${Object.keys(currentDetectedAnswers).length} butir jawaban.`);
         } catch (err) {
-          alert('Error AI Vision: ' + err.message);
+          clearTimeout(timeoutId);
+          const errMsg = err.name === 'AbortError'
+            ? 'Koneksi internet lambat / timeout saat menghubungi AI Vision. Gambar LJK Anda tetap aman, silakan coba lagi.'
+            : (err.message || 'Gagal terhubung ke AI Vision');
+          alert('⚠️ ' + errMsg);
         } finally {
           if (omrAiSpinner) omrAiSpinner.classList.add('hidden');
         }
@@ -16230,16 +16340,32 @@
 
     function evaluateAndRenderOmrMatrix() {
       if (!omrAnswerMatrixContainer) return;
-      const u = activeUlanganData;
-      const totalSoal = (u?.soal && u.soal.length) || 40;
+      const totalSoal = getActiveOmrTotalSoal();
+      const opsiList = getActiveOmrOpsiList();
+
+      if (totalSoal === 0) {
+        omrAnswerMatrixContainer.innerHTML = `
+          <div class="col-span-full py-8 text-center text-slate-400 space-y-1">
+            <p class="font-bold text-xs text-slate-600">Belum ada butir soal pilihan ganda pada ulangan ini.</p>
+            <p class="text-[11px]">Tambahkan butir soal terlebih dahulu di menu Naskah Soal atau buat paket soal di Multi-Paket.</p>
+          </div>
+        `;
+        if (omrScoreDisplay) omrScoreDisplay.textContent = '0';
+        if (omrCountBenar) omrCountBenar.textContent = '0';
+        if (omrCountSalah) omrCountSalah.textContent = '0';
+        if (omrCountKosong) omrCountKosong.textContent = '0';
+        return;
+      }
 
       // Ambil kunci jawaban paket terpilih
       let keys = {};
       const pkg = (currentPackagesData || []).find(p => p.nama_paket === currentOmrScannedPackage);
       if (pkg && pkg.kunci_jawaban) {
         keys = pkg.kunci_jawaban;
-      } else if (u?.soal) {
-        u.soal.forEach((s, idx) => {
+      } else if (activeUlanganData?.soal && Array.isArray(activeUlanganData.soal)) {
+        const pgList = activeUlanganData.soal.filter(s => s.jenis === 'pilihan_ganda' || (s.kunci_pg && String(s.kunci_pg).trim() !== ''));
+        const sourceList = pgList.length > 0 ? pgList : activeUlanganData.soal;
+        sourceList.forEach((s, idx) => {
           keys[idx + 1] = s.kunci_pg || s.kunci_jawaban || 'A';
         });
       }
@@ -16267,14 +16393,14 @@
         } else {
           salah++;
           statusClass = 'border-rose-300 bg-rose-50 text-rose-800';
-          badgeIcon = `✗ Kunci: ${correctAns}`;
+          badgeIcon = `✗ Kunci: ${correctAns || '-'}`;
         }
 
         matrixHtml += `
           <div class="p-2 border rounded-lg ${statusClass} flex items-center justify-between space-x-1 text-xs">
             <span class="font-bold font-mono">#${i}</span>
-            <div class="flex items-center space-x-1">
-              ${['A', 'B', 'C', 'D'].map(op => `
+            <div class="flex items-center space-x-0.5">
+              ${opsiList.map(op => `
                 <button type="button" onclick="window.overrideOmrAnswer(${i}, '${op}')" class="w-5 h-5 rounded text-[10px] font-bold border transition ${
                   studentAns === op
                     ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
@@ -16311,41 +16437,63 @@
           return;
         }
 
+        const selectedOpt = omrSelectExistingStudent?.selectedOptions?.[0];
+        const studentKelas = selectedOpt?.dataset?.kelas || activeUlanganData?.tingkat_kelas || 'Umum';
+
         btnSaveOmrResult.disabled = true;
         btnSaveOmrResult.innerHTML = '<span class="inline-block animate-spin mr-1">⏳</span><span>Menyimpan...</span>';
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s network timeout guard
+
         try {
           const payload = {
+            namaSiswa: name,
             nama_siswa: name,
             nis_siswa: omrStudentNis?.value?.trim() || null,
+            kelas: studentKelas,
+            kelas_siswa: studentKelas,
             paket: currentOmrScannedPackage,
+            answersMap: currentDetectedAnswers,
             jawaban_terdeteksi: currentDetectedAnswers,
+            imageData: currentOmrSnapshotBase64,
             raw_image_url: currentOmrSnapshotBase64
           };
 
           const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/omr/scan-result`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
             body: JSON.stringify(payload)
           });
+          clearTimeout(timeoutId);
           const json = await res.json();
           if (!res.ok || !json.success) throw new Error(json.message || 'Gagal menyimpan hasil scan');
 
+          const resultData = json.data || json;
           if (omrSaveStatusMsg) {
-            omrSaveStatusMsg.textContent = `✓ Tersimpan: ${name} (Skor PG: ${json.data.skor_pg})`;
+            omrSaveStatusMsg.textContent = `✓ Tersimpan: ${name} (Skor PG: ${resultData.skor_pg})`;
             setTimeout(() => { if (omrSaveStatusMsg) omrSaveStatusMsg.textContent = ''; }, 4000);
           }
 
-          alert(`🎉 Nilai OMR berhasil disimpan!\nSiswa: ${name}\nPaket: ${currentOmrScannedPackage}\nSkor PG: ${json.data.skor_pg}`);
+          alert(`🎉 Nilai OMR berhasil disimpan!\nSiswa: ${name}\nPaket: ${currentOmrScannedPackage}\nSkor PG: ${resultData.skor_pg}`);
           loadPesertaList(activeUlanganId);
           loadOmrLogs();
         } catch (err) {
-          alert('Error: ' + err.message);
+          clearTimeout(timeoutId);
+          const errMsg = err.name === 'AbortError'
+            ? 'Koneksi jaringan internet sedang lambat / timeout. Data LJK tetap aman di layar ini, silakan klik Simpan Nilai lagi.'
+            : (err.message || 'Gagal menyimpan');
+          alert('⚠️ ' + errMsg);
         } finally {
           btnSaveOmrResult.disabled = false;
-          btnSaveOmrResult.innerHTML = '<span>💾 Simpan Nilai ke Siswa</span>';
+          btnSaveOmrResult.innerHTML = `
+            <svg class="w-3.5 h-3.5 inline mr-1 fill-none stroke-current stroke-2 shrink-0" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+            <span>Simpan Nilai ke Siswa</span>
+          `;
         }
       };
+    }
     }
 
     async function loadOmrLogs() {

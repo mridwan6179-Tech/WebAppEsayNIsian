@@ -196,7 +196,7 @@ const omrService = {
   },
 
   // Fallback Evaluasi Gambar LJK via Gemini Vision AI jika kamera buram / terlipat
-  async evaluateOmrImageWithAI({ ulanganId, imageBase64, mimeType = 'image/jpeg' }) {
+  async evaluateOmrImageWithAI({ ulanganId, imageBase64, mimeType = 'image/jpeg', paketFallback = 'A' }) {
     const ulangan = db.prepare('SELECT * FROM ulangan WHERE id = ?').get(ulanganId);
     if (!ulangan) throw new Error('Ulangan tidak ditemukan');
 
@@ -207,7 +207,7 @@ TUGAS ANDA:
 1. Baca identitas siswa pada lembar:
    - Nama Siswa (bila tertulis)
    - Kelas (bila tertulis)
-2. Periksa pilihan bulatan "PAKET SOAL" yang dihitamkan (biasanya opsi A, B, C, atau D). Jika tidak terlihat jelas, default ke "A".
+2. Periksa pilihan bulatan "PAKET SOAL" yang dihitamkan (biasanya opsi A, B, C, atau D). Jika tidak terlihat jelas, default ke "${paketFallback}".
 3. Periksa nomor 1 sampai selesai pada grid bulatan jawaban:
    - Kenali huruf (A, B, C, D, atau E) mana yang dihitamkan/dilingkari oleh siswa.
    - Jika suatu nomor tidak dihitamkan sama sekali, abaikan atau beri nilai null.
@@ -216,7 +216,7 @@ TUGAS ANDA:
 {
   "nama_siswa": "Nama Terbaca / null",
   "kelas": "Kelas Terbaca / null",
-  "paket": "A",
+  "paket": "${paketFallback}",
   "answers": {
     "1": "A",
     "2": "C",
@@ -230,7 +230,7 @@ TUGAS ANDA:
       throw new Error('Gagal mengenali bulatan jawaban dari gambar LJK');
     }
 
-    const paket = (parsed.paket || 'A').toUpperCase().trim();
+    const paket = (parsed.paket || paketFallback || 'A').toUpperCase().trim();
     const scored = this.scoreSubmission({
       ulanganId,
       paket,
@@ -245,6 +245,8 @@ TUGAS ANDA:
         paket
       },
       answers: parsed.answers,
+      jawaban_terdeteksi: parsed.answers,
+      paket_terdeteksi: paket,
       scoring: scored
     };
   },

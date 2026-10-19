@@ -1873,16 +1873,25 @@ app.post('/api/guru/generate-pg-ai', requireGuru, handleGeneratePgAi);
 // 5. Simpan Hasil Scan Kamera OMR Siswa (Client-side / Instant Canvas)
 app.post('/api/guru/ulangan/:id/omr/scan-result', requireGuru, (req, res) => {
   try {
-    const { namaSiswa, kelas, paket, answersMap, imageData } = req.body || {};
+    const b = req.body || {};
+    const namaSiswa = b.namaSiswa || b.nama_siswa;
+    const kelas = b.kelas || b.kelas_siswa;
+    const paket = b.paket || b.paket_soal || 'A';
+    const answersMap = b.answersMap || b.jawaban_terdeteksi || b.answers || {};
+    const imageData = b.imageData || b.raw_image_url || b.image_base64;
     const result = omrService.saveScannedResult({
       ulanganId: req.params.id,
       namaSiswa,
       kelas,
-      paket: paket || 'A',
-      answersMap: answersMap || {},
+      paket,
+      answersMap,
       imageData
     });
-    res.json(result);
+    res.json({
+      success: true,
+      ...result,
+      data: result
+    });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }
@@ -1891,16 +1900,24 @@ app.post('/api/guru/ulangan/:id/omr/scan-result', requireGuru, (req, res) => {
 // 6. Evaluasi Gambar LJK via Gemini Vision AI Fallback
 app.post('/api/guru/ulangan/:id/omr/scan-ai', requireGuru, async (req, res) => {
   try {
-    const { imageBase64, mimeType } = req.body || {};
+    const b = req.body || {};
+    const imageBase64 = b.imageBase64 || b.image_base64;
+    const mimeType = b.mimeType || b.mime_type || 'image/jpeg';
+    const paket = b.paket || 'A';
     if (!imageBase64) {
       return res.status(400).json({ success: false, message: 'Data gambar LJK wajib disertakan' });
     }
     const result = await omrService.evaluateOmrImageWithAI({
       ulanganId: req.params.id,
       imageBase64,
-      mimeType: mimeType || 'image/jpeg'
+      mimeType,
+      paketFallback: paket
     });
-    res.json(result);
+    res.json({
+      success: true,
+      ...result,
+      data: result
+    });
   } catch (err) {
     console.error('Error OMR AI scan:', err);
     res.status(500).json({ success: false, message: err.message });

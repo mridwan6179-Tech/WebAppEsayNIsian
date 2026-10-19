@@ -384,4 +384,26 @@ describe('=== SUITE: FITUR OMR SCANNER, MULTI-PAKET (A/B/C/D), & UJIAN GABUNGAN 
     assert.strictEqual(genData.packages[0].total_soal, 3);
     assert.ok(genData.summary_text, 'Summary text komposisi rasio harus disertakan');
   });
+
+  test('11. REST API OMR scan-result menerima format snake_case (nama_siswa, jawaban_terdeteksi, raw_image_url) dan menyimpan dengan tepat', async () => {
+    const scanRes = await fetch(`${baseUrl}/api/guru/ulangan/${testUlanganId}/omr/scan-result`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': teacherCookie
+      },
+      body: JSON.stringify({
+        nama_siswa: 'Siti Rahmawati',
+        kelas_siswa: '7B',
+        paket: 'A',
+        jawaban_terdeteksi: { '1': 'B', '2': 'A', '3': 'C' },
+        raw_image_url: 'data:image/jpeg;base64,sample...'
+      })
+    });
+    const scanData = await scanRes.json();
+    assert.strictEqual(scanRes.status, 200);
+    assert.strictEqual(scanData.success, true);
+    assert.strictEqual(scanData.data.nama_siswa, 'Siti Rahmawati');
+    assert.strictEqual(scanData.data.kelas, '7B');
+  });
 });
