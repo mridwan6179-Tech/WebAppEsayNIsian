@@ -3975,22 +3975,30 @@
           <textarea id="ai-pg-materi-teks" rows="4" placeholder="Tempelkan paragraf materi, naskah bacaan, atau artikel yang ingin dijadikan sumber soal pilihan ganda di sini..." class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-sans leading-relaxed"></textarea>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-5 gap-2.5">
+        <div class="grid grid-cols-1 sm:grid-cols-5 gap-2.5" id="ai-pg-row-controls">
           <div>
             <label class="block font-semibold text-slate-700 mb-1">Tipe Soal PG:</label>
-            <select id="ai-pg-tipe-soal" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-xs">
+            <select id="ai-pg-tipe-soal" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-xs cursor-pointer" onchange="onAiPgTipeChange()">
               <option value="pg_biasa" selected>🎯 PG Biasa (1 Kunci)</option>
               <option value="pg_kompleks">☑️ PG Kompleks (Multi-Jawaban)</option>
-              <option value="campuran">⚖️ Campuran Berimbang</option>
+              <option value="campuran">⚖️ Kombinasi (Biasa + Kompleks)</option>
             </select>
           </div>
-          <div>
+          <div id="ai-pg-group-jumlah-single">
             <label class="block font-semibold text-slate-700 mb-1">Jumlah Soal:</label>
-            <select id="ai-pg-jumlah" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-xs">
-              <option value="5" selected>5 Butir Soal</option>
-              <option value="10">10 Butir Soal</option>
-              <option value="15">15 Butir Soal</option>
-              <option value="20">20 Butir Soal</option>
+            <div class="flex items-center space-x-1">
+              <input type="number" id="ai-pg-jumlah" min="1" max="50" value="20" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 text-xs text-center" title="Ketik jumlah soal (1-50 butir)">
+              <span class="text-[11px] text-slate-500 shrink-0">soal</span>
+            </div>
+          </div>
+          <div id="ai-pg-group-kunci-rule-single" class="hidden">
+            <label class="block font-semibold text-purple-800 mb-1">🔑 Kunci Benar Kompleks:</label>
+            <select id="ai-pg-kunci-rule-single" class="w-full px-2.5 py-1.5 rounded-lg border border-purple-300 bg-white font-medium text-xs">
+              <option value="acak_2_3" selected>🎲 Acak 2 - 3 Kunci (AKM)</option>
+              <option value="tepat_2">✌️ Tepat 2 Kunci Benar</option>
+              <option value="tepat_3">🤟 Tepat 3 Kunci Benar</option>
+              <option value="tepat_4">4️⃣ Tepat 4 Kunci Benar</option>
+              <option value="bebas">🔢 Bebas (2-4 Kunci)</option>
             </select>
           </div>
           <div>
@@ -4016,6 +4024,54 @@
               <option value="Bahasa Inggris">English</option>
               <option value="Bahasa Arab">العربية</option>
             </select>
+          </div>
+        </div>
+
+        <!-- Panel Khusus Komposisi Campuran (Tampil jika Tipe = Kombinasi Campuran) -->
+        <div id="ai-pg-box-campuran" class="hidden p-3 bg-gradient-to-r from-teal-50/90 via-indigo-50/80 to-purple-50/90 border border-teal-300 rounded-xl space-y-2.5 shadow-xs transition">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center space-x-2">
+              <span class="text-base">⚖️</span>
+              <div>
+                <span class="font-bold text-slate-800 text-xs block">Atur Komposisi PG Biasa & PG Kompleks Sekaligus</span>
+                <span class="text-[10px] text-slate-500 block">AI akan menghasilkan kedua jenis soal secara proporsional dalam satu klik</span>
+              </div>
+            </div>
+            <span id="ai-pg-total-campuran-badge" class="px-2.5 py-1 bg-gradient-to-r from-teal-600 to-indigo-600 text-white font-black text-xs rounded-full shadow-xs">
+              Total: 25 Butir (20 PG Biasa + 5 PG Kompleks)
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <div class="bg-white/95 p-2.5 rounded-xl border border-teal-200 space-y-1">
+              <label class="block font-bold text-teal-800 text-[11px]">🎯 Jumlah Soal PG Biasa (1 Kunci):</label>
+              <div class="flex items-center space-x-1.5">
+                <input type="number" id="ai-pg-jumlah-biasa" min="1" max="50" value="20" class="w-full px-2 py-1 rounded-lg border border-teal-300 bg-white font-extrabold text-teal-900 text-sm text-center" oninput="updateAiPgCampuranSummary()">
+                <span class="text-[11px] font-semibold text-teal-700 shrink-0">Butir</span>
+              </div>
+              <p class="text-[10px] text-slate-400">Pilihan ganda standar 1 jawaban benar</p>
+            </div>
+
+            <div class="bg-white/95 p-2.5 rounded-xl border border-purple-200 space-y-1">
+              <label class="block font-bold text-purple-800 text-[11px]">☑️ Jumlah Soal PG Kompleks:</label>
+              <div class="flex items-center space-x-1.5">
+                <input type="number" id="ai-pg-jumlah-kompleks" min="1" max="50" value="5" class="w-full px-2 py-1 rounded-lg border border-purple-300 bg-white font-extrabold text-purple-900 text-sm text-center" oninput="updateAiPgCampuranSummary()">
+                <span class="text-[11px] font-semibold text-purple-700 shrink-0">Butir</span>
+              </div>
+              <p class="text-[10px] text-slate-400">Pilihan ganda multi-jawaban benar</p>
+            </div>
+
+            <div class="bg-white/95 p-2.5 rounded-xl border border-indigo-200 space-y-1">
+              <label class="block font-bold text-indigo-800 text-[11px]">🔑 Aturan Jawaban Benar PG Kompleks:</label>
+              <select id="ai-pg-kunci-rule-campuran" class="w-full px-2 py-1 rounded-lg border border-indigo-300 bg-white font-bold text-indigo-900 text-xs">
+                <option value="acak_2_3" selected>🎲 Acak 2 - 3 Kunci Benar (AKM)</option>
+                <option value="tepat_2">✌️ Tepat 2 Kunci Benar</option>
+                <option value="tepat_3">🤟 Tepat 3 Kunci Benar</option>
+                <option value="tepat_4">4️⃣ Tepat 4 Kunci Benar (Jika A-E)</option>
+                <option value="bebas">🔢 Bebas (2 - 4 Kunci Benar)</option>
+              </select>
+              <p class="text-[10px] text-slate-400">Tentukan jumlah opsi benar pada PG Kompleks</p>
+            </div>
           </div>
         </div>
 
@@ -14355,6 +14411,38 @@
     if (btnOpenAiPgGenerator) btnOpenAiPgGenerator.onclick = () => openAiPgGeneratorModal('ulangan');
     if (btnCloseAiPgModal) btnCloseAiPgModal.onclick = () => modalAiPgGenerator.classList.add('hidden');
 
+    window.onAiPgTipeChange = function() {
+      const tipe = document.getElementById('ai-pg-tipe-soal')?.value || 'pg_biasa';
+      const boxCampuran = document.getElementById('ai-pg-box-campuran');
+      const groupJumlahSingle = document.getElementById('ai-pg-group-jumlah-single');
+      const groupKunciRuleSingle = document.getElementById('ai-pg-group-kunci-rule-single');
+
+      if (tipe === 'campuran') {
+        if (boxCampuran) boxCampuran.classList.remove('hidden');
+        if (groupJumlahSingle) groupJumlahSingle.classList.add('hidden');
+        if (groupKunciRuleSingle) groupKunciRuleSingle.classList.add('hidden');
+        updateAiPgCampuranSummary();
+      } else if (tipe === 'pg_kompleks') {
+        if (boxCampuran) boxCampuran.classList.add('hidden');
+        if (groupJumlahSingle) groupJumlahSingle.classList.remove('hidden');
+        if (groupKunciRuleSingle) groupKunciRuleSingle.classList.remove('hidden');
+      } else {
+        // pg_biasa
+        if (boxCampuran) boxCampuran.classList.add('hidden');
+        if (groupJumlahSingle) groupJumlahSingle.classList.remove('hidden');
+        if (groupKunciRuleSingle) groupKunciRuleSingle.classList.add('hidden');
+      }
+    };
+
+    window.updateAiPgCampuranSummary = function() {
+      const bVal = parseInt(document.getElementById('ai-pg-jumlah-biasa')?.value, 10) || 0;
+      const kVal = parseInt(document.getElementById('ai-pg-jumlah-kompleks')?.value, 10) || 0;
+      const badge = document.getElementById('ai-pg-total-campuran-badge');
+      if (badge) {
+        badge.textContent = `Total: ${bVal + kVal} Butir (${bVal} PG Biasa + ${kVal} PG Kompleks)`;
+      }
+    };
+
     if (formGenerateAiPg) {
       formGenerateAiPg.onsubmit = async (e) => {
         e.preventDefault();
@@ -14362,6 +14450,23 @@
         const topikVal = aiPgTopik?.value?.trim() || '';
         const materiVal = aiPgMateriTeks?.value?.trim() || '';
         const tipePgVal = document.getElementById('ai-pg-tipe-soal')?.value || 'pg_biasa';
+
+        let jumlahSoalVal = 20;
+        let jumlahPgBiasaVal = null;
+        let jumlahPgKompleksVal = null;
+        let kunciKompleksRuleVal = 'acak_2_3';
+
+        if (tipePgVal === 'campuran') {
+          jumlahPgBiasaVal = parseInt(document.getElementById('ai-pg-jumlah-biasa')?.value, 10) || 20;
+          jumlahPgKompleksVal = parseInt(document.getElementById('ai-pg-jumlah-kompleks')?.value, 10) || 5;
+          jumlahSoalVal = Math.max(2, jumlahPgBiasaVal + jumlahPgKompleksVal);
+          kunciKompleksRuleVal = document.getElementById('ai-pg-kunci-rule-campuran')?.value || 'acak_2_3';
+        } else if (tipePgVal === 'pg_kompleks') {
+          jumlahSoalVal = parseInt(document.getElementById('ai-pg-jumlah')?.value, 10) || 10;
+          kunciKompleksRuleVal = document.getElementById('ai-pg-kunci-rule-single')?.value || 'acak_2_3';
+        } else {
+          jumlahSoalVal = parseInt(document.getElementById('ai-pg-jumlah')?.value, 10) || 20;
+        }
 
         if (!isModeTeks && !topikVal) {
           alert('Silakan isi topik atau nama materi pembelajaran.');
@@ -14376,14 +14481,17 @@
 
         btnSubmitGeneratePg.disabled = true;
         btnGeneratePgIcon.textContent = '⏳';
-        btnGeneratePgLabel.textContent = 'Gemini AI sedang menyusun butir soal PG...';
+        btnGeneratePgLabel.textContent = `Gemini AI sedang menyusun ${jumlahSoalVal} butir soal PG...`;
 
         try {
           const payload = {
             topik: isModeTeks ? (topikVal || 'Bahan Ajar Bacaan') : topikVal,
             materi_teks: isModeTeks ? materiVal : null,
             tipe_pg: tipePgVal,
-            jumlah_soal: Number(aiPgJumlah?.value) || 5,
+            jumlah_soal: jumlahSoalVal,
+            jumlah_pg_biasa: jumlahPgBiasaVal,
+            jumlah_pg_kompleks: jumlahPgKompleksVal,
+            kunci_kompleks_rule: kunciKompleksRuleVal,
             opsi_count: Number(aiPgOpsiCount?.value) || 4,
             tingkat_kesulitan: aiPgKesulitan?.value || 'sedang',
             bahasa: aiPgBahasa?.value || 'Bahasa Indonesia',
@@ -14415,21 +14523,43 @@
       aiPgPreviewBox.classList.remove('hidden');
       aiPgItemsList.innerHTML = '';
 
+      let biasaCount = 0;
+      let kompleksCount = 0;
+      generatedAiPgList.forEach(q => {
+        const isKompleks = (q.kunci_pg && (q.kunci_pg.includes(',') || q.kunci_pg.trim().length > 1)) || q.tipe_pg === 'pg_kompleks';
+        if (isKompleks) kompleksCount++; else biasaCount++;
+      });
+
+      // Banner ringkasan komposisi hasil AI
+      const summaryBanner = document.createElement('div');
+      summaryBanner.className = 'p-2.5 bg-gradient-to-r from-teal-50 to-indigo-50 border border-teal-200 rounded-xl flex items-center justify-between text-xs mb-2';
+      summaryBanner.innerHTML = `
+        <div class="flex items-center space-x-2">
+          <span class="text-base">🎉</span>
+          <span class="font-bold text-slate-800">Berhasil menghasilkan <strong>${generatedAiPgList.length}</strong> butir soal PG:</span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span class="px-2 py-0.5 bg-teal-100 text-teal-800 font-extrabold text-[11px] rounded-full border border-teal-300">🎯 ${biasaCount} PG Biasa</span>
+          <span class="px-2 py-0.5 bg-purple-100 text-purple-800 font-extrabold text-[11px] rounded-full border border-purple-300">☑️ ${kompleksCount} PG Kompleks</span>
+        </div>
+      `;
+      aiPgItemsList.appendChild(summaryBanner);
+
       generatedAiPgList.forEach((q, idx) => {
         const item = document.createElement('div');
-        item.className = 'p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs';
+        item.className = 'p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs hover:border-slate-300 transition';
         const isKompleks = (q.kunci_pg && (q.kunci_pg.includes(',') || q.kunci_pg.trim().length > 1)) || q.tipe_pg === 'pg_kompleks';
         const typeBadge = isKompleks 
-          ? '<span class="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">☑️ PG Kompleks</span>' 
-          : '<span class="text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">🎯 PG Biasa</span>';
+          ? '<span class="text-[10px] font-extrabold text-purple-800 bg-purple-100 px-2 py-0.5 rounded border border-purple-300">☑️ PG Kompleks (Multi-Kunci)</span>' 
+          : '<span class="text-[10px] font-extrabold text-teal-800 bg-teal-100 px-2 py-0.5 rounded border border-teal-300">🎯 PG Biasa</span>';
 
         item.innerHTML = `
           <div class="flex items-start justify-between gap-2">
-            <div class="flex items-center space-x-2">
+            <div class="flex items-center space-x-2 flex-wrap gap-y-1">
               <input type="checkbox" checked value="${idx}" class="chk-ai-pg w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer" onchange="updateAiPgCount()">
               <span class="font-bold text-slate-700">#${idx + 1}</span>
               ${typeBadge}
-              <span class="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Kunci: ${escapeHtml(q.kunci_pg)}</span>
+              <span class="font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded border border-emerald-300">Kunci Benar: ${escapeHtml(q.kunci_pg)}</span>
             </div>
             <span class="text-[10px] text-slate-400 capitalize">${escapeHtml(q.tingkat_kesulitan || 'sedang')}</span>
           </div>
@@ -14442,8 +14572,8 @@
             ${q.opsi_e ? `<div><strong>E.</strong> ${escapeHtml(q.opsi_e)}</div>` : ''}
           </div>
           ${q.pembahasan ? `
-            <div class="p-1.5 bg-emerald-50 rounded border border-emerald-200 text-[10px] text-emerald-900">
-              <strong>💡 Pembahasan:</strong> ${escapeHtml(q.pembahasan)}
+            <div class="p-2 bg-emerald-50/80 rounded border border-emerald-200 text-[11px] text-emerald-950">
+              <strong>💡 Pembahasan Ilmiah:</strong> ${escapeHtml(q.pembahasan)}
             </div>
           ` : ''}
         `;
@@ -14477,8 +14607,7 @@
 
         // Jika Target adalah Bank Soal Mandiri:
         if (aiPgTarget === 'bank_soal' || window.aiPgTarget === 'bank_soal') {
-          btnSaveSelectedAiPg.disabled = true;
-          btnSaveSelectedAiPg.textContent = 'Menyimpan ke Bank Soal...';
+          showGlobalProgress('Menyimpan ke Bank Soal...', `Menyimpan ${selectedQuestions.length} butir soal ke Bank Soal Mandiri...`);
 
           try {
             const defaultKategori = aiPgTopik?.value?.trim() || 'Umum';
@@ -14512,15 +14641,18 @@
             const json = await res.json();
             if (!res.ok || !json.success) throw new Error(json.message || 'Gagal menyimpan ke Bank Soal');
 
-            alert(`🎉 Sukses menyimpan ${bulkPayload.length} butir soal PG ke Bank Soal Mandiri!`);
-            modalAiPgGenerator.classList.add('hidden');
-            await loadBankCategories();
-            await loadBankSoal();
+            updateGlobalProgress(100, `Berhasil menyimpan ${bulkPayload.length} butir soal!`);
+            setTimeout(() => {
+              hideGlobalProgress(async () => {
+                alert(`🎉 Sukses menyimpan ${bulkPayload.length} butir soal PG ke Bank Soal Mandiri!`);
+                modalAiPgGenerator.classList.add('hidden');
+                await loadBankCategories();
+                await loadBankSoal();
+              });
+            }, 300);
           } catch (err) {
+            hideGlobalProgress();
             alert('Error menyimpan ke Bank Soal: ' + err.message);
-          } finally {
-            btnSaveSelectedAiPg.disabled = false;
-            btnSaveSelectedAiPg.innerHTML = '<span>💾 Simpan Soal ke Bank Soal</span>';
           }
           return;
         }
@@ -14531,13 +14663,12 @@
           return;
         }
 
-        btnSaveSelectedAiPg.disabled = true;
-        btnSaveSelectedAiPg.textContent = 'Menyimpan ke Ulangan...';
+        showGlobalProgress('Menyimpan Butir Soal...', `Memasukkan ${selectedQuestions.length} butir soal hasil AI ke ulangan...`);
 
         try {
-          for (const q of selectedQuestions) {
+          const bulkPayload = selectedQuestions.map(q => {
             const isKompleks = (q.kunci_pg && (q.kunci_pg.includes(',') || q.kunci_pg.trim().length > 1)) || q.tipe_pg === 'pg_kompleks';
-            const payload = {
+            return {
               jenis: 'pilihan_ganda',
               tipe_pg: isKompleks ? 'pg_kompleks' : 'pg_biasa',
               tingkat_kesulitan: q.tingkat_kesulitan || 'sedang',
@@ -14553,18 +14684,45 @@
               pembahasan: q.pembahasan || null,
               kategori: q.kategori || activeUlanganData?.mata_pelajaran || null
             };
+          });
 
-            await guruFetch(`/api/guru/ulangan/${activeUlanganId}/soal`, {
+          // Coba simpan sekaligus melalui endpoint bulk
+          let saved = false;
+          try {
+            const resBulk = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/soal/bulk`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
+              body: JSON.stringify({ soal: bulkPayload })
             });
+            const jsonBulk = await resBulk.json();
+            if (resBulk.ok && jsonBulk.success) {
+              saved = true;
+            }
+          } catch (errBulk) {
+            console.warn('Bulk insert fallback to sequential:', errBulk);
           }
 
-          alert(`🎉 Sukses menambahkan ${selectedQuestions.length} butir soal PG ke ulangan!`);
-          modalAiPgGenerator.classList.add('hidden');
-          selectUlangan(activeUlanganId);
+          // Fallback loop jika endpoint bulk belum tersedia
+          if (!saved) {
+            for (const payload of bulkPayload) {
+              await guruFetch(`/api/guru/ulangan/${activeUlanganId}/soal`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+            }
+          }
+
+          updateGlobalProgress(100, `Berhasil menambahkan ${selectedQuestions.length} butir soal!`);
+          setTimeout(() => {
+            hideGlobalProgress(() => {
+              alert(`🎉 Sukses menambahkan ${selectedQuestions.length} butir soal PG ke ulangan!`);
+              modalAiPgGenerator.classList.add('hidden');
+              selectUlangan(activeUlanganId);
+            });
+          }, 300);
         } catch (err) {
+          hideGlobalProgress();
           alert('Error menyimpan soal: ' + err.message);
         } finally {
           btnSaveSelectedAiPg.disabled = false;

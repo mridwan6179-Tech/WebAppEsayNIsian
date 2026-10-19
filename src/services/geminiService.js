@@ -1909,22 +1909,22 @@ Kembalikan HANYA teks sebaran pesan WhatsApp siap kirim tanpa penjelasan pembuka
     throw lastError || new Error('Gagal memproses gambar LJK dengan model AI yang tersedia');
   },
 
-  // Generator Soal Pilihan Ganda Berbantuan AI (Mendukung Teks Panjang, Berkas File, & PG Kompleks)
-  async generateMultipleChoiceQuestions({ topik, tingkatKelas = 'SMP', jumlahSoal = 10, opsiCount = 4, materiTeks = '', fileBase64 = null, fileName = '', tipePg = 'pg_biasa', instruksiTambahan = '', bahasa = 'Bahasa Indonesia' }) {
-    let contextMateri = `Topik: ${topik}\nJenjang/Kelas: ${tingkatKelas}\nJumlah Soal Diminta: ${jumlahSoal}\nBahasa Pengantar: ${bahasa}\n`;
-
-    // Ekstrak berkas jika fileBase64 dikirimkan tanpa teks materi
-    if (fileBase64 && (!materiTeks || !materiTeks.trim())) {
-      try {
-        const fileParserService = require('./fileParserService');
-        const parsedDoc = await fileParserService.parseFile(fileBase64, fileName || 'materi.pdf');
-        if (parsedDoc && parsedDoc.text) {
-          materiTeks = parsedDoc.text;
-        }
-      } catch (errParse) {
-        console.warn('⚠️ Gagal mengekstrak berkas di backend PG generator:', errParse.message);
-      }
-    }
+  // Helper pembentuk prompt pembuat soal Pilihan Ganda (Biasa, Kompleks, dan Campuran)
+  buildMultipleChoicePrompt({
+    topik = 'Materi Pembelajaran',
+    tingkatKelas = 'SMP',
+    jumlahSoal = 10,
+    opsiCount = 4,
+    materiTeks = '',
+    tipePg = 'pg_biasa',
+    jumlahPgBiasa = null,
+    jumlahPgKompleks = null,
+    kunciKompleksRule = 'acak_2_3', // 'acak_2_3' | 'tepat_2' | 'tepat_3' | 'tepat_4' | 'bebas'
+    instruksiTambahan = '',
+    tingkatKesulitan = 'sedang',
+    bahasa = 'Bahasa Indonesia'
+  }) {
+    let contextMateri = `Topik: ${topik}\nJenjang/Kelas: ${tingkatKelas}\nJumlah Soal Diminta: ${jumlahSoal}\nBahasa Pengantar: ${bahasa}\nTingkat Kesulitan: ${tingkatKesulitan}\n`;
 
     if (materiTeks && materiTeks.trim()) {
       contextMateri += `\nBahan Bacaan Materi Utama (Ekstrak dari Sumber/Dokumen):\n${materiTeks.slice(0, 18000)}\n`;
@@ -1934,12 +1934,45 @@ Kembalikan HANYA teks sebaran pesan WhatsApp siap kirim tanpa penjelasan pembuka
       contextMateri += `\nInstruksi Khusus Guru:\n${instruksiTambahan.trim()}\n`;
     }
 
-    const opsiLetters = opsiCount === 5 ? 'A, B, C, D, dan E' : 'A, B, C, dan D';
-    let aturanTipePg = 'Tipe Soal: Pilihan Ganda Tunggal standar (hanya 1 opsi jawaban benar). Kunci jawaban berupa 1 huruf (misal "B").';
+    const opsiLetters = Number(opsiCount) === 5 ? 'A, B, C, D, dan E' : 'A, B, C, dan D';
+
+    let ruleKunciKompleksText = 'Setiap butir soal PG Kompleks WAJIB memiliki 2 HINGGA 3 OPSI JAWABAN BENAR (misal: "A, C" atau "B, C, D").';
+    let sampleKunciKompleks = 'A, C';
+
+    if (kunciKompleksRule === 'tepat_2') {
+      ruleKunciKompleksText = 'Setiap butir soal PG Kompleks WAJIB memiliki TEPAT 2 OPSI JAWABAN BENAR (contoh: "A, C" atau "B, D"). DILARANG membuat 1 atau lebih dari 2 kunci benar, HARUS TEPAT 2 OPSI BENAR.';
+      sampleKunciKompleks = 'A, C';
+    } else if (kunciKompleksRule === 'tepat_3') {
+      ruleKunciKompleksText = 'Setiap butir soal PG Kompleks WAJIB memiliki TEPAT 3 OPSI JAWABAN BENAR (contoh: "A, B, D" atau "B, C, E"). DILARANG membuat kurang atau lebih dari 3 kunci benar, HARUS TEPAT 3 OPSI BENAR.';
+      sampleKunciKompleks = 'A, B, D';
+    } else if (kunciKompleksRule === 'tepat_4') {
+      ruleKunciKompleksText = 'Setiap butir soal PG Kompleks WAJIB memiliki TEPAT 4 OPSI JAWABAN BENAR (contoh: "A, B, C, D"). HARUS TEPAT 4 OPSI BENAR.';
+      sampleKunciKompleks = 'A, B, C, D';
+    } else if (kunciKompleksRule === 'bebas') {
+      ruleKunciKompleksText = `Setiap butir soal PG Kompleks WAJIB memiliki antara 2 hingga ${Math.max(2, Number(opsiCount) - 1)} OPSI JAWABAN BENAR.`;
+      sampleKunciKompleks = 'A, C';
+    }
+
+    let aturanTipePg = 'Tipe Soal: Pilihan Ganda Tunggal standar (hanya 1 opsi jawaban benar). Kunci jawaban berupa 1 huruf (misal "B"). Nilai field "jenis_pg": "pilihan_ganda", "kunci_pg": "huruf tunggal".';
+
     if (tipePg === 'pg_kompleks') {
-      aturanTipePg = `Tipe Soal: PILIHAN GANDA KOMPLEKS (MULTI-SELECT). Setiap butir soal WAJIB memiliki LEBIH DARI SATU jawaban yang benar (2 atau 3 pernyataan benar). Kunci jawaban WAJIB ditulis berupa gabungan huruf dipisahkan koma (contoh: "A, C" atau "B, D, E"). Teks pertanyaan WAJIB menyertakan keterangan "(Pilihlah lebih dari satu jawaban yang benar)".`;
+      aturanTipePg = `Tipe Soal: PILIHAN GANDA KOMPLEKS (MULTI-SELECT).
+${ruleKunciKompleksText}
+Kunci jawaban WAJIB ditulis berupa gabungan huruf dipisahkan koma dan spasi (contoh: "${sampleKunciKompleks}").
+Teks pertanyaan WAJIB menyertakan keterangan petunjuk "(Pilihlah lebih dari satu jawaban yang benar)" di akhir pertanyaan.
+Beri field "jenis_pg": "pg_kompleks".`;
     } else if (tipePg === 'campuran') {
-      aturanTipePg = `Tipe Soal: CAMPURAN antara Pilihan Ganda Biasa (1 kunci benar, misal "A") dan Pilihan Ganda Kompleks (2-3 kunci benar dipisahkan koma, misal "A, C"). Berikan variasi seimbang. Untuk soal kompleks, pertanyaan wajib menyertakan petunjuk "(Pilihlah lebih dari satu jawaban yang benar)".`;
+      const bCount = (jumlahPgBiasa !== null && jumlahPgBiasa !== undefined) ? Number(jumlahPgBiasa) : Math.round(jumlahSoal * 0.6);
+      const kCount = (jumlahPgKompleks !== null && jumlahPgKompleks !== undefined) ? Number(jumlahPgKompleks) : (jumlahSoal - bCount);
+
+      aturanTipePg = `Tipe Soal: KOMBINASI CAMPURAN (${bCount} PG Biasa + ${kCount} PG Kompleks).
+KOMPOSISI WAJIB:
+1. Tepat ${bCount} butir soal PERTAMA (No 1 s/d ${bCount}) adalah PILIHAN GANDA BIASA (hanya 1 jawaban benar, contoh: "B"). Beri field "jenis_pg": "pilihan_ganda".
+2. Tepat ${kCount} butir soal BERIKUTNYA (No ${bCount + 1} s/d ${jumlahSoal}) adalah PILIHAN GANDA KOMPLEKS (Multi-Select).
+   ${ruleKunciKompleksText}
+   Kunci jawaban WAJIB berupa gabungan huruf dipisahkan koma (contoh: "${sampleKunciKompleks}").
+   Teks pertanyaan WAJIB menyertakan keterangan petunjuk "(Pilihlah lebih dari satu jawaban yang benar)" di akhir pertanyaan.
+   Beri field "jenis_pg": "pg_kompleks".`;
     }
 
     const jsonExample = `
@@ -1951,8 +1984,8 @@ Kembalikan HANYA teks sebaran pesan WhatsApp siap kirim tanpa penjelasan pembuka
       "opsi_b": "Pernyataan / opsi B...",
       "opsi_c": "Pernyataan / opsi C...",
       "opsi_d": "Pernyataan / opsi D...",
-      ${opsiCount === 5 ? '"opsi_e": "Pernyataan / opsi E...",' : ''}
-      "kunci_pg": "${tipePg === 'pg_kompleks' ? 'A, C' : 'B'}",
+      ${Number(opsiCount) === 5 ? '"opsi_e": "Pernyataan / opsi E...",' : ''}
+      "kunci_pg": "${tipePg === 'pg_kompleks' ? sampleKunciKompleks : 'B'}",
       "jenis_pg": "${tipePg === 'pg_kompleks' ? 'pg_kompleks' : 'pilihan_ganda'}",
       "pembahasan": "Penjelasan konsep mengapa kunci jawaban tersebut benar..."
     }
@@ -1977,12 +2010,136 @@ INSTRUKSI WAJIB:
 6. Kembalikan HASIL HANYA dalam format JSON valid sesuai skema berikut tanpa pembungkus narasi di luar JSON:
 ${jsonExample}
 `;
+    return prompt;
+  },
 
-    const result = await this.callJsonPrompt(prompt, { temperature: 0.3, timeout: 30000 });
+  // Generator Soal Pilihan Ganda Berbantuan AI (Mendukung PG Biasa, PG Kompleks, Campuran, Multi-Jawaban Benar, Berkas & Teks)
+  async generateMultipleChoiceQuestions({
+    topik,
+    tingkatKelas = 'SMP',
+    jumlahSoal = 10,
+    opsiCount = 4,
+    materiTeks = '',
+    fileBase64 = null,
+    fileName = '',
+    tipePg = 'pg_biasa',
+    jumlahPgBiasa = null,
+    jumlahPgKompleks = null,
+    kunciKompleksRule = 'acak_2_3',
+    instruksiTambahan = '',
+    tingkatKesulitan = 'sedang',
+    bahasa = 'Bahasa Indonesia'
+  }) {
+    // Jika mode Campuran atau disediakan jumlah spesifik untuk PG Biasa & PG Kompleks:
+    if (tipePg === 'campuran' || (jumlahPgBiasa !== null && jumlahPgKompleks !== null)) {
+      const numBiasa = (jumlahPgBiasa !== null && jumlahPgBiasa !== undefined) ? Math.max(1, Number(jumlahPgBiasa)) : Math.max(1, Math.round(jumlahSoal * 0.6));
+      const numKompleks = (jumlahPgKompleks !== null && jumlahPgKompleks !== undefined) ? Math.max(1, Number(jumlahPgKompleks)) : Math.max(1, jumlahSoal - numBiasa);
+
+      // Ekstrak berkas sekali di awal jika diperlukan
+      let cleanMateri = materiTeks || '';
+      if (fileBase64 && (!cleanMateri || !cleanMateri.trim())) {
+        try {
+          const fileParserService = require('./fileParserService');
+          const parsedDoc = await fileParserService.parseFile(fileBase64, fileName || 'materi.pdf');
+          if (parsedDoc && parsedDoc.text) cleanMateri = parsedDoc.text;
+        } catch (errParse) {
+          console.warn('⚠️ Gagal mengekstrak berkas di backend PG generator:', errParse.message);
+        }
+      }
+
+      // Generate kedua kelompok soal secara paralel untuk kecepatan maksimal & akurasi format 100%
+      const [biasaList, kompleksList] = await Promise.all([
+        this.generateMultipleChoiceQuestions({
+          topik,
+          tingkatKelas,
+          jumlahSoal: numBiasa,
+          opsiCount,
+          materiTeks: cleanMateri,
+          tipePg: 'pg_biasa',
+          instruksiTambahan,
+          tingkatKesulitan,
+          bahasa
+        }),
+        this.generateMultipleChoiceQuestions({
+          topik,
+          tingkatKelas,
+          jumlahSoal: numKompleks,
+          opsiCount,
+          materiTeks: cleanMateri,
+          tipePg: 'pg_kompleks',
+          kunciKompleksRule,
+          instruksiTambahan,
+          tingkatKesulitan,
+          bahasa
+        })
+      ]);
+
+      return [...biasaList, ...kompleksList];
+    }
+
+    // Ekstrak berkas jika fileBase64 dikirimkan tanpa teks materi
+    if (fileBase64 && (!materiTeks || !materiTeks.trim())) {
+      try {
+        const fileParserService = require('./fileParserService');
+        const parsedDoc = await fileParserService.parseFile(fileBase64, fileName || 'materi.pdf');
+        if (parsedDoc && parsedDoc.text) {
+          materiTeks = parsedDoc.text;
+        }
+      } catch (errParse) {
+        console.warn('⚠️ Gagal mengekstrak berkas di backend PG generator:', errParse.message);
+      }
+    }
+
+    const prompt = this.buildMultipleChoicePrompt({
+      topik,
+      tingkatKelas,
+      jumlahSoal,
+      opsiCount,
+      materiTeks,
+      tipePg,
+      jumlahPgBiasa,
+      jumlahPgKompleks,
+      kunciKompleksRule,
+      instruksiTambahan,
+      tingkatKesulitan,
+      bahasa
+    });
+
+    const timeout = Math.max(35000, Number(jumlahSoal) * 2500);
+    const result = await this.callJsonPrompt(prompt, { temperature: 0.3, timeout });
     if (!result || !Array.isArray(result.questions)) {
       throw new Error('Format output generator soal tidak valid');
     }
-    return result.questions;
+
+    // Normalisasi kunci dan jenis pada setiap butir soal yang dikembalikan
+    return result.questions.map((q, idx) => {
+      let kunci = String(q.kunci_pg || q.kunci_jawaban || 'A').toUpperCase().trim();
+      let parts = kunci.replace(/[^A-E,]/g, '').split(',').map(s => s.trim()).filter(Boolean);
+      if (parts.length === 0) {
+        parts = (tipePg === 'pg_kompleks') ? ['A', 'C'] : ['A'];
+      }
+      parts = [...new Set(parts)].sort();
+
+      const isKompleks = (tipePg === 'pg_kompleks') || parts.length > 1;
+      if (tipePg === 'pg_biasa' && parts.length > 1) {
+        parts = [parts[0]];
+      }
+
+      let finalKunci = parts.join(', ');
+      let pertanyaan = String(q.pertanyaan || '').trim();
+      if (isKompleks && !pertanyaan.toLowerCase().includes('pilihlah') && !pertanyaan.toLowerCase().includes('lebih dari satu')) {
+        pertanyaan = `${pertanyaan} (Pilihlah lebih dari satu jawaban yang benar)`;
+      }
+
+      return {
+        ...q,
+        pertanyaan,
+        kunci_pg: finalKunci,
+        kunci_jawaban: finalKunci,
+        tipe_pg: isKompleks ? 'pg_kompleks' : 'pg_biasa',
+        jenis_pg: isKompleks ? 'pg_kompleks' : 'pilihan_ganda'
+      };
+    });
   },
 
   // Helper Pembangun Kisi-Kisi Cerdas Terpadu (Mengelompokkan Soal per Satu Pembahasan & Detail Tingkat SMP)

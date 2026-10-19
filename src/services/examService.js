@@ -671,6 +671,18 @@ const examService = {
     return this.createSoal(ulanganId, data);
   },
 
+  createSoalBulk(ulanganId, soalList) {
+    if (!Array.isArray(soalList) || soalList.length === 0) return [];
+    const results = [];
+    db.transaction(() => {
+      for (const item of soalList) {
+        const created = this.createSoal(ulanganId, item);
+        results.push(created);
+      }
+    })();
+    return results;
+  },
+
   getSoalByUlangan(ulanganId) {
     return db.prepare('SELECT * FROM soal WHERE ulangan_id = ? ORDER BY urutan ASC, nomor ASC').all(ulanganId);
   },

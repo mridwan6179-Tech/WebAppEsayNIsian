@@ -629,6 +629,17 @@ app.post('/api/guru/ulangan/:id/soal', requireGuru, (req, res) => {
   }
 });
 
+// Bulk Insert Soal ke Ulangan (Untuk AI Generator & Import Massal)
+app.post('/api/guru/ulangan/:id/soal/bulk', requireGuru, (req, res) => {
+  try {
+    const list = Array.isArray(req.body.soal) ? req.body.soal : (Array.isArray(req.body) ? req.body : []);
+    const results = examService.createSoalBulk(req.params.id, list);
+    res.json({ success: true, count: results.length, data: results });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 app.put('/api/guru/soal/:id', requireGuru, (req, res) => {
   try {
     const soal = examService.updateSoal(req.params.id, req.body);
@@ -1624,6 +1635,13 @@ const handleGeneratePgAi = async (req, res) => {
     const tingkatKesulitan = b.tingkatKesulitan || b.tingkat_kesulitan || 'sedang';
     const bahasa = b.bahasa || 'Bahasa Indonesia';
     const tipePg = b.tipePg || b.tipe_pg || 'pg_biasa';
+    const jumlahPgBiasa = (b.jumlahPgBiasa !== undefined && b.jumlahPgBiasa !== null)
+      ? Number(b.jumlahPgBiasa)
+      : ((b.jumlah_pg_biasa !== undefined && b.jumlah_pg_biasa !== null) ? Number(b.jumlah_pg_biasa) : null);
+    const jumlahPgKompleks = (b.jumlahPgKompleks !== undefined && b.jumlahPgKompleks !== null)
+      ? Number(b.jumlahPgKompleks)
+      : ((b.jumlah_pg_kompleks !== undefined && b.jumlah_pg_kompleks !== null) ? Number(b.jumlah_pg_kompleks) : null);
+    const kunciKompleksRule = b.kunciKompleksRule || b.kunci_kompleks_rule || 'acak_2_3';
 
     if (!topik && !materiTeks && !fileBase64) {
       return res.status(400).json({ success: false, message: 'Topik atau materi bacaan wajib diisi' });
@@ -1637,6 +1655,9 @@ const handleGeneratePgAi = async (req, res) => {
       fileBase64,
       fileName,
       tipePg,
+      jumlahPgBiasa,
+      jumlahPgKompleks,
+      kunciKompleksRule,
       instruksiTambahan,
       tingkatKesulitan,
       bahasa
