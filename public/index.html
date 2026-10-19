@@ -4725,8 +4725,11 @@
         const canShowListeningText = (s.tampilkan_teks_listening !== null && s.tampilkan_teks_listening !== undefined)
           ? Boolean(Number(s.tampilkan_teks_listening))
           : Boolean(Number(data.ulangan?.tampilkan_teks_listening || 0));
-        const rawText = (s.pertanyaan || '').trim();
-        const cleanPertanyaan = rawText.replace(/\r/g, '').replace(/\n{3,}/g, '\n\n');
+        const isPgKompleks = isPg && (
+          s.tipe_pg === 'pg_kompleks' || 
+          s.jenis_pg === 'pg_kompleks' ||
+          (typeof s.kunci_pg === 'string' && (s.kunci_pg.includes(',') || s.kunci_pg.trim().length > 1))
+        );
 
         card.innerHTML = `
           <div class="flex items-center justify-between gap-2 mb-1.5 select-none flex-wrap">
@@ -4734,8 +4737,8 @@
               <span class="w-6 h-6 rounded-md bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center">
                 ${idx + 1}
               </span>
-              <span class="text-[11px] sm:text-xs uppercase tracking-wider font-semibold px-2 py-0.5 rounded ${isEssay ? 'bg-purple-50 text-purple-700' : (isPg ? 'bg-teal-50 text-teal-800 border border-teal-200 font-bold' : (isCoding ? 'bg-indigo-50 text-indigo-800 border border-indigo-200 font-bold' : 'bg-blue-50 text-blue-700'))}">
-                ${isEssay ? 'Essay' : (isPg ? 'Pilihan Ganda' : (isCoding ? '🎮 Game Koding' : 'Isian Singkat'))}
+              <span class="text-[11px] sm:text-xs uppercase tracking-wider font-semibold px-2 py-0.5 rounded ${isEssay ? 'bg-purple-50 text-purple-700' : (isPg ? (isPgKompleks ? 'bg-purple-100 text-purple-900 border border-purple-300 font-extrabold' : 'bg-teal-50 text-teal-800 border border-teal-200 font-bold') : (isCoding ? 'bg-indigo-50 text-indigo-800 border border-indigo-200 font-bold' : 'bg-blue-50 text-blue-700'))}">
+                ${isEssay ? 'Essay' : (isPg ? (isPgKompleks ? '☑️ PG Kompleks (Multi-Jawaban)' : '🔘 PG Biasa (1 Jawaban)') : (isCoding ? '🎮 Game Koding' : 'Isian Singkat'))}
               </span>
               <!-- Tanda Visual Status Terisi / Belum Terisi -->
               <span id="badge-soal-status-${s.id}" class="inline-flex items-center space-x-1 text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 transition-all">
@@ -4870,12 +4873,12 @@
               </div>
             ` : (isPg ? `
               <input type="hidden" name="soal_${s.id}" data-soal-id="${s.id}" id="input_pg_${s.id}" value="">
-              ${(s.tipe_pg === 'pg_kompleks' || (typeof s.kunci_pg === 'string' && (s.kunci_pg.includes(',') || s.kunci_pg.trim().length > 1))) ? `
+              ${isPgKompleks ? `
                 <!-- Pilihan Ganda Kompleks (Multi-Select Checkbox) -->
-                <div class="flex items-center space-x-1.5 text-xs text-purple-800 bg-purple-50/80 px-2.5 py-1 rounded-xl border border-purple-200 mb-1">
+                <div class="flex items-center space-x-1.5 text-xs text-purple-900 bg-purple-50 px-2.5 py-1.5 rounded-xl border border-purple-200 mb-1 select-none">
                   <span class="text-sm">☑️</span>
-                  <span class="font-bold text-[11px]">Pilihan Ganda Kompleks:</span>
-                  <span class="text-[11px] text-purple-700">Pilih satu atau lebih pernyataan/opsi yang benar</span>
+                  <span class="font-bold text-[11px]">PILIHAN GANDA KOMPLEKS:</span>
+                  <span class="text-[11px] text-purple-800 font-medium">Jawaban benar lebih dari satu (pilih semua jawaban yang benar)</span>
                 </div>
                 <div class="grid grid-cols-1 gap-2 pt-1 select-none" id="pg_options_container_${s.id}">
                   <button type="button" onclick="togglePgKompleksOption(${s.id}, 'A')" id="btn_pg_${s.id}_A" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-purple-300 hover:bg-slate-50 transition text-left cursor-pointer group">
@@ -4908,6 +4911,11 @@
                 </div>
               ` : `
                 <!-- Pilihan Ganda Biasa (Single Option) -->
+                <div class="flex items-center space-x-1.5 text-xs text-teal-900 bg-teal-50 px-2.5 py-1.5 rounded-xl border border-teal-200 mb-1 select-none">
+                  <span class="text-sm">🔘</span>
+                  <span class="font-bold text-[11px]">PILIHAN GANDA BIASA:</span>
+                  <span class="text-[11px] text-teal-800 font-medium">Pilihlah tepat 1 jawaban yang paling benar</span>
+                </div>
                 <div class="grid grid-cols-1 gap-2 pt-1 select-none" id="pg_options_container_${s.id}">
                   <button type="button" onclick="selectPgOption(${s.id}, 'A')" id="btn_pg_${s.id}_A" class="btn-pg-option flex items-center space-x-3 p-3 rounded-xl border-2 border-slate-200 hover:border-blue-300 hover:bg-slate-50 transition text-left cursor-pointer group">
                     <span class="btn-pg-circle w-7 h-7 rounded-full bg-slate-100 group-hover:bg-blue-100 text-slate-700 group-hover:text-blue-700 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-300">A</span>
@@ -4990,6 +4998,7 @@
         // Jika soal pilihan ganda, sinkronkan pilihan opsi aktif
         if (soalItem && soalItem.jenis === 'pilihan_ganda' && input.value) {
           const isKompleks = (soalItem.tipe_pg === 'pg_kompleks') ||
+            (soalItem.jenis_pg === 'pg_kompleks') ||
             (typeof soalItem.kunci_pg === 'string' && (soalItem.kunci_pg.includes(',') || soalItem.kunci_pg.trim().length > 1));
           if (isKompleks) {
             window.syncPgKompleksUI(sId, input.value);
@@ -7331,7 +7340,7 @@
         kompText = komp.trim();
       } else if (komp && typeof komp === 'object') {
         const parts = [];
-        if (komp.pilihan_ganda > 0) parts.push(`${komp.pilihan_ganda} Pilihan Ganda`);
+        if (komp.pilihan_ganda > 0) parts.push(`${komp.pilihan_ganda} PG Biasa`);
         if (komp.pg_kompleks > 0) parts.push(`${komp.pg_kompleks} PG Kompleks`);
         if (komp.isian > 0) parts.push(`${komp.isian} Isian Singkat`);
         if (komp.essay > 0) parts.push(`${komp.essay} Essay/Uraian`);

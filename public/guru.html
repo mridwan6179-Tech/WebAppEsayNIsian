@@ -5854,7 +5854,7 @@
         if (hasKisiAi) {
           const komp = parsedKisiAi.komposisi_soal || {};
           const badges = [];
-          if (komp.pilihan_ganda > 0) badges.push(`<span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-bold text-[10px]">${komp.pilihan_ganda} PG</span>`);
+          if (komp.pilihan_ganda > 0) badges.push(`<span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-bold text-[10px]">${komp.pilihan_ganda} PG Biasa</span>`);
           if (komp.pg_kompleks > 0) badges.push(`<span class="px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 font-bold text-[10px]">${komp.pg_kompleks} PG Kompleks</span>`);
           if (komp.isian > 0) badges.push(`<span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[10px]">${komp.isian} Isian</span>`);
           if (komp.essay > 0) badges.push(`<span class="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-bold text-[10px]">${komp.essay} Essay</span>`);
@@ -6332,7 +6332,7 @@
       const namaInstansi = (instansiInput && instansiInput.value.trim()) ? instansiInput.value.trim() : 'DOKUMEN AKADEMIK & KURIKULUM SEKOLAH';
       const komp = kisi.komposisi_soal || {};
       const kompParts = [];
-      if (komp.pilihan_ganda > 0) kompParts.push(`${komp.pilihan_ganda} Pilihan Ganda`);
+      if (komp.pilihan_ganda > 0) kompParts.push(`${komp.pilihan_ganda} PG Biasa`);
       if (komp.pg_kompleks > 0) kompParts.push(`${komp.pg_kompleks} PG Kompleks`);
       if (komp.isian > 0) kompParts.push(`${komp.isian} Isian Singkat`);
       if (komp.essay > 0) kompParts.push(`${komp.essay} Essay/Uraian`);
@@ -7647,7 +7647,7 @@
             <div class="p-2.5 bg-blue-50/70 rounded-lg border border-blue-200 text-xs space-y-1.5 my-1.5">
               <div class="flex items-center justify-between">
                 <span class="font-semibold text-blue-900 text-[11px]">Pilihan Jawaban (A-D/E):</span>
-                ${isKompleks ? '<span class="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">☑️ PG Kompleks</span>' : ''}
+                ${isKompleks ? '<span class="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">☑️ PG Kompleks (Multi-Jawaban)</span>' : '<span class="text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">🔘 PG Biasa (1 Jawaban)</span>'}
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 <div class="flex items-start space-x-1.5 ${keys.includes('A') ? 'font-bold text-emerald-800' : 'text-slate-700'}">
@@ -11595,14 +11595,76 @@
             answerLinesHtml += `<div class="print-answer-line"></div>`;
           }
 
+          const isPg = s.jenis === 'pilihan_ganda' || (s.opsi_a && s.opsi_b);
+          const keys = (s.kunci_pg || s.kunci_jawaban || '').split(',').map(x => x.trim().toUpperCase());
+          const isPgKompleks = isPg && (
+            s.tipe_pg === 'pg_kompleks' ||
+            s.jenis_pg === 'pg_kompleks' ||
+            keys.length > 1 ||
+            (typeof s.kunci_pg === 'string' && (s.kunci_pg.includes(',') || s.kunci_pg.trim().length > 1))
+          );
+
+          let tagJenis = '';
+          if (isPg) {
+            if (isPgKompleks) {
+              tagJenis = `<span class="uppercase text-[8px] font-black px-1.5 py-0.5 rounded border border-purple-300 text-purple-900 bg-purple-100 tracking-tight">☑️ PG Kompleks (Multi-Jawaban)</span>`;
+            } else {
+              tagJenis = `<span class="uppercase text-[8px] font-black px-1.5 py-0.5 rounded border border-teal-300 text-teal-900 bg-teal-50 tracking-tight">🔘 PG Biasa (1 Jawaban)</span>`;
+            }
+          } else if (s.jenis === 'koding_game') {
+            tagJenis = `<span class="uppercase text-[8px] font-bold px-1.5 py-0.5 rounded border border-indigo-200 text-indigo-900 bg-indigo-50">🎮 Koding</span>`;
+          } else if (s.jenis === 'essay') {
+            tagJenis = `<span class="uppercase text-[8px] font-bold px-1.5 py-0.5 rounded border border-amber-200 text-amber-900 bg-amber-50">📝 Essay</span>`;
+          } else {
+            tagJenis = `<span class="uppercase text-[8.5px] font-bold px-1.5 py-0.2 rounded border border-slate-300 text-slate-600">${s.jenis}</span>`;
+          }
+
           const badgeBobot = options.tampilkan_bobot && s.bobot ? `<span class="font-bold text-slate-700">(Bobot: ${s.bobot})</span>` : '';
-          const tagJenis = `<span class="uppercase text-[8.5px] font-bold px-1.5 py-0.2 rounded border border-slate-300 text-slate-600">${s.jenis}</span>`;
 
           const gambarHtml = s.gambar_url ? `
             <div class="my-1">
               <img src="${escapeHtml(s.gambar_url)}" alt="Diagram Soal" class="${isHalf ? 'max-h-16 sm:max-h-20' : 'max-h-24 sm:max-h-28'} object-contain rounded border border-slate-200">
             </div>
           ` : '';
+
+          let opsiHtml = '';
+          if (isPg && (s.opsi_a || s.opsi_b)) {
+            const badgeClass = isPgKompleks
+              ? 'w-3.5 h-3.5 rounded border-[1.5px] border-black text-[8.5px] font-black bg-white flex-shrink-0'
+              : 'w-3.5 h-3.5 rounded-full border border-black/80 text-[8.5px] font-bold bg-slate-50 flex-shrink-0';
+            const hintPetunjuk = isHalf ? '' : (isPgKompleks
+              ? `<div class="text-[8.5px] font-bold text-purple-900 mb-0.5 select-none">👉 Petunjuk: Centang kotak [ ] untuk semua pernyataan/opsi yang benar.</div>`
+              : `<div class="text-[8.5px] font-medium text-teal-900 mb-0.5 select-none">👉 Petunjuk: Pilihlah tepat 1 bulatan ( ) jawaban yang paling tepat.</div>`);
+            opsiHtml = `
+              <div class="pt-0.5 pb-0.5">
+                ${hintPetunjuk}
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 text-slate-900 ${isHalf ? 'text-[9.5px]' : 'text-xs'}">
+                <div class="flex items-start space-x-1.5">
+                  <span class="inline-flex items-center justify-center ${badgeClass}">A</span>
+                  <span class="leading-tight">${escapeHtml(s.opsi_a || '')}</span>
+                </div>
+                <div class="flex items-start space-x-1.5">
+                  <span class="inline-flex items-center justify-center ${badgeClass}">B</span>
+                  <span class="leading-tight">${escapeHtml(s.opsi_b || '')}</span>
+                </div>
+                ${s.opsi_c ? `
+                <div class="flex items-start space-x-1.5">
+                  <span class="inline-flex items-center justify-center ${badgeClass}">C</span>
+                  <span class="leading-tight">${escapeHtml(s.opsi_c)}</span>
+                </div>` : ''}
+                ${s.opsi_d ? `
+                <div class="flex items-start space-x-1.5">
+                  <span class="inline-flex items-center justify-center ${badgeClass}">D</span>
+                  <span class="leading-tight">${escapeHtml(s.opsi_d)}</span>
+                </div>` : ''}
+                ${s.opsi_e ? `
+                <div class="flex items-start space-x-1.5">
+                  <span class="inline-flex items-center justify-center ${badgeClass}">E</span>
+                  <span class="leading-tight">${escapeHtml(s.opsi_e)}</span>
+                </div>` : ''}
+              </div>
+            `;
+          }
 
           questionsHtml += `
             <div class="print-avoid-break ${isHalf ? 'py-0.5 space-y-0.5' : 'py-1.5 space-y-1'}">
@@ -11618,6 +11680,7 @@
                 </div>
               </div>
               <div class="${isHalf ? 'pl-3.5' : 'pl-4 sm:pl-5'}">
+                ${opsiHtml}
                 ${answerLinesHtml}
               </div>
             </div>
@@ -11681,8 +11744,8 @@
             </div>
 
             <!-- Petunjuk Ringkas -->
-            <p class="${isHalf ? 'text-[8.5px]' : 'text-[10px]'} italic text-slate-500 select-none">
-              * Petunjuk: Tuliskan jawaban Anda dengan jelas dan rapi pada garis ruang tulis yang telah disediakan!
+            <p class="${isHalf ? 'text-[8.5px]' : 'text-[10px]'} italic text-slate-600 select-none">
+              * Petunjuk: Perhatikan jenis penanda soal (<strong>🔘 PG Biasa</strong> = pilih 1 jawaban; <strong>☑️ PG Kompleks</strong> = jawaban benar &gt; 1 / centang semua opsi yang benar). Tulis jawaban dengan jelas dan rapi!
             </p>
 
             <!-- Daftar Butir Soal & Ruang Tulis -->
@@ -14741,11 +14804,41 @@
       questions.forEach((q, idx) => {
         const no = idx + 1;
         const isPg = q.jenis === 'pilihan_ganda' || (q.opsi_a && q.opsi_b);
+        const keys = (q.kunci_pg || q.kunci_jawaban || '').split(',').map(x => x.trim().toUpperCase());
+        const isPgKompleks = isPg && (
+          q.tipe_pg === 'pg_kompleks' ||
+          q.jenis_pg === 'pg_kompleks' ||
+          keys.length > 1 ||
+          (typeof q.kunci_pg === 'string' && (q.kunci_pg.includes(',') || q.kunci_pg.trim().length > 1))
+        );
+
+        let typeBadge = '';
+        if (isPg) {
+          if (isPgKompleks) {
+            typeBadge = `<span class="inline-flex items-center gap-1 text-[9.5px] font-black px-2 py-0.5 rounded bg-purple-100 text-purple-900 border border-purple-300 ml-1.5 uppercase tracking-wide select-none">☑️ PG Kompleks (Jawaban Benar &gt; 1)</span>`;
+          } else {
+            typeBadge = `<span class="inline-flex items-center gap-1 text-[9.5px] font-black px-2 py-0.5 rounded bg-teal-50 text-teal-900 border border-teal-300 ml-1.5 uppercase tracking-wide select-none">🔘 PG Biasa (1 Jawaban Benar)</span>`;
+          }
+        } else if (q.jenis === 'koding_game') {
+          typeBadge = `<span class="inline-flex items-center gap-1 text-[9.5px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-900 border border-indigo-200 ml-1.5 uppercase select-none">🎮 Koding</span>`;
+        } else if (q.jenis === 'essay') {
+          typeBadge = `<span class="inline-flex items-center gap-1 text-[9.5px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200 ml-1.5 uppercase select-none">📝 Uraian / Essay</span>`;
+        } else {
+          typeBadge = `<span class="inline-flex items-center gap-1 text-[9.5px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-900 border border-blue-200 ml-1.5 uppercase select-none">✏️ Isian Singkat</span>`;
+        }
+
+        const badgeClass = isPgKompleks
+          ? 'inline-flex items-center justify-center w-4 h-4 rounded border-[1.5px] border-black text-[10px] font-black bg-white flex-shrink-0'
+          : 'inline-flex items-center justify-center w-4 h-4 rounded-full border border-black/70 text-[10px] font-bold bg-slate-50 flex-shrink-0';
+
         qHtml += `
           <div class="mb-4 break-inside-avoid print-avoid-break text-xs page-break-inside-avoid border-b border-dashed border-slate-300 pb-3">
             <div class="flex items-start space-x-2 mb-1.5">
               <span class="w-6 font-bold text-slate-900 text-right flex-shrink-0">${no}.</span>
-              <div class="flex-1 font-medium text-slate-900 leading-relaxed text-justify" dir="auto">${escapeHtml(q.pertanyaan)}</div>
+              <div class="flex-1 font-medium text-slate-900 leading-relaxed text-justify" dir="auto">
+                ${escapeHtml(q.pertanyaan)}
+                ${typeBadge}
+              </div>
             </div>
             ${q.gambar_url ? `
               <div class="pl-8 py-1.5">
@@ -14753,29 +14846,39 @@
               </div>
             ` : ''}
             ${isPg ? `
-              <div class="pl-8 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 pt-1 text-slate-900">
-                <div class="flex items-start space-x-2">
-                  <span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-black/50 text-[10px] font-bold bg-slate-50 flex-shrink-0">A</span>
-                  <span class="leading-snug">${escapeHtml(q.opsi_a || '')}</span>
+              <div class="pl-8 space-y-1 pt-1 text-slate-900">
+                <div class="text-[9.5px] ${isPgKompleks ? 'font-bold text-purple-900' : 'font-medium text-teal-800'} mb-1 flex items-center space-x-1 select-none">
+                  <span>👉</span>
+                  <span>${isPgKompleks ? 'Petunjuk: Beri tanda centang [✓] pada kotak [ ] untuk SETIAP jawaban yang benar (bisa lebih dari satu).' : 'Petunjuk: Pilihlah SATU bulatan ( ) jawaban yang paling tepat.'}</span>
                 </div>
-                <div class="flex items-start space-x-2">
-                  <span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-black/50 text-[10px] font-bold bg-slate-50 flex-shrink-0">B</span>
-                  <span class="leading-snug">${escapeHtml(q.opsi_b || '')}</span>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+                  <div class="flex items-start space-x-2">
+                    <span class="${badgeClass}">A</span>
+                    <span class="leading-snug">${escapeHtml(q.opsi_a || '')}</span>
+                  </div>
+                  <div class="flex items-start space-x-2">
+                    <span class="${badgeClass}">B</span>
+                    <span class="leading-snug">${escapeHtml(q.opsi_b || '')}</span>
+                  </div>
+                  ${q.opsi_c ? `
+                  <div class="flex items-start space-x-2">
+                    <span class="${badgeClass}">C</span>
+                    <span class="leading-snug">${escapeHtml(q.opsi_c)}</span>
+                  </div>
+                  ` : ''}
+                  ${q.opsi_d ? `
+                  <div class="flex items-start space-x-2">
+                    <span class="${badgeClass}">D</span>
+                    <span class="leading-snug">${escapeHtml(q.opsi_d)}</span>
+                  </div>
+                  ` : ''}
+                  ${q.opsi_e ? `
+                  <div class="flex items-start space-x-2">
+                    <span class="${badgeClass}">E</span>
+                    <span class="leading-snug">${escapeHtml(q.opsi_e)}</span>
+                  </div>
+                  ` : ''}
                 </div>
-                <div class="flex items-start space-x-2">
-                  <span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-black/50 text-[10px] font-bold bg-slate-50 flex-shrink-0">C</span>
-                  <span class="leading-snug">${escapeHtml(q.opsi_c || '')}</span>
-                </div>
-                <div class="flex items-start space-x-2">
-                  <span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-black/50 text-[10px] font-bold bg-slate-50 flex-shrink-0">D</span>
-                  <span class="leading-snug">${escapeHtml(q.opsi_d || '')}</span>
-                </div>
-                ${q.opsi_e ? `
-                <div class="flex items-start space-x-2">
-                  <span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-black/50 text-[10px] font-bold bg-slate-50 flex-shrink-0">E</span>
-                  <span class="leading-snug">${escapeHtml(q.opsi_e)}</span>
-                </div>
-                ` : ''}
               </div>
             ` : `
               <div class="pl-8 pt-1 text-slate-500 italic text-[11px]">
