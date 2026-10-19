@@ -112,6 +112,26 @@ test('=== SUITE: PENGECEKAN KESESUAIAN TIPE SOAL & KUOTA TARGET AWAL ===', async
     assert.strictEqual(detail.komposisi_status.actual.total, 10);
   });
 
+  await t.test('5. examService.getUlanganByGuru mendeteksi status ulangan dengan kekurangan soal', () => {
+    // Buat ulangan baru dengan target 2 PG tapi belum ada butir soal di bank
+    const newExam = examService.createUlangan(guru.id, {
+      judul: 'Ulangan Kurang PG Test',
+      mata_pelajaran: 'Informatika',
+      tingkat_kelas: 'Kelas 7',
+      jumlah_soal_tampil: 2,
+      jumlah_soal_pg: 2
+    });
+
+    const list = examService.getUlanganByGuru(guru.id);
+    const found = list.find(x => x.id === newExam.id);
+    assert.ok(found, 'Ulangan baru harus ada di daftar guru');
+    assert.strictEqual(found.has_missing_soal, true);
+    assert.strictEqual(found.missing_quota_summary, '2 PG');
+
+    // Cleanup
+    try { examService.deleteUlangan(newExam.id, guru.id); } catch (e) {}
+  });
+
   // Cleanup ulangan test
   try {
     examService.deleteUlangan(ulangan.id, guru.id);

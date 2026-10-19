@@ -207,12 +207,40 @@ const examService = {
     const rows = db.prepare(`
       SELECT u.*, 
         (SELECT COUNT(*) FROM soal WHERE ulangan_id = u.id) as total_soal,
+        (SELECT COUNT(*) FROM soal WHERE ulangan_id = u.id AND jenis = 'pilihan_ganda' AND (kunci_pg NOT LIKE '%,%' AND LENGTH(TRIM(COALESCE(kunci_pg, ''))) <= 1)) as total_pg,
+        (SELECT COUNT(*) FROM soal WHERE ulangan_id = u.id AND jenis = 'pilihan_ganda' AND (kunci_pg LIKE '%,%' OR LENGTH(TRIM(COALESCE(kunci_pg, ''))) > 1)) as total_pg_kompleks,
+        (SELECT COUNT(*) FROM soal WHERE ulangan_id = u.id AND jenis = 'isian') as total_isian,
+        (SELECT COUNT(*) FROM soal WHERE ulangan_id = u.id AND jenis = 'essay') as total_essay,
+        (SELECT COUNT(*) FROM soal WHERE ulangan_id = u.id AND jenis = 'koding_game') as total_koding,
+        (SELECT COUNT(*) FROM soal WHERE ulangan_id = u.id AND CAST(COALESCE(is_listening, 0) AS INTEGER) = 1) as total_listening,
         (SELECT COALESCE(SUM(bobot), 0) FROM soal WHERE ulangan_id = u.id) as total_bobot,
         (SELECT COUNT(*) FROM peserta WHERE ulangan_id = u.id) as total_peserta
       FROM ulangan u
       WHERE ${isOwner ? 'u.guru_id IN (1, 3)' : 'u.guru_id = ?'}
       ORDER BY u.created_at DESC
     `).all(...(isOwner ? [] : [guruId]));
+
+    for (const u of rows) {
+      const missingList = [];
+      if (u.jumlah_soal_pg !== null && u.jumlah_soal_pg > 0 && (u.total_pg || 0) < u.jumlah_soal_pg) {
+        missingList.push(`${u.jumlah_soal_pg - (u.total_pg || 0)} PG`);
+      }
+      if (u.jumlah_soal_pg_kompleks !== null && u.jumlah_soal_pg_kompleks > 0 && (u.total_pg_kompleks || 0) < u.jumlah_soal_pg_kompleks) {
+        missingList.push(`${u.jumlah_soal_pg_kompleks - (u.total_pg_kompleks || 0)} PG-K`);
+      }
+      if (u.jumlah_soal_isian !== null && u.jumlah_soal_isian > 0 && (u.total_isian || 0) < u.jumlah_soal_isian) {
+        missingList.push(`${u.jumlah_soal_isian - (u.total_isian || 0)} Isian`);
+      }
+      if (u.jumlah_soal_essay !== null && u.jumlah_soal_essay > 0 && (u.total_essay || 0) < u.jumlah_soal_essay) {
+        missingList.push(`${u.jumlah_soal_essay - (u.total_essay || 0)} Essay`);
+      }
+      if (u.jumlah_soal_koding !== null && u.jumlah_soal_koding > 0 && (u.total_koding || 0) < u.jumlah_soal_koding) {
+        missingList.push(`${u.jumlah_soal_koding - (u.total_koding || 0)} Koding`);
+      }
+      u.has_missing_soal = missingList.length > 0;
+      u.missing_quota_summary = missingList.length > 0 ? missingList.join(', ') : null;
+    }
+
     return rows;
   },
 
