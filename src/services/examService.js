@@ -1500,6 +1500,32 @@ const examService = {
     return { success: true, message: `Sesi "${existing.nama_sesi}" berhasil dihapus` };
   },
 
+  deleteSesiBulk(sesiIds, guruId) {
+    if (!Array.isArray(sesiIds) || sesiIds.length === 0) {
+      return { success: true, count: 0, message: 'Tidak ada sesi yang dipilih' };
+    }
+
+    let deletedCount = 0;
+    db.transaction(() => {
+      for (const id of sesiIds) {
+        try {
+          const existing = this.getSesiById(id, guruId);
+          if (existing) {
+            db.prepare('UPDATE pengerjaan SET sesi_id = NULL WHERE sesi_id = ?').run(id);
+            db.prepare('DELETE FROM ulangan_sesi WHERE id = ?').run(id);
+            deletedCount++;
+          }
+        } catch (e) {}
+      }
+    })();
+
+    if (typeof db.syncCloud === 'function') {
+      try { db.syncCloud(true); } catch (e) {}
+    }
+
+    return { success: true, count: deletedCount, message: `${deletedCount} sesi berhasil dihapus` };
+  },
+
   autoGenerateSessions(ulanganId, guruId) {
     const ulangan = this.getUlanganById(ulanganId, guruId);
     if (!ulangan) {

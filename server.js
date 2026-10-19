@@ -597,6 +597,17 @@ app.delete('/api/guru/sesi/:sesiId', requireGuru, (req, res) => {
   }
 });
 
+// Bulk Hapus Sesi Ujian (Centang Banyak)
+app.post('/api/guru/sesi/bulk-delete', requireGuru, (req, res) => {
+  try {
+    const { sesiIds } = req.body || {};
+    const result = examService.deleteSesiBulk(sesiIds, req.guru.guruId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 // Lembar Cetak Soal Ujian Fisik / Offline (A4, Hemat Kertas & Acak Paket)
 app.get('/api/guru/ulangan/:id/soal-cetak', requireGuru, (req, res) => {
   try {

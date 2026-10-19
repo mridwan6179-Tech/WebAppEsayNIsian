@@ -1204,22 +1204,47 @@
                     Fitur opsional untuk membagi satu ulangan menjadi beberapa jadwal/sesi dengan token berbeda untuk masing-masing kelas. Rekapitulasi nilai akhir tetap bersatu dan dapat difilter per sesi.
                   </p>
                 </div>
-                <div class="flex items-center space-x-2">
+                <div class="flex items-center space-x-2 flex-wrap gap-y-1.5">
                   <button type="button" onclick="autoGenerateExamSessions()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5 cursor-pointer" title="Buat 1 sesi terpisah otomatis untuk tiap kelas terdaftar">
                     <span>⚡ Buat Sesi Otomatis per Kelas</span>
                   </button>
                   <button type="button" onclick="openCreateSesiModal()" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5 cursor-pointer">
                     <span>➕ Buat Sesi Manual</span>
                   </button>
+                  <button type="button" onclick="deleteAllSesiForExam()" class="px-3 py-2 bg-white hover:bg-rose-50 text-rose-700 hover:text-rose-900 border border-rose-300 font-bold text-xs rounded-xl shadow-2xs transition flex items-center space-x-1.5 cursor-pointer" title="Hapus semua sesi pada ulangan ini sekaligus">
+                    <span>🗑️ Hapus Semua Sesi</span>
+                  </button>
                 </div>
+              </div>
+            </div>
+
+            <!-- Bar Aksi Massal Sesi (Muncul Saat Ada Centang) -->
+            <div id="sesi-bulk-bar" class="hidden p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between flex-wrap gap-2 text-xs transition shadow-2xs">
+              <div class="flex items-center space-x-2">
+                <span class="text-base">☑️</span>
+                <span class="font-bold text-rose-950">
+                  Terpilih <span id="sesi-selected-count" class="font-black text-rose-700 px-1.5 py-0.5 bg-rose-200/80 rounded-md">0</span> sesi ujian
+                </span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <button type="button" onclick="selectAllSesiCheckboxes(false)" class="px-2.5 py-1 text-slate-600 hover:text-slate-900 font-semibold text-xs cursor-pointer hover:underline">
+                  Batal Pilih
+                </button>
+                <button type="button" onclick="deleteSelectedSesi()" class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg shadow-sm transition flex items-center space-x-1.5 cursor-pointer">
+                  <span>🗑️</span>
+                  <span>Hapus Sesi yang Dicentang</span>
+                </button>
               </div>
             </div>
 
             <!-- Tabel Daftar Sesi -->
             <div class="overflow-x-auto border border-slate-200 rounded-xl shadow-2xs">
-              <table class="w-full text-left text-xs min-w-[700px]">
+              <table class="w-full text-left text-xs min-w-[720px]">
                 <thead class="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                   <tr>
+                    <th class="py-2.5 px-3 text-center w-10">
+                      <input type="checkbox" id="chk-all-sesi" onchange="toggleSelectAllSesi(this.checked)" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer" title="Tandai / Hapus semua centang sesi">
+                    </th>
                     <th class="py-2.5 px-3 text-center w-12">No</th>
                     <th class="py-2.5 px-3">Nama Sesi</th>
                     <th class="py-2.5 px-3 text-center w-36">Token Sesi</th>
@@ -1231,7 +1256,7 @@
                 </thead>
                 <tbody id="sesi-table-body" class="divide-y divide-slate-100 text-slate-700">
                   <tr>
-                    <td colspan="7" class="py-6 text-center text-slate-400">Memuat daftar sesi...</td>
+                    <td colspan="8" class="py-6 text-center text-slate-400">Memuat daftar sesi...</td>
                   </tr>
                 </tbody>
               </table>
@@ -9736,7 +9761,7 @@
         if (currentExamSessions.length === 0) {
           tbody.innerHTML = `
             <tr>
-              <td colspan="7" class="py-10 text-center text-slate-400 space-y-2">
+              <td colspan="8" class="py-10 text-center text-slate-400 space-y-2">
                 <span class="text-3xl block">📅</span>
                 <p class="font-medium text-slate-600">Belum ada sesi tambahan untuk ulangan ini.</p>
                 <p class="text-[11px] text-slate-400 max-w-md mx-auto">
@@ -9745,6 +9770,7 @@
               </td>
             </tr>
           `;
+          updateSesiSelectedCount();
           return;
         }
 
@@ -9756,6 +9782,9 @@
 
           return `
             <tr class="hover:bg-slate-50/80 transition duration-75">
+              <td class="py-2.5 px-3 text-center">
+                <input type="checkbox" class="chk-sesi-item w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer" value="${s.id}" onchange="updateSesiSelectedCount()">
+              </td>
               <td class="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">${idx + 1}</td>
               <td class="py-2.5 px-3">
                 <span class="font-bold text-slate-900 block text-xs">${escapeHtml(s.nama_sesi)}</span>
@@ -9792,8 +9821,9 @@
             </tr>
           `;
         }).join('');
+        updateSesiSelectedCount();
       } catch (e) {
-        if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-red-500">Gagal memuat daftar sesi.</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="py-6 text-center text-red-500">Gagal memuat daftar sesi.</td></tr>';
       }
     }
 
@@ -10097,6 +10127,112 @@
       } catch (e) {
         hideGlobalProgress();
         alert('Gagal menghubungi server: ' + e.message);
+      }
+    };
+
+    window.toggleSelectAllSesi = function(checked) {
+      document.querySelectorAll('.chk-sesi-item').forEach(cb => {
+        cb.checked = checked;
+      });
+      updateSesiSelectedCount();
+    };
+
+    window.selectAllSesiCheckboxes = function(select) {
+      const chkAll = document.getElementById('chk-all-sesi');
+      if (chkAll) chkAll.checked = select;
+      document.querySelectorAll('.chk-sesi-item').forEach(cb => {
+        cb.checked = select;
+      });
+      updateSesiSelectedCount();
+    };
+
+    window.updateSesiSelectedCount = function() {
+      const checkedBoxes = Array.from(document.querySelectorAll('.chk-sesi-item:checked'));
+      const totalBoxes = document.querySelectorAll('.chk-sesi-item');
+      const count = checkedBoxes.length;
+
+      const bulkBar = document.getElementById('sesi-bulk-bar');
+      const selectedCountEl = document.getElementById('sesi-selected-count');
+      const chkAll = document.getElementById('chk-all-sesi');
+
+      if (selectedCountEl) selectedCountEl.textContent = count;
+      if (bulkBar) {
+        if (count > 0) {
+          bulkBar.classList.remove('hidden');
+        } else {
+          bulkBar.classList.add('hidden');
+        }
+      }
+
+      if (chkAll) {
+        chkAll.checked = (totalBoxes.length > 0 && count === totalBoxes.length);
+        chkAll.indeterminate = (count > 0 && count < totalBoxes.length);
+      }
+    };
+
+    window.deleteSelectedSesi = async function() {
+      const checkedBoxes = Array.from(document.querySelectorAll('.chk-sesi-item:checked'));
+      if (checkedBoxes.length === 0) {
+        alert('Pilih minimal 1 sesi yang ingin dihapus dengan mencentang kotak pilihan.');
+        return;
+      }
+
+      const ids = checkedBoxes.map(cb => parseInt(cb.value, 10)).filter(Boolean);
+      const konfirmasi = confirm(`Apakah Anda yakin ingin menghapus ${ids.length} sesi ujian yang dipilih?\n\nRiwayat pengerjaan siswa yang sudah selesai tetap tersimpan, namun tautan sesi akan dilepas.`);
+      if (!konfirmasi) return;
+
+      showGlobalProgress('Menghapus Sesi...', `Menghapus ${ids.length} sesi ujian terpilih...`);
+      try {
+        const res = await guruFetch('/api/guru/sesi/bulk-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sesiIds: ids })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Gagal menghapus sesi');
+
+        updateGlobalProgress(100, 'Sesi berhasil dihapus!');
+        setTimeout(() => {
+          hideGlobalProgress(() => {
+            loadSesiList(activeUlanganId);
+            alert(`Berhasil menghapus ${data.count || ids.length} sesi ujian.`);
+          });
+        }, 300);
+      } catch (err) {
+        hideGlobalProgress();
+        alert('Gagal menghapus sesi: ' + err.message);
+      }
+    };
+
+    window.deleteAllSesiForExam = async function() {
+      if (!currentExamSessions || currentExamSessions.length === 0) {
+        alert('Belum ada sesi yang terdaftar pada ulangan ini.');
+        return;
+      }
+      const konfirmasi = confirm(`Apakah Anda yakin ingin menghapus SEMUA (${currentExamSessions.length}) sesi ujian pada ulangan ini?`);
+      if (!konfirmasi) return;
+
+      const ids = currentExamSessions.map(s => s.id);
+      showGlobalProgress('Menghapus Seluruh Sesi...', `Menghapus ${ids.length} sesi ujian...`);
+      try {
+        const res = await guruFetch('/api/guru/sesi/bulk-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sesiIds: ids })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Gagal menghapus sesi');
+
+        updateGlobalProgress(100, 'Seluruh sesi berhasil dihapus!');
+        setTimeout(() => {
+          hideGlobalProgress(() => {
+            loadSesiList(activeUlanganId);
+            alert(`Berhasil menghapus seluruh (${data.count || ids.length}) sesi ujian.`);
+          });
+        }, 300);
+      } catch (err) {
+        hideGlobalProgress();
+        alert('Gagal menghapus sesi: ' + err.message);
       }
     };
 
