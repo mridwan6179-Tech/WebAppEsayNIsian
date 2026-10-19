@@ -346,4 +346,48 @@ test('=== SUITE: REMEDIAL LANGSUNG MANDIRI SISWA ===', async (t) => {
     assert.strictEqual(body.soal.length, 1);
     assert.strictEqual(body.soal[0].id, s1.id);
   });
+
+  await t.test('6. Siswa yang terlanjur selesai (status = submitted) mendapat canDirectRemedial = true meskipun belum dirilis', async () => {
+    // Buat ulangan dengan remedial_langsung = 1
+    const exam = examService.createUlangan(guruId, {
+      judul: 'Ulangan Remedial Langsung Unreleased Test',
+      mata_pelajaran: 'Biologi',
+      tingkat_kelas: '7',
+      kkm: 75,
+      remedial_langsung: 1
+    });
+
+    const s1 = examService.createSoal(exam.id, {
+      nomor: 1,
+      jenis: 'pilihan_ganda',
+      pertanyaan: 'Bagian terkecil dari makhluk hidup?',
+      opsi_a: 'Sel',
+      opsi_b: 'Jaringan',
+      kunci_pg: 'A',
+      bobot: 10
+    });
+
+    db.prepare("UPDATE ulangan SET status = 'dibuka' WHERE id = ?").run(exam.id);
+
+    const start = studentService.startExam(exam.kode_ujian, 'Rina Terlanjur Selesai', '7B');
+    // Siswa jawab salah (B alih-alih A)
+    studentService.submitExam(start.pengerjaanId, [{ soal_id: s1.id, jawaban_siswa: 'B' }]);
+
+    // CATATAN: Guru BELUM merilis nilai (released_at masih NULL!)
+    const pengerjaanDb = db.prepare('SELECT released_at, status FROM pengerjaan WHERE id = ?').get(start.pengerjaanId);
+    assert.strictEqual(pengerjaanDb.status, 'submitted');
+    assert.strictEqual(pengerjaanDb.released_at, null, 'Nilai belum dirilis resmi');
+
+    // Cek status siswa
+    const statusRes = studentService.getPengerjaanStatus(start.pengerjaanId);
+    assert.strictEqual(statusRes.isReleased, false, 'isReleased harus false');
+    assert.strictEqual(statusRes.remedial_langsung, 1, 'remedial_langsung aktif');
+    assert.strictEqual(statusRes.canDirectRemedial, true, 'canDirectRemedial HARUS bernilai true');
+
+    // Siswa bisa langsung memulai sesi remedial
+    const remedialRes = studentService.startDirectRemedial(start.pengerjaanId);
+    assert.strictEqual(remedialRes.success, true);
+    assert.strictEqual(remedialRes.isRemedial, true);
+    assert.strictEqual(remedialRes.soal.length, 1);
+  });
 });

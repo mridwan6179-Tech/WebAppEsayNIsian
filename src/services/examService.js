@@ -765,6 +765,10 @@ const examService = {
       classService.assignKelasToUlangan(id, kelas_ids);
     }
 
+    if (typeof db.syncCloud === 'function') {
+      try { db.syncCloud(true); } catch (e) {}
+    }
+
     return this.getUlanganById(id, guruId);
   },
 
@@ -774,6 +778,9 @@ const examService = {
       throw new Error('Status tidak valid');
     }
     db.prepare('UPDATE ulangan SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, id);
+    if (typeof db.syncCloud === 'function') {
+      try { db.syncCloud(true); } catch (e) {}
+    }
     return db.prepare('SELECT * FROM ulangan WHERE id = ?').get(id);
   },
 
@@ -784,6 +791,9 @@ const examService = {
       throw new Error('Ulangan tidak ditemukan atau bukan milik guru ini');
     }
     db.prepare('DELETE FROM ulangan WHERE id = ? AND guru_id = ?').run(id, guruId);
+    if (typeof db.syncCloud === 'function') {
+      try { db.syncCloud(true); } catch (e) {}
+    }
     return true;
   },
 

@@ -176,7 +176,7 @@ db.syncCloud = function(force = false) {
   const now = Date.now();
   // Throttle sinkronisasi: minimal jeda 60 detik jika normal, 20 detik jika force
   // Ini menghemat kuota bandwidth hingga 90%+
-  const minInterval = force ? 20000 : 60000;
+  const minInterval = force ? 1000 : 60000;
   if (now - lastSyncTime < minInterval) return;
 
   lastSyncTime = now;

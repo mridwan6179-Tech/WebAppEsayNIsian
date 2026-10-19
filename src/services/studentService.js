@@ -1590,11 +1590,25 @@ const studentService = {
       }
     }
 
+    // Jika pengerjaan sudah submitted dan nilai_final/nilai_ai masih null, coba hitung nilai jika ada jawaban
+    if (pengerjaan.status === 'submitted' && pengerjaan.nilai_final === null && pengerjaan.nilai_ai === null) {
+      try {
+        const reviewService = require('./reviewService');
+        reviewService.recalculatePengerjaanTotal(pengerjaan.id);
+        pengerjaan = db.prepare(query).get(cleanId) || pengerjaan;
+      } catch (eRecalc) {}
+    }
+
     const isReleased = Boolean(pengerjaan.released_at);
     const examKkm = pengerjaan.kkm || 75;
     const finalScore = isReleased ? (pengerjaan.nilai_final !== null ? pengerjaan.nilai_final : pengerjaan.nilai_ai) : null;
-    const isRemedial = Boolean(isReleased && finalScore !== null && finalScore < examKkm);
     const isRemedialLangsungActive = Boolean(Number(pengerjaan.remedial_langsung || 0) === 1);
+
+    // Hitung status nilai saat ini untuk evaluasi hak remedial langsung
+    const currentScore = pengerjaan.nilai_final !== null ? Number(pengerjaan.nilai_final) : (pengerjaan.nilai_ai !== null ? Number(pengerjaan.nilai_ai) : null);
+    const isUnderKkm = (currentScore !== null) ? (currentScore < examKkm) : true;
+    const isRemedial = Boolean((isReleased && finalScore !== null && finalScore < examKkm) || (isRemedialLangsungActive && pengerjaan.status === 'submitted' && isUnderKkm));
+    const canDirectRemedial = Boolean(isRemedialLangsungActive && pengerjaan.status === 'submitted' && isUnderKkm);
 
     // Normalisasi nomor WA untuk link wa.me
     let cleanWa = (pengerjaan.no_wa_guru || '').replace(/\D/g, '');
@@ -1704,7 +1718,8 @@ const studentService = {
       nilai_terbaik: bestScore,
       isRemedial,
       remedial_langsung: isRemedialLangsungActive ? 1 : 0,
-      canDirectRemedial: Boolean(isRemedial && isRemedialLangsungActive),
+      canDirectRemedial,
+      currentScore: currentScore,
       instruksi_remedial: pengerjaan.instruksi_remedial || null,
       link_remedial: pengerjaan.link_remedial || null,
       guru: {

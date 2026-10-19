@@ -890,6 +890,65 @@
         </div>
       </div>
 
+      <!-- Kartu Arahan Remedial & Kontak Guru (WhatsApp & Email) -->
+      <div id="remedial-action-card" class="hidden p-5 rounded-2xl border bg-rose-50 border-rose-200 text-slate-800 shadow-sm space-y-3">
+        <div class="flex items-start space-x-3">
+          <span class="text-2xl">📢</span>
+          <div class="flex-1">
+            <h4 class="text-sm font-black text-rose-900">Perhatian: Anda Berhak Mengikuti Ujian Remedial</h4>
+            <p class="text-xs text-rose-700 mt-0.5">
+              Nilai Anda belum mencapai KKM (<span id="remedial-kkm-text">75</span>). Silakan segera menghubungi guru pengampu untuk mendapatkan arahan materi remedial dan <strong>token/kode ujian baru</strong>.
+            </p>
+
+            <!-- Instruksi Langsung dari Guru -->
+            <div id="remedial-custom-instructions-box" class="hidden mt-3 p-3 bg-white/90 border border-rose-200 rounded-xl space-y-1">
+              <span class="text-[11px] font-bold text-rose-900 block flex items-center space-x-1">
+                <span>📌</span>
+                <span>Instruksi Khusus dari Guru Pengampu:</span>
+              </span>
+              <p id="remedial-custom-instructions-text" class="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap font-medium" dir="auto"></p>
+            </div>
+
+            <!-- Tombol Tautan Tugas Remedial Eksternal -->
+            <div id="remedial-custom-link-box" class="hidden mt-2.5">
+              <a id="remedial-custom-link-btn" href="#" target="_blank" class="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow transition">
+                <span>🔗</span>
+                <span>Buka Tautan Tugas Remedial</span>
+              </a>
+            </div>
+
+            <!-- Tombol & Info Remedial Langsung Mandiri -->
+            <div id="remedial-direct-box" class="hidden mt-3 p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-xl space-y-2">
+              <div class="flex items-center space-x-2 text-amber-900 font-extrabold text-xs">
+                <span class="text-base">🚀</span>
+                <span>Remedial Mandiri Langsung Tersedia!</span>
+              </div>
+              <p class="text-[11px] text-amber-800 leading-relaxed font-medium">
+                Guru telah mengaktifkan kesempatan remedial langsung. Anda dapat langsung memperbaiki butir-butir soal yang belum sempurna sekarang juga tanpa perlu meminta token ujian baru.
+              </p>
+              <button id="btn-start-direct-remedial" type="button" class="w-full sm:w-auto px-4 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-2 cursor-pointer">
+                <span>🔄 Mulai Remedial Langsung Sekarang</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="pt-2 border-t border-rose-200 flex flex-wrap items-center justify-between gap-2.5">
+          <div class="text-xs">
+            <span class="text-slate-500 block text-[11px]">Guru Pengampu:</span>
+            <strong id="remedial-guru-nama" class="text-slate-800 text-xs">Nama Guru</strong>
+            <span id="remedial-guru-wa-text" class="text-slate-500 text-[11px] block">WA: -</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <a id="btn-remedial-wa" href="#" target="_blank" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center space-x-1.5 shadow-sm shadow-emerald-500/20">
+              <span>💬 Hubungi via WhatsApp</span>
+            </a>
+            <a id="btn-remedial-email" href="#" class="px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-semibold rounded-xl text-xs transition flex items-center space-x-1">
+              <span>✉️ Email</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
       <!-- Rincian Nilai Jika Sudah Dirilis -->
       <div id="released-details" class="hidden space-y-6 mt-6 border-t border-slate-200 pt-6">
         <div class="flex items-center justify-between">
@@ -911,65 +970,6 @@
             </div>
             <div id="card-kkm-status-badge" class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-sm text-center">
               -
-            </div>
-          </div>
-        </div>
-
-        <!-- Kartu Arahan Remedial & Kontak Guru (WhatsApp & Email) -->
-        <div id="remedial-action-card" class="hidden p-5 rounded-2xl border bg-rose-50 border-rose-200 text-slate-800 shadow-sm space-y-3">
-          <div class="flex items-start space-x-3">
-            <span class="text-2xl">📢</span>
-            <div class="flex-1">
-              <h4 class="text-sm font-black text-rose-900">Perhatian: Anda Berhak Mengikuti Ujian Remedial</h4>
-              <p class="text-xs text-rose-700 mt-0.5">
-                Nilai Anda belum mencapai KKM (<span id="remedial-kkm-text">75</span>). Silakan segera menghubungi guru pengampu untuk mendapatkan arahan materi remedial dan <strong>token/kode ujian baru</strong>.
-              </p>
-
-              <!-- Instruksi Langsung dari Guru -->
-              <div id="remedial-custom-instructions-box" class="hidden mt-3 p-3 bg-white/90 border border-rose-200 rounded-xl space-y-1">
-                <span class="text-[11px] font-bold text-rose-900 block flex items-center space-x-1">
-                  <span>📌</span>
-                  <span>Instruksi Khusus dari Guru Pengampu:</span>
-                </span>
-                <p id="remedial-custom-instructions-text" class="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap font-medium" dir="auto"></p>
-              </div>
-
-              <!-- Tombol Tautan Tugas Remedial Eksternal -->
-              <div id="remedial-custom-link-box" class="hidden mt-2.5">
-                <a id="remedial-custom-link-btn" href="#" target="_blank" class="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow transition">
-                  <span>🔗</span>
-                  <span>Buka Tautan Tugas Remedial</span>
-                </a>
-              </div>
-
-              <!-- Tombol & Info Remedial Langsung Mandiri -->
-              <div id="remedial-direct-box" class="hidden mt-3 p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-xl space-y-2">
-                <div class="flex items-center space-x-2 text-amber-900 font-extrabold text-xs">
-                  <span class="text-base">🚀</span>
-                  <span>Remedial Mandiri Langsung Tersedia!</span>
-                </div>
-                <p class="text-[11px] text-amber-800 leading-relaxed font-medium">
-                  Guru telah mengaktifkan kesempatan remedial langsung. Anda dapat langsung memperbaiki butir-butir soal yang belum sempurna sekarang juga tanpa perlu meminta token ujian baru.
-                </p>
-                <button id="btn-start-direct-remedial" type="button" class="w-full sm:w-auto px-4 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-2 cursor-pointer">
-                  <span>🔄 Mulai Remedial Langsung Sekarang</span>
-                </button>
-              </div>
-            </div>
-          </div>
-          <div class="pt-2 border-t border-rose-200 flex flex-wrap items-center justify-between gap-2.5">
-            <div class="text-xs">
-              <span class="text-slate-500 block text-[11px]">Guru Pengampu:</span>
-              <strong id="remedial-guru-nama" class="text-slate-800 text-xs">Nama Guru</strong>
-              <span id="remedial-guru-wa-text" class="text-slate-500 text-[11px] block">WA: -</span>
-            </div>
-            <div class="flex items-center space-x-2">
-              <a id="btn-remedial-wa" href="#" target="_blank" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center space-x-1.5 shadow-sm shadow-emerald-500/20">
-                <span>💬 Hubungi via WhatsApp</span>
-              </a>
-              <a id="btn-remedial-email" href="#" class="px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-semibold rounded-xl text-xs transition flex items-center space-x-1">
-                <span>✉️ Email</span>
-              </a>
             </div>
           </div>
         </div>
@@ -2017,7 +2017,13 @@
         window._currentStudentClass = kelas;
 
         if (data.alreadySubmitted) {
-          showResultStep(data);
+          currentPengerjaanId = data.pengerjaanId || currentPengerjaanId;
+          if (currentPengerjaanId) {
+            try { localStorage.setItem('ulangan_pengerjaan_id', currentPengerjaanId); } catch (e) {}
+            checkResultStatus(currentPengerjaanId);
+          } else {
+            showResultStep(data);
+          }
         } else {
           showExamStep(data);
         }
@@ -2088,7 +2094,7 @@
           localStorage.setItem('ulangan_pengerjaan_id', currentPengerjaanId);
 
           if (data.alreadySubmitted) {
-            showResultStep(data);
+            checkResultStatus(currentPengerjaanId);
           } else {
             showExamStep(data);
           }
@@ -5965,89 +5971,6 @@
           }
         }
 
-        // Penanganan Kartu Remedial & Kontak Guru (WhatsApp, Email, Instruksi Langsung & Tautan Tugas)
-        const remedialCard = document.getElementById('remedial-action-card');
-        if (remedialCard) {
-          if (isRemedial) {
-            remedialCard.classList.remove('hidden');
-            const kkmText = document.getElementById('remedial-kkm-text');
-            if (kkmText) kkmText.textContent = kkm;
-
-            // Tampilkan Instruksi Langsung Guru jika ada
-            const customInstruksiBox = document.getElementById('remedial-custom-instructions-box');
-            const customInstruksiText = document.getElementById('remedial-custom-instructions-text');
-            if (data.instruksi_remedial && data.instruksi_remedial.trim()) {
-              customInstruksiText.textContent = data.instruksi_remedial.trim();
-              customInstruksiBox.classList.remove('hidden');
-            } else {
-              customInstruksiBox.classList.add('hidden');
-            }
-
-            // Tampilkan Tombol & Info Remedial Mandiri Langsung jika diaktifkan guru
-            const directRemedialBox = document.getElementById('remedial-direct-box');
-            if (directRemedialBox) {
-              if (data.canDirectRemedial) {
-                directRemedialBox.classList.remove('hidden');
-              } else {
-                directRemedialBox.classList.add('hidden');
-              }
-            }
-
-            // Tampilkan Tombol Tautan Tugas Eksternal jika ada
-            const customLinkBox = document.getElementById('remedial-custom-link-box');
-            const customLinkBtn = document.getElementById('remedial-custom-link-btn');
-            if (data.link_remedial && data.link_remedial.trim()) {
-              customLinkBtn.href = data.link_remedial.trim();
-              customLinkBox.classList.remove('hidden');
-            } else {
-              customLinkBox.classList.add('hidden');
-            }
-
-            const guruNamaText = document.getElementById('remedial-guru-nama');
-            if (guruNamaText) guruNamaText.textContent = data.guru?.nama || 'Guru Pengampu';
-
-            const guruWaText = document.getElementById('remedial-guru-wa-text');
-            if (guruWaText) {
-              guruWaText.textContent = data.guru?.no_wa ? `WA: ${data.guru.no_wa}` : 'WA: (Belum diatur)';
-            }
-
-            const btnWa = document.getElementById('btn-remedial-wa');
-            if (btnWa) {
-              if (data.guru?.wa_link) {
-                btnWa.href = data.guru.wa_link;
-                btnWa.onclick = null;
-                btnWa.classList.remove('opacity-50', 'pointer-events-none');
-              } else {
-                btnWa.href = '#';
-                btnWa.onclick = (e) => {
-                  e.preventDefault();
-                  alert('Nomor WhatsApp guru pengampu belum diatur dalam sistem.');
-                };
-              }
-            }
-
-            const btnEmail = document.getElementById('btn-remedial-email');
-            if (btnEmail) {
-              if (data.guru?.email) {
-                const subject = encodeURIComponent(`Permohonan Soal & Token Remedial - ${data.nama || 'Siswa'} (${data.kelas || ''})`);
-                const body = encodeURIComponent(`Halo Bapak/Ibu ${data.guru?.nama || 'Guru'},\n\nSaya ${data.nama || 'Siswa'} dari kelas ${data.kelas || '-'} ingin meminta arahan remedial dan token ujian baru untuk ulangan "${data.judul || ''}".\n\nTerima kasih.`);
-                btnEmail.href = `mailto:${data.guru.email}?subject=${subject}&body=${body}`;
-                btnEmail.onclick = null;
-              } else {
-                btnEmail.href = '#';
-                btnEmail.onclick = (e) => {
-                  e.preventDefault();
-                  alert('Email guru pengampu belum diatur dalam sistem.');
-                };
-              }
-            }
-          } else {
-            remedialCard.classList.add('hidden');
-            const directRemedialBox = document.getElementById('remedial-direct-box');
-            if (directRemedialBox) directRemedialBox.classList.add('hidden');
-          }
-        }
-
         // Update Tabel Pengumuman Nilai Se-Kelas
         const tableBody = document.getElementById('released-class-table-body');
         const badgePeserta = document.getElementById('badge-total-peserta-rilis');
@@ -6091,7 +6014,27 @@
           }
         }
       } else {
-        if (data.skorLangsungAi) {
+        const curScoreVal = (data.nilaiFinal !== null && data.nilaiFinal !== undefined)
+          ? Number(data.nilaiFinal)
+          : ((data.currentScore !== null && data.currentScore !== undefined) ? Number(data.currentScore) : null);
+        const examKkmVal = Number(data.kkm || 75);
+        const isUnderKkmVal = curScoreVal !== null ? (curScoreVal < examKkmVal) : true;
+        const isDirectRemedialEligible = Boolean(data.canDirectRemedial || (Boolean(Number(data.remedial_langsung || 0) === 1) && isUnderKkmVal));
+
+        if (isDirectRemedialEligible) {
+          statusBox.innerHTML = `
+            <div class="space-y-2 text-center bg-amber-50/90 border border-amber-300 rounded-xl p-4">
+              <div class="flex items-center justify-center gap-1.5 flex-wrap">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full bg-amber-600 text-white shadow-2xs">
+                  <span>🚀 Kesempatan Remedial Langsung Aktif</span>
+                </span>
+              </div>
+              <p class="text-xs text-amber-900 font-medium leading-relaxed">
+                Ujian telah dikumpulkan. Nilai Anda belum mencapai KKM (${examKkmVal}). Guru telah membuka kesempatan untuk <strong>memperbaiki butir-butir soal yang belum sempurna</strong> secara mandiri.
+              </p>
+            </div>
+          `;
+        } else if (data.skorLangsungAi) {
           const totalSoal = data.antreanInfo?.totalSoal || (data.jawaban || []).length || 1;
           const selesaiSoal = data.antreanInfo?.selesaiSoal || 0;
           const posisiAntrean = data.antreanInfo?.posisiAntrean || 1;
@@ -6131,8 +6074,100 @@
           `;
         }
         releasedDetails.classList.add('hidden');
-        const remedialCard = document.getElementById('remedial-action-card');
-        if (remedialCard) remedialCard.classList.add('hidden');
+      }
+
+      // Penanganan Kartu Remedial & Kontak Guru (WhatsApp, Email, Instruksi Langsung & Tautan Tugas)
+      const examKkm = Number(data.kkm || 75);
+      const curScore = (data.nilaiFinal !== null && data.nilaiFinal !== undefined)
+        ? Number(data.nilaiFinal)
+        : ((data.currentScore !== null && data.currentScore !== undefined) ? Number(data.currentScore) : null);
+      const isUnderKkm = curScore !== null ? (curScore < examKkm) : true;
+      const shouldShowRemedial = Boolean(
+        data.canDirectRemedial ||
+        (data.isReleased && (data.isRemedial || (data.nilaiFinal !== null && data.nilaiFinal < examKkm))) ||
+        (Boolean(Number(data.remedial_langsung || 0) === 1) && isUnderKkm)
+      );
+
+      const remedialCard = document.getElementById('remedial-action-card');
+      if (remedialCard) {
+        if (shouldShowRemedial) {
+          remedialCard.classList.remove('hidden');
+          const kkmText = document.getElementById('remedial-kkm-text');
+          if (kkmText) kkmText.textContent = examKkm;
+
+          // Tampilkan Instruksi Langsung Guru jika ada
+          const customInstruksiBox = document.getElementById('remedial-custom-instructions-box');
+          const customInstruksiText = document.getElementById('remedial-custom-instructions-text');
+          if (data.instruksi_remedial && data.instruksi_remedial.trim()) {
+            customInstruksiText.textContent = data.instruksi_remedial.trim();
+            customInstruksiBox.classList.remove('hidden');
+          } else {
+            customInstruksiBox.classList.add('hidden');
+          }
+
+          // Tampilkan Tombol & Info Remedial Mandiri Langsung jika diaktifkan guru
+          const directRemedialBox = document.getElementById('remedial-direct-box');
+          if (directRemedialBox) {
+            if (data.canDirectRemedial || Boolean(Number(data.remedial_langsung || 0) === 1)) {
+              directRemedialBox.classList.remove('hidden');
+            } else {
+              directRemedialBox.classList.add('hidden');
+            }
+          }
+
+          // Tampilkan Tombol Tautan Tugas Eksternal jika ada
+          const customLinkBox = document.getElementById('remedial-custom-link-box');
+          const customLinkBtn = document.getElementById('remedial-custom-link-btn');
+          if (data.link_remedial && data.link_remedial.trim()) {
+            customLinkBtn.href = data.link_remedial.trim();
+            customLinkBox.classList.remove('hidden');
+          } else {
+            customLinkBox.classList.add('hidden');
+          }
+
+          const guruNamaText = document.getElementById('remedial-guru-nama');
+          if (guruNamaText) guruNamaText.textContent = data.guru?.nama || 'Guru Pengampu';
+
+          const guruWaText = document.getElementById('remedial-guru-wa-text');
+          if (guruWaText) {
+            guruWaText.textContent = data.guru?.no_wa ? `WA: ${data.guru.no_wa}` : 'WA: (Belum diatur)';
+          }
+
+          const btnWa = document.getElementById('btn-remedial-wa');
+          if (btnWa) {
+            if (data.guru?.wa_link) {
+              btnWa.href = data.guru.wa_link;
+              btnWa.onclick = null;
+              btnWa.classList.remove('opacity-50', 'pointer-events-none');
+            } else {
+              btnWa.href = '#';
+              btnWa.onclick = (e) => {
+                e.preventDefault();
+                alert('Nomor WhatsApp guru pengampu belum diatur dalam sistem.');
+              };
+            }
+          }
+
+          const btnEmail = document.getElementById('btn-remedial-email');
+          if (btnEmail) {
+            if (data.guru?.email) {
+              const subject = encodeURIComponent(`Permohonan Soal & Token Remedial - ${data.nama || 'Siswa'} (${data.kelas || ''})`);
+              const body = encodeURIComponent(`Halo Bapak/Ibu ${data.guru?.nama || 'Guru'},\n\nSaya ${data.nama || 'Siswa'} dari kelas ${data.kelas || '-'} ingin meminta arahan remedial dan token ujian baru untuk ulangan "${data.judul || ''}".\n\nTerima kasih.`);
+              btnEmail.href = `mailto:${data.guru.email}?subject=${subject}&body=${body}`;
+              btnEmail.onclick = null;
+            } else {
+              btnEmail.href = '#';
+              btnEmail.onclick = (e) => {
+                e.preventDefault();
+                alert('Email guru pengampu belum diatur dalam sistem.');
+              };
+            }
+          }
+        } else {
+          remedialCard.classList.add('hidden');
+          const directRemedialBox = document.getElementById('remedial-direct-box');
+          if (directRemedialBox) directRemedialBox.classList.add('hidden');
+        }
       }
 
       // Selalu perbarui riwayat ulangan siswa
@@ -6246,7 +6281,13 @@
 
         if (data.alreadySubmitted) {
           showAlert(data.message || 'Batas pengerjaan telah tercapai.');
-          showResultStep(data);
+          currentPengerjaanId = data.pengerjaanId || currentPengerjaanId;
+          if (currentPengerjaanId) {
+            try { localStorage.setItem('ulangan_pengerjaan_id', currentPengerjaanId); } catch (e) {}
+            checkResultStatus(currentPengerjaanId);
+          } else {
+            showResultStep(data);
+          }
           return;
         }
 
