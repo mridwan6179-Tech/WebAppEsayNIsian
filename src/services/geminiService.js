@@ -279,18 +279,44 @@ const geminiService = {
           try {
             parsed = JSON.parse(textResponse);
           } catch (jsonErr) {
-            const cleaned = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-            parsed = JSON.parse(cleaned);
+            const match = textResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+            const candidateStr = (match && match[1]) ? match[1].trim() : textResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
+            try {
+              parsed = JSON.parse(candidateStr);
+            } catch (jsonErr2) {
+              const firstBrace = candidateStr.indexOf('{');
+              const lastBrace = candidateStr.lastIndexOf('}');
+              const firstBracket = candidateStr.indexOf('[');
+              const lastBracket = candidateStr.lastIndexOf(']');
+
+              if (firstBrace !== -1 && lastBrace > firstBrace && (firstBracket === -1 || firstBrace < firstBracket)) {
+                parsed = JSON.parse(candidateStr.slice(firstBrace, lastBrace + 1));
+              } else if (firstBracket !== -1 && lastBracket > firstBracket) {
+                parsed = JSON.parse(candidateStr.slice(firstBracket, lastBracket + 1));
+              } else {
+                throw jsonErr;
+              }
+            }
           }
 
           this.clearModelCooldown(model);
 
           const modelLabel = (options.apiKey || keyObj.id === 0) ? model : `${model} (${keyObj.label})`;
-          return {
-            data: parsed,
-            model: modelLabel,
-            rawModel: model
-          };
+          
+          let resultObj;
+          if (parsed && typeof parsed === 'object') {
+            resultObj = Array.isArray(parsed) ? [...parsed] : { ...parsed };
+            resultObj.data = parsed;
+            resultObj.model = modelLabel;
+            resultObj.rawModel = model;
+          } else {
+            resultObj = {
+              data: parsed,
+              model: modelLabel,
+              rawModel: model
+            };
+          }
+          return resultObj;
         } catch (err) {
           lastError = err;
           this.markModelCooldown(model, 180000);
@@ -2048,8 +2074,38 @@ ${jsonExample}
       }
 
       // Generate kedua kelompok soal secara paralel untuk kecepatan maksimal & akurasi format 100%
-      const [biasaList, kompleksList] = await Promise.all([
-        this.generateMultipleChoiceQuestions({
+      let biasaList = [];
+      let kompleksList = [];
+
+      try {
+        [biasaList, kompleksList] = await Promise.all([
+          this.generateMultipleChoiceQuestions({
+            topik,
+            tingkatKelas,
+            jumlahSoal: numBiasa,
+            opsiCount,
+            materiTeks: cleanMateri,
+            tipePg: 'pg_biasa',
+            instruksiTambahan,
+            tingkatKesulitan,
+            bahasa
+          }),
+          this.generateMultipleChoiceQuestions({
+            topik,
+            tingkatKelas,
+            jumlahSoal: numKompleks,
+            opsiCount,
+            materiTeks: cleanMateri,
+            tipePg: 'pg_kompleks',
+            kunciKompleksRule,
+            instruksiTambahan,
+            tingkatKesulitan,
+            bahasa
+          })
+        ]);
+      } catch (errParalel) {
+        console.warn('⚠️ Eksekusi paralel PG campuran gagal, mencoba eksekusi sekuensial:', errParalel.message);
+        biasaList = await this.generateMultipleChoiceQuestions({
           topik,
           tingkatKelas,
           jumlahSoal: numBiasa,
@@ -2059,8 +2115,8 @@ ${jsonExample}
           instruksiTambahan,
           tingkatKesulitan,
           bahasa
-        }),
-        this.generateMultipleChoiceQuestions({
+        });
+        kompleksList = await this.generateMultipleChoiceQuestions({
           topik,
           tingkatKelas,
           jumlahSoal: numKompleks,
@@ -2071,8 +2127,8 @@ ${jsonExample}
           instruksiTambahan,
           tingkatKesulitan,
           bahasa
-        })
-      ]);
+        });
+      }
 
       return [...biasaList, ...kompleksList];
     }
@@ -2107,13 +2163,35 @@ ${jsonExample}
 
     const timeout = Math.max(35000, Number(jumlahSoal) * 2500);
     const result = await this.callJsonPrompt(prompt, { temperature: 0.3, timeout });
-    if (!result || !Array.isArray(result.questions)) {
+
+    // Ekstrak daftar soal secara adaptif & toleran terhadap berbagai variasi format JSON AI
+    const rawData = (result && result.data !== undefined) ? result.data : result;
+    let questionsList = null;
+
+    if (Array.isArray(rawData)) {
+      questionsList = rawData;
+    } else if (rawData && typeof rawData === 'object') {
+      questionsList = rawData.questions || rawData.soal || rawData.daftar_soal || rawData.items || rawData.data;
+      if (!Array.isArray(questionsList)) {
+        const foundArray = Object.values(rawData).find(val => Array.isArray(val) && val.length > 0);
+        if (foundArray) questionsList = foundArray;
+      }
+    } else if (result && typeof result === 'object') {
+      questionsList = result.questions || result.soal || result.daftar_soal || result.items;
+      if (!Array.isArray(questionsList)) {
+        const foundArray = Object.values(result).find(val => Array.isArray(val) && val.length > 0);
+        if (foundArray) questionsList = foundArray;
+      }
+    }
+
+    if (!Array.isArray(questionsList) || questionsList.length === 0) {
+      console.warn('⚠️ Format output generator soal tidak valid. Raw data:', JSON.stringify(rawData)?.substring(0, 300));
       throw new Error('Format output generator soal tidak valid');
     }
 
-    // Normalisasi kunci dan jenis pada setiap butir soal yang dikembalikan
-    return result.questions.map((q, idx) => {
-      let kunci = String(q.kunci_pg || q.kunci_jawaban || 'A').toUpperCase().trim();
+    // Normalisasi kunci, opsi (A-E), dan jenis pada setiap butir soal yang dikembalikan
+    return questionsList.map((q, idx) => {
+      let kunci = String(q.kunci_pg || q.kunci_jawaban || q.kunci || 'A').toUpperCase().trim();
       let parts = kunci.replace(/[^A-E,]/g, '').split(',').map(s => s.trim()).filter(Boolean);
       if (parts.length === 0) {
         parts = (tipePg === 'pg_kompleks') ? ['A', 'C'] : ['A'];
@@ -2126,18 +2204,38 @@ ${jsonExample}
       }
 
       let finalKunci = parts.join(', ');
-      let pertanyaan = String(q.pertanyaan || '').trim();
+      let pertanyaan = String(q.pertanyaan || q.soal || q.tanya || '').trim();
       if (isKompleks && !pertanyaan.toLowerCase().includes('pilihlah') && !pertanyaan.toLowerCase().includes('lebih dari satu')) {
         pertanyaan = `${pertanyaan} (Pilihlah lebih dari satu jawaban yang benar)`;
       }
 
+      // Normalisasi nama properti opsi jawaban (opsi_a, pilihan_a, dsb.)
+      let opsiA = q.opsi_a ?? q.pilihan_a ?? q.opsi?.a ?? q.options?.[0] ?? '';
+      let opsiB = q.opsi_b ?? q.pilihan_b ?? q.opsi?.b ?? q.options?.[1] ?? '';
+      let opsiC = q.opsi_c ?? q.pilihan_c ?? q.opsi?.c ?? q.options?.[2] ?? '';
+      let opsiD = q.opsi_d ?? q.pilihan_d ?? q.opsi?.d ?? q.options?.[3] ?? '';
+      let opsiE = q.opsi_e ?? q.pilihan_e ?? q.opsi?.e ?? q.options?.[4] ?? null;
+
+      // Bersihkan prefix A. B. jika ada
+      opsiA = String(opsiA).replace(/^[A-Za-z][.)\-:]\s*/, '').trim();
+      opsiB = String(opsiB).replace(/^[A-Za-z][.)\-:]\s*/, '').trim();
+      opsiC = String(opsiC).replace(/^[A-Za-z][.)\-:]\s*/, '').trim();
+      opsiD = String(opsiD).replace(/^[A-Za-z][.)\-:]\s*/, '').trim();
+      if (opsiE) opsiE = String(opsiE).replace(/^[A-Za-z][.)\-:]\s*/, '').trim();
+
       return {
         ...q,
         pertanyaan,
+        opsi_a: opsiA,
+        opsi_b: opsiB,
+        opsi_c: opsiC,
+        opsi_d: opsiD,
+        opsi_e: (Number(opsiCount) === 5 || opsiE) ? opsiE : undefined,
         kunci_pg: finalKunci,
         kunci_jawaban: finalKunci,
         tipe_pg: isKompleks ? 'pg_kompleks' : 'pg_biasa',
-        jenis_pg: isKompleks ? 'pg_kompleks' : 'pilihan_ganda'
+        jenis_pg: isKompleks ? 'pg_kompleks' : 'pilihan_ganda',
+        pembahasan: q.pembahasan || q.alasan || q.penjelasan || ''
       };
     });
   },
@@ -2467,8 +2565,10 @@ Kembalikan HASIL HANYA dalam format JSON valid sesuai struktur berikut tanpa tek
         apiKey: options.apiKey
       });
 
-      if (aiResult && Array.isArray(aiResult.daftar_kisi_kisi) && aiResult.daftar_kisi_kisi.length > 0) {
-        const cleanedList = aiResult.daftar_kisi_kisi.map((item, idx) => ({
+      const dataPayload = (aiResult && aiResult.data && aiResult.data.daftar_kisi_kisi) ? aiResult.data : aiResult;
+      const rawList = dataPayload?.daftar_kisi_kisi;
+      if (rawList && Array.isArray(rawList) && rawList.length > 0) {
+        const cleanedList = rawList.map((item, idx) => ({
           nomor_soal: String(item.nomor_soal || `Bagian ${idx + 1}`).trim(),
           bentuk_soal: String(item.bentuk_soal || 'Campuran').trim(),
           materi_pokok: String(item.materi_pokok || `Pokok Pembahasan ${idx + 1}`).trim(),
@@ -2478,10 +2578,10 @@ Kembalikan HASIL HANYA dalam format JSON valid sesuai struktur berikut tanpa tek
         }));
 
         return {
-          judul_kisi_kisi: aiResult.judul_kisi_kisi || fallback.judul_kisi_kisi,
+          judul_kisi_kisi: dataPayload.judul_kisi_kisi || fallback.judul_kisi_kisi,
           mata_pelajaran: fallback.mata_pelajaran,
           tingkat_kelas: fallback.tingkat_kelas,
-          ringkasan_cakupan: aiResult.ringkasan_cakupan || fallback.ringkasan_cakupan,
+          ringkasan_cakupan: dataPayload.ringkasan_cakupan || fallback.ringkasan_cakupan,
           komposisi_soal: fallback.komposisi_soal,
           daftar_kisi_kisi: cleanedList,
           rangkuman_materi_penting: cleanedList.map(d => `${d.materi_pokok} (${d.nomor_soal})`),

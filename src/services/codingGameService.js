@@ -1026,6 +1026,9 @@ Jika mode "parsons_puzzle":
     let parsed;
     try {
       parsed = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
+      if (parsed && parsed.data && typeof parsed.data === 'object' && !parsed.mode) {
+        parsed = parsed.data;
+      }
     } catch (e) {
       // Fallback ke preset terdekat jika json error
       const presets = this.getPresets();

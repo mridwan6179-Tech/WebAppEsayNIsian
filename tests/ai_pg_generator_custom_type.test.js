@@ -210,4 +210,86 @@ test('=== SUITE: AI GENERATOR PG BIASA & PG KOMPLEKS (CUSTOM KOMPOSISI & JUMLAH 
     }
   });
 
+  await t.test('7. Robust JSON Handling: Menangani wrapper { data: { questions } }, { soal: [] }, dan array langsung', async () => {
+    const originalCallJsonPrompt = geminiService.callJsonPrompt;
+
+    try {
+      // Test 7a: Wrapper { data: { questions: [...] }, model: 'gemini-2.5-flash-lite' }
+      geminiService.callJsonPrompt = async () => ({
+        data: {
+          questions: [
+            {
+              pertanyaan: 'Apa itu RAM?',
+              opsi_a: 'A. Random Access Memory',
+              opsi_b: 'B. Read Access Memory',
+              opsi_c: 'C. Read And Modify',
+              opsi_d: 'D. Run Active Mode',
+              kunci_pg: 'A',
+              pembahasan: 'RAM adalah Random Access Memory'
+            }
+          ]
+        },
+        model: 'gemini-2.5-flash-lite',
+        rawModel: 'gemini-2.5-flash-lite'
+      });
+
+      const res7a = await geminiService.generateMultipleChoiceQuestions({
+        topik: 'Hardware Komputer',
+        tipePg: 'pg_biasa',
+        jumlahSoal: 1
+      });
+      assert.strictEqual(res7a.length, 1);
+      assert.strictEqual(res7a[0].pertanyaan, 'Apa itu RAM?');
+      assert.strictEqual(res7a[0].opsi_a, 'Random Access Memory'); // Prefix 'A. ' dibersihkan
+      assert.strictEqual(res7a[0].kunci_pg, 'A');
+
+      // Test 7b: AI mengembalikan field "soal" alih-alih "questions"
+      geminiService.callJsonPrompt = async () => ({
+        data: {
+          soal: [
+            {
+              soal: 'Manakah port input video? (Pilihlah lebih dari satu jawaban yang benar)',
+              options: ['HDMI', 'DisplayPort', 'Power Plug', 'Ethernet'],
+              kunci: 'A, B'
+            }
+          ]
+        }
+      });
+
+      const res7b = await geminiService.generateMultipleChoiceQuestions({
+        topik: 'Port Komputer',
+        tipePg: 'pg_kompleks',
+        jumlahSoal: 1
+      });
+      assert.strictEqual(res7b.length, 1);
+      assert.strictEqual(res7b[0].opsi_a, 'HDMI');
+      assert.strictEqual(res7b[0].opsi_b, 'DisplayPort');
+      assert.strictEqual(res7b[0].kunci_pg, 'A, B');
+      assert.strictEqual(res7b[0].tipe_pg, 'pg_kompleks');
+
+      // Test 7c: AI mengembalikan array langsung
+      geminiService.callJsonPrompt = async () => ([
+        {
+          pertanyaan: 'Satuan kecepatan prosesor adalah...',
+          pilihan_a: 'GHz',
+          pilihan_b: 'GB',
+          pilihan_c: 'Watt',
+          pilihan_d: 'Volt',
+          kunci_jawaban: 'A'
+        }
+      ]);
+
+      const res7c = await geminiService.generateMultipleChoiceQuestions({
+        topik: 'Prosesor',
+        tipePg: 'pg_biasa',
+        jumlahSoal: 1
+      });
+      assert.strictEqual(res7c.length, 1);
+      assert.strictEqual(res7c[0].opsi_a, 'GHz');
+      assert.strictEqual(res7c[0].kunci_pg, 'A');
+    } finally {
+      geminiService.callJsonPrompt = originalCallJsonPrompt;
+    }
+  });
+
 });
