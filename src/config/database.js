@@ -169,6 +169,21 @@ try {
   console.warn('⚠️ Pragma setting notice:', e.message);
 }
 
+// ─────────────────────────────────────────────────────────
+// OPTIMALISASI PERFORMA SQLite
+// Pragma ini mempercepat query SELECT yang sering (monitor siswa, antrean AI, dll.)
+// Aman untuk production dan tidak mengubah konsistensi data
+// ─────────────────────────────────────────────────────────
+try {
+  db.pragma('synchronous = NORMAL');    // Lebih cepat dari FULL, masih aman dengan WAL mode
+  db.pragma('cache_size = -16000');     // 16 MB page cache di RAM (default: hanya 2 MB)
+  db.pragma('temp_store = MEMORY');     // Temp tables (sorting/grouping) di RAM, bukan disk
+  db.pragma('mmap_size = 134217728');   // 128 MB memory-mapped I/O untuk baca data lebih cepat
+} catch (e) {
+  console.warn('⚠️ Performance pragma notice:', e.message);
+}
+
+
 let isSyncing = false;
 let lastSyncTime = 0;
 db.syncCloud = function(force = false) {
@@ -825,6 +840,43 @@ function initDatabase() {
     try {
       db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_jawaban_pengerjaan_soal ON jawaban(pengerjaan_id, soal_id);");
     } catch (e) {}
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // OPTIMALISASI INDEX DATABASE
+  // Index tambahan untuk mempercepat query yang paling sering dipanggil:
+  //   - Monitor siswa sedang mengerjakan (polling setiap 10 detik saat ujian berlangsung)
+  //   - Antrean AI (query FIFO yang sering dieksekusi)
+  //   - Validasi kode ujian & log pengumpulan
+  // ─────────────────────────────────────────────────────────
+  const additionalIndexes = [
+    // Untuk query monitor siswa: WHERE ulangan_id = ? AND status = 'mengerjakan'
+    { name: 'idx_pengerjaan_ulangan_status', sql: "CREATE INDEX IF NOT EXISTS idx_pengerjaan_ulangan_status ON pengerjaan(ulangan_id, status);" },
+    // Untuk query last_active_at / DC detection: ORDER BY last_active_at DESC
+    { name: 'idx_pengerjaan_last_active', sql: "CREATE INDEX IF NOT EXISTS idx_pengerjaan_last_active ON pengerjaan(ulangan_id, last_active_at);" },
+    // Untuk query log pengumpulan: WHERE ulangan_id = ? AND status = 'submitted' ORDER BY submitted_at
+    { name: 'idx_pengerjaan_submitted_at', sql: "CREATE INDEX IF NOT EXISTS idx_pengerjaan_submitted_at ON pengerjaan(ulangan_id, submitted_at);" },
+    // Untuk antrean AI: WHERE status = 'menunggu' ORDER BY locked_at
+    { name: 'idx_antrean_status_locked', sql: "CREATE INDEX IF NOT EXISTS idx_antrean_status_locked ON antrean_review(status, locked_at);" },
+    // Untuk validasi ulangan: WHERE kode_ujian = ? (sangat sering dipanggil saat siswa masuk)
+    { name: 'idx_ulangan_kode_ujian', sql: "CREATE INDEX IF NOT EXISTS idx_ulangan_kode_ujian ON ulangan(kode_ujian);" },
+    // Untuk query daftar ulangan guru: WHERE guru_id = ? ORDER BY created_at
+    { name: 'idx_ulangan_guru_id', sql: "CREATE INDEX IF NOT EXISTS idx_ulangan_guru_id ON ulangan(guru_id, created_at);" },
+    // Untuk query soal ujian: WHERE ulangan_id = ? ORDER BY urutan
+    { name: 'idx_soal_ulangan_urutan', sql: "CREATE INDEX IF NOT EXISTS idx_soal_ulangan_urutan ON soal(ulangan_id, urutan);" },
+    // Untuk query jawaban siswa: WHERE pengerjaan_id = ? (sering dipanggil saat submit & review)
+    { name: 'idx_jawaban_pengerjaan_id', sql: "CREATE INDEX IF NOT EXISTS idx_jawaban_pengerjaan_id ON jawaban(pengerjaan_id);" },
+  ];
+
+  for (const idx of additionalIndexes) {
+    if (!existingObjects.has(idx.name)) {
+      try {
+        db.exec(idx.sql);
+      } catch (e) {
+        // Index mungkin sudah ada atau tidak kompatibel: abaikan, jangan crash server
+        console.warn(`⚠️ Notice index ${idx.name}:`, e.message);
+      }
+    }
   }
 
   // Seed initial guru, admin, keys, kelas safely

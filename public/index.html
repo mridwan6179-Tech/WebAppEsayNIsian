@@ -4,12 +4,30 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Portal Ulangan Siswa</title>
+
+  <!-- ── META TAGS: SEO, PWA, Sharing ── -->
+  <meta name="description" content="Portal Ulangan Siswa - Sistem Penilaian Cerdas berbasis AI untuk sekolah.">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%232563eb'/><text x='50%25' y='50%25' dominant-baseline='central' text-anchor='middle' font-size='18' font-weight='bold' fill='white' font-family='system-ui'>U</text></svg>">
+
+  <!-- ── RESOURCE HINTS: Percepat koneksi ke CDN sebelum browser perlu download ── -->
+  <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <!-- Preload CSS kritis agar tidak block render -->
+  <link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" as="style" crossorigin="anonymous">
+
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" crossorigin="anonymous">
   <!-- KaTeX for Math Formulas -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
-  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" crossorigin="anonymous">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
   <style>
     body { font-family: 'Inter', 'Amiri', system-ui, sans-serif; }
     :lang(ar), [dir="rtl"] { font-family: 'Amiri', serif; }
@@ -1362,14 +1380,67 @@
         foundBadge.className = 'text-[10px] font-bold uppercase bg-blue-600 text-white px-2 py-0.5 rounded-md';
       }
 
+      // Cek sessionStorage cache dulu (TTL: 30 detik) untuk kurangi network round-trip
+      const cacheKey = `cek_kode_${kode}`;
       try {
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+          const { data: cachedData, ts } = JSON.parse(cached);
+          if (Date.now() - ts < 30000 && cachedData.valid) {
+            // Gunakan data cache langsung tanpa fetch ke server
+            _applyKodeUlanganResult(cachedData);
+            return;
+          }
+        }
+      } catch (_) { /* sessionStorage mungkin tidak tersedia di mode private */ }
+
+      try {
+        // AbortController: batalkan fetch sebelumnya jika user masih mengetik
+        if (window._cekKodeAbortCtrl) window._cekKodeAbortCtrl.abort();
+        window._cekKodeAbortCtrl = new AbortController();
+
         const res = await fetch('/api/siswa/cek-kode', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ kode_ujian: kode })
+          body: JSON.stringify({ kode_ujian: kode }),
+          signal: window._cekKodeAbortCtrl.signal
         });
         const data = await res.json();
+
+        // Simpan hasil valid ke sessionStorage selama 30 detik
         if (res.ok && data.valid) {
+          try { sessionStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() })); } catch (_) {}
+          _applyKodeUlanganResult(data);
+        } else {
+          // Fallback cek tugas rangkuman jika kode bukan awalan RGK-
+          try {
+            const rgkRes = await fetch('/api/siswa/rangkuman/cek-kode', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ kode_tugas: kode })
+            });
+            const rgkData = await rgkRes.json();
+            if (rgkRes.ok && rgkData.valid && rgkData.task) {
+              return applyRangkumanTaskFound(rgkData.task);
+            }
+          } catch (e) {}
+
+          examFoundInfo.classList.add('hidden');
+          document.getElementById('kisi-kisi-container')?.classList.add('hidden');
+          document.getElementById('sesi-found-info')?.classList.add('hidden');
+          document.getElementById('sesi-selector-container')?.classList.add('hidden');
+          window._currentSesi = null;
+          inputKelas.innerHTML = '<option value="">-- Kode tidak valid --</option>';
+          hidePortalMonitor();
+          if (data.message) showAlert(data.message);
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') console.error(err);
+      }
+    }
+
+    // Helper: terapkan data hasil cek-kode ke UI (dipakai oleh fetch baru & sessionStorage cache)
+    function _applyKodeUlanganResult(data) {
           authAlert.classList.add('hidden');
           document.getElementById('exam-found-title').textContent = data.ulangan.judul;
           const countText = (data.ulangan.soal_dikerjakan && data.ulangan.soal_dikerjakan < data.ulangan.total_soal)
@@ -1525,34 +1596,9 @@
           }
 
           // Muat data monitor siswa (sedang mengerjakan, DC & jawaban diterima)
-          loadPortalData(kode, false);
-        } else {
-          // Fallback cek tugas rangkuman jika kode bukan awalan RGK-
-          try {
-            const rgkRes = await fetch('/api/siswa/rangkuman/cek-kode', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ kode_tugas: kode })
-            });
-            const rgkData = await rgkRes.json();
-            if (rgkRes.ok && rgkData.valid && rgkData.task) {
-              return applyRangkumanTaskFound(rgkData.task);
-            }
-          } catch (e) {}
-
-          examFoundInfo.classList.add('hidden');
-          document.getElementById('kisi-kisi-container')?.classList.add('hidden');
-          document.getElementById('sesi-found-info')?.classList.add('hidden');
-          document.getElementById('sesi-selector-container')?.classList.add('hidden');
-          window._currentSesi = null;
-          inputKelas.innerHTML = '<option value="">-- Kode tidak valid --</option>';
-          hidePortalMonitor();
-          if (data.message) showAlert(data.message);
-        }
-      } catch (err) {
-        console.error(err);
-      }
+          loadPortalData(data.ulangan.kode_ujian || document.getElementById('input-kode')?.value?.trim().toUpperCase(), false);
     }
+
 
     window.selectSessionToken = function(sessionToken) {
       const inputKode = document.getElementById('input-kode');
@@ -2193,21 +2239,23 @@
       }
     }
 
+    // Render KaTeX Formulas (Optimasi: hanya scan KaTeX jika ada delimiter matematika)
     function renderMath(elem) {
-      if (window.renderMathInElement && elem) {
-        try {
-          renderMathInElement(elem, {
-            delimiters: [
-              { left: '$$', right: '$$', display: true },
-              { left: '$', right: '$', display: false },
-              { left: '\\(', right: '\\)', display: false },
-              { left: '\\[', right: '\\]', display: true }
-            ],
-            throwOnError: false
-          });
-        } catch (e) {
-          console.warn('KaTeX render error:', e);
-        }
+      if (!elem || !window.renderMathInElement) return;
+      const text = elem.textContent || '';
+      if (!text.includes('$') && !text.includes('\\(') && !text.includes('\\[') && !text.includes('\\frac')) return;
+      try {
+        renderMathInElement(elem, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false },
+            { left: '\\(', right: '\\)', display: false },
+            { left: '\\[', right: '\\]', display: true }
+          ],
+          throwOnError: false
+        });
+      } catch (e) {
+        console.warn('KaTeX render error:', e);
       }
     }
 

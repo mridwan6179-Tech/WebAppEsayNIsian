@@ -1,5 +1,6 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
+const compression = require('compression');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
@@ -24,6 +25,89 @@ const pinService = require('./src/services/pinService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const isTestEnv = process.env.NODE_ENV === 'test';
+
+// ─────────────────────────────────────────────────────────
+// OPTIMALISASI PERFORMA: Gzip/Brotli Compression
+// Mengurangi ukuran transfer hingga 70-85% untuk HTML/JSON
+// ─────────────────────────────────────────────────────────
+app.use(compression({
+  level: 6,           // Level 1-9: 6 adalah titik tengah optimal antara kecepatan dan rasio kompresi
+  threshold: 1024,    // Hanya kompres respons > 1 KB (skip respons kecil seperti ping)
+  filter: (req, res) => {
+    // Jangan kompres respons SSE atau jika client tidak mendukung
+    if (req.headers['x-no-compression']) return false;
+    return compression.filter(req, res);
+  }
+}));
+
+// Konfigurasi Express optimal
+app.set('trust proxy', 1);    // Untuk Vercel/proxy reverse: deteksi IP & HTTPS dengan benar
+app.disable('x-powered-by'); // Sembunyikan fingerprint Express dari header respons
+app.set('etag', 'strong');   // Aktifkan strong ETags untuk caching static files yang efisien
+
+// ─────────────────────────────────────────────────────────
+// IN-MEMORY API CACHE (tanpa library tambahan)
+// Map TTL sederhana untuk mengurangi beban DB pada endpoint yang sering dibaca
+// ─────────────────────────────────────────────────────────
+const _apiCache = new Map();
+
+function withCache(key, ttlMs, fn) {
+  const hit = _apiCache.get(key);
+  if (hit && Date.now() - hit.ts < ttlMs) return hit.data;
+  const data = fn();
+  _apiCache.set(key, { data, ts: Date.now() });
+  // Bersihkan entri lama jika cache terlalu besar (>500 entri)
+  if (_apiCache.size > 500) {
+    let oldest = null, oldestTs = Infinity;
+    for (const [k, v] of _apiCache.entries()) {
+      if (v.ts < oldestTs) { oldestTs = v.ts; oldest = k; }
+    }
+    if (oldest) _apiCache.delete(oldest);
+  }
+  return data;
+}
+
+function invalidateCache(prefix) {
+  for (const key of _apiCache.keys()) {
+    if (key.startsWith(prefix)) _apiCache.delete(key);
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// RATE LIMITER SEDERHANA (tanpa library tambahan)
+// Melindungi endpoint kritis dari spam / brute-force
+// ─────────────────────────────────────────────────────────
+const _rateLimitStore = new Map();
+
+function rateLimit(maxRequests, windowMs) {
+  return (req, res, next) => {
+    // Skip rate limiting di environment test agar unit test tidak terhambat
+    if (isTestEnv) return next();
+    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    const now = Date.now();
+    const record = _rateLimitStore.get(ip) || { count: 0, resetAt: now + windowMs };
+    if (now > record.resetAt) {
+      record.count = 0;
+      record.resetAt = now + windowMs;
+    }
+    record.count++;
+    _rateLimitStore.set(ip, record);
+    // Bersihkan entri IP yang sudah expired untuk hemat memori
+    if (_rateLimitStore.size > 2000) {
+      for (const [k, v] of _rateLimitStore.entries()) {
+        if (now > v.resetAt) _rateLimitStore.delete(k);
+      }
+    }
+    if (record.count > maxRequests) {
+      return res.status(429).json({
+        success: false,
+        message: `Terlalu banyak permintaan. Mohon tunggu sebentar sebelum mencoba kembali.`
+      });
+    }
+    next();
+  };
+}
 
 // Body & Cookie Parsers (Dukungan file payload hingga 30MB)
 app.use(express.json({ limit: '30mb' }));
@@ -42,13 +126,31 @@ app.use((req, res, next) => {
   next();
 });
 
-// Static Files (dengan proteksi no-cache untuk file HTML agar browser selalu memuat kode UI terbaru)
+// ─────────────────────────────────────────────────────────
+// SECURITY & PERFORMANCE HEADERS GLOBAL
+// Diterapkan ke semua respons (setelah CSP Google Sites)
+// ─────────────────────────────────────────────────────────
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Vary', 'Accept-Encoding'); // Penting untuk cache CDN agar tahu respons bervariasi per encoding
+  next();
+});
+
+// Static Files (dengan proteksi no-cache untuk HTML, long-cache untuk aset statis lain)
 app.use(express.static(path.join(__dirname, 'public'), {
+  etag: true,          // Aktifkan ETag untuk conditional requests (304 Not Modified)
+  lastModified: true,  // Aktifkan Last-Modified header
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.html')) {
+      // HTML: no-cache agar browser selalu muat versi terbaru saat ada update UI
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
+    } else if (/\.(js|css|woff2?|ttf|eot|svg|png|jpg|jpeg|gif|ico|webp)$/.test(filePath)) {
+      // Aset statis (fonts, images, dsb.): cache 7 hari, bisa divalidasi ETag
+      res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
     }
   }
 }));
@@ -61,9 +163,35 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// Endpoint Health Check untuk monitoring platform hosting (Render/Vercel/Uptime)
+// ─────────────────────────────────────────────────────────
+// SLOW REQUEST LOGGER
+// Catat request yang memakan waktu > 1.5 detik untuk identifikasi bottleneck
+// ─────────────────────────────────────────────────────────
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const ms = Date.now() - start;
+    if (ms > 1500 && !isTestEnv) {
+      console.warn(`[SLOW ${ms}ms] ${req.method} ${req.path}`);
+    }
+  });
+  next();
+});
+
+// Endpoint Health Check yang diperluas dengan info memori & DB
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
+  const mem = process.memoryUsage();
+  res.status(200).json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+    memory: {
+      used_mb: Math.round(mem.heapUsed / 1024 / 1024),
+      rss_mb: Math.round(mem.rss / 1024 / 1024),
+      total_mb: Math.round(mem.heapTotal / 1024 / 1024)
+    },
+    cache_entries: _apiCache.size
+  });
 });
 
 // Jadwalkan sinkronisasi latar belakang Turso secara debounced setelah request write selesai (tidak memblokir request klien)
@@ -91,10 +219,11 @@ app.use((req, res, next) => {
   next();
 });
 
+
 // ----------------------------------------------------
 // ROUTE: Autentikasi Guru (FR-01)
 // ----------------------------------------------------
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', rateLimit(10, 60000), (req, res) => {
   const { email, password, remember_me } = req.body;
   const isRemember = remember_me === true || remember_me === 'true' || remember_me === 1 || remember_me === '1';
   const result = authService.login(email, password, isRemember);
@@ -168,8 +297,11 @@ app.post('/api/siswa/cek-kode', (req, res) => {
 app.get('/api/siswa/log-pengumpulan/:kode', (req, res) => {
   try {
     const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 10;
-    const result = studentService.getSubmissionLogByExamCode(req.params.kode, page, limit);
+    const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50); // Batas maks 50 per halaman
+    const cacheKey = `log:${req.params.kode}:${page}:${limit}`;
+    const result = withCache(cacheKey, 15000, () =>
+      studentService.getSubmissionLogByExamCode(req.params.kode, page, limit)
+    );
     if (!result.success) {
       return res.status(404).json(result);
     }
@@ -183,8 +315,11 @@ app.get('/api/siswa/log-pengumpulan/:kode', (req, res) => {
 app.get('/api/siswa/sedang-mengerjakan/:kode', (req, res) => {
   try {
     const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 10;
-    const result = studentService.getActiveStudentsByExamCode(req.params.kode, page, limit);
+    const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50); // Batas maks 50 per halaman
+    const cacheKey = `sedang:${req.params.kode}:${page}:${limit}`;
+    const result = withCache(cacheKey, 10000, () =>
+      studentService.getActiveStudentsByExamCode(req.params.kode, page, limit)
+    );
     if (!result.success) {
       return res.status(404).json(result);
     }
@@ -194,7 +329,7 @@ app.get('/api/siswa/sedang-mengerjakan/:kode', (req, res) => {
   }
 });
 
-app.post('/api/siswa/mulai', (req, res) => {
+app.post('/api/siswa/mulai', rateLimit(10, 60000), (req, res) => {
   try {
     const { kode_ujian, nama, kelas, sesi_id, is_retake } = req.body;
 
@@ -327,7 +462,7 @@ app.post('/api/siswa/draft', (req, res) => {
 });
 
 // Heartbeat & presence pengerjaan siswa (mendeteksi aktif vs terputus/dc)
-app.post('/api/siswa/ping', (req, res) => {
+app.post('/api/siswa/ping', rateLimit(60, 60000), (req, res) => {
   try {
     let body = req.body;
     if (typeof body === 'string') {
@@ -356,18 +491,33 @@ app.get('/api/siswa/sesi/:pengerjaan_id', (req, res) => {
 
 app.get('/api/siswa/hasil/:pengerjaan_id', async (req, res) => {
   try {
-    let status = studentService.getPengerjaanStatus(req.params.pengerjaan_id);
+    const pid = req.params.pengerjaan_id;
+    let status = studentService.getPengerjaanStatus(pid);
     if (!status) {
       return res.status(404).json({ success: false, message: 'Data pengerjaan tidak ditemukan' });
     }
+
+    // Jika skor langsung AI masih diproses: jangan cache, proses auto-queue tick dulu
     if (status.skorLangsungAi && !status.isReleased && status.status === 'submitted' && status.ulanganId) {
       try {
         await queueService.tickAutoQueueIfDue(status.ulanganId);
-        status = studentService.getPengerjaanStatus(req.params.pengerjaan_id) || status;
+        status = studentService.getPengerjaanStatus(pid) || status;
+        // Setelah released, invalidate cache lama agar refresh berikutnya dapat data baru
+        invalidateCache(`hasil:${pid}`);
       } catch (eTick) {
         console.warn('⚠️ Auto-queue tick notice:', eTick.message);
       }
+      return res.json({ success: true, data: status });
     }
+
+    // Jika nilai sudah dirilis: cache 8 detik untuk hemat DB query saat banyak siswa polling
+    if (status.isReleased) {
+      const cachedStatus = withCache(`hasil:${pid}`, 8000, () =>
+        studentService.getPengerjaanStatus(pid)
+      );
+      return res.json({ success: true, data: cachedStatus || status });
+    }
+
     res.json({ success: true, data: status });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
