@@ -375,6 +375,55 @@ const studentService = {
       }
     }
 
+    // Deteksi jika pengerjaan sebelumnya pada komputer ini sudah kadaluarsa (waktu habis)
+    if (pengerjaan && pengerjaan.status === 'mengerjakan') {
+      let isExpired = false;
+      if (val.ulangan.durasi_menit) {
+        const startedAtStr = pengerjaan.started_at
+          ? (pengerjaan.started_at.includes('T') ? pengerjaan.started_at : pengerjaan.started_at.replace(' ', 'T') + 'Z')
+          : new Date().toISOString();
+        const startedAt = new Date(startedAtStr);
+        const durationDeadline = new Date(startedAt.getTime() + val.ulangan.durasi_menit * 60 * 1000);
+        if (new Date() > durationDeadline) {
+          isExpired = true;
+        }
+      }
+      if (val.ulangan.tanggal_selesai) {
+        const closeDeadline = new Date(val.ulangan.tanggal_selesai);
+        if (new Date() > closeDeadline) {
+          isExpired = true;
+        }
+      }
+      if (isExpired) {
+        try {
+          this.submitExam(pengerjaan.id, [], pengerjaan.paste_count || 0, true);
+        } catch (eExp) {}
+        const refreshedSubmitted = db.prepare("SELECT * FROM pengerjaan WHERE ulangan_id = ? AND peserta_id = ? AND status = 'submitted' ORDER BY attempt_ke DESC, id DESC").all(ulanganId, peserta.id);
+        const refreshedCount = refreshedSubmitted.length;
+        const maxReached = (maxAttempts > 0 && refreshedCount >= maxAttempts);
+        if (maxReached || !isRetake) {
+          const latest = refreshedSubmitted[0];
+          return {
+            alreadySubmitted: true,
+            pengerjaanId: latest ? latest.id : pengerjaan.id,
+            submittedAt: latest ? latest.submitted_at : new Date().toISOString(),
+            releasedAt: latest ? latest.released_at : null,
+            nilaiFinal: latest ? latest.nilai_final : null,
+            nilaiTerbaik: nilaiTerbaik,
+            attemptKe: latest ? (latest.attempt_ke || refreshedCount) : 1,
+            totalAttempts: refreshedCount,
+            maksimalPercobaan: maxAttempts,
+            sisaPercobaan: maxAttempts === 0 ? 'Tanpa Batas' : Math.max(0, maxAttempts - refreshedCount),
+            canRetake: !maxReached,
+            kebijakanNilai: kebijakanNilai,
+            maxAttemptsReached: maxReached,
+            message: 'Batas waktu pengerjaan sebelumnya telah habis.'
+          };
+        }
+        pengerjaan = null;
+      }
+    }
+
     // Jika siswa masuk kembali setelah sempat terputus / DC,
     // perbarui last_active_at ke waktu saat ini agar batas toleransi DC di-reset kembali ke 1 jam penuh
     if (pengerjaan && pengerjaan.status === 'mengerjakan') {
@@ -1508,7 +1557,8 @@ const studentService = {
     const query = `
       SELECT p.*, u.judul, u.mata_pelajaran, u.status as status_ulangan, u.kkm, u.kode_ujian,
              u.instruksi_remedial, u.link_remedial, u.skor_langsung_ai, u.remedial_langsung,
-             u.maksimal_percobaan, u.kebijakan_nilai, pes.nama, pes.kelas,
+             u.maksimal_percobaan, u.kebijakan_nilai, u.link_kisi_kisi, u.konten_kisi_kisi, u.tampilkan_kisi_kisi,
+             pes.nama, pes.kelas,
              g.nama as nama_guru, g.email as email_guru, g.no_wa as no_wa_guru
       FROM pengerjaan p
       JOIN ulangan u ON p.ulangan_id = u.id
@@ -1722,6 +1772,9 @@ const studentService = {
       currentScore: currentScore,
       instruksi_remedial: pengerjaan.instruksi_remedial || null,
       link_remedial: pengerjaan.link_remedial || null,
+      link_kisi_kisi: pengerjaan.link_kisi_kisi || null,
+      konten_kisi_kisi: pengerjaan.konten_kisi_kisi || null,
+      tampilkan_kisi_kisi: (pengerjaan.tampilkan_kisi_kisi !== undefined && pengerjaan.tampilkan_kisi_kisi !== null) ? Number(pengerjaan.tampilkan_kisi_kisi) : 0,
       guru: {
         nama: pengerjaan.nama_guru,
         email: pengerjaan.email_guru,

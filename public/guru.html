@@ -3581,6 +3581,9 @@
             </div>
           </div>
           <div class="flex items-center space-x-2">
+            <button id="btn-export-doc-soal" type="button" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition flex items-center space-x-1.5 shadow-md cursor-pointer active:scale-95">
+              <span>📄 Ekspor ke Word (.doc)</span>
+            </button>
             <button id="btn-do-print-soal" type="button" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition flex items-center space-x-1.5 shadow-md cursor-pointer active:scale-95">
               <span>🖨️ Cetak / Simpan PDF</span>
             </button>
@@ -11289,7 +11292,7 @@
       if (debouncePrintTimer) clearTimeout(debouncePrintTimer);
       debouncePrintTimer = setTimeout(() => {
         refreshCetakSoalPreview();
-      }, 150);
+      }, 400);
     }
 
     function updateLayoutHint(mode) {
@@ -11311,12 +11314,44 @@
         modalCetakSoal.classList.add('hidden');
       };
     }
+
+    const btnExportDocSoal = document.getElementById('btn-export-doc-soal');
+    if (btnExportDocSoal) {
+      btnExportDocSoal.onclick = () => {
+        if (!window._lastExamPrintData) {
+          alert('Data soal belum siap diekspor.');
+          return;
+        }
+        exportSoalToWordDoc(window._lastExamPrintData);
+      };
+    }
+
     if (btnDoPrintSoal) {
       btnDoPrintSoal.onclick = () => {
-        const scrollEl = modalCetakSoal?.querySelector('.overflow-y-auto');
-        if (scrollEl) scrollEl.scrollTop = 0;
-        window.scrollTo(0, 0);
-        window.print();
+        if (!window._lastExamPrintData) return;
+        const origBtnText = btnDoPrintSoal.innerHTML;
+        btnDoPrintSoal.disabled = true;
+        btnDoPrintSoal.innerHTML = '<span>⏳ Menyiapkan Seluruh Lembar...</span>';
+
+        setTimeout(() => {
+          // Render seluruh lembar lengkap untuk dicetak fisik ke printer/PDF
+          renderCetakSoalSheets(window._lastExamPrintData, false);
+
+          setTimeout(() => {
+            const scrollEl = modalCetakSoal?.querySelector('.overflow-y-auto');
+            if (scrollEl) scrollEl.scrollTop = 0;
+            window.scrollTo(0, 0);
+            window.print();
+
+            btnDoPrintSoal.disabled = false;
+            btnDoPrintSoal.innerHTML = origBtnText;
+
+            // Kembalikan ke mode pratinjau cepat 2 lembar agar browser tidak terbebani
+            setTimeout(() => {
+              renderCetakSoalSheets(window._lastExamPrintData, true);
+            }, 300);
+          }, 200);
+        }, 50);
       };
     }
 
@@ -11464,12 +11499,20 @@
         id: s.id,
         nomor_asli: s.nomor || (idx + 1),
         jenis: s.jenis || 'isian',
+        tipe_pg: s.tipe_pg || (s.kunci_pg && (s.kunci_pg.includes(',') || s.kunci_pg.trim().length > 1) ? 'pg_kompleks' : 'pg_biasa'),
+        opsi_a: s.opsi_a || '',
+        opsi_b: s.opsi_b || '',
+        opsi_c: s.opsi_c || '',
+        opsi_d: s.opsi_d || '',
+        opsi_e: s.opsi_e || '',
+        kunci_pg: s.kunci_pg || '',
+        game_data: s.game_data || null,
         pertanyaan: s.pertanyaan,
         gambar_url: s.gambar_url || null,
         bobot: s.bobot || 0,
         tingkat_kesulitan: s.tingkat_kesulitan || 'sedang',
         kategori: s.kategori || '',
-        kunci_jawaban: s.kunci_jawaban || '',
+        kunci_jawaban: s.kunci_jawaban || s.kunci_pg || '',
         rubrik: s.rubrik || '',
         pembahasan: s.pembahasan || ''
       }));
@@ -11676,13 +11719,14 @@
         tampilkan_bobot: bobot
       };
 
-      // 1. Render LANGSUNG dari data lokal secara instan (0 ms, bebas error server/JSON)
+      // 1. Render LANGSUNG dari data lokal secara instan (0 ms, bebas error server/JSON & bebas freeze)
       const localData = buildLocalExamPrintData(opts);
-      if (localData) {
-        renderCetakSoalSheets(localData);
+      if (localData && localData.paket_list && localData.paket_list.length > 0) {
+        renderCetakSoalSheets(localData, true);
+        return;
       }
 
-      // 2. Sinkronkan dengan server secara aman di latar belakang
+      // 2. Fallback sinkronkan dengan server jika data lokal belum lengkap
       try {
         const queryParams = new URLSearchParams({
           jumlah,
@@ -11700,20 +11744,23 @@
         if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
           const result = await res.json();
           if (result.success && result.data) {
-            renderCetakSoalSheets(result.data);
+            renderCetakSoalSheets(result.data, true);
           }
         }
       } catch (errNet) {
-        // Tampilan lokal sudah aktif dan berjalan sempurna, tidak mengganggu guru
         console.log('Mode cetak soal menggunakan render lokal:', errNet.message);
       }
     }
 
-    function renderCetakSoalSheets(printData) {
+    function renderCetakSoalSheets(printData, isPreview = true) {
+      if (!printData) return;
+      window._lastExamPrintData = printData;
       const { ulangan, guru, options, paket_list, master_keys } = printData;
       const isHematKertas = options.mode_layout === 'hemat_kertas';
       const isAcak = options.acak_soal;
       const totalLembar = paket_list.length;
+      const isLimitedPreview = Boolean(isPreview && totalLembar > 2);
+      const activePaketList = isLimitedPreview ? paket_list.slice(0, 2) : paket_list;
 
       let html = '';
 
@@ -11895,11 +11942,11 @@
       // 1. Tata Letak HEMAT KERTAS (2 Lembar Siswa per Kertas A4)
       if (isHematKertas) {
         // Kelompokkan paket 2 per 2
-        for (let i = 0; i < paket_list.length; i += 2) {
-          const slipTop = paket_list[i];
-          const slipBottom = paket_list[i + 1] || null;
+        for (let i = 0; i < activePaketList.length; i += 2) {
+          const slipTop = activePaketList[i];
+          const slipBottom = activePaketList[i + 1] || null;
           const pageNum = Math.floor(i / 2) + 1;
-          const isLastPage = (i + 2 >= paket_list.length);
+          const isLastPage = (i + 2 >= activePaketList.length);
 
           const cutLineHtml = slipBottom ? `
             <div class="print-cut-line my-1 py-0.5 flex items-center justify-center space-x-2 text-slate-500 font-mono text-[9px] select-none">
@@ -11925,8 +11972,8 @@
         }
       } else {
         // 2. Tata Letak STANDAR (1 Lembar Siswa per Halaman A4 Penuh)
-        paket_list.forEach((paket, idx) => {
-          const isLastPage = (idx === paket_list.length - 1);
+        activePaketList.forEach((paket, idx) => {
+          const isLastPage = (idx === activePaketList.length - 1);
           html += `
             <div class="a4-sheet-page mode-satu-halaman bg-white p-6 sm:p-10 rounded-2xl shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 ${!isLastPage || (options.sertakan_kunci && master_keys.length > 0) ? 'print-page-break' : ''}">
               <div class="text-[10px] text-slate-400 no-print pb-2 flex justify-between">
@@ -11937,6 +11984,15 @@
             </div>
           `;
         });
+      }
+
+      // Banner pemberitahuan jika dalam mode preview ringkas (Anti-Lag)
+      if (isLimitedPreview) {
+        html += `
+          <div class="no-print p-4 my-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl text-center text-xs text-blue-950 font-medium shadow-xs">
+            📄 <strong>Mode Pratinjau Cepat (Bebas Lag):</strong> Menampilkan 2 lembar pertama dari total ${totalLembar} lembar (${totalLembar} siswa). Seluruh ${totalLembar} lembar akan tercetak otomatis dan rapi saat tombol <strong>"🖨️ Cetak / Simpan PDF"</strong> ditekan atau saat diunduh via <strong>"📄 Ekspor ke Word (.doc)"</strong>.
+          </div>
+        `;
       }
 
       // 3. Lembar Kunci Jawaban Guru (Master Keys) di Halaman Terakhir jika Diaktifkan
@@ -11999,20 +12055,212 @@
 
       cetakSheetContainer.innerHTML = html;
 
-      // Render KaTeX Math jika ada rumus matematika
+      // Render KaTeX Math jika ada rumus matematika (Async requestAnimationFrame agar tidak membekukan UI thread)
       if (typeof renderMathInElement === 'function') {
-        try {
-          renderMathInElement(cetakSheetContainer, {
-            delimiters: [
-              { left: '$$', right: '$$', display: true },
-              { left: '$', right: '$', display: false }
-            ],
-            throwOnError: false
-          });
-        } catch (eMath) {
-          console.warn('Gagal merender simbol KaTeX:', eMath);
-        }
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            try {
+              renderMathInElement(cetakSheetContainer, {
+                delimiters: [
+                  { left: '$$', right: '$$', display: true },
+                  { left: '$', right: '$', display: false }
+                ],
+                throwOnError: false
+              });
+            } catch (eMath) {
+              console.warn('Gagal merender simbol KaTeX:', eMath);
+            }
+          }, 10);
+        });
       }
+    }
+
+    // Fungsi Ekspor Naskah Soal & Kunci ke Microsoft Word (.doc) Offline Cepat
+    function exportSoalToWordDoc(printData) {
+      if (!printData) return;
+      const { ulangan, guru, options, paket_list, master_keys } = printData;
+      const safeTitle = (ulangan.judul || 'Soal_Ulangan').replace(/[/\\?%*:|"<>]/g, '_');
+
+      let contentHtml = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+          <meta charset='utf-8'>
+          <title>${escapeHtml(ulangan.judul || 'Ulangan')}</title>
+          <style>
+            @page {
+              size: A4;
+              margin: 1.5cm 1.5cm 1.5cm 1.5cm;
+            }
+            body {
+              font-family: 'Calibri', 'Arial', sans-serif;
+              font-size: 11pt;
+              line-height: 1.4;
+              color: #111;
+            }
+            .header-table {
+              width: 100%;
+              border-bottom: 2pt solid #000;
+              margin-bottom: 10pt;
+              padding-bottom: 4pt;
+            }
+            .identity-table {
+              width: 100%;
+              border: 1pt solid #888;
+              margin-bottom: 12pt;
+              border-collapse: collapse;
+            }
+            .identity-table td {
+              padding: 4pt 6pt;
+              font-size: 10pt;
+            }
+            .question-item {
+              margin-bottom: 10pt;
+              page-break-inside: avoid;
+            }
+            .answer-lines {
+              margin-top: 4pt;
+              margin-bottom: 6pt;
+            }
+            .line {
+              border-bottom: 0.5pt solid #999;
+              height: 18pt;
+            }
+            .options-list {
+              margin-left: 18pt;
+              margin-top: 4pt;
+            }
+            .page-break {
+              page-break-before: always;
+            }
+          </style>
+        </head>
+        <body>
+      `;
+
+      paket_list.forEach((paket, pIdx) => {
+        if (pIdx > 0) {
+          contentHtml += `<div class="page-break"></div>`;
+        }
+        contentHtml += `
+          <table class="header-table">
+            <tr>
+              <td style="vertical-align: middle;">
+                <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">${escapeHtml(ulangan.judul)}</div>
+                <div style="font-size: 10pt; color: #444;">
+                  Mata Pelajaran: <b>${escapeHtml(ulangan.mata_pelajaran || '-')}</b> &bull; 
+                  Kelas: <b>${escapeHtml(ulangan.tingkat_kelas || '-')}</b> &bull; 
+                  Waktu: <b>${ulangan.durasi_menit ? ulangan.durasi_menit + ' Menit' : 'Bebas'}</b>
+                </div>
+              </td>
+              <td style="text-align: right; vertical-align: middle; width: 120pt;">
+                <div style="display: inline-block; padding: 4pt 8pt; border: 1.5pt solid #333; font-weight: bold; font-size: 10pt;">
+                  ${escapeHtml(paket.kode_paket)}
+                </div>
+              </td>
+            </tr>
+          </table>
+
+          <table class="identity-table">
+            <tr>
+              <td style="width: 50%;">Nama Siswa: .....................................................</td>
+              <td style="width: 25%;">Kelas / No: ....................</td>
+              <td rowspan="2" style="width: 25%; text-align: center; border-left: 1pt solid #888; vertical-align: middle;">
+                <div style="font-size: 9pt; color: #555; font-weight: bold;">NILAI / PARAF</div>
+                <div style="height: 22pt;"></div>
+              </td>
+            </tr>
+            <tr>
+              <td>Hari / Tanggal: .................................................</td>
+              <td>Guru: ${escapeHtml(guru.nama || 'Guru')}</td>
+            </tr>
+          </table>
+
+          <div style="font-size: 9.5pt; font-style: italic; color: #555; margin-bottom: 8pt;">
+            * Petunjuk: Perhatikan penanda soal. Untuk PG Biasa pilih 1 jawaban, untuk PG Kompleks centang seluruh jawaban benar. Tulis jawaban dengan rapi!
+          </div>
+        `;
+
+        paket.soal.forEach((s) => {
+          const isPg = s.jenis === 'pilihan_ganda' || (s.opsi_a && s.opsi_b);
+          contentHtml += `
+            <div class="question-item">
+              <div><b>${s.nomor_cetak}.</b> ${escapeHtml(s.pertanyaan || '')} ${options.tampilkan_bobot && s.bobot ? `<span style="font-size: 9pt; color: #666;">[Bobot: ${s.bobot}]</span>` : ''}</div>
+          `;
+
+          if (s.gambar_url) {
+            contentHtml += `<div style="margin: 4pt 0;"><img src="${escapeHtml(s.gambar_url)}" style="max-height: 180pt; max-width: 100%;" /></div>`;
+          }
+
+          if (isPg) {
+            contentHtml += `<div class="options-list">`;
+            ['a', 'b', 'c', 'd', 'e'].forEach(opt => {
+              const val = s['opsi_' + opt];
+              if (val && String(val).trim()) {
+                contentHtml += `<div style="margin: 2.5pt 0;"><b>${opt.toUpperCase()}.</b> ${escapeHtml(val)}</div>`;
+              }
+            });
+            contentHtml += `</div>`;
+          } else {
+            contentHtml += `<div class="answer-lines">`;
+            const linesCount = s.baris_jawaban || 3;
+            for (let l = 0; l < linesCount; l++) {
+              contentHtml += `<div class="line"></div>`;
+            }
+            contentHtml += `</div>`;
+          }
+          contentHtml += `</div>`;
+        });
+      });
+
+      if (options.sertakan_kunci && master_keys && master_keys.length > 0) {
+        contentHtml += `
+          <div class="page-break"></div>
+          <div style="font-size: 13pt; font-weight: bold; border-bottom: 2pt solid #000; padding-bottom: 4pt; margin-bottom: 10pt;">
+            KUNCI JAWABAN &amp; RUBRIK PENILAIAN (PEGANGAN GURU)
+          </div>
+        `;
+        master_keys.forEach(mk => {
+          contentHtml += `
+            <div style="font-size: 11pt; font-weight: bold; margin-top: 10pt; margin-bottom: 4pt; background: #eee; padding: 4pt;">
+              Kunci Jawaban: ${escapeHtml(mk.kode_paket)}
+            </div>
+            <table style="width: 100%; border-collapse: collapse; font-size: 9.5pt;" border="1" cellpadding="4">
+              <tr style="background: #f5f5f5;">
+                <th style="width: 30pt; text-align: center;">No</th>
+                <th style="width: 50pt; text-align: center;">Jenis</th>
+                <th style="width: 35pt; text-align: center;">Bobot</th>
+                <th>Kunci Jawaban</th>
+                <th>Rubrik / Pembahasan</th>
+              </tr>
+          `;
+          mk.items.forEach(it => {
+            contentHtml += `
+              <tr>
+                <td style="text-align: center; font-weight: bold;">${it.nomor_cetak}</td>
+                <td style="text-align: center; text-transform: uppercase;">${it.jenis}</td>
+                <td style="text-align: center;">${it.bobot}</td>
+                <td><b>${escapeHtml(it.kunci_jawaban || '-')}</b></td>
+                <td>${escapeHtml(it.rubrik || '-')}</td>
+              </tr>
+            `;
+          });
+          contentHtml += `</table>`;
+        });
+      }
+
+      contentHtml += `</body></html>`;
+
+      const blob = new Blob(['\ufeff', contentHtml], { type: 'application/msword' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Soal_${safeTitle}.doc`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
     }
 
     // ==========================================

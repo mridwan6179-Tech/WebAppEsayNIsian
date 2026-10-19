@@ -4,6 +4,8 @@ require('dotenv').config();
 // Track status worker per ulangan
 const runningWorkers = new Map(); // ulanganId -> { isRunning: boolean, shouldStop: boolean }
 let lastAutoTickAt = 0;
+let isCurrentlyGradingAnswer = false;
+let lastProcessedPengerjaanId = null;
 
 const queueService = {
   // Hitung jeda acak 5 - 13 detik (atau dari env)
@@ -227,7 +229,41 @@ const queueService = {
     const id = Number(ulanganId);
     this.recoverStaleLocks(id);
 
+    // Strict Concurrency = 1: Cegah dual-evaluasi bersamaan agar CPU server & API AI tidak overload
+    if (isCurrentlyGradingAnswer) {
+      return {
+        success: true,
+        busy: true,
+        message: 'AI sedang mengevaluasi jawaban sebelumnya secara antrean satu per satu.',
+        status: this.getQueueStatus(id)
+      };
+    }
+
+    try {
+      const activeLock = db.prepare(`
+        SELECT a.id 
+        FROM antrean_review a
+        JOIN jawaban j ON a.jawaban_id = j.id
+        JOIN pengerjaan p ON j.pengerjaan_id = p.id
+        WHERE p.ulangan_id = ?
+          AND a.status = 'diproses' 
+          AND a.locked_at IS NOT NULL 
+          AND datetime(a.locked_at) >= datetime('now', '-90 seconds')
+        LIMIT 1
+      `).get(id);
+
+      if (activeLock) {
+        return {
+          success: true,
+          busy: true,
+          message: 'AI sedang mengevaluasi jawaban sebelumnya secara antrean satu per satu.',
+          status: this.getQueueStatus(id)
+        };
+      }
+    } catch (eLock) {}
+
     // Ambil dan kunci 1 pekerjaan antrean tertua yang siap diproses secara atomik
+    // PRIORITAS: Siswa yang submit duluan dinilai tuntas terlebih dahulu (FIFO per siswa)
     let queueItem = null;
     db.transaction(() => {
       queueItem = db.prepare(`
@@ -246,7 +282,7 @@ const queueService = {
           AND j.status_penilaian != 'selesai'
           AND (a.status = 'menunggu' OR (a.status = 'gagal' AND a.attempt_count < 3))
           AND (a.next_attempt_at IS NULL OR datetime(a.next_attempt_at) <= datetime('now'))
-        ORDER BY a.attempt_count ASC, a.id ASC
+        ORDER BY COALESCE(p.submitted_at, p.started_at) ASC, p.id ASC, a.attempt_count ASC, a.id ASC
         LIMIT 1
       `).get(id);
 
@@ -274,7 +310,16 @@ const queueService = {
       };
     }
 
+    isCurrentlyGradingAnswer = true;
     try {
+      // Jeda AI antar user (pacing) agar antrean adil dan memberi nafas pada server & AI API
+      const isTestEnv = process.env.NODE_ENV === 'test' || process.argv.some(arg => arg.includes('test'));
+      const pacingDelay = isTestEnv ? 0 : 800;
+      if (pacingDelay > 0 && lastProcessedPengerjaanId !== null && lastProcessedPengerjaanId !== queueItem.pengerjaan_id) {
+        await new Promise(resolve => setTimeout(resolve, pacingDelay));
+      }
+      lastProcessedPengerjaanId = queueItem.pengerjaan_id;
+
       let result;
       if (gradeFunction) {
         result = await gradeFunction(queueItem);
@@ -394,6 +439,8 @@ const queueService = {
         error: String(err.message),
         status: this.getQueueStatus(id)
       };
+    } finally {
+      isCurrentlyGradingAnswer = false;
     }
   },
 
@@ -406,6 +453,10 @@ const queueService = {
     // Jika background worker lokal sudah aktif untuk ulangan ini, biarkan worker yang memproses
     if (runningWorkers.get(id)?.isRunning && !options.forceStep) {
       return { skipped: true, reason: 'worker_running' };
+    }
+
+    if (isCurrentlyGradingAnswer && !options.forceStep) {
+      return { skipped: true, reason: 'concurrency_lock' };
     }
 
     const isTestEnv = process.env.NODE_ENV === 'test' || process.argv.some(arg => arg.includes('test'));
