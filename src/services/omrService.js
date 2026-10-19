@@ -195,32 +195,75 @@ const omrService = {
     };
   },
 
-  // Fallback Evaluasi Gambar LJK via Gemini Vision AI jika kamera buram / terlipat
-  async evaluateOmrImageWithAI({ ulanganId, imageBase64, mimeType = 'image/jpeg', paketFallback = 'A' }) {
+  // Fallback Evaluasi Gambar LJK via Gemini Vision AI jika kamera buram / terlipat (Adaptif Layout LJK)
+  async evaluateOmrImageWithAI({ ulanganId, imageBase64, mimeType = 'image/jpeg', paketFallback = 'A', totalSoal = null, opsiCount = null, kolomCount = null }) {
     const ulangan = db.prepare('SELECT * FROM ulangan WHERE id = ?').get(ulanganId);
     if (!ulangan) throw new Error('Ulangan tidak ditemukan');
 
-    const prompt = `Anda adalah asisten pemeriksa Lembar Jawab Komputer (LJK) pilihan ganda.
-Periksa gambar lembar jawaban kertas ujian berikut ini dengan sangat cermat.
+    // 1. Tentukan paket fallback dan daftar paket yang sah
+    const pkgs = db.prepare('SELECT nama_paket, kunci_jawaban_map, urutan_soal_ids FROM paket_soal WHERE ulangan_id = ? ORDER BY nama_paket ASC').all(ulanganId);
+    const validPackages = pkgs.length > 0 
+      ? pkgs.map(p => p.nama_paket) 
+      : ['A', 'B', 'C', 'D'].slice(0, Math.max(1, Math.min(4, Number(ulangan.jumlah_paket) || 1)));
 
-TUGAS ANDA:
-1. Baca identitas siswa pada lembar:
-   - Nama Siswa (bila tertulis)
-   - Kelas (bila tertulis)
-2. Periksa pilihan bulatan "PAKET SOAL" yang dihitamkan (biasanya opsi A, B, C, atau D). Jika tidak terlihat jelas, default ke "${paketFallback}".
-3. Periksa nomor 1 sampai selesai pada grid bulatan jawaban:
-   - Kenali huruf (A, B, C, D, atau E) mana yang dihitamkan/dilingkari oleh siswa.
-   - Jika suatu nomor tidak dihitamkan sama sekali, abaikan atau beri nilai null.
-   - Jika ada dua bulatan dihitamkan pada nomor yang sama, anggap batal/ganda (beri nilai "GANDA").
-4. Kembalikan HASIL HANYA dalam format JSON valid berikut tanpa teks lain:
+    const activePaket = (paketFallback && validPackages.includes(paketFallback.toUpperCase()))
+      ? paketFallback.toUpperCase()
+      : validPackages[0] || 'A';
+
+    // 2. Hitung jumlah total butir soal pilihan ganda
+    let targetSoalCount = Number(totalSoal) || 0;
+    if (!targetSoalCount) {
+      const activePkgRow = pkgs.find(p => p.nama_paket === activePaket);
+      if (activePkgRow && activePkgRow.kunci_jawaban_map) {
+        try {
+          const kMap = JSON.parse(activePkgRow.kunci_jawaban_map);
+          targetSoalCount = Object.keys(kMap).length;
+        } catch (e) {}
+      }
+    }
+    if (!targetSoalCount) {
+      const pgCountRow = db.prepare(`
+        SELECT COUNT(id) as cnt FROM soal 
+        WHERE ulangan_id = ? AND (jenis = 'pilihan_ganda' OR (kunci_pg IS NOT NULL AND TRIM(kunci_pg) != ''))
+      `).get(ulanganId);
+      targetSoalCount = Number(pgCountRow?.cnt) || Number(ulangan.jumlah_soal) || 20;
+    }
+
+    // 3. Tentukan opsi jawaban (A-D untuk 4 opsi, A-E untuk 5 opsi)
+    const effectiveOpsiCount = Number(opsiCount) === 5 || Number(ulangan.opsi_pg_count) === 5 ? 5 : 4;
+    const allowedLetters = effectiveOpsiCount === 5 ? 'A, B, C, D, atau E' : 'A, B, C, atau D';
+
+    const prompt = `Anda adalah asisten pemeriksa Lembar Jawab Komputer (LJK) pilihan ganda.
+Periksa gambar lembar jawaban kertas ujian berikut ini dengan sangat cermat, teliti, dan presisi tinggi.
+
+STRUKTUR & TATA LETAK LEMBAR LJK INI:
+- Total Soal di Lembar: TEPAT ${targetSoalCount} BUTIR SOAL (Nomor 1 sampai ${targetSoalCount}).
+- Pilihan Huruf per Soal: ${allowedLetters}.
+- Pilihan Paket Soal pada Lembar: ${validPackages.join(', ')}.
+- Format Grid: Disusun dalam kolom berurutan (misal kolom 1: No. 1 - ..., kolom 2: No. ... - ${targetSoalCount}).
+
+TUGAS PEMERIKSAAN:
+1. Baca identitas siswa pada kop LJK:
+   - "nama_siswa": Nama siswa yang tertulis (string atau null bila kosong).
+   - "kelas": Kelas atau sesi yang tertulis (string atau null bila kosong).
+   - "nis": Nomor induk / peserta jika terisi (string atau null bila kosong).
+2. Periksa bulatan "PAKET SOAL" di kanan atas:
+   - Deteksi bulatan paket mana yang dihitamkan (${validPackages.join(' / ')}).
+   - Jika tidak ada bulatan paket yang dihitamkan atau lembar tidak memiliki opsi paket, gunakan default "${activePaket}".
+3. Periksa bulatan jawaban siswa secara berurutan DARI NOMOR 1 SAMPAI NOMOR ${targetSoalCount}:
+   - Kenali huruf (${allowedLetters}) mana yang dihitamkan / diarsir penuh oleh siswa dengan pensil atau pulpen.
+   - HANYA PERIKSA NOMOR 1 SAMPAI ${targetSoalCount}! JANGAN mengarang nomor di atas ${targetSoalCount}.
+   - Jika suatu nomor tidak dihitamkan sama sekali oleh siswa (kosong), isi dengan string kosong "".
+   - Jika ada dua bulatan dihitamkan pada satu nomor soal yang sama, anggap batal (isi dengan "GANDA").
+4. Kembalikan HASIL HANYA dalam format JSON valid berikut tanpa penjelasan atau markdown tambahan:
 {
   "nama_siswa": "Nama Terbaca / null",
   "kelas": "Kelas Terbaca / null",
-  "paket": "${paketFallback}",
+  "nis": "NIS / null",
+  "paket": "${activePaket}",
   "answers": {
     "1": "A",
-    "2": "C",
-    "3": "B"
+    "2": "B"
   }
 }
 `;
@@ -230,7 +273,7 @@ TUGAS ANDA:
       throw new Error('Gagal mengenali bulatan jawaban dari gambar LJK');
     }
 
-    const paket = (parsed.paket || paketFallback || 'A').toUpperCase().trim();
+    const paket = (parsed.paket || activePaket || 'A').toUpperCase().trim();
     const scored = this.scoreSubmission({
       ulanganId,
       paket,
@@ -242,6 +285,7 @@ TUGAS ANDA:
       detected_info: {
         nama_siswa: parsed.nama_siswa || '',
         kelas: parsed.kelas || '',
+        nis: parsed.nis || '',
         paket
       },
       answers: parsed.answers,

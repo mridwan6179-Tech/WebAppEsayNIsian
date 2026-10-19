@@ -1903,7 +1903,10 @@ app.post('/api/guru/ulangan/:id/omr/scan-ai', requireGuru, async (req, res) => {
     const b = req.body || {};
     const imageBase64 = b.imageBase64 || b.image_base64;
     const mimeType = b.mimeType || b.mime_type || 'image/jpeg';
-    const paket = b.paket || 'A';
+    const paket = b.paket || b.paketFallback || 'A';
+    const totalSoal = b.totalSoal || b.total_soal;
+    const opsiCount = b.opsiCount || b.opsi_count;
+    const kolomCount = b.kolomCount || b.kolom_count;
     if (!imageBase64) {
       return res.status(400).json({ success: false, message: 'Data gambar LJK wajib disertakan' });
     }
@@ -1911,7 +1914,10 @@ app.post('/api/guru/ulangan/:id/omr/scan-ai', requireGuru, async (req, res) => {
       ulanganId: req.params.id,
       imageBase64,
       mimeType,
-      paketFallback: paket
+      paketFallback: paket,
+      totalSoal,
+      opsiCount,
+      kolomCount
     });
     res.json({
       success: true,

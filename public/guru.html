@@ -59,6 +59,42 @@
       box-sizing: border-box;
       transition: all 0.2s ease-in-out;
     }
+    .a4-ljk-page.mode-hemat-3 {
+      min-height: 297mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .a4-ljk-page.mode-hemat-3 .ljk-third-container {
+      flex: 1 1 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .a4-ljk-page.mode-hemat-3 .ljk-card {
+      flex: 1 1 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .a4-ljk-page.mode-hemat-kertas {
+      min-height: 297mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .a4-ljk-page.mode-hemat-kertas .ljk-half-container {
+      flex: 1 1 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .a4-ljk-page.mode-hemat-kertas .ljk-card {
+      flex: 1 1 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
 
     @media print {
       html, body {
@@ -230,12 +266,13 @@
 
       /* Mode Cetak Presisi LJK OMR: 3 LJK per Kertas HVS A4 (Super Hemat: 3 Siswa per Lembar) */
       .a4-ljk-page.mode-hemat-3 {
-        height: auto !important;
-        max-height: 275mm !important;
+        height: 283mm !important;
+        min-height: 283mm !important;
+        max-height: 284mm !important;
         overflow: hidden !important;
         display: flex !important;
         flex-direction: column !important;
-        justify-content: flex-start !important;
+        justify-content: space-between !important;
         padding: 0 !important;
         margin: 0 auto !important;
         box-sizing: border-box !important;
@@ -245,30 +282,37 @@
         break-inside: avoid !important;
       }
       .mode-hemat-3 .ljk-third-container {
-        height: auto !important;
-        max-height: 88mm !important;
+        height: 89.5mm !important;
+        max-height: 90.5mm !important;
         display: flex !important;
         flex-direction: column !important;
-        justify-content: flex-start !important;
+        justify-content: space-between !important;
         align-items: stretch !important;
         overflow: hidden !important;
         box-sizing: border-box !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
+        flex: 1 1 0 !important;
       }
       .mode-hemat-3 .ljk-card {
         width: 100% !important;
-        max-height: 86mm !important;
+        height: 100% !important;
+        max-height: 89.5mm !important;
         box-sizing: border-box !important;
         border: 1.5px solid #000 !important;
         background: white !important;
         padding: 1.5mm 2.5mm !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
       }
       .mode-hemat-3 .ljk-cut-line {
-        margin: 0.8mm 0 !important;
-        padding: 0.3mm 0 !important;
+        height: 3.5mm !important;
+        min-height: 3.5mm !important;
+        margin: 0.3mm 0 !important;
+        padding: 0.1mm 0 !important;
         border-bottom: 1.2px dashed #475569 !important;
         text-align: center !important;
         font-size: 6.5pt !important;
@@ -276,16 +320,18 @@
         page-break-inside: avoid !important;
         break-inside: avoid !important;
         box-sizing: border-box !important;
+        flex-shrink: 0 !important;
       }
 
       /* Mode Cetak Presisi LJK OMR: 2 LJK per Kertas HVS A4 */
       .a4-ljk-page.mode-hemat-kertas {
-        height: auto !important;
-        max-height: 255mm !important;
+        height: 283mm !important;
+        min-height: 283mm !important;
+        max-height: 284mm !important;
         overflow: hidden !important;
         display: flex !important;
         flex-direction: column !important;
-        justify-content: flex-start !important;
+        justify-content: space-between !important;
         padding: 0 !important;
         margin: 0 auto !important;
         box-sizing: border-box !important;
@@ -295,37 +341,45 @@
         break-inside: avoid !important;
       }
       .mode-hemat-kertas .ljk-half-container {
-        height: auto !important;
-        max-height: 122mm !important;
+        height: 137.5mm !important;
+        max-height: 138.5mm !important;
         display: flex !important;
         flex-direction: column !important;
-        justify-content: flex-start !important;
+        justify-content: space-between !important;
         align-items: stretch !important;
         overflow: hidden !important;
         box-sizing: border-box !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
+        flex: 1 1 0 !important;
       }
       .mode-hemat-kertas .ljk-card {
         width: 100% !important;
-        max-height: 122mm !important;
+        height: 100% !important;
+        max-height: 137.5mm !important;
         box-sizing: border-box !important;
         border: 1.5px solid #000 !important;
         background: white !important;
-        padding: 2mm 3mm !important;
+        padding: 2.5mm 3.5mm !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
       }
       .mode-hemat-kertas .ljk-cut-line {
-        margin: 1mm 0 !important;
-        padding: 0.5mm 0 !important;
-        border-bottom: 1.2px dashed #475569 !important;
+        height: 5mm !important;
+        min-height: 5mm !important;
+        margin: 0.8mm 0 !important;
+        padding: 0.2mm 0 !important;
+        border-bottom: 1.5px dashed #475569 !important;
         text-align: center !important;
-        font-size: 7pt !important;
+        font-size: 7.5pt !important;
         color: #475569 !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
         box-sizing: border-box !important;
+        flex-shrink: 0 !important;
       }
       .a4-ljk-page.mode-satu-halaman {
         min-height: 250mm !important;
@@ -4055,7 +4109,7 @@
           </label>
           <label class="flex items-center space-x-1.5 cursor-pointer">
             <input type="checkbox" id="chk-ljk-show-paket" checked class="rounded text-emerald-600">
-            <span>Tampilkan Bulatan Pilihan Paket (A, B, C, D)</span>
+            <span id="label-ljk-show-paket">Tampilkan Bulatan Pilihan Paket (A, B, C, D)</span>
           </label>
           <label class="flex items-center space-x-1.5 cursor-pointer">
             <input type="checkbox" id="chk-ljk-show-ttd" checked class="rounded text-emerald-600">
@@ -15603,28 +15657,70 @@
       if (inputLjkCustomTitle && activeUlanganData) {
         inputLjkCustomTitle.value = activeUlanganData.judul || '';
       }
-      if (selectLjkSoalCount && activeUlanganData) {
-        let exactCount = 0;
-        if (Array.isArray(currentPackagesData) && currentPackagesData.length > 0 && currentPackagesData[0]?.total_soal) {
-          exactCount = Number(currentPackagesData[0].total_soal);
-        } else if (Array.isArray(activeUlanganData.soal) && activeUlanganData.soal.length > 0) {
-          const pgCount = activeUlanganData.soal.filter(s => s.jenis === 'pilihan_ganda' || (s.kunci_pg && String(s.kunci_pg).trim() !== '')).length;
-          exactCount = pgCount > 0 ? pgCount : activeUlanganData.soal.length;
-        } else if (activeUlanganData.jumlah_soal) {
-          exactCount = Number(activeUlanganData.jumlah_soal);
-        }
 
-        if (exactCount > 0) {
-          const exists = Array.from(selectLjkSoalCount.options).some(o => o.value === String(exactCount));
-          if (!exists) {
-            const newOpt = document.createElement('option');
-            newOpt.value = String(exactCount);
-            newOpt.textContent = `${exactCount} Butir Soal (Sesuai Naskah)`;
-            selectLjkSoalCount.prepend(newOpt);
-          }
-          selectLjkSoalCount.value = String(exactCount);
+      // 1. Deteksi jumlah butir soal persis dari naskah atau paket
+      let exactCount = 0;
+      if (Array.isArray(currentPackagesData) && currentPackagesData.length > 0 && currentPackagesData[0]?.total_soal) {
+        exactCount = Number(currentPackagesData[0].total_soal);
+      } else if (Array.isArray(activeUlanganData?.soal) && activeUlanganData.soal.length > 0) {
+        const pgCount = activeUlanganData.soal.filter(s => s.jenis === 'pilihan_ganda' || (s.kunci_pg && String(s.kunci_pg).trim() !== '')).length;
+        exactCount = pgCount > 0 ? pgCount : activeUlanganData.soal.length;
+      } else if (activeUlanganData?.jumlah_soal) {
+        exactCount = Number(activeUlanganData.jumlah_soal);
+      }
+
+      if (selectLjkSoalCount && exactCount > 0) {
+        const exists = Array.from(selectLjkSoalCount.options).some(o => o.value === String(exactCount));
+        if (!exists) {
+          const newOpt = document.createElement('option');
+          newOpt.value = String(exactCount);
+          newOpt.textContent = `${exactCount} Butir Soal (Sesuai Naskah)`;
+          selectLjkSoalCount.prepend(newOpt);
+        }
+        selectLjkSoalCount.value = String(exactCount);
+      }
+
+      // 2. Sesuaikan format lembar secara otomatis & hemat:
+      // Jika <= 20 soal: Super Hemat 3 LJK per A4 (Hemat Kertas 66%)
+      // Jika 21-30 soal: Hemat Kertas 2 LJK per A4 (Hemat Kertas 50%)
+      // Jika > 30 soal: 1 Lembar Penuh A4
+      if (selectLjkLayoutMode) {
+        if (exactCount > 0 && exactCount <= 20) {
+          selectLjkLayoutMode.value = 'hemat_3';
+        } else if (exactCount > 20 && exactCount <= 30) {
+          selectLjkLayoutMode.value = 'hemat_kertas';
+        } else if (exactCount > 30) {
+          selectLjkLayoutMode.value = 'satu_halaman';
         }
       }
+
+      // 3. Kolom Jawaban default Otomatis (sesuai jumlah soal)
+      if (selectLjkKolomCount) {
+        selectLjkKolomCount.value = 'auto';
+      }
+
+      // 4. Deteksi Opsi PG (4 opsi A-D atau 5 opsi A-E)
+      if (selectLjkOpsiCount && activeUlanganData) {
+        const opsiCount = Number(activeUlanganData.opsi_pg_count) === 5 ? '5' : '4';
+        selectLjkOpsiCount.value = opsiCount;
+      }
+
+      // 5. Deteksi Jumlah Paket Soal (Multi-Paket)
+      const actualPackages = (Array.isArray(currentPackagesData) && currentPackagesData.length > 0)
+        ? currentPackagesData.map(p => p.nama_paket)
+        : (activeUlanganData?.jumlah_paket ? ['A', 'B', 'C', 'D'].slice(0, Math.max(1, Math.min(4, Number(activeUlanganData.jumlah_paket)))) : ['A']);
+
+      const pkgLabel = document.getElementById('label-ljk-show-paket');
+      if (chkLjkShowPaket) {
+        if (actualPackages.length <= 1) {
+          chkLjkShowPaket.checked = false; // Hemat ruang identitas jika ulangan hanya 1 paket
+          if (pkgLabel) pkgLabel.textContent = 'Tampilkan Bulatan Paket (Hanya 1 Paket Utama)';
+        } else {
+          chkLjkShowPaket.checked = true;
+          if (pkgLabel) pkgLabel.textContent = `Tampilkan Bulatan Pilihan Paket (${actualPackages.join(', ')})`;
+        }
+      }
+
       renderLjkSheet();
     }
     window.openCetakLjkModal = openCetakLjkModal;
@@ -15665,7 +15761,7 @@
       } else if (isCompact) {
         if (soalCount <= 10) cols = 2; // 5 baris/kolom
         else if (soalCount <= 15) cols = 3; // 5 baris/kolom
-        else if (soalCount <= 20) cols = 2; // 10 baris/kolom
+        else if (soalCount <= 20) cols = 2; // 10 baris/kolom (2 kolom jawaban proporsional!)
         else if (soalCount <= 30) cols = 3; // 10 baris/kolom (3 kolom jawaban!)
         else if (soalCount <= 40) cols = 4; // 10 baris/kolom
         else cols = 5; // 50 soal -> 5 kolom x 10 baris
@@ -15690,30 +15786,32 @@
           let bubbles = '';
           opsiList.forEach(op => {
             const bubbleSize = isThird 
-              ? 'w-[12.5px] h-[12.5px] text-[7.5px]' 
-              : (isHalf ? 'w-[13.5px] h-[13.5px] text-[8px]' : 'w-[18px] h-[18px] text-[10px]');
+              ? 'w-[13px] h-[13px] text-[7.5px]' 
+              : (isHalf ? 'w-[14px] h-[14px] text-[8.5px]' : 'w-[18px] h-[18px] text-[10px]');
             bubbles += `
               <div class="inline-flex items-center justify-center ${bubbleSize} rounded-full border-[1.2px] border-black font-black leading-none mx-[0.5px] select-none text-black bg-white" style="-webkit-print-color-adjust: exact !important;">
                 ${op}
               </div>
             `;
           });
-          const py = isThird ? 'py-[0.3px]' : (isHalf ? 'py-[0.5px]' : 'py-[2px]');
-          const numWidth = isThird ? 'w-3.5 text-[7.5px]' : (isHalf ? 'w-4 text-[8px]' : 'w-6 text-[10px]');
+          const py = isThird ? 'py-[0.8px]' : (isHalf ? 'py-[1.2px]' : 'py-[2px]');
+          const numWidth = isThird ? 'w-3.5 text-[8px]' : (isHalf ? 'w-4 text-[8.5px]' : 'w-6 text-[10px]');
           colItems += `
-            <div class="flex items-center justify-center space-x-0.5 ${py}">
+            <div class="flex items-center justify-center space-x-0.5 ${py} ljk-bubble-row">
               <span class="${numWidth} font-black text-right text-black font-mono shrink-0">${numStr}.</span>
               <div class="flex items-center">${bubbles}</div>
             </div>
           `;
         }
-        const headerPad = isThird ? 'py-0.5 mb-0.5 text-[7px]' : (isHalf ? 'py-0.5 mb-0.5 text-[7.5px]' : 'py-1 mb-1.5 text-[10px]');
+        const headerPad = isThird ? 'py-0.5 mb-0.5 text-[7px]' : (isHalf ? 'py-0.5 mb-0.5 text-[8px]' : 'py-1 mb-1.5 text-[10px]');
         bubbleColsHtml += `
-          <div class="flex-1 px-0.5">
-            <div class="bg-slate-100 text-center font-black border border-black ${headerPad} uppercase tracking-wider" style="-webkit-print-color-adjust: exact !important;">
+          <div class="flex-1 px-0.5 flex flex-col justify-between">
+            <div class="bg-slate-100 text-center font-black border border-black ${headerPad} uppercase tracking-wider shrink-0" style="-webkit-print-color-adjust: exact !important;">
               No. ${String(startNo).padStart(2, '0')} - ${String(endNo).padStart(2, '0')}
             </div>
-            ${colItems}
+            <div class="flex-1 flex flex-col justify-around">
+              ${colItems}
+            </div>
           </div>
         `;
       }
@@ -15730,15 +15828,15 @@
         const ttdLineHeight = isThird ? 'h-2' : 'h-2';
 
         return `
-          <div class="ljk-card relative bg-white text-black ${cardPadding} border-2 border-black rounded-lg shadow-none select-none w-full box-border" style="box-sizing: border-box !important;">
+          <div class="ljk-card relative bg-white text-black ${cardPadding} border-2 border-black rounded-lg shadow-none select-none w-full box-border flex flex-col justify-between" style="box-sizing: border-box !important;">
             <!-- 4 Sudut Fiducial Black Square Anchors (Presisi Scanner OMR) -->
-            <div class="absolute top-1 left-1 w-3 h-3 bg-black" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor TL"></div>
-            <div class="absolute top-1 right-1 w-3 h-3 bg-black" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor TR"></div>
-            <div class="absolute bottom-1 left-1 w-3 h-3 bg-black" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor BL"></div>
-            <div class="absolute bottom-1 right-1 w-3 h-3 bg-black" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor BR"></div>
+            <div class="absolute top-1 left-1 w-3 h-3 bg-black shrink-0" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor TL"></div>
+            <div class="absolute top-1 right-1 w-3 h-3 bg-black shrink-0" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor TR"></div>
+            <div class="absolute bottom-1 left-1 w-3 h-3 bg-black shrink-0" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor BL"></div>
+            <div class="absolute bottom-1 right-1 w-3 h-3 bg-black shrink-0" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor BR"></div>
 
             <!-- Header Kop LJK -->
-            <div class="px-4 text-center border-b border-black pb-0.5 mb-1">
+            <div class="px-4 text-center border-b border-black pb-0.5 mb-0.5 shrink-0">
               <h1 class="${titleSize} font-black uppercase tracking-wider leading-tight">${escapeHtml(title)}</h1>
               <p class="${mapelSize} font-bold text-slate-800 leading-tight">${escapeHtml(mapel)} • LEMBAR JAWABAN UJIAN OMR</p>
               <div class="${petunjukSize} text-slate-600 mt-0.5 italic flex justify-center items-center space-x-2">
@@ -15749,7 +15847,7 @@
             </div>
 
             <!-- Kotak Identitas Siswa -->
-            <div class="px-1 grid grid-cols-12 gap-1 mb-1 ${identitasTextSize} border-b border-black pb-0.5">
+            <div class="px-1 grid grid-cols-12 gap-1 mb-0.5 ${identitasTextSize} border-b border-black pb-0.5 shrink-0">
               <!-- Nama Siswa & Kelas (7 col) -->
               <div class="${showNis || showPaket || showTtd ? 'col-span-7' : 'col-span-12'} space-y-0.5">
                 <div class="flex items-center space-x-1">
@@ -15796,7 +15894,7 @@
             </div>
 
             <!-- Matriks Bulatan Jawaban -->
-            <div class="px-0.5 grid divide-x divide-black pt-0.5" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));">
+            <div class="px-0.5 grid divide-x divide-black pt-0.5 flex-1 items-stretch" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));">
               ${bubbleColsHtml}
             </div>
           </div>
@@ -16303,6 +16401,10 @@
 
         try {
           const totalSoal = getActiveOmrTotalSoal();
+          const opsiCount = Number(selectLjkOpsiCount?.value || (Number(activeUlanganData?.opsi_pg_count) === 5 ? 5 : 4));
+          const userCol = selectLjkKolomCount?.value;
+          const kolomCount = (userCol && userCol !== 'auto') ? Number(userCol) : (totalSoal <= 20 ? 2 : (totalSoal <= 30 ? 3 : 4));
+
           const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/omr/scan-ai`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -16311,7 +16413,12 @@
               imageBase64: currentOmrSnapshotBase64,
               image_base64: currentOmrSnapshotBase64,
               paket: currentOmrScannedPackage,
-              total_soal: totalSoal
+              total_soal: totalSoal,
+              totalSoal: totalSoal,
+              opsi_count: opsiCount,
+              opsiCount: opsiCount,
+              kolom_count: kolomCount,
+              kolomCount: kolomCount
             })
           });
           clearTimeout(timeoutId);
