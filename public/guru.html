@@ -1818,6 +1818,29 @@
           <textarea id="edit-exam-desc" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-300"></textarea>
         </div>
 
+        <!-- Token Masuk Ujian Utama (Kode Akses Siswa) -->
+        <div class="p-3.5 bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-slate-50 rounded-xl border border-blue-200 space-y-2">
+          <div class="flex items-center justify-between flex-wrap gap-1">
+            <label class="block font-bold text-blue-950 text-xs flex items-center space-x-1.5">
+              <span>🎟️</span>
+              <span>Token Akses Ujian (Kode Masuk Siswa)</span>
+            </label>
+            <div class="flex items-center space-x-2">
+              <button type="button" onclick="generateNewEditExamToken()" class="text-[11px] text-blue-700 hover:text-blue-900 font-bold hover:underline cursor-pointer flex items-center space-x-1" title="Acak kode token ujian baru">
+                <span>🎲 Acak Token Baru</span>
+              </button>
+              <span class="text-slate-300">|</span>
+              <button type="button" onclick="copyEditExamToken()" class="text-[11px] text-emerald-700 hover:text-emerald-900 font-bold hover:underline cursor-pointer flex items-center space-x-1" title="Salin token ke clipboard">
+                <span>📋 Salin</span>
+              </button>
+            </div>
+          </div>
+          <div class="flex items-center space-x-2">
+            <input type="text" id="edit-exam-kode" maxlength="12" placeholder="Cth: 5SDGDF" class="w-full px-3 py-2 rounded-xl border border-blue-300 font-mono font-black text-sm text-blue-800 tracking-widest bg-white focus:ring-2 focus:ring-blue-500 uppercase">
+          </div>
+          <span class="block text-[10px] text-slate-500">Token/kode akses ini digunakan siswa di halaman awal ujian untuk masuk ke paket soal ulangan ini. Anda dapat mengacak atau mengubah kode ini kapan saja.</span>
+        </div>
+
         <!-- Waktu & Jadwal Ulangan -->
         <div class="p-3.5 bg-blue-50/60 rounded-xl border border-blue-200 space-y-2.5">
           <label class="block font-bold text-blue-900 text-xs">⏱️ Jadwal & Batas Waktu Ulangan</label>
@@ -2039,15 +2062,21 @@
           <p class="text-[11px] text-slate-600 leading-relaxed">
             Jika aktif, setiap siswa <strong>wajib memasukkan PIN 6-digit sekali pakai</strong> yang diberikan guru. Mencegah joki, siswa lain mengerjakan, atau login ganda dari perangkat lain.
           </p>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-rose-200/60">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 border-t border-rose-200/60">
             <div>
-              <label class="block text-slate-700 text-[11px] font-semibold mb-1">Batas Kuota Peserta (Token Ujian):</label>
-              <input type="number" id="edit-exam-token-ujian" min="0" placeholder="Kosongkan jika tak terbatas" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white">
-              <span class="block text-[10px] text-slate-500 mt-0.5">Guru dapat menambah token ini kapan saja saat ujian live berlangsung.</span>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-slate-700 text-[11px] font-semibold">Batas Kuota Peserta (Token Ujian):</label>
+                <span id="edit-exam-pin-stat-badge" class="text-[10px] bg-white border border-rose-200 text-rose-700 px-2 py-0.5 rounded-full font-bold">0 PIN</span>
+              </div>
+              <input type="number" id="edit-exam-token-ujian" min="0" placeholder="Cth: 241 (kosongkan jika tak terbatas)" class="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white">
+              <span class="block text-[10px] text-slate-500 mt-0.5">Menyimpan ulangan akan otomatis menyinkronkan token PIN sesuai kuota ini.</span>
             </div>
-            <div class="flex items-end">
-              <button type="button" onclick="openExamPinModalFromEdit()" class="w-full py-1.5 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1 shadow-sm cursor-pointer">
-                <span>🔑 Kelola &amp; Tambah PIN Sekarang</span>
+            <div class="flex flex-col justify-end space-y-1.5">
+              <button type="button" onclick="generateTokensFromEditModal()" class="w-full py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1 shadow-sm cursor-pointer active:scale-95" title="Generate pool PIN instan sekarang juga">
+                <span>⚡ Buat Pool PIN Sekarang</span>
+              </button>
+              <button type="button" onclick="openExamPinModalFromEdit()" class="w-full py-1.5 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1 shadow-sm cursor-pointer" title="Buka dialog manajemen PIN lengkap & cetak lembar PIN">
+                <span>🔑 Kelola &amp; Cetak PIN</span>
               </button>
             </div>
           </div>
@@ -2102,7 +2131,7 @@
   </div>
 
   <!-- MODAL MANAJEMEN PIN SEKALI PAKAI & TOKEN UJIAN -->
-  <div id="modal-exam-pin-manager" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+  <div id="modal-exam-pin-manager" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[70] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
     <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden my-auto">
       <!-- Modal Header -->
       <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-rose-50 via-pink-50 to-amber-50">
@@ -2158,11 +2187,17 @@
                 <span>⚡</span>
                 <span>Tambah Token Live:</span>
               </span>
-              <button type="button" onclick="tambahTokenExamPin(5)" class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition flex items-center space-x-1 cursor-pointer active:scale-95" title="Tambah 5 PIN sekali pakai baru saat ujian berlangsung">
-                <span>+5 Token PIN</span>
+              <button type="button" onclick="tambahTokenExamPin(5)" class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition flex items-center space-x-1 cursor-pointer active:scale-95" title="Tambah 5 PIN sekali pakai baru">
+                <span>+5</span>
               </button>
-              <button type="button" onclick="tambahTokenExamPin(10)" class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition flex items-center space-x-1 cursor-pointer active:scale-95" title="Tambah 10 PIN sekali pakai baru saat ujian berlangsung">
-                <span>+10 Token PIN</span>
+              <button type="button" onclick="tambahTokenExamPin(10)" class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition flex items-center space-x-1 cursor-pointer active:scale-95" title="Tambah 10 PIN sekali pakai baru">
+                <span>+10</span>
+              </button>
+              <button type="button" onclick="tambahTokenExamPin(30)" class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition flex items-center space-x-1 cursor-pointer active:scale-95" title="Tambah 30 PIN sekali pakai baru (1 Rombel)">
+                <span>+30 (1 Rombel)</span>
+              </button>
+              <button type="button" onclick="tambahTokenExamPin(50)" class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition flex items-center space-x-1 cursor-pointer active:scale-95" title="Tambah 50 PIN sekali pakai baru">
+                <span>+50</span>
               </button>
               <button type="button" onclick="promptCustomTokenPin()" class="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-semibold text-xs shadow-2xs transition flex items-center space-x-1 cursor-pointer">
                 <span>+ Jumlah Lain</span>
@@ -6247,11 +6282,17 @@
         if (document.getElementById('edit-exam-tampilkan-teks-listening')) {
           document.getElementById('edit-exam-tampilkan-teks-listening').checked = !!(u.tampilkan_teks_listening);
         }
+        if (document.getElementById('edit-exam-kode')) {
+          document.getElementById('edit-exam-kode').value = u.kode_ujian || '';
+        }
         if (document.getElementById('edit-exam-pin-aktif')) {
           document.getElementById('edit-exam-pin-aktif').checked = Boolean(u.pin_aktif);
         }
         if (document.getElementById('edit-exam-token-ujian')) {
           document.getElementById('edit-exam-token-ujian').value = (u.token_ujian !== null && u.token_ujian !== undefined) ? u.token_ujian : '';
+        }
+        if (typeof updateEditExamPinBadge === 'function') {
+          updateEditExamPinBadge(activeUlanganId);
         }
         if (document.getElementById('edit-exam-skor-langsung-ai')) {
           document.getElementById('edit-exam-skor-langsung-ai').checked = Boolean(u.skor_langsung_ai);
@@ -6399,6 +6440,7 @@
         tampilkan_kisi_kisi: toggleKisiKisi,
         link_kisi_kisi: linkKisiKisi || null,
         tampilkan_teks_listening: document.getElementById('edit-exam-tampilkan-teks-listening')?.checked ? 1 : 0,
+        kode_ujian: document.getElementById('edit-exam-kode')?.value.trim() || undefined,
         pin_aktif: document.getElementById('edit-exam-pin-aktif')?.checked ? 1 : 0,
         token_ujian: document.getElementById('edit-exam-token-ujian')?.value.trim() ? parseInt(document.getElementById('edit-exam-token-ujian').value.trim(), 10) : null,
         skor_langsung_ai: document.getElementById('edit-exam-skor-langsung-ai')?.checked ? 1 : 0
@@ -15839,6 +15881,93 @@
     let currentPinExamId = null;
     let currentPinList = [];
     let currentPinFilter = 'all';
+    let pinManagerOpenedFromEdit = false;
+
+    window.generateNewEditExamToken = async function() {
+      if (!activeUlanganId) return;
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/generate-token`, { method: 'POST' });
+        const json = await res.json();
+        if (res.ok && json.success && json.kode_ujian) {
+          document.getElementById('edit-exam-kode').value = json.kode_ujian;
+        } else {
+          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+          let code = '';
+          for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+          document.getElementById('edit-exam-kode').value = code;
+        }
+      } catch (e) {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let code = '';
+        for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+        document.getElementById('edit-exam-kode').value = code;
+      }
+    };
+
+    window.copyEditExamToken = function() {
+      const code = document.getElementById('edit-exam-kode')?.value.trim();
+      if (!code) {
+        alert('Belum ada token ujian.');
+        return;
+      }
+      navigator.clipboard.writeText(code).then(() => {
+        alert(`Token Ujian "${code}" berhasil disalin ke clipboard!`);
+      }).catch(() => {
+        prompt('Salin token ujian di bawah:', code);
+      });
+    };
+
+    window.updateEditExamPinBadge = async function(ulanganId) {
+      const badge = document.getElementById('edit-exam-pin-stat-badge');
+      if (!badge || !ulanganId) return;
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${ulanganId}/pin/list`);
+        const json = await res.json();
+        if (res.ok && json.success) {
+          badge.textContent = `${json.available || 0} / ${json.total || 0} PIN Siap`;
+          badge.className = (json.total > 0)
+            ? 'text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold'
+            : 'text-[10px] bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full font-bold';
+        }
+      } catch (e) {}
+    };
+
+    window.generateTokensFromEditModal = async function() {
+      if (!activeUlanganId) return;
+      const inputQuota = document.getElementById('edit-exam-token-ujian');
+      const val = inputQuota ? inputQuota.value.trim() : '';
+      let target = val ? parseInt(val, 10) : 30;
+      if (isNaN(target) || target <= 0) {
+        target = 30;
+        if (inputQuota) inputQuota.value = 30;
+      }
+
+      showGlobalProgress('Membuat Pool Token PIN...', `Menyiapkan ${target} token PIN unik untuk ulangan ini...`);
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/token/tambah`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tambah: target })
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Gagal membuat token PIN');
+
+        // Otomatis aktifkan checkbox PIN
+        const chkPin = document.getElementById('edit-exam-pin-aktif');
+        if (chkPin) chkPin.checked = true;
+
+        updateGlobalProgress(100, `Berhasil membuat ${json.ditambah || target} token PIN!`);
+        setTimeout(() => {
+          hideGlobalProgress(() => {
+            updateEditExamPinBadge(activeUlanganId);
+            alert(`Berhasil! ${json.ditambah || target} token PIN unik telah siap di database. Total token saat ini: ${json.total_token || target}.`);
+          });
+        }, 300);
+      } catch (err) {
+        hideGlobalProgress();
+        alert('Gagal membuat token: ' + err.message);
+      }
+    };
 
     async function openExamPinModal(ulanganId = null) {
       const targetId = ulanganId || activeUlanganId;
@@ -15853,15 +15982,19 @@
     }
 
     function openExamPinModalFromEdit() {
-      const editModal = document.getElementById('modal-edit-exam');
-      if (editModal) editModal.classList.add('hidden');
+      pinManagerOpenedFromEdit = true;
       openExamPinModal(activeUlanganId);
     }
 
     function closeExamPinModal() {
       const modal = document.getElementById('modal-exam-pin-manager');
       if (modal) modal.classList.add('hidden');
-      if (activeUlanganId) selectUlangan(activeUlanganId);
+      if (pinManagerOpenedFromEdit) {
+        pinManagerOpenedFromEdit = false;
+        if (activeUlanganId) updateEditExamPinBadge(activeUlanganId);
+      } else if (activeUlanganId) {
+        selectUlangan(activeUlanganId);
+      }
     }
 
     async function loadExamPins(ulanganId) {
@@ -15959,7 +16092,7 @@
           <tr>
             <td colspan="7" class="py-8 text-center text-slate-400">
               ${currentPinList.length === 0 
-                ? 'Belum ada PIN untuk ujian ini. Klik tombol <strong>+5 Token PIN</strong> atau <strong>+10 Token PIN</strong> di atas untuk membuat PIN baru.'
+                ? 'Belum ada PIN untuk ujian ini. Klik tombol <strong>+5</strong>, <strong>+10</strong>, atau <strong>+30 (1 Rombel)</strong> di atas untuk membuat PIN baru.'
                 : 'Tidak ada data PIN yang sesuai dengan filter atau pencarian Anda.'}
             </td>
           </tr>
@@ -16020,6 +16153,7 @@
 
     async function toggleExamPinMode(aktif) {
       if (!currentPinExamId) return;
+      showGlobalProgress('Memperbarui Mode PIN...', 'Menyinkronkan status proteksi PIN ke Cloud Database...');
       try {
         const res = await guruFetch(`/api/guru/ulangan/${currentPinExamId}/pin/set-mode`, {
           method: 'POST',
@@ -16028,14 +16162,21 @@
         });
         const json = await res.json();
         if (!res.ok || !json.success) throw new Error(json.message || 'Gagal mengubah status PIN');
-        await loadExamPins(currentPinExamId);
+        hideGlobalProgress(async () => {
+          await loadExamPins(currentPinExamId);
+          if (document.getElementById('edit-exam-pin-aktif')) {
+            document.getElementById('edit-exam-pin-aktif').checked = Boolean(aktif);
+          }
+        });
       } catch (err) {
+        hideGlobalProgress();
         alert('Error: ' + err.message);
       }
     }
 
     async function tambahTokenExamPin(jumlah) {
       if (!currentPinExamId) return;
+      showGlobalProgress('Menambah Token PIN...', `Menyiapkan ${jumlah} PIN unik baru ke Cloud Database...`);
       try {
         const res = await guruFetch(`/api/guru/ulangan/${currentPinExamId}/token/tambah`, {
           method: 'POST',
@@ -16044,8 +16185,15 @@
         });
         const json = await res.json();
         if (!res.ok || !json.success) throw new Error(json.message || 'Gagal menambah token PIN');
-        await loadExamPins(currentPinExamId);
+        updateGlobalProgress(100, `Berhasil menambah ${jumlah} token PIN!`);
+        setTimeout(() => {
+          hideGlobalProgress(async () => {
+            await loadExamPins(currentPinExamId);
+            if (activeUlanganId) updateEditExamPinBadge(activeUlanganId);
+          });
+        }, 200);
       } catch (err) {
+        hideGlobalProgress();
         alert('Error: ' + err.message);
       }
     }
@@ -16190,6 +16338,10 @@
     window.cetakExamPins = cetakExamPins;
     window.filterPinTable = filterPinTable;
     window.renderPinTable = renderPinTable;
+    window.generateNewEditExamToken = generateNewEditExamToken;
+    window.copyEditExamToken = copyEditExamToken;
+    window.updateEditExamPinBadge = updateEditExamPinBadge;
+    window.generateTokensFromEditModal = generateTokensFromEditModal;
 
   </script>
 </body>

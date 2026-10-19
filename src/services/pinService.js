@@ -36,6 +36,14 @@ function makeDeviceId(req) {
   return `dev_${Math.abs(hash).toString(36)}`;
 }
 
+// Otorisasi guru kompatibel akun multi-login (ID 1 & 3 saling terhubung)
+function isGuruAuthorized(guruId, ulanganGuruId) {
+  if (!guruId) return true;
+  if (Number(ulanganGuruId) === Number(guruId)) return true;
+  if ((Number(guruId) === 1 || Number(guruId) === 3) && (Number(ulanganGuruId) === 1 || Number(ulanganGuruId) === 3)) return true;
+  return false;
+}
+
 const pinService = {
 
   /**
@@ -52,7 +60,7 @@ const pinService = {
   setUlanganPinMode(ulanganId, guruId, aktif) {
     const ulangan = db.prepare('SELECT id, guru_id FROM ulangan WHERE id = ?').get(ulanganId);
     if (!ulangan) throw new Error('Ulangan tidak ditemukan');
-    if (guruId && ulangan.guru_id !== guruId) throw new Error('Akses ditolak: bukan ulangan milik Anda');
+    if (guruId && !isGuruAuthorized(guruId, ulangan.guru_id)) throw new Error('Akses ditolak: bukan ulangan milik Anda');
 
     const flag = aktif ? 1 : 0;
     db.prepare('UPDATE ulangan SET pin_aktif = ? WHERE id = ?').run(flag, ulanganId);
@@ -65,52 +73,94 @@ const pinService = {
   generatePoolPins(ulanganId, guruId, count = 10) {
     const ulangan = db.prepare('SELECT id, guru_id, pin_aktif, token_ujian FROM ulangan WHERE id = ?').get(ulanganId);
     if (!ulangan) throw new Error('Ulangan tidak ditemukan');
-    if (guruId && ulangan.guru_id !== guruId) throw new Error('Akses ditolak: bukan ulangan milik Anda');
+    if (guruId && !isGuruAuthorized(guruId, ulangan.guru_id)) throw new Error('Akses ditolak: bukan ulangan milik Anda');
 
-    const jumlah = Math.max(1, Math.min(500, Number(count) || 10));
+    const jumlah = Math.max(1, Math.min(1000, Number(count) || 10));
     const generated = [];
 
-    const insertStmt = db.prepare(`
-      INSERT INTO pin_sessions (ulangan_id, pin, is_used, created_at)
-      VALUES (?, ?, 0, CURRENT_TIMESTAMP)
-    `);
+    // Baca PIN yang sudah ada di database ke memory Set untuk pencarian instan O(1)
+    const existingPins = new Set(
+      db.prepare('SELECT pin FROM pin_sessions WHERE ulangan_id = ?').all(ulanganId).map(r => r.pin)
+    );
 
-    db.transaction(() => {
-      for (let i = 0; i < jumlah; i++) {
-        let pin;
-        let attempts = 0;
-        do {
-          pin = generatePin(6);
-          const exist = db.prepare('SELECT id FROM pin_sessions WHERE ulangan_id = ? AND pin = ?').get(ulanganId, pin);
-          if (!exist) break;
-          attempts++;
-        } while (attempts < 50);
+    for (let i = 0; i < jumlah; i++) {
+      let pin;
+      let attempts = 0;
+      do {
+        pin = generatePin(6);
+        attempts++;
+      } while (existingPins.has(pin) && attempts < 100);
 
-        insertStmt.run(ulanganId, pin);
-        generated.push(pin);
+      existingPins.add(pin);
+      generated.push(pin);
+    }
+
+    // Batch insert untuk performa super instan (terutama pada Turso LibSQL embedded replica)
+    if (generated.length > 0) {
+      const CHUNK_SIZE = 50;
+      for (let i = 0; i < generated.length; i += CHUNK_SIZE) {
+        const chunk = generated.slice(i, i + CHUNK_SIZE);
+        const placeholders = chunk.map(() => '(?, ?, 0, CURRENT_TIMESTAMP)').join(', ');
+        const params = [];
+        for (const p of chunk) {
+          params.push(ulanganId, p);
+        }
+        db.prepare(`INSERT INTO pin_sessions (ulangan_id, pin, is_used, created_at) VALUES ${placeholders}`).run(...params);
       }
+    }
 
-      // Pertahankan batas token_ujian jika guru sudah mengonfigurasi batas kuota secara eksplisit
-      const curr = db.prepare('SELECT token_ujian FROM ulangan WHERE id = ?').get(ulanganId);
-      if (curr && (curr.token_ujian === null || curr.token_ujian === undefined)) {
-        const totalRow = db.prepare('SELECT COUNT(*) as cnt FROM pin_sessions WHERE ulangan_id = ?').get(ulanganId);
-        db.prepare('UPDATE ulangan SET token_ujian = ? WHERE id = ?').run(totalRow?.cnt || 0, ulanganId);
-      }
-    })();
+    // Pertahankan batas token_ujian jika guru sudah mengonfigurasi batas kuota secara eksplisit
+    const curr = db.prepare('SELECT token_ujian FROM ulangan WHERE id = ?').get(ulanganId);
+    let finalQuota = curr?.token_ujian;
+    if (curr && (curr.token_ujian === null || curr.token_ujian === undefined)) {
+      const totalRow = db.prepare('SELECT COUNT(*) as cnt FROM pin_sessions WHERE ulangan_id = ?').get(ulanganId);
+      finalQuota = totalRow?.cnt || generated.length;
+      db.prepare('UPDATE ulangan SET token_ujian = ? WHERE id = ?').run(finalQuota, ulanganId);
+    }
 
     return {
       success: true,
       count: generated.length,
       pins: generated,
+      total_token: finalQuota,
       message: `${generated.length} PIN sekali pakai berhasil dibuat`
     };
+  },
+
+  /**
+   * Sinkronkan kuota token ujian: jika jumlah PIN saat ini kurang dari targetQuota,
+   * buatkan selisihnya otomatis.
+   */
+  syncTokenPool(ulanganId, guruId, targetQuota) {
+    const ulangan = db.prepare('SELECT id, guru_id, pin_aktif, token_ujian FROM ulangan WHERE id = ?').get(ulanganId);
+    if (!ulangan) throw new Error('Ulangan tidak ditemukan');
+    if (guruId && !isGuruAuthorized(guruId, ulangan.guru_id)) throw new Error('Akses ditolak: bukan ulangan milik Anda');
+
+    const target = (targetQuota !== null && targetQuota !== undefined && targetQuota !== '') ? Math.max(0, Math.min(1000, Number(targetQuota))) : null;
+    const countRow = db.prepare('SELECT COUNT(*) as cnt FROM pin_sessions WHERE ulangan_id = ?').get(ulanganId);
+    const currentCount = Number(countRow?.cnt || 0);
+
+    if (target && target > currentCount) {
+      const deficit = target - currentCount;
+      const res = this.generatePoolPins(ulanganId, guruId, deficit);
+      db.prepare('UPDATE ulangan SET token_ujian = ? WHERE id = ?').run(target, ulanganId);
+      return res;
+    } else {
+      db.prepare('UPDATE ulangan SET token_ujian = ? WHERE id = ?').run(target, ulanganId);
+      return {
+        success: true,
+        count: 0,
+        total_token: target || currentCount,
+        message: 'Kuota token berhasil disesuaikan'
+      };
+    }
   },
 
   /**
    * Tambah token PIN saat ujian sedang berlangsung (live)
    */
   addTokenUjian(ulanganId, guruId, tambah = 5) {
-    const delta = Math.max(1, Math.min(100, Number(tambah) || 5));
+    const delta = Math.max(1, Math.min(500, Number(tambah) || 5));
     const result = this.generatePoolPins(ulanganId, guruId, delta);
     // Tambah kuota token_ujian jika ulangan memiliki batas kuota
     const u = db.prepare('SELECT token_ujian FROM ulangan WHERE id = ?').get(ulanganId);
@@ -125,7 +175,7 @@ const pinService = {
       tersedia: summary.available,
       terpakai: summary.used,
       new_pins: result.pins,
-      message: `${delta} token PIN baru berhasil ditambahkan selama ujian berlangsung`
+      message: `${delta} token PIN baru berhasil ditambahkan`
     };
   },
 
@@ -135,7 +185,7 @@ const pinService = {
   setTokenUjian(ulanganId, guruId, jumlahToken) {
     const ulangan = db.prepare('SELECT id, guru_id FROM ulangan WHERE id = ?').get(ulanganId);
     if (!ulangan) throw new Error('Ulangan tidak ditemukan');
-    if (guruId && ulangan.guru_id !== guruId) throw new Error('Akses ditolak: bukan ulangan milik Anda');
+    if (guruId && !isGuruAuthorized(guruId, ulangan.guru_id)) throw new Error('Akses ditolak: bukan ulangan milik Anda');
 
     const token = Math.max(0, Number(jumlahToken) || 0);
     db.prepare('UPDATE ulangan SET token_ujian = ? WHERE id = ?').run(token || null, ulanganId);
@@ -292,7 +342,7 @@ const pinService = {
   getAllPins(ulanganId, guruId = null) {
     const ulangan = db.prepare('SELECT id, guru_id, pin_aktif, token_ujian, judul, mata_pelajaran FROM ulangan WHERE id = ?').get(ulanganId);
     if (!ulangan) throw new Error('Ulangan tidak ditemukan');
-    if (guruId && ulangan.guru_id !== guruId) throw new Error('Akses ditolak: bukan ulangan milik Anda');
+    if (guruId && !isGuruAuthorized(guruId, ulangan.guru_id)) throw new Error('Akses ditolak: bukan ulangan milik Anda');
 
     const rows = db.prepare(`
       SELECT 
@@ -353,7 +403,7 @@ const pinService = {
   resetPin(ulanganId, pinId, guruId = null, mode = 'unclaim') {
     const ulangan = db.prepare('SELECT id, guru_id FROM ulangan WHERE id = ?').get(ulanganId);
     if (!ulangan) throw new Error('Ulangan tidak ditemukan');
-    if (guruId && ulangan.guru_id !== guruId) throw new Error('Akses ditolak: bukan ulangan milik Anda');
+    if (guruId && !isGuruAuthorized(guruId, ulangan.guru_id)) throw new Error('Akses ditolak: bukan ulangan milik Anda');
 
     if (mode === 'device_only') {
       // Hanya reset device id (izinkan siswa ganti HP dengan PIN yang sama)
@@ -377,7 +427,7 @@ const pinService = {
   deletePin(ulanganId, pinId, guruId = null) {
     const ulangan = db.prepare('SELECT id, guru_id FROM ulangan WHERE id = ?').get(ulanganId);
     if (!ulangan) throw new Error('Ulangan tidak ditemukan');
-    if (guruId && ulangan.guru_id !== guruId) throw new Error('Akses ditolak: bukan ulangan milik Anda');
+    if (guruId && !isGuruAuthorized(guruId, ulangan.guru_id)) throw new Error('Akses ditolak: bukan ulangan milik Anda');
 
     const session = db.prepare('SELECT is_used FROM pin_sessions WHERE id = ? AND ulangan_id = ?').get(pinId, ulanganId);
     if (!session) throw new Error('PIN tidak ditemukan');

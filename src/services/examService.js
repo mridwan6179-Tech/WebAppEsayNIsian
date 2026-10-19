@@ -464,6 +464,15 @@ const examService = {
       updates.push('opsi_pg_count = ?');
       params.push(opc);
     }
+    if (data.kode_ujian !== undefined && data.kode_ujian !== null && String(data.kode_ujian).trim()) {
+      const cleanKode = String(data.kode_ujian).trim().toUpperCase();
+      const existingKode = db.prepare('SELECT id FROM ulangan WHERE kode_ujian = ? AND id != ?').get(cleanKode, id);
+      if (existingKode) {
+        throw new Error(`Token/Kode ujian "${cleanKode}" sudah digunakan oleh ulangan lain.`);
+      }
+      updates.push('kode_ujian = ?');
+      params.push(cleanKode);
+    }
     if (data.pin_aktif !== undefined) {
       updates.push('pin_aktif = ?');
       params.push(data.pin_aktif ? 1 : 0);
@@ -489,6 +498,26 @@ const examService = {
       updates.push('updated_at = CURRENT_TIMESTAMP');
       params.push(id, guruId);
       db.prepare(`UPDATE ulangan SET ${updates.join(', ')} WHERE id = ? AND guru_id = ?`).run(...params);
+    }
+
+    // Sinkronisasi otomatis pool token PIN jika kuota token_ujian diset atau PIN diaktifkan
+    try {
+      const pinService = require('./pinService');
+      const targetToken = (data.token_ujian !== undefined && data.token_ujian !== null && data.token_ujian !== '')
+        ? Math.max(0, Number(data.token_ujian))
+        : null;
+      const isPinActive = data.pin_aktif !== undefined ? Boolean(data.pin_aktif) : Boolean(existingRow?.pin_aktif);
+
+      if (targetToken && targetToken > 0) {
+        pinService.syncTokenPool(id, guruId, targetToken);
+      } else if (isPinActive) {
+        const countRow = db.prepare('SELECT COUNT(*) as cnt FROM pin_sessions WHERE ulangan_id = ?').get(id);
+        if (Number(countRow?.cnt || 0) === 0) {
+          pinService.generatePoolPins(id, guruId, 30);
+        }
+      }
+    } catch (errSync) {
+      console.warn('⚠️ Token pool synchronization notice:', errSync.message);
     }
 
     // Jika fitur Skor Langsung AI diaktifkan, rilis otomatis pengerjaan yang sudah selesai dinilai

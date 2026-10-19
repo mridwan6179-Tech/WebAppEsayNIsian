@@ -437,6 +437,22 @@ app.put('/api/guru/ulangan/:id', requireGuru, (req, res) => {
   }
 });
 
+// Guru: Acak token / kode akses ujian baru
+app.post('/api/guru/ulangan/:id/generate-token', requireGuru, (req, res) => {
+  try {
+    let newCode;
+    let isUnique = false;
+    while (!isUnique) {
+      newCode = examService.generateExamCode();
+      const existing = db.prepare('SELECT id FROM ulangan WHERE kode_ujian = ?').get(newCode);
+      if (!existing) isUnique = true;
+    }
+    res.json({ success: true, kode_ujian: newCode });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 app.delete('/api/guru/ulangan/:id', requireGuru, (req, res) => {
   try {
     examService.deleteUlangan(req.params.id, req.guru.guruId);
