@@ -798,7 +798,9 @@
                   + Tambah Manual
                 </button>
               </div>
-            </div>
+            
+            <!-- Widget Pengecekan Kesesuaian Komposisi Tipe Soal & Target Awal -->
+            <div id="exam-composition-checklist-card" class="hidden transition-all duration-300"></div>
 
             <!-- Form Tambah Soal -->
             <form id="form-add-soal" class="hidden p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3 text-xs">
@@ -5892,6 +5894,7 @@
       }
 
       renderSoalList(u.soal || []);
+      renderExamCompositionChecklist(u.komposisi_status || calculateExamCompositionClient(u));
       loadPesertaList(id);
       checkAiStatus(id);
     }
@@ -6237,8 +6240,411 @@
       }
     }
 
+    // ==========================================
+    // SISTEM PENGECEKAN KESESUAIAN KOMPOSISI SOAL
+    // ==========================================
+    window.calculateExamCompositionClient = function(u) {
+      if (!u) return null;
+      const soalList = u.soal || [];
+      const isPgKompleks = (q) => q.jenis === 'pilihan_ganda' && (
+        q.tipe_pg === 'pg_kompleks' || 
+        q.jenis_pg === 'pg_kompleks' || 
+        (typeof q.kunci_pg === 'string' && (q.kunci_pg.includes(',') || q.kunci_pg.trim().length > 1))
+      );
+      const isPgBiasa = (q) => q.jenis === 'pilihan_ganda' && !isPgKompleks(q);
+
+      const actual = {
+        pilihan_ganda: soalList.filter(isPgBiasa).length,
+        pg_kompleks: soalList.filter(isPgKompleks).length,
+        isian: soalList.filter(q => q.jenis === 'isian').length,
+        essay: soalList.filter(q => q.jenis === 'essay').length,
+        koding_game: soalList.filter(q => q.jenis === 'koding_game').length,
+        listening: soalList.filter(q => Number(q.is_listening) === 1).length,
+        total: soalList.length
+      };
+
+      const target = {
+        pilihan_ganda: (u.jumlah_soal_pg !== null && u.jumlah_soal_pg !== undefined && u.jumlah_soal_pg !== '') ? Number(u.jumlah_soal_pg) : null,
+        pg_kompleks: (u.jumlah_soal_pg_kompleks !== null && u.jumlah_soal_pg_kompleks !== undefined && u.jumlah_soal_pg_kompleks !== '') ? Number(u.jumlah_soal_pg_kompleks) : null,
+        isian: (u.jumlah_soal_isian !== null && u.jumlah_soal_isian !== undefined && u.jumlah_soal_isian !== '') ? Number(u.jumlah_soal_isian) : null,
+        essay: (u.jumlah_soal_essay !== null && u.jumlah_soal_essay !== undefined && u.jumlah_soal_essay !== '') ? Number(u.jumlah_soal_essay) : null,
+        koding_game: (u.jumlah_soal_koding !== null && u.jumlah_soal_koding !== undefined && u.jumlah_soal_koding !== '') ? Number(u.jumlah_soal_koding) : null,
+        listening: (u.jumlah_soal_listening !== null && u.jumlah_soal_listening !== undefined && u.jumlah_soal_listening !== '') ? Number(u.jumlah_soal_listening) : null,
+        total_tampil: (u.jumlah_soal_tampil !== null && u.jumlah_soal_tampil !== undefined && u.jumlah_soal_tampil !== '') ? Number(u.jumlah_soal_tampil) : null
+      };
+
+      const hasAnyTarget = Object.values(target).some(v => v !== null && v > 0);
+
+      const typeMeta = [
+        { key: 'pilihan_ganda', label: 'Pilihan Ganda Biasa', icon: '🎯' },
+        { key: 'pg_kompleks', label: 'Pilihan Ganda Kompleks', icon: '☑️' },
+        { key: 'isian', label: 'Isian Singkat', icon: '✍️' },
+        { key: 'essay', label: 'Uraian / Essay', icon: '📝' },
+        { key: 'koding_game', label: 'Game Koding (SMP)', icon: '🎮' },
+        { key: 'listening', label: 'Soal Menyimak (Listening)', icon: '🎧' }
+      ];
+
+      const checks = [];
+      const missingTypes = [];
+      const insufficientTypes = [];
+
+      for (const { key, label, icon } of typeMeta) {
+        const tgt = target[key];
+        const act = actual[key];
+        if (tgt !== null && tgt > 0) {
+          const isMissing = (act === 0);
+          const isInsufficient = (act < tgt);
+          const status = isMissing ? 'missing' : (isInsufficient ? 'insufficient' : 'complete');
+          const diff = Math.max(0, tgt - act);
+
+          const checkObj = {
+            type: key,
+            label,
+            icon,
+            target: tgt,
+            actual: act,
+            diff,
+            status,
+            percent: Math.min(100, Math.round((act / tgt) * 100)),
+            message: isMissing 
+              ? `Belum ada butir soal dibuat sama sekali (Target: ${tgt} butir)`
+              : (isInsufficient ? `Kurang ${diff} butir (Tersedia ${act}/${tgt})` : `Sesuai (${act}/${tgt} butir)`)
+          };
+
+          checks.push(checkObj);
+          if (isMissing) missingTypes.push(checkObj);
+          else if (isInsufficient) insufficientTypes.push(checkObj);
+        } else if (act > 0) {
+          checks.push({
+            type: key,
+            label,
+            icon,
+            target: null,
+            actual: act,
+            diff: 0,
+            status: 'available',
+            percent: 100,
+            message: `Tersedia ${act} butir (Bebas / Tanpa batas kuota)`
+          });
+        }
+      }
+
+      let totalCheck = null;
+      if (target.total_tampil !== null && target.total_tampil > 0) {
+        const isTotalShort = actual.total < target.total_tampil;
+        totalCheck = {
+          target: target.total_tampil,
+          actual: actual.total,
+          diff: Math.max(0, target.total_tampil - actual.total),
+          status: isTotalShort ? 'insufficient' : 'complete',
+          percent: Math.min(100, Math.round((actual.total / target.total_tampil) * 100)),
+          message: isTotalShort
+            ? `Total butir di bank (${actual.total}) masih kurang dari target tampil siswa (${target.total_tampil} butir)`
+            : `Total soal di bank (${actual.total}) mencukupi target tampil (${target.total_tampil} butir)`
+        };
+      }
+
+      const isAllComplete = (missingTypes.length === 0 && insufficientTypes.length === 0 && (!totalCheck || totalCheck.status === 'complete'));
+
+      return {
+        hasAnyTarget,
+        isAllComplete,
+        actual,
+        target,
+        checks,
+        missingTypes,
+        insufficientTypes,
+        totalCheck
+      };
+    };
+
+    window.renderExamCompositionChecklist = function(comp) {
+      const container = document.getElementById('exam-composition-checklist-card');
+      if (!container) return;
+
+      if (!comp) {
+        container.classList.add('hidden');
+        container.innerHTML = '';
+        return;
+      }
+
+      // Jika tidak ada target kuota sama sekali dan total soal tampil juga tidak diatur
+      if (!comp.hasAnyTarget && (!comp.totalCheck || comp.totalCheck.target === null)) {
+        if (comp.actual.total === 0) {
+          container.classList.add('hidden');
+          container.innerHTML = '';
+          return;
+        }
+
+        container.classList.remove('hidden');
+        container.innerHTML = `
+          <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between flex-wrap gap-2 text-xs">
+            <div class="flex items-center space-x-2">
+              <span class="text-base">📋</span>
+              <div>
+                <span class="font-bold text-slate-800">Komposisi Soal:</span>
+                <span class="text-slate-600">Total <strong>${comp.actual.total}</strong> butir soal tersedia di bank (Mode acak penuh tanpa batasan kuota per jenis).</span>
+              </div>
+            </div>
+            <button type="button" onclick="document.getElementById('btn-edit-exam-modal')?.click()" class="text-xs text-blue-600 hover:text-blue-800 font-bold px-2.5 py-1 rounded-lg border border-blue-200 bg-white hover:bg-blue-50 transition cursor-pointer">
+              ⚙️ Atur Kuota per Tipe Soal
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      container.classList.remove('hidden');
+
+      // 1. Kasus Lengkap Sempurna (100% Sesuai)
+      if (comp.isAllComplete) {
+        const summaryItems = comp.checks.filter(c => c.target !== null).map(c => `
+          <span class="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 font-extrabold text-[11px]">
+            <span>${c.icon}</span>
+            <span>${c.label}: ${c.actual}/${c.target}</span>
+          </span>
+        `).join(' ');
+
+        container.innerHTML = `
+          <div class="p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-green-50 border border-emerald-300 rounded-2xl shadow-2xs space-y-2 text-xs">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+              <div class="flex items-center space-x-2">
+                <span class="text-lg">✅</span>
+                <div>
+                  <h4 class="font-extrabold text-emerald-950 text-xs">Komposisi Soal Lengkap Sesuai Pengaturan Awal</h4>
+                  <p class="text-[11px] text-emerald-800">Seluruh target tipe soal yang Anda atur di awal sudah terpenuhi dengan baik dan siap diujikan kepada siswa.</p>
+                </div>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="bg-emerald-600 text-white text-[11px] font-extrabold px-2.5 py-0.5 rounded-full shadow-2xs">100% Siap Ujian</span>
+                <button type="button" onclick="document.getElementById('btn-edit-exam-modal')?.click()" class="text-[11px] text-emerald-800 hover:text-emerald-950 font-bold px-2 py-0.5 rounded border border-emerald-300 bg-white hover:bg-emerald-100 transition cursor-pointer">
+                  ✏️ Ubah Target
+                </button>
+              </div>
+            </div>
+            <div class="flex items-center flex-wrap gap-1.5 pt-1 border-t border-emerald-200/80">
+              ${summaryItems}
+              ${comp.totalCheck ? `<span class="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-300 font-bold text-[11px]"><span>📚 Total Tampil Siswa: ${comp.totalCheck.target} Butir</span></span>` : ''}
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // 2. Kasus Belum Lengkap (Ada Tipe yang Belum Dibuat atau Kurang)
+      const missingCount = comp.missingTypes ? comp.missingTypes.length : 0;
+      const insufficientCount = comp.insufficientTypes ? comp.insufficientTypes.length : 0;
+      const totalProblems = missingCount + insufficientCount + ((comp.totalCheck && comp.totalCheck.status === 'insufficient') ? 1 : 0);
+
+      const cardsHtml = comp.checks.map(c => {
+        const isMissing = c.status === 'missing';
+        const isInsufficient = c.status === 'insufficient';
+        const isComplete = c.status === 'complete';
+
+        let borderColor = 'border-slate-200';
+        let bgBadge = 'bg-slate-100 text-slate-700 border-slate-200';
+        let badgeText = `${c.actual} Butir`;
+        let barColor = 'bg-slate-400';
+
+        if (isMissing) {
+          borderColor = 'border-rose-300 bg-rose-50/40';
+          bgBadge = 'bg-rose-100 text-rose-800 border-rose-300 font-extrabold';
+          badgeText = '❌ Belum Ada Soal!';
+          barColor = 'bg-rose-500';
+        } else if (isInsufficient) {
+          borderColor = 'border-amber-300 bg-amber-50/30';
+          bgBadge = 'bg-amber-100 text-amber-900 border-amber-300 font-extrabold';
+          badgeText = `⚠️ Kurang ${c.diff} Butir`;
+          barColor = 'bg-amber-500';
+        } else if (isComplete) {
+          borderColor = 'border-emerald-200 bg-emerald-50/30';
+          bgBadge = 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold';
+          badgeText = `✓ Sesuai (${c.actual}/${c.target})`;
+          barColor = 'bg-emerald-500';
+        }
+
+        // Tombol aksi cepat penambahan soal sesuai tipe
+        let actionBtn = '';
+        if (isMissing || isInsufficient) {
+          if (c.type === 'pilihan_ganda') {
+            actionBtn = `<button type="button" onclick="openAiPgGeneratorWithTipe('pg_biasa')" class="w-full text-center px-2 py-1 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-[11px] shadow-2xs transition cursor-pointer">⚡ Buat PG Biasa AI</button>`;
+          } else if (c.type === 'pg_kompleks') {
+            actionBtn = `<button type="button" onclick="openAiPgGeneratorWithTipe('pg_kompleks')" class="w-full text-center px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-[11px] shadow-2xs transition cursor-pointer">⚡ Buat PG Kompleks AI</button>`;
+          } else if (c.type === 'isian') {
+            actionBtn = `<button type="button" onclick="openAddSoalFormWithType('isian')" class="w-full text-center px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-[11px] shadow-2xs transition cursor-pointer">+ Tambah Soal Isian</button>`;
+          } else if (c.type === 'essay') {
+            actionBtn = `<button type="button" onclick="openAddSoalFormWithType('essay')" class="w-full text-center px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-[11px] shadow-2xs transition cursor-pointer">+ Tambah Soal Essay</button>`;
+          } else if (c.type === 'koding_game') {
+            actionBtn = `<button type="button" onclick="openCodingGameModal('ulangan')" class="w-full text-center px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[11px] shadow-2xs transition cursor-pointer">🚀 Buat Game Koding</button>`;
+          } else if (c.type === 'listening') {
+            actionBtn = `<button type="button" onclick="openAddSoalFormWithType('listening')" class="w-full text-center px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[11px] shadow-2xs transition cursor-pointer">🎧 Buat Soal Listening</button>`;
+          }
+        }
+
+        return `
+          <div class="p-3 bg-white rounded-xl border ${borderColor} shadow-2xs space-y-2 flex flex-col justify-between">
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between gap-1">
+                <span class="font-bold text-slate-800 text-xs flex items-center space-x-1">
+                  <span>${c.icon}</span>
+                  <span class="truncate">${c.label}</span>
+                </span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full border ${bgBadge} whitespace-nowrap">${badgeText}</span>
+              </div>
+              <div class="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                <span>Target Awal: <strong>${c.target !== null ? `${c.target} butir` : 'Bebas'}</strong></span>
+                <span>Di Bank: <strong class="${c.actual === 0 && c.target > 0 ? 'text-rose-600 font-bold' : 'text-slate-800'}">${c.actual} butir</strong></span>
+              </div>
+              ${c.target !== null ? `
+                <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                  <div class="${barColor} h-1.5 rounded-full transition-all duration-500" style="width: ${c.percent}%"></div>
+                </div>
+              ` : ''}
+            </div>
+            ${actionBtn ? `<div class="pt-1">${actionBtn}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+
+      let totalAlert = '';
+      if (comp.totalCheck && comp.totalCheck.status === 'insufficient') {
+        totalAlert = `
+          <div class="p-2.5 bg-rose-100/80 border border-rose-300 rounded-xl text-rose-900 text-xs flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center space-x-2">
+              <span class="text-base">⚠️</span>
+              <span><strong>Total Soal Belum Cukup:</strong> Bank soal baru memiliki <strong>${comp.totalCheck.actual}</strong> butir dari target tampil siswa <strong>${comp.totalCheck.target}</strong> butir (Kurang <strong>${comp.totalCheck.diff}</strong> butir).</span>
+            </div>
+          </div>
+        `;
+      }
+
+      container.innerHTML = `
+        <div class="p-4 bg-gradient-to-r from-amber-50/90 via-orange-50/70 to-rose-50/80 border-2 border-amber-400 rounded-2xl shadow-sm space-y-3 text-xs">
+          <div class="flex items-start justify-between flex-wrap gap-2">
+            <div class="flex items-start space-x-2.5">
+              <div class="w-8 h-8 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-lg shrink-0 mt-0.5">
+                ⚠️
+              </div>
+              <div>
+                <h4 class="font-extrabold text-amber-950 text-sm flex items-center space-x-2">
+                  <span>Pengecekan Komposisi Soal: Ada Tipe Soal yang Belum Sesuai!</span>
+                </h4>
+                <p class="text-xs text-amber-900 mt-0.5">
+                  Terdapat <strong>${totalProblems}</strong> ketidaksesuaian antara target pengaturan awal ulangan dengan soal yang ada di bank. Periksa agar tidak ada yang ketinggalan sebelum ulangan dibuka untuk siswa:
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="bg-amber-500 text-white font-extrabold px-2.5 py-1 rounded-full text-[11px] shadow-2xs">
+                ⚠️ ${missingCount > 0 ? `${missingCount} Tipe Belum Ada` : `${insufficientCount} Tipe Kurang`}
+              </span>
+              <button type="button" onclick="document.getElementById('btn-edit-exam-modal')?.click()" class="text-xs text-amber-950 hover:bg-amber-100 font-bold px-3 py-1 rounded-lg border border-amber-300 bg-white transition cursor-pointer shadow-2xs">
+                ✏️ Sesuaikan Target Kuota
+              </button>
+            </div>
+          </div>
+
+          ${totalAlert}
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            ${cardsHtml}
+          </div>
+
+          <div class="p-2.5 bg-amber-100/50 rounded-xl border border-amber-200/80 flex items-center justify-between flex-wrap gap-2 text-[11px] text-amber-900">
+            <div class="flex items-center space-x-1.5">
+              <span>💡</span>
+              <span><strong>Tips Guru:</strong> Jika Anda memang sengaja tidak ingin menggunakan tipe soal tersebut, klik tombol <strong>"Sesuaikan Target Kuota"</strong> di atas untuk mengatur angkanya menjadi 0 atau mengosongkannya.</span>
+            </div>
+          </div>
+        </div>
+      `;
+    };
+
+    window.openAiPgGeneratorWithTipe = function(tipe) {
+      if (typeof openAiPgGeneratorModal === 'function') {
+        openAiPgGeneratorModal('ulangan');
+        const selectTipe = document.getElementById('ai-pg-tipe-soal');
+        if (selectTipe) {
+          selectTipe.value = tipe;
+          if (typeof onAiPgTipeChange === 'function') onAiPgTipeChange();
+        }
+      }
+    };
+
+    window.openAddSoalFormWithType = function(jenis) {
+      const form = document.getElementById('form-add-soal');
+      if (!form) return;
+      form.classList.remove('hidden');
+
+      const selectJenis = document.getElementById('soal-jenis');
+      const chkListening = document.getElementById('soal-is-listening');
+      const wrapperListening = document.getElementById('wrapper-soal-listening-box');
+
+      if (jenis === 'listening') {
+        if (chkListening) {
+          chkListening.checked = true;
+          if (wrapperListening) wrapperListening.classList.remove('hidden');
+        }
+      } else {
+        if (chkListening) {
+          chkListening.checked = false;
+          if (wrapperListening) wrapperListening.classList.add('hidden');
+        }
+        if (selectJenis) {
+          selectJenis.value = jenis;
+          if (typeof toggleFormSoalJenis === 'function') toggleFormSoalJenis();
+          if (typeof syncManualSoalBobot === 'function') syncManualSoalBobot();
+        }
+      }
+
+      form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById('soal-pertanyaan')?.focus();
+    };
+
     async function updateStatusUlangan(status) {
-      if (!confirm(`Ubah status ulangan menjadi "${status}"?`)) return;
+      if (status === 'dibuka') {
+        const comp = activeUlanganData?.komposisi_status || (activeUlanganData ? calculateExamCompositionClient(activeUlanganData) : null);
+        if (comp && !comp.isAllComplete) {
+          const problemMessages = [];
+          if (comp.missingTypes && comp.missingTypes.length > 0) {
+            comp.missingTypes.forEach(m => {
+              problemMessages.push(`❌ ${m.label}: BELUM ADA SOAL SAMA SEKALI (Target awal: ${m.target} butir)`);
+            });
+          }
+          if (comp.insufficientTypes && comp.insufficientTypes.length > 0) {
+            comp.insufficientTypes.forEach(i => {
+              problemMessages.push(`⚠️ ${i.label}: Kurang ${i.diff} butir (Tersedia ${i.actual} dari target ${i.target})`);
+            });
+          }
+          if (comp.totalCheck && comp.totalCheck.status === 'insufficient') {
+            problemMessages.push(`⚠️ Total Soal Tampil: Bank soal (${comp.totalCheck.actual}) kurang dari target tampil siswa (${comp.totalCheck.target})`);
+          }
+
+          const warnText = `⚠️ PERINGATAN KELENGKAPAN SOAL:\n\nKomposisi butir soal belum memenuhi target yang Anda atur di awal pembuatan ulangan:\n\n${problemMessages.join('\n')}\n\nSiapatau Anda ada yang ketinggalan belum membuat atau melengkapi soal-soal tersebut!\n\nApakah Anda tetap ingin MEMBUKA ulangan ini sekarang?\n• Klik [BATAL] jika ingin melengkapi soalnya terlebih dahulu.\n• Klik [OK] jika Anda memang sengaja ingin tetap membukanya sekarang.`;
+
+          const yakinBuka = confirm(warnText);
+          if (!yakinBuka) {
+            // Arahkan pandangan guru ke widget checklist komposisi di tab kelola soal
+            const tabBtnQuestions = document.getElementById('tab-btn-questions');
+            if (tabBtnQuestions) tabBtnQuestions.click();
+
+            const checklistCard = document.getElementById('exam-composition-checklist-card');
+            if (checklistCard) {
+              setTimeout(() => {
+                checklistCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                checklistCard.classList.add('ring-4', 'ring-amber-400');
+                setTimeout(() => checklistCard.classList.remove('ring-4', 'ring-amber-400'), 2500);
+              }, 100);
+            }
+            return;
+          }
+        } else {
+          if (!confirm(`Ubah status ulangan menjadi "dibuka"?`)) return;
+        }
+      } else {
+        if (!confirm(`Ubah status ulangan menjadi "${status}"?`)) return;
+      }
+
       await guruFetch(`/api/guru/ulangan/${activeUlanganId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },

@@ -437,6 +437,16 @@ app.put('/api/guru/ulangan/:id', requireGuru, (req, res) => {
   }
 });
 
+// Pengecekan Kesesuaian Komposisi Soal Aktual vs Target Awal
+app.get('/api/guru/ulangan/:id/composition-check', requireGuru, (req, res) => {
+  try {
+    const check = examService.checkUlanganComposition(req.params.id, req.guru.guruId);
+    res.json({ success: true, data: check });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 // Guru: Acak token / kode akses ujian baru
 app.post('/api/guru/ulangan/:id/generate-token', requireGuru, (req, res) => {
   try {

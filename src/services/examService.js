@@ -260,7 +260,134 @@ const examService = {
     ulangan.soal = this.getSoalByUlangan(id);
     ulangan.total_bobot = ulangan.soal.reduce((acc, s) => acc + (s.bobot || 0), 0);
     ulangan.kelas = classService.getKelasByUlangan(id);
+    ulangan.komposisi_status = this.checkUlanganComposition(ulangan);
     return ulangan;
+  },
+
+  // Pengecekan kesesuaian komposisi tipe soal aktual vs target kuota yang diatur di awal
+  checkUlanganComposition(ulanganOrId, guruId = null) {
+    let ulangan = ulanganOrId;
+    if (typeof ulanganOrId === 'number' || typeof ulanganOrId === 'string') {
+      ulangan = this.getUlanganById(Number(ulanganOrId), guruId);
+    }
+    if (!ulangan) {
+      throw new Error('Ulangan tidak ditemukan');
+    }
+
+    const soalList = ulangan.soal || [];
+    const isPgKompleks = (q) => q.jenis === 'pilihan_ganda' && (
+      q.tipe_pg === 'pg_kompleks' || 
+      q.jenis_pg === 'pg_kompleks' || 
+      (typeof q.kunci_pg === 'string' && (q.kunci_pg.includes(',') || q.kunci_pg.trim().length > 1))
+    );
+    const isPgBiasa = (q) => q.jenis === 'pilihan_ganda' && !isPgKompleks(q);
+
+    const actual = {
+      pilihan_ganda: soalList.filter(isPgBiasa).length,
+      pg_kompleks: soalList.filter(isPgKompleks).length,
+      isian: soalList.filter(q => q.jenis === 'isian').length,
+      essay: soalList.filter(q => q.jenis === 'essay').length,
+      koding_game: soalList.filter(q => q.jenis === 'koding_game').length,
+      listening: soalList.filter(q => Number(q.is_listening) === 1).length,
+      total: soalList.length
+    };
+
+    const target = {
+      pilihan_ganda: (ulangan.jumlah_soal_pg !== null && ulangan.jumlah_soal_pg !== undefined) ? Number(ulangan.jumlah_soal_pg) : null,
+      pg_kompleks: (ulangan.jumlah_soal_pg_kompleks !== null && ulangan.jumlah_soal_pg_kompleks !== undefined) ? Number(ulangan.jumlah_soal_pg_kompleks) : null,
+      isian: (ulangan.jumlah_soal_isian !== null && ulangan.jumlah_soal_isian !== undefined) ? Number(ulangan.jumlah_soal_isian) : null,
+      essay: (ulangan.jumlah_soal_essay !== null && ulangan.jumlah_soal_essay !== undefined) ? Number(ulangan.jumlah_soal_essay) : null,
+      koding_game: (ulangan.jumlah_soal_koding !== null && ulangan.jumlah_soal_koding !== undefined) ? Number(ulangan.jumlah_soal_koding) : null,
+      listening: (ulangan.jumlah_soal_listening !== null && ulangan.jumlah_soal_listening !== undefined) ? Number(ulangan.jumlah_soal_listening) : null,
+      total_tampil: (ulangan.jumlah_soal_tampil !== null && ulangan.jumlah_soal_tampil !== undefined) ? Number(ulangan.jumlah_soal_tampil) : null
+    };
+
+    const hasAnyTarget = Object.values(target).some(v => v !== null && v > 0);
+
+    const typeMeta = [
+      { key: 'pilihan_ganda', label: 'Pilihan Ganda Biasa', icon: '🎯' },
+      { key: 'pg_kompleks', label: 'Pilihan Ganda Kompleks', icon: '☑️' },
+      { key: 'isian', label: 'Isian Singkat', icon: '✍️' },
+      { key: 'essay', label: 'Uraian / Essay', icon: '📝' },
+      { key: 'koding_game', label: 'Game Koding (SMP)', icon: '🎮' },
+      { key: 'listening', label: 'Soal Menyimak (Listening)', icon: '🎧' }
+    ];
+
+    const checks = [];
+    const missingTypes = [];
+    const insufficientTypes = [];
+
+    for (const { key, label, icon } of typeMeta) {
+      const tgt = target[key];
+      const act = actual[key];
+      if (tgt !== null && tgt > 0) {
+        const isMissing = (act === 0);
+        const isInsufficient = (act < tgt);
+        const status = isMissing ? 'missing' : (isInsufficient ? 'insufficient' : 'complete');
+        const diff = Math.max(0, tgt - act);
+
+        const checkObj = {
+          type: key,
+          label,
+          icon,
+          target: tgt,
+          actual: act,
+          diff,
+          status, // 'complete' | 'insufficient' | 'missing'
+          percent: Math.min(100, Math.round((act / tgt) * 100)),
+          message: isMissing 
+            ? `Belum ada butir soal dibuat sama sekali (Target awal: ${tgt} butir)`
+            : (isInsufficient ? `Kurang ${diff} butir (Tersedia ${act} dari target ${tgt})` : `Sesuai (${act}/${tgt} butir)`)
+        };
+
+        checks.push(checkObj);
+        if (isMissing) missingTypes.push(checkObj);
+        else if (isInsufficient) insufficientTypes.push(checkObj);
+      } else if (act > 0) {
+        checks.push({
+          type: key,
+          label,
+          icon,
+          target: null,
+          actual: act,
+          diff: 0,
+          status: 'available',
+          percent: 100,
+          message: `Tersedia ${act} butir (Bebas / Tanpa batas kuota)`
+        });
+      }
+    }
+
+    // Pengecekan total target tampil vs total di bank
+    let totalCheck = null;
+    if (target.total_tampil !== null && target.total_tampil > 0) {
+      const isTotalShort = actual.total < target.total_tampil;
+      totalCheck = {
+        target: target.total_tampil,
+        actual: actual.total,
+        diff: Math.max(0, target.total_tampil - actual.total),
+        status: isTotalShort ? 'insufficient' : 'complete',
+        percent: Math.min(100, Math.round((actual.total / target.total_tampil) * 100)),
+        message: isTotalShort
+          ? `Total butir di bank (${actual.total}) masih kurang dari target tampil ujian (${target.total_tampil} butir)`
+          : `Total soal di bank (${actual.total}) mencukupi target tampil (${target.total_tampil} butir)`
+      };
+    }
+
+    const isAllComplete = (missingTypes.length === 0 && insufficientTypes.length === 0 && (!totalCheck || totalCheck.status === 'complete'));
+
+    return {
+      ulanganId: ulangan.id,
+      judul: ulangan.judul,
+      hasAnyTarget,
+      isAllComplete,
+      actual,
+      target,
+      checks,
+      missingTypes,
+      insufficientTypes,
+      totalCheck
+    };
   },
 
   // Update informasi ulangan
