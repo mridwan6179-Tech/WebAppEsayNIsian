@@ -244,7 +244,7 @@ const studentService = {
         konten_kisi_kisi: (isKisiShown && hasKisiKonten) ? ulangan.konten_kisi_kisi : null,
         tampilkan_kisi_kisi: isKisiShown ? 1 : 0,
         tampilkan_teks_listening: (ulangan.tampilkan_teks_listening !== undefined && ulangan.tampilkan_teks_listening !== null) ? Number(ulangan.tampilkan_teks_listening) : 0,
-        pin_aktif: Number(ulangan.pin_aktif) === 1 ? 1 : 0,
+        pin_aktif: (Number(ulangan.pin_aktif) === 1 || (ulangan.token_ujian && Number(ulangan.token_ujian) > 0)) ? 1 : 0,
         token_ujian: ulangan.token_ujian || null,
         available_classes: kelasList
       }
@@ -1541,7 +1541,7 @@ const studentService = {
     if (Array.isArray(assignedQuestionIds) && assignedQuestionIds.length > 0) {
       const placeholders = assignedQuestionIds.map(() => '?').join(',');
       const rows = db.prepare(`
-        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa, tampilkan_teks_listening
+        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa, tampilkan_teks_listening, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, game_data, kunci_pg
         FROM soal
         WHERE id IN (${placeholders})
       `).all(...assignedQuestionIds);
@@ -1553,18 +1553,25 @@ const studentService = {
       }).filter(Boolean);
     } else {
       displaySoalList = db.prepare(`
-        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa, tampilkan_teks_listening
+        SELECT id, nomor, jenis, pertanyaan, gambar_url, bobot, tingkat_kelas, urutan, audio_url, audio_script, is_listening, bahasa, tampilkan_teks_listening, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, game_data, kunci_pg
         FROM soal
         WHERE ulangan_id = ?
         ORDER BY urutan ASC, nomor ASC
       `).all(pengerjaan.ulangan_id).map((s, idx) => ({ ...s, nomor: idx + 1 }));
     }
 
-    // Pasangkan teks draft jawaban tersimpan ke butir soal
-    const displaySoalWithAnswers = displaySoalList.map(s => ({
-      ...s,
-      jawaban_siswa: existingJawabanMap.get(s.id) || ''
-    }));
+    // Pasangkan teks draft jawaban tersimpan ke butir soal, tentukan tipe_pg (kompleks vs biasa), dan hapus kunci_pg
+    const displaySoalWithAnswers = displaySoalList.map((s, idx) => {
+      const isKompleks = s.jenis === 'pilihan_ganda' && (s.tipe_pg === 'pg_kompleks' || (typeof s.kunci_pg === 'string' && (s.kunci_pg.includes(',') || s.kunci_pg.trim().length > 1)));
+      const item = {
+        ...s,
+        nomor: idx + 1,
+        tipe_pg: isKompleks ? 'pg_kompleks' : 'pg_biasa',
+        jawaban_siswa: existingJawabanMap.get(s.id) || ''
+      };
+      delete item.kunci_pg;
+      return item;
+    });
 
     const stats = db.prepare('SELECT COUNT(*) as total_soal, COALESCE(SUM(bobot), 0) as total_bobot FROM soal WHERE ulangan_id = ?').get(pengerjaan.ulangan_id);
 

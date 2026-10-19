@@ -7019,7 +7019,18 @@
           document.getElementById('edit-exam-pin-aktif').checked = Boolean(u.pin_aktif);
         }
         if (document.getElementById('edit-exam-token-ujian')) {
-          document.getElementById('edit-exam-token-ujian').value = (u.token_ujian !== null && u.token_ujian !== undefined) ? u.token_ujian : '';
+          const tokenInput = document.getElementById('edit-exam-token-ujian');
+          tokenInput.value = (u.token_ujian !== null && u.token_ujian !== undefined) ? u.token_ujian : '';
+          if (!tokenInput.dataset.pinBound) {
+            tokenInput.dataset.pinBound = 'true';
+            tokenInput.addEventListener('input', () => {
+              const val = parseInt(tokenInput.value.trim(), 10);
+              const chk = document.getElementById('edit-exam-pin-aktif');
+              if (chk && !isNaN(val) && val > 0) {
+                chk.checked = true;
+              }
+            });
+          }
         }
         if (typeof updateEditExamPinBadge === 'function') {
           updateEditExamPinBadge(activeUlanganId);
@@ -7171,7 +7182,7 @@
         link_kisi_kisi: linkKisiKisi || null,
         tampilkan_teks_listening: document.getElementById('edit-exam-tampilkan-teks-listening')?.checked ? 1 : 0,
         kode_ujian: document.getElementById('edit-exam-kode')?.value.trim() || undefined,
-        pin_aktif: document.getElementById('edit-exam-pin-aktif')?.checked ? 1 : 0,
+        pin_aktif: (document.getElementById('edit-exam-pin-aktif')?.checked || (document.getElementById('edit-exam-token-ujian')?.value.trim() && parseInt(document.getElementById('edit-exam-token-ujian').value.trim(), 10) > 0)) ? 1 : 0,
         token_ujian: document.getElementById('edit-exam-token-ujian')?.value.trim() ? parseInt(document.getElementById('edit-exam-token-ujian').value.trim(), 10) : null,
         skor_langsung_ai: document.getElementById('edit-exam-skor-langsung-ai')?.checked ? 1 : 0
       };

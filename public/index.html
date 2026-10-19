@@ -210,14 +210,20 @@
           </select>
         </div>
 
-        <!-- Field PIN Sekali Pakai (hanya tampil jika ujian menggunakan sistem PIN) -->
+        <!-- Field Token / PIN Siswa Sekali Pakai (hanya tampil jika ujian menggunakan sistem PIN/Token peserta) -->
         <div id="pin-input-container" class="hidden">
-          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">🔑 PIN Ujian Sekali Pakai</label>
-          <input type="tel" id="input-pin" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Masukkan 6 digit PIN"
+          <label class="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+            <span class="flex items-center space-x-1">
+              <span>🔑</span>
+              <span>Token / PIN Siswa Sekali Pakai</span>
+            </span>
+            <span class="text-[10px] text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full font-bold">1 Siswa = 1 Token</span>
+          </label>
+          <input type="tel" id="input-pin" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Masukkan 6 digit Token / PIN Anda"
             class="w-full px-4 py-3 rounded-xl border border-amber-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-100 text-center font-mono font-bold tracking-[0.3em] sm:tracking-[0.5em] text-lg sm:text-xl transition bg-amber-50/40"
             autocomplete="off" autocapitalize="none" spellcheck="false">
-          <p class="mt-1.5 text-[11px] text-slate-500 leading-relaxed">
-            ⚠️ PIN ini bersifat <strong>sekali pakai</strong> dan unik untuk Anda. Diberikan guru secara langsung. Jangan bagikan ke teman.
+          <p class="mt-1.5 text-[11px] text-slate-600 leading-relaxed bg-amber-50/90 p-2.5 rounded-xl border border-amber-200">
+            ℹ️ Masukkan <strong>Token / PIN 6-digit unik</strong> yang diberikan oleh guru untuk Anda. <span class="font-semibold text-amber-900">Berbeda dengan Kode Akses Ulangan di atas</span>. PIN ini bersifat sekali pakai dan mengunci sesi pengerjaan ke perangkat Anda.
           </p>
         </div>
 
@@ -1365,10 +1371,11 @@
             inputKelas.appendChild(opt);
           }
 
-          // Tampilkan field PIN jika ujian menggunakan sistem PIN
+          // Tampilkan field PIN jika ujian menggunakan sistem PIN atau kuota token peserta
           const pinContainer = document.getElementById('pin-input-container');
           const pinInput = document.getElementById('input-pin');
-          if (data.ulangan.pin_aktif === 1) {
+          const isPinActive = (data.ulangan.pin_aktif === 1) || (data.ulangan.token_ujian && Number(data.ulangan.token_ujian) > 0);
+          if (isPinActive) {
             if (pinContainer) pinContainer.classList.remove('hidden');
             if (pinInput) { pinInput.required = true; pinInput.value = ''; }
             window._ulanganPinAktif = true;

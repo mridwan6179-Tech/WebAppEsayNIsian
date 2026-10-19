@@ -148,8 +148,8 @@ const examService = {
     const cleanBobotEssay = (data.bobot_essay !== undefined && data.bobot_essay !== null && data.bobot_essay !== '') ? Math.max(0, Math.min(100, Number(data.bobot_essay))) : (cleanJenisUlangan === 'pg_saja' ? 0 : 40);
     const cleanBobotKoding = (data.bobot_koding !== undefined && data.bobot_koding !== null && data.bobot_koding !== '') ? Math.max(0, Math.min(100, Number(data.bobot_koding))) : 0;
     const cleanOpsiPgCount = Number(data.opsi_pg_count) === 5 ? 5 : 4;
-    const cleanPinAktif = (data.pin_aktif !== undefined && data.pin_aktif !== null) ? (data.pin_aktif ? 1 : 0) : 0;
     const cleanTokenUjian = (data.token_ujian !== undefined && data.token_ujian !== null && data.token_ujian !== '') ? Math.max(0, Number(data.token_ujian)) : null;
+    const cleanPinAktif = (data.pin_aktif !== undefined && data.pin_aktif !== null) ? (data.pin_aktif ? 1 : 0) : ((cleanTokenUjian && cleanTokenUjian > 0) ? 1 : 0);
     const cleanSkorLangsungAi = (data.skor_langsung_ai !== undefined && data.skor_langsung_ai !== null) ? (data.skor_langsung_ai ? 1 : 0) : 0;
 
     const stmt = db.prepare(`
@@ -676,6 +676,7 @@ const examService = {
 
       if (targetToken && targetToken > 0) {
         pinService.syncTokenPool(id, guruId, targetToken);
+        db.prepare('UPDATE ulangan SET pin_aktif = 1 WHERE id = ?').run(id);
       } else if (isPinActive) {
         const countRow = db.prepare('SELECT COUNT(*) as cnt FROM pin_sessions WHERE ulangan_id = ?').get(id);
         if (Number(countRow?.cnt || 0) === 0) {
