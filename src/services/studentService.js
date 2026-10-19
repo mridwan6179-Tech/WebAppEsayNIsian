@@ -1587,8 +1587,10 @@ const studentService = {
     const skorLangsungAi = Boolean(Number(pengerjaan.skor_langsung_ai) === 1);
     let antreanInfo = null;
 
-    // Jika skor_langsung_ai aktif dan belum dirilis, cek apakah semua soal sudah selesai dinilai
-    if (skorLangsungAi && !pengerjaan.released_at && pengerjaan.status === 'submitted') {
+    // Jika nilai belum dirilis dan pengerjaan berstatus submitted, cek status penilaian antrean AI
+    const isSubmittedAndUnreleased = (pengerjaan.status === 'submitted' && !pengerjaan.released_at);
+
+    if (isSubmittedAndUnreleased) {
       const jwbStats = db.prepare(`
         SELECT 
           COUNT(id) as total_soal,
@@ -1608,34 +1610,76 @@ const studentService = {
           reviewService.recalculatePengerjaanTotal(pengerjaan.id);
           pengerjaan = db.prepare(query).get(cleanId) || pengerjaan;
         } catch (eRecalc) {}
-      } else if (totalSoal > 0) {
-        // Hitung posisi antrean siswa pada antrean_review untuk ulangan ini
+      } else if (totalSoal > 0 && (skorLangsungAi || belumSelesai > 0)) {
+        // Hitung posisi antrean siswa pada antrean penilaian AI untuk ulangan ini
         let posisiAntrean = 1;
-        try {
-          const minQueueRow = db.prepare(`
-            SELECT MIN(a.id) as min_antrean_id
-            FROM antrean_review a
-            JOIN jawaban j ON a.jawaban_id = j.id
-            WHERE j.pengerjaan_id = ? AND a.status != 'selesai'
-          `).get(pengerjaan.id);
+        let totalAntreanSiswa = 1;
+        let siswaDiDepan = 0;
+        let jawabanDiDepan = 0;
 
-          if (minQueueRow && minQueueRow.min_antrean_id) {
-            const aheadRow = db.prepare(`
-              SELECT COUNT(DISTINCT j.pengerjaan_id) as siswa_di_depan
-              FROM antrean_review a
-              JOIN jawaban j ON a.jawaban_id = j.id
-              JOIN pengerjaan p ON j.pengerjaan_id = p.id
-              WHERE p.ulangan_id = ? AND a.status != 'selesai' AND a.id < ?
-            `).get(pengerjaan.ulangan_id, minQueueRow.min_antrean_id);
-            posisiAntrean = Number(aheadRow?.siswa_di_depan || 0) + 1;
+        try {
+          // Ambil daftar seluruh siswa yang masih memiliki jawaban yang belum selesai dinilai (FIFO per siswa)
+          const queueStudents = db.prepare(`
+            SELECT DISTINCT p.id, COALESCE(p.submitted_at, p.started_at) as queue_time
+            FROM pengerjaan p
+            JOIN jawaban j ON j.pengerjaan_id = p.id
+            WHERE p.ulangan_id = ?
+              AND p.status = 'submitted'
+              AND j.status_penilaian != 'selesai'
+            ORDER BY COALESCE(p.submitted_at, p.started_at) ASC, p.id ASC
+          `).all(pengerjaan.ulangan_id);
+
+          totalAntreanSiswa = Math.max(1, queueStudents.length);
+          const myIdx = queueStudents.findIndex(s => s.id === pengerjaan.id);
+
+          if (myIdx !== -1) {
+            posisiAntrean = myIdx + 1;
+            siswaDiDepan = myIdx;
+
+            // Hitung jumlah butir soal siswa di depan yang masih menunggu evaluasi
+            if (siswaDiDepan > 0) {
+              const aheadIds = queueStudents.slice(0, myIdx).map(s => s.id);
+              const placeholders = aheadIds.map(() => '?').join(',');
+              const aheadRow = db.prepare(`
+                SELECT COUNT(id) as total_ahead
+                FROM jawaban
+                WHERE pengerjaan_id IN (${placeholders}) AND status_penilaian != 'selesai'
+              `).get(...aheadIds);
+              jawabanDiDepan = Number(aheadRow?.total_ahead || (siswaDiDepan * 2));
+            }
           }
-        } catch (ePos) {}
+        } catch (ePos) {
+          console.warn('⚠️ Warning hitung posisi antrean:', ePos.message);
+        }
+
+        // Estimasi waktu tunggu (detik): setiap butir soal butuh ~5-7 detik (inferensi AI + pacing delay)
+        const estimasiDetik = Math.max(5, (jawabanDiDepan * 6) + (belumSelesai * 4));
+        let estimasiTeks = '';
+        if (posisiAntrean === 1) {
+          estimasiTeks = belumSelesai > 0
+            ? `Giliran Anda sekarang! AI sedang menilai ${belumSelesai} jawaban Anda...`
+            : 'Evaluasi selesai! Menghitung nilai akhir...';
+        } else if (estimasiDetik <= 45) {
+          estimasiTeks = `Sekitar ~${estimasiDetik} detik lagi`;
+        } else if (estimasiDetik <= 90) {
+          estimasiTeks = 'Sekitar ~1 - 1.5 menit lagi';
+        } else if (estimasiDetik <= 150) {
+          estimasiTeks = 'Sekitar ~2 - 2.5 menit lagi';
+        } else {
+          estimasiTeks = `Sekitar ~${Math.ceil(estimasiDetik / 60)} menit lagi`;
+        }
 
         antreanInfo = {
           totalSoal,
           selesaiSoal,
           menungguSoal: belumSelesai,
-          posisiAntrean
+          posisiAntrean,
+          totalAntreanSiswa,
+          siswaDiDepan,
+          jawabanDiDepan,
+          estimasiDetik,
+          estimasiTeks,
+          isGiliranSaya: Boolean(posisiAntrean === 1)
         };
       }
     }

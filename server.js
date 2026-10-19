@@ -497,8 +497,8 @@ app.get('/api/siswa/hasil/:pengerjaan_id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Data pengerjaan tidak ditemukan' });
     }
 
-    // Jika skor langsung AI masih diproses: jangan cache, proses auto-queue tick dulu
-    if (status.skorLangsungAi && !status.isReleased && status.status === 'submitted' && status.ulanganId) {
+    // Jika skor langsung AI atau antrean penilaian masih diproses: jangan cache, proses auto-queue tick dulu
+    if ((status.skorLangsungAi || status.antreanInfo) && !status.isReleased && status.status === 'submitted' && status.ulanganId) {
       try {
         await queueService.tickAutoQueueIfDue(status.ulanganId);
         status = studentService.getPengerjaanStatus(pid) || status;

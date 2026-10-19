@@ -5850,6 +5850,26 @@
       }
     });
 
+    // Helper refresh manual untuk kartu antrean AI siswa
+    window.manualRefreshStudentResult = async function(btn) {
+      const pId = currentPengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
+      if (!pId) return;
+      if (btn) {
+        btn.disabled = true;
+        const spin = btn.querySelector('.refresh-spinner');
+        if (spin) spin.classList.add('animate-spin');
+      }
+      try {
+        await checkResultStatusWithRetry(pId, 0);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          const spin = btn.querySelector('.refresh-spinner');
+          if (spin) spin.classList.remove('animate-spin');
+        }
+      }
+    };
+
     let autoScorePollTimer = null;
 
     // Tampilkan Layar Hasil
@@ -6132,38 +6152,107 @@
               </p>
             </div>
           `;
-        } else if (data.skorLangsungAi) {
-          const totalSoal = data.antreanInfo?.totalSoal || (data.jawaban || []).length || 1;
-          const selesaiSoal = data.antreanInfo?.selesaiSoal || 0;
-          const posisiAntrean = data.antreanInfo?.posisiAntrean || 1;
-          const pct = Math.min(98, Math.max(12, Math.round((selesaiSoal / totalSoal) * 100)));
+        } else if (data.skorLangsungAi || (data.antreanInfo && !data.isReleased)) {
+          const antrean = data.antreanInfo || {};
+          const totalSoal = antrean.totalSoal || (data.jawaban || []).length || 1;
+          const selesaiSoal = antrean.selesaiSoal || 0;
+          const posisiAntrean = antrean.posisiAntrean || 1;
+          const totalAntreanSiswa = antrean.totalAntreanSiswa || 1;
+          const siswaDiDepan = (antrean.siswaDiDepan !== undefined) ? antrean.siswaDiDepan : Math.max(0, posisiAntrean - 1);
+          const isGiliranSaya = Boolean(antrean.isGiliranSaya || posisiAntrean === 1);
+          const estimasiTeks = antrean.estimasiTeks || (isGiliranSaya ? 'Sedang giliran Anda dinilai AI...' : 'Kira-kira ~1 - 2 menit lagi');
+          const pct = Math.min(98, Math.max(8, Math.round((selesaiSoal / totalSoal) * 100)));
 
           statusBox.innerHTML = `
-            <div class="space-y-2.5 text-left bg-indigo-50/90 border border-indigo-200 rounded-xl p-3.5">
+            <div id="ai-live-queue-card" class="space-y-3.5 text-left bg-gradient-to-br from-indigo-50/95 via-blue-50/80 to-slate-50 border border-indigo-200/90 rounded-2xl p-4 sm:p-5 shadow-sm transition-all duration-300">
+              
+              <!-- Header & Tombol Segarkan Manual -->
               <div class="flex items-center justify-between gap-2 flex-wrap">
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-full bg-indigo-600 text-white shadow-2xs">
-                  <span class="animate-spin inline-block">⏳</span>
-                  <span>⚡ AI Dinamis & Antrean Anti-Limit Aktif</span>
-                </span>
-                <span class="text-[11px] font-bold text-indigo-800 bg-white px-2.5 py-0.5 rounded-lg border border-indigo-200">
-                  Antrean #${posisiAntrean} &bull; ${selesaiSoal}/${totalSoal} Soal Dinilai
-                </span>
+                <div class="flex items-center space-x-2.5">
+                  <span class="w-9 h-9 rounded-xl ${isGiliranSaya ? 'bg-emerald-600 text-white animate-pulse' : 'bg-indigo-600 text-white'} flex items-center justify-center text-base shadow-sm">
+                    ${isGiliranSaya ? '⚡' : '⏳'}
+                  </span>
+                  <div>
+                    <h4 class="font-extrabold text-xs sm:text-sm text-slate-900 leading-tight">
+                      ${isGiliranSaya ? 'Giliran Anda Sedang Dinilai!' : 'Menunggu Antrean Penilaian AI'}
+                    </h4>
+                    <p class="text-[11px] text-slate-500">
+                      ${isGiliranSaya ? 'AI sedang mengevaluasi lembar jawaban Anda satu per satu' : 'Antrean dinilai bertahap secara tertib (FIFO)'}
+                    </p>
+                  </div>
+                </div>
+                
+                <button type="button" onclick="window.manualRefreshStudentResult(this)" class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 transition shadow-2xs flex items-center space-x-1.5 cursor-pointer active:scale-95">
+                  <span class="refresh-spinner inline-block transition-transform">🔄</span>
+                  <span>Cek Status</span>
+                </button>
               </div>
-              <div class="w-full bg-indigo-100 rounded-full h-2.5 overflow-hidden border border-indigo-200">
-                <div class="bg-gradient-to-r from-indigo-600 to-blue-500 h-2.5 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+
+              <!-- Dua Kartu: Posisi Antrean (Bergerak Live) & Estimasi Waktu -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                
+                <!-- Kotak 1: Nomor Antrean Live (Angka gerak otomatis) -->
+                <div class="p-3 bg-white rounded-xl border border-indigo-100 shadow-2xs flex items-center space-x-3 transition-transform duration-300">
+                  <div class="text-3xl font-black font-mono tracking-tight ${isGiliranSaya ? 'text-emerald-600 animate-bounce' : 'text-indigo-600'}">
+                    #${posisiAntrean}
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Urutan Antrean</p>
+                    <p class="text-xs font-bold text-slate-800 truncate">
+                      ${isGiliranSaya ? '🎯 Sedang Dieksekusi' : `Ke-${posisiAntrean} dari ${totalAntreanSiswa} Siswa`}
+                    </p>
+                    ${siswaDiDepan > 0
+                      ? `<p class="text-[10px] text-slate-500">Ada ${siswaDiDepan} siswa di depan Anda</p>`
+                      : `<p class="text-[10px] text-emerald-700 font-medium">Anda di urutan terdepan</p>`
+                    }
+                  </div>
+                </div>
+
+                <!-- Kotak 2: Perkiraan Waktu Menunggu -->
+                <div class="p-3 bg-white rounded-xl border border-indigo-100 shadow-2xs flex items-center space-x-3">
+                  <div class="text-2xl sm:text-3xl shrink-0">
+                    ⏱️
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Perkiraan Waktu Tunggu</p>
+                    <p class="text-xs font-bold text-indigo-950 truncate">
+                      ${escapeHtml(estimasiTeks)}
+                    </p>
+                    <p class="text-[10px] text-slate-500">${selesaiSoal}/${totalSoal} butir soal Anda selesai</p>
+                  </div>
+                </div>
+
               </div>
-              <p class="text-[11px] text-indigo-900 leading-relaxed">
-                AI Dinamis sedang menilai jawabanmu secara bertahap melalui sistem antrean cerdas agar bebas terkena limit kuota. <strong>Nilai akhir dan rincian evaluasi akan langsung muncul otomatis di layar ini begitu antrean selesai!</strong>
-              </p>
+
+              <!-- Bar Progres Penilaian Lembar Ini -->
+              <div class="space-y-1.5 pt-1">
+                <div class="flex items-center justify-between text-[11px] text-slate-500">
+                  <span>Progres Lembar Soal Anda:</span>
+                  <span class="font-bold text-indigo-800 font-mono">${selesaiSoal}/${totalSoal} Soal Terisi (${pct}%)</span>
+                </div>
+                <div class="w-full bg-indigo-100/80 rounded-full h-2.5 overflow-hidden border border-indigo-200">
+                  <div class="bg-gradient-to-r ${isGiliranSaya ? 'from-emerald-500 to-teal-500' : 'from-indigo-600 to-blue-500'} h-2.5 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+                </div>
+              </div>
+
+              <!-- Panduan Tenang Bagi Siswa -->
+              <div class="p-2.5 bg-blue-50/80 rounded-xl border border-blue-100 flex items-start space-x-2 text-[11px] text-blue-900 leading-relaxed">
+                <span class="text-sm shrink-0">💡</span>
+                <p>
+                  Mohon <strong>tetap di halaman ini</strong>. Angka antrean dan perkiraan waktu akan <strong>bergerak otomatis secara berkala</strong> &mdash; lembar nilai dan pembahasan akan langsung terbuka saat giliran Anda selesai!
+                </p>
+              </div>
+
             </div>
           `;
 
-          // Jadwalkan auto-polling setiap 4.2 detik sampai nilai otomatis keluar
+          // Auto-polling cerdas setiap 3.2 detik agar antrean bergerak otomatis di layar siswa
           const targetPid = currentPengerjaanId || data.pengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
           if (targetPid) {
+            if (autoScorePollTimer) clearTimeout(autoScorePollTimer);
             autoScorePollTimer = setTimeout(() => {
               checkResultStatusWithRetry(targetPid, 0);
-            }, 4200);
+            }, 3200);
           }
         } else {
           statusBox.innerHTML = `
