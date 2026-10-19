@@ -1635,8 +1635,14 @@ app.post('/api/guru/rangkuman/:id/generate-broadcast', requireGuru, async (req, 
 // 1. Generate / Regenerate Paket Soal (A, B, C, D)
 app.post('/api/guru/ulangan/:id/packages/generate', requireGuru, (req, res) => {
   try {
-    const { packageCount } = req.body || {};
-    const result = packageService.generatePackages(req.params.id, { packageCount });
+    const { packageCount, questionCount, jumlah_soal, acak_opsi, seed } = req.body || {};
+    const result = packageService.generatePackages(req.params.id, {
+      packageCount,
+      questionCount: questionCount ?? jumlah_soal,
+      jumlah_soal: questionCount ?? jumlah_soal,
+      acak_opsi,
+      seed
+    });
     res.json(result);
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });

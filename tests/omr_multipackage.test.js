@@ -267,4 +267,121 @@ describe('=== SUITE: FITUR OMR SCANNER, MULTI-PAKET (A/B/C/D), & UJIAN GABUNGAN 
     assert.strictEqual(scanData.success, true);
     assert.strictEqual(scanData.skor_pg, 100);
   });
+
+  test('8. Algoritma Rasio Adil: calculateProportionalQuotas membagi kuota secara presisi & seimbang', () => {
+    // Kasus 1: 30 PG Biasa (75%) + 10 PG Kompleks (25%) -> target 20
+    const q1 = packageService.calculateProportionalQuotas({
+      pg_biasa: new Array(30),
+      pg_kompleks: new Array(10)
+    }, 20);
+    assert.strictEqual(q1.pg_biasa, 15, 'PG Biasa harus 15 butir (75%)');
+    assert.strictEqual(q1.pg_kompleks, 5, 'PG Kompleks harus 5 butir (25%)');
+
+    // Kasus 2: 35 PG Biasa (87.5%) + 5 PG Kompleks (12.5%) -> target 10
+    const q2 = packageService.calculateProportionalQuotas({
+      pg_biasa: new Array(35),
+      pg_kompleks: new Array(5)
+    }, 10);
+    assert.strictEqual(q2.pg_biasa, 9);
+    assert.strictEqual(q2.pg_kompleks, 1);
+    assert.strictEqual(q2.pg_biasa + q2.pg_kompleks, 10);
+
+    // Kasus 3: Target lebih besar dari soal tersedia -> tidak melebihi total
+    const q3 = packageService.calculateProportionalQuotas({
+      pg_biasa: new Array(10),
+      pg_kompleks: new Array(5)
+    }, 50);
+    assert.strictEqual(q3.pg_biasa, 10);
+    assert.strictEqual(q3.pg_kompleks, 5);
+  });
+
+  test('9. Generate Paket Soal dengan kustom questionCount memilihkan soal secara acak dengan rasio seimbang', () => {
+    // Buat ulangan baru dengan 12 PG Biasa dan 4 PG Kompleks (Total 16 soal, rasio 75% : 25%)
+    const ulanganFair = examService.createUlangan(testGuruId, {
+      judul: 'Ulangan Sains Rasio Adil',
+      mata_pelajaran: 'Fisika',
+      tingkat_kelas: '8A',
+      jenis_ulangan: 'pilihan_ganda',
+      jumlah_paket: 3
+    });
+
+    for (let i = 1; i <= 12; i++) {
+      examService.createSoal(ulanganFair.id, {
+        nomor: i,
+        pertanyaan: `Soal PG Biasa #${i}`,
+        jenis: 'pilihan_ganda',
+        opsi_a: 'Jawaban A', opsi_b: 'Jawaban B', opsi_c: 'Jawaban C', opsi_d: 'Jawaban D',
+        kunci_pg: 'A',
+        bobot: 1
+      });
+    }
+
+    for (let i = 13; i <= 16; i++) {
+      examService.createSoal(ulanganFair.id, {
+        nomor: i,
+        pertanyaan: `Soal PG Kompleks #${i}`,
+        jenis: 'pilihan_ganda',
+        opsi_a: 'Jawaban A', opsi_b: 'Jawaban B', opsi_c: 'Jawaban C', opsi_d: 'Jawaban D',
+        kunci_pg: 'A,C', // PG Kompleks (multi-jawaban)
+        bobot: 2
+      });
+    }
+
+    // Generate 3 paket dengan jumlah soal dibatasi 8 soal per paket (dari total 16 di bank)
+    const res = packageService.generatePackages(ulanganFair.id, {
+      packageCount: 3,
+      questionCount: 8
+    });
+
+    assert.strictEqual(res.success, true);
+    assert.strictEqual(res.target_soal, 8);
+    assert.strictEqual(res.packages.length, 3);
+
+    // Periksa bahwa setiap paket memiliki tepat 8 soal
+    for (const pkg of res.packages) {
+      assert.strictEqual(pkg.total_soal, 8);
+      assert.strictEqual(Object.keys(pkg.kunci_jawaban_map).length, 8);
+      assert.strictEqual(pkg.urutan_soal_ids.length, 8);
+    }
+
+    // Periksa rasio adil: dari 8 soal yang dipilih, harus tepat 6 PG Biasa (75%) dan 2 PG Kompleks (25%)
+    assert.strictEqual(res.ratio_summary.pg_biasa, 6, 'Harus terpilih 6 soal PG Biasa');
+    assert.strictEqual(res.ratio_summary.pg_kompleks, 2, 'Harus terpilih 2 soal PG Kompleks');
+    assert.ok(res.summary_text.includes('6 PG Biasa') && res.summary_text.includes('2 PG Kompleks'));
+
+    // Paket A, B, C harus memiliki set soal yang sama persis (hanya urutan yang diacak)
+    const setA = new Set(res.packages[0].urutan_soal_ids);
+    const setB = new Set(res.packages[1].urutan_soal_ids);
+    const setC = new Set(res.packages[2].urutan_soal_ids);
+
+    assert.strictEqual(setA.size, 8);
+    for (const id of setA) {
+      assert.ok(setB.has(id), 'Paket B harus berisi butir soal yang sama dengan Paket A');
+      assert.ok(setC.has(id), 'Paket C harus berisi butir soal yang sama dengan Paket A');
+    }
+
+    // Cetak naskah Paket A harus mengembalikan tepat 8 butir soal
+    const printPkgA = packageService.getPrintableQuestionsByPackage(ulanganFair.id, 'A');
+    assert.strictEqual(printPkgA.soal_list.length, 8);
+
+    // Bersihkan data tes
+    db.prepare('DELETE FROM ulangan WHERE id = ?').run(ulanganFair.id);
+  });
+
+  test('10. REST API Endpoint menerima questionCount dan mengembalikan ratio_summary', async () => {
+    const genRes = await fetch(`${baseUrl}/api/guru/ulangan/${testUlanganId}/packages/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': teacherCookie
+      },
+      body: JSON.stringify({ packageCount: 2, questionCount: 3 })
+    });
+    const genData = await genRes.json();
+    assert.strictEqual(genRes.status, 200);
+    assert.strictEqual(genData.success, true);
+    assert.strictEqual(genData.target_soal, 3);
+    assert.strictEqual(genData.packages[0].total_soal, 3);
+    assert.ok(genData.summary_text, 'Summary text komposisi rasio harus disertakan');
+  });
 });

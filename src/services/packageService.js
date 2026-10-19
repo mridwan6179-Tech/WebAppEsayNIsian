@@ -26,6 +26,185 @@ const packageService = {
     return arr;
   },
 
+  // Helper: deteksi kategori/tipe soal untuk pembagian rasio adil
+  getQuestionCategory(q) {
+    const isPg = q.jenis === 'pilihan_ganda' || (q.opsi_a && q.opsi_b);
+    if (isPg) {
+      const keys = (q.kunci_pg || q.kunci_jawaban || '').split(',').map(x => x.trim().toUpperCase()).filter(Boolean);
+      const isKompleks = (
+        q.tipe_pg === 'pg_kompleks' ||
+        q.jenis_pg === 'pg_kompleks' ||
+        keys.length > 1 ||
+        (typeof q.kunci_pg === 'string' && (q.kunci_pg.includes(',') || q.kunci_pg.trim().length > 1))
+      );
+      return isKompleks ? 'pg_kompleks' : 'pg_biasa';
+    }
+    if (q.jenis === 'koding_game') return 'koding_game';
+    if (q.jenis === 'isian') return 'isian';
+    if (q.jenis === 'essay') return 'essay';
+    return q.jenis || 'lainnya';
+  },
+
+  // Helper: hitung alokasi kuota proporsional adil menggunakan Largest Remainder (Hare-Niemeyer) Method
+  calculateProportionalQuotas(groups, targetCount) {
+    const groupKeys = Object.keys(groups).filter(k => groups[k] && groups[k].length > 0);
+    const totalAvailable = groupKeys.reduce((acc, k) => acc + groups[k].length, 0);
+
+    const quotas = {};
+    if (totalAvailable <= 0) return quotas;
+
+    const safeTarget = Math.max(1, Math.min(totalAvailable, Number(targetCount) || totalAvailable));
+
+    if (safeTarget >= totalAvailable) {
+      groupKeys.forEach(k => quotas[k] = groups[k].length);
+      return quotas;
+    }
+
+    const stats = groupKeys.map(k => {
+      const count = groups[k].length;
+      const exact = (safeTarget * count) / totalAvailable;
+      const floor = Math.floor(exact);
+      const rem = exact - floor;
+      return { key: k, count, exact, floor, rem };
+    });
+
+    let assignedTotal = stats.reduce((acc, s) => acc + s.floor, 0);
+    let remainderNeeded = safeTarget - assignedTotal;
+
+    // Urutkan berdasarkan sisa desimal terbesar
+    stats.sort((a, b) => {
+      if (Math.abs(b.rem - a.rem) > 1e-6) return b.rem - a.rem;
+      if (b.count !== a.count) return b.count - a.count;
+      return a.key.localeCompare(b.key);
+    });
+
+    stats.forEach(s => quotas[s.key] = s.floor);
+
+    // Bagikan sisa kuota ke kategori dengan remainder tertinggi
+    for (let i = 0; i < remainderNeeded; i++) {
+      const s = stats[i % stats.length];
+      if (quotas[s.key] < s.count) {
+        quotas[s.key] += 1;
+      }
+    }
+
+    // Pastikan setiap kategori yang ada terwakili minimal 1 butir jika kuota cukup
+    if (safeTarget >= groupKeys.length) {
+      for (const s of stats) {
+        if (quotas[s.key] === 0 && s.count > 0) {
+          const donor = stats
+            .filter(d => quotas[d.key] > 1)
+            .sort((a, b) => a.rem - b.rem)[0];
+          if (donor) {
+            quotas[donor.key] -= 1;
+            quotas[s.key] += 1;
+          }
+        }
+      }
+    }
+
+    return quotas;
+  },
+
+  // Helper: buat ringkasan teks rasio pembagian soal
+  getRatioSummary(questions) {
+    if (!Array.isArray(questions) || questions.length === 0) return { counts: {}, total: 0, text: '' };
+    const summary = {};
+    const total = questions.length;
+    questions.forEach(q => {
+      const cat = this.getQuestionCategory(q);
+      summary[cat] = (summary[cat] || 0) + 1;
+    });
+
+    const parts = [];
+    const catLabels = {
+      pg_biasa: 'PG Biasa',
+      pg_kompleks: 'PG Kompleks',
+      isian: 'Isian',
+      essay: 'Essay',
+      koding_game: 'Koding'
+    };
+
+    for (const [cat, count] of Object.entries(summary)) {
+      const label = catLabels[cat] || cat;
+      const pct = Math.round((count / total) * 100);
+      parts.push(`${count} ${label} (${pct}%)`);
+    }
+
+    return {
+      counts: summary,
+      total,
+      text: parts.join(' + ') + ` = ${total} Soal`
+    };
+  },
+
+  // Helper: pilih subset butir soal secara acak namun dengan pembagian rasio seimbang & adil
+  sampleQuestionsWithFairRatio(allQuestions, targetCount, seedStr = null) {
+    if (!Array.isArray(allQuestions) || allQuestions.length === 0) return [];
+    const totalAvail = allQuestions.length;
+    const safeTarget = (targetCount && targetCount !== 'semua' && !isNaN(targetCount))
+      ? Math.max(1, Math.min(totalAvail, Number(targetCount)))
+      : totalAvail;
+
+    if (safeTarget >= totalAvail) {
+      return [...allQuestions];
+    }
+
+    // Kelompokkan butir soal berdasarkan kategori jenis / tipe
+    const groups = {};
+    allQuestions.forEach(q => {
+      const cat = this.getQuestionCategory(q);
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(q);
+    });
+
+    // Jika hanya ada 1 kategori (misal semua PG Biasa), periksa apakah tingkat_kesulitan bervariasi
+    const groupKeys = Object.keys(groups);
+    if (groupKeys.length === 1) {
+      const subGroups = {};
+      allQuestions.forEach(q => {
+        const diff = (q.tingkat_kesulitan || 'sedang').toLowerCase();
+        if (!subGroups[diff]) subGroups[diff] = [];
+        subGroups[diff].push(q);
+      });
+      if (Object.keys(subGroups).length > 1) {
+        const subQuotas = this.calculateProportionalQuotas(subGroups, safeTarget);
+        let sampled = [];
+        for (const [diff, needed] of Object.entries(subQuotas)) {
+          const pool = subGroups[diff];
+          const shuffledPool = seedStr
+            ? this.seededShuffle(pool, `${seedStr}-diff-${diff}`)
+            : this.seededShuffle(pool, `diff-${diff}-${Math.random()}`);
+          sampled.push(...shuffledPool.slice(0, needed));
+        }
+        return sampled;
+      }
+    }
+
+    const quotas = this.calculateProportionalQuotas(groups, safeTarget);
+    let selected = [];
+
+    // Prioritas urutan kategori saat disusun: pg_biasa, pg_kompleks, isian, essay, koding_game, lainnya
+    const catPriority = ['pg_biasa', 'pg_kompleks', 'isian', 'essay', 'koding_game', 'lainnya'];
+    const sortedCats = Object.keys(quotas).sort((a, b) => {
+      const idxA = catPriority.indexOf(a);
+      const idxB = catPriority.indexOf(b);
+      return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
+    });
+
+    for (const cat of sortedCats) {
+      const needed = quotas[cat] || 0;
+      if (needed <= 0) continue;
+      const pool = groups[cat];
+      const shuffledPool = seedStr
+        ? this.seededShuffle(pool, `${seedStr}-cat-${cat}`)
+        : this.seededShuffle(pool, `cat-${cat}-${Math.random()}`);
+      selected.push(...shuffledPool.slice(0, needed));
+    }
+
+    return selected;
+  },
+
   // Generate / regenerasi paket soal untuk satu ulangan
   generatePackages(ulanganId, options = {}) {
     const ulangan = db.prepare('SELECT * FROM ulangan WHERE id = ?').get(ulanganId);
@@ -33,13 +212,13 @@ const packageService = {
       throw new Error('Ulangan tidak ditemukan');
     }
 
-    const packageCount = Math.max(1, Math.min(4, Number(options.packageCount || ulangan.jumlah_paket || 1)));
+    const packageCount = Math.max(1, Math.min(4, Number(options.packageCount || options.jumlah_paket || ulangan.jumlah_paket || 1)));
     const packageNames = this.getPackageNames(packageCount);
 
     // Ambil soal pilihan ganda yang terkait dengan ulangan ini
     // Catatan: Jika ada soal esai/isian juga, kita pisahkan agar PG tetap berurutan di awal
     const pgQuestions = db.prepare(`
-      SELECT id, nomor, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_pg, bobot, urutan
+      SELECT id, nomor, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_pg, bobot, urutan, tingkat_kesulitan
       FROM soal
       WHERE ulangan_id = ? AND jenis = 'pilihan_ganda'
       ORDER BY urutan ASC, nomor ASC
@@ -50,7 +229,7 @@ const packageService = {
     if (targetQuestions.length === 0) {
       // Jika belum ada jenis 'pilihan_ganda', cek apakah ada soal umum yang memiliki kunci_pg
       const fallbackPg = db.prepare(`
-        SELECT id, nomor, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_pg, bobot, urutan
+        SELECT id, nomor, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_pg, bobot, urutan, tingkat_kesulitan
         FROM soal
         WHERE ulangan_id = ? AND kunci_pg IS NOT NULL AND TRIM(kunci_pg) != ''
         ORDER BY urutan ASC, nomor ASC
@@ -63,7 +242,7 @@ const packageService = {
     if (targetQuestions.length === 0) {
       // Jika ulangan tidak memiliki soal berjenis pilihan_ganda, ambil seluruh butir soal yang ada
       const allQ = db.prepare(`
-        SELECT id, nomor, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_pg, kunci_jawaban, jenis, bobot, urutan
+        SELECT id, nomor, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_pg, kunci_jawaban, jenis, bobot, urutan, tingkat_kesulitan
         FROM soal
         WHERE ulangan_id = ?
         ORDER BY urutan ASC, nomor ASC
@@ -77,6 +256,22 @@ const packageService = {
       throw new Error('Ulangan ini belum memiliki butir soal untuk dibuatkan paket soal acak.');
     }
 
+    // Tentukan jumlah target soal yang diinginkan guru
+    const rawTarget = options.questionCount ?? options.jumlah_soal;
+    let targetCount = targetQuestions.length;
+    if (rawTarget && rawTarget !== 'semua' && !isNaN(rawTarget)) {
+      targetCount = Math.max(1, Math.min(targetQuestions.length, Number(rawTarget)));
+    }
+
+    // Pilihlah subset soal secara acak dengan rasio pembagian yang adil dan proporsional
+    // Seed memungkinkan seleksi berbeda tiap kali guru mengklik "Generate / Acak Ulang"
+    const selectionSeed = options.seed || `ulangan-${ulanganId}-seed-${Date.now()}`;
+    const selectedQuestions = (targetCount < targetQuestions.length)
+      ? this.sampleQuestionsWithFairRatio(targetQuestions, targetCount, selectionSeed)
+      : [...targetQuestions];
+
+    const ratioSummary = this.getRatioSummary(selectedQuestions);
+
     // Hapus paket lama jika ada
     db.prepare('DELETE FROM paket_soal WHERE ulangan_id = ?').run(ulanganId);
 
@@ -85,11 +280,11 @@ const packageService = {
     for (const pkgName of packageNames) {
       let orderedQuestions;
       if (pkgName === 'A') {
-        // Paket A selalu urutan asli
-        orderedQuestions = [...targetQuestions];
+        // Paket A menggunakan urutan asli dari butir soal terpilih
+        orderedQuestions = [...selectedQuestions].sort((a, b) => (a.urutan - b.urutan) || (a.nomor - b.nomor));
       } else {
-        // Paket B, C, D diacak dengan seed deterministik
-        orderedQuestions = this.seededShuffle(targetQuestions, `ulangan-${ulanganId}-paket-${pkgName}`);
+        // Paket B, C, D diacak dengan seed deterministik dari butir soal terpilih
+        orderedQuestions = this.seededShuffle(selectedQuestions, `ulangan-${ulanganId}-paket-${pkgName}-${selectionSeed}`);
       }
 
       const questionIds = orderedQuestions.map(q => q.id);
@@ -122,7 +317,9 @@ const packageService = {
         kunci_jawaban_map: answerKeyMap,
         kunci_jawaban: answerKeyMap,
         urutan_soal_ids: questionIds,
-        mapping_soal: questionIds
+        mapping_soal: questionIds,
+        ratio_summary: ratioSummary.counts || {},
+        summary_text: ratioSummary.text || ''
       });
     }
 
@@ -134,6 +331,9 @@ const packageService = {
       success: true,
       ulangan_id: ulanganId,
       jumlah_paket: packageCount,
+      target_soal: targetCount,
+      ratio_summary: ratioSummary.counts || {},
+      summary_text: ratioSummary.text || '',
       packages: createdPackages
     };
   },

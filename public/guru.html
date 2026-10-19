@@ -3752,10 +3752,10 @@
       </div>
 
       <!-- Generator Toolbar Form -->
-      <div class="p-3.5 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-3 text-xs">
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+      <div class="p-3.5 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2.5 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
           <div>
-            <label class="block font-bold text-indigo-950 mb-1">Jumlah Paket:</label>
+            <label class="block font-bold text-indigo-950 mb-1">1. Jumlah Paket:</label>
             <select id="select-multi-paket-count" class="w-full px-3 py-1.5 rounded-lg border border-indigo-300 bg-white font-semibold text-slate-800">
               <option value="2">2 Paket (Paket A, Paket B)</option>
               <option value="3">3 Paket (Paket A, B, C)</option>
@@ -3763,18 +3763,48 @@
               <option value="1">1 Paket Saja (Paket A Tunggal)</option>
             </select>
           </div>
+          <div>
+            <label class="block font-bold text-indigo-950 mb-1">2. Butir Soal per Paket:</label>
+            <div class="flex items-center space-x-1.5">
+              <select id="select-multi-paket-soal-count" class="w-full px-2.5 py-1.5 rounded-lg border border-indigo-300 bg-white font-semibold text-slate-800 text-xs">
+                <option value="semua" selected>Semua Soal Tersedia</option>
+                <option value="5">5 Soal (Hemat / Kuis)</option>
+                <option value="10">10 Soal (Rasio Seimbang)</option>
+                <option value="15">15 Soal (Rasio Seimbang)</option>
+                <option value="20">20 Soal (Rasio Seimbang)</option>
+                <option value="25">25 Soal (Rasio Seimbang)</option>
+                <option value="30">30 Soal (Rasio Seimbang)</option>
+                <option value="35">35 Soal (Rasio Seimbang)</option>
+                <option value="40">40 Soal (Rasio Seimbang)</option>
+                <option value="50">50 Soal (Rasio Seimbang)</option>
+                <option value="kustom">Kustom Jumlah...</option>
+              </select>
+              <input type="number" id="input-multi-paket-soal-custom" min="1" max="100" value="20" class="hidden w-16 px-1.5 py-1.5 rounded-lg border border-indigo-300 bg-white font-bold text-center text-xs text-slate-800" title="Ketik jumlah butir soal yang diinginkan">
+            </div>
+          </div>
           <div class="space-y-1">
             <label class="flex items-center space-x-1.5 cursor-pointer font-medium text-indigo-900 select-none">
               <input type="checkbox" id="chk-acak-opsi-pg" checked class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer">
-              <span>Acak Urutan Pilihan Ganda (A-D)</span>
+              <span>Acak Pilihan Ganda (A-D)</span>
             </label>
-            <p class="text-[10px] text-indigo-700">Opsi jawaban juga diputar posisinya per paket</p>
+            <p class="text-[10px] text-indigo-700">Urutan butir diacak beda antar paket</p>
           </div>
           <div class="flex justify-end">
             <button type="button" id="btn-generate-multi-paket" class="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold rounded-xl shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer">
               <span>⚡ Generate / Acak Ulang</span>
             </button>
           </div>
+        </div>
+
+        <!-- Live Preview Rasio Pembagian Adil -->
+        <div id="box-multi-paket-ratio-preview" class="p-2.5 bg-white/90 border border-indigo-200 rounded-lg flex items-center justify-between text-indigo-950 flex-wrap gap-2 text-[11px]">
+          <div class="flex items-center space-x-1.5 min-w-0 flex-1">
+            <span class="shrink-0 text-indigo-600 font-bold">⚖️</span>
+            <span class="truncate"><strong>Pembagian Rasio Adil:</strong> <span id="label-multi-paket-ratio-text" class="text-indigo-900 font-medium">Menghitung komposisi soal...</span></span>
+          </div>
+          <span id="badge-multi-paket-ratio-tag" class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 shrink-0">
+            Proporsional Seimbang
+          </span>
         </div>
       </div>
 
@@ -14620,6 +14650,10 @@
     const btnCloseMultiPaketFooter = document.getElementById('btn-close-multi-paket-footer');
     const btnGenerateMultiPaket = document.getElementById('btn-generate-multi-paket');
     const selectMultiPaketCount = document.getElementById('select-multi-paket-count');
+    const selectMultiPaketSoalCount = document.getElementById('select-multi-paket-soal-count');
+    const inputMultiPaketSoalCustom = document.getElementById('input-multi-paket-soal-custom');
+    const labelMultiPaketRatioText = document.getElementById('label-multi-paket-ratio-text');
+    const badgeMultiPaketRatioTag = document.getElementById('badge-multi-paket-ratio-tag');
     const chkAcakOpsiPg = document.getElementById('chk-acak-opsi-pg');
     const multiPaketTabsContainer = document.getElementById('multi-paket-tabs-container');
     const multiPaketDetailBox = document.getElementById('multi-paket-detail-box');
@@ -14671,11 +14705,24 @@
       if (!activeUlanganId) return;
       const count = Number(selectMultiPaketCount?.value) || 4;
       const acakOpsi = chkAcakOpsiPg?.checked ? true : false;
+      const soalCountVal = selectMultiPaketSoalCount?.value || 'semua';
+      let targetQuestionCount = 'semua';
+      if (soalCountVal === 'kustom') {
+        targetQuestionCount = Number(inputMultiPaketSoalCustom?.value) || 20;
+      } else if (soalCountVal !== 'semua') {
+        targetQuestionCount = Number(soalCountVal);
+      }
       try {
         const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/packages/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ packageCount: count, jumlah_paket: count, acak_opsi: acakOpsi })
+          body: JSON.stringify({
+            packageCount: count,
+            jumlah_paket: count,
+            questionCount: targetQuestionCount,
+            jumlah_soal: targetQuestionCount,
+            acak_opsi: acakOpsi
+          })
         });
         const json = await res.json();
         if (res.ok && json.success) {
@@ -14827,9 +14874,132 @@
       tableKunciPaketTbody.innerHTML = tbodyHtml;
     }
 
+    function updateMultiPaketRatioPreview() {
+      if (!selectMultiPaketSoalCount || !labelMultiPaketRatioText) return;
+      const val = selectMultiPaketSoalCount.value;
+      if (inputMultiPaketSoalCustom) {
+        if (val === 'kustom') {
+          inputMultiPaketSoalCustom.classList.remove('hidden');
+        } else {
+          inputMultiPaketSoalCustom.classList.add('hidden');
+        }
+      }
+
+      const questions = Array.isArray(activeUlanganData?.soal) ? activeUlanganData.soal : [];
+      const totalAvail = questions.length;
+      if (totalAvail === 0) {
+        labelMultiPaketRatioText.innerHTML = '<span class="text-slate-400 italic">Belum ada butir soal pada ulangan ini.</span>';
+        if (badgeMultiPaketRatioTag) badgeMultiPaketRatioTag.textContent = '0 Soal';
+        return;
+      }
+
+      let targetCount = totalAvail;
+      if (val === 'kustom') {
+        targetCount = Math.max(1, Math.min(totalAvail, Number(inputMultiPaketSoalCustom?.value || 20)));
+      } else if (val !== 'semua' && !isNaN(val)) {
+        targetCount = Math.max(1, Math.min(totalAvail, Number(val)));
+      }
+
+      // Hitung komposisi kategori soal
+      let countPgBiasa = 0;
+      let countPgKompleks = 0;
+      let countIsian = 0;
+      let countEssay = 0;
+      let countKoding = 0;
+
+      questions.forEach(q => {
+        const isPg = q.jenis === 'pilihan_ganda' || (q.opsi_a && q.opsi_b);
+        if (isPg) {
+          const keys = (q.kunci_pg || q.kunci_jawaban || '').split(',').map(x => x.trim().toUpperCase()).filter(Boolean);
+          const isKompleks = q.tipe_pg === 'pg_kompleks' || q.jenis_pg === 'pg_kompleks' || keys.length > 1 || (typeof q.kunci_pg === 'string' && (q.kunci_pg.includes(',') || q.kunci_pg.trim().length > 1));
+          if (isKompleks) countPgKompleks++;
+          else countPgBiasa++;
+        } else if (q.jenis === 'isian') countIsian++;
+        else if (q.jenis === 'essay') countEssay++;
+        else if (q.jenis === 'koding_game') countKoding++;
+      });
+
+      const groups = {};
+      if (countPgBiasa > 0) groups['PG Biasa'] = countPgBiasa;
+      if (countPgKompleks > 0) groups['PG Kompleks'] = countPgKompleks;
+      if (countIsian > 0) groups['Isian'] = countIsian;
+      if (countEssay > 0) groups['Essay'] = countEssay;
+      if (countKoding > 0) groups['Koding'] = countKoding;
+
+      const groupKeys = Object.keys(groups);
+      if (groupKeys.length === 0) {
+        labelMultiPaketRatioText.innerHTML = `<span>${targetCount} soal terpilih dari total ${totalAvail} soal.</span>`;
+        return;
+      }
+
+      // Largest Remainder Method untuk alokasi kuota proporsional adil
+      const exactStats = groupKeys.map(k => {
+        const c = groups[k];
+        const exact = (targetCount * c) / totalAvail;
+        const floor = Math.floor(exact);
+        const rem = exact - floor;
+        return { key: k, count: c, exact, floor, rem };
+      });
+
+      let assignedTotal = exactStats.reduce((acc, s) => acc + s.floor, 0);
+      let remainder = targetCount - assignedTotal;
+
+      exactStats.sort((a, b) => {
+        if (Math.abs(b.rem - a.rem) > 1e-6) return b.rem - a.rem;
+        return b.count - a.count;
+      });
+
+      const allocated = {};
+      exactStats.forEach(s => allocated[s.key] = s.floor);
+      for (let i = 0; i < remainder; i++) {
+        const s = exactStats[i % exactStats.length];
+        if (allocated[s.key] < s.count) allocated[s.key] += 1;
+      }
+
+      if (targetCount >= groupKeys.length) {
+        for (const s of exactStats) {
+          if (allocated[s.key] === 0 && s.count > 0) {
+            const donor = exactStats.filter(d => allocated[d.key] > 1).sort((a, b) => a.rem - b.rem)[0];
+            if (donor) {
+              allocated[donor.key] -= 1;
+              allocated[s.key] += 1;
+            }
+          }
+        }
+      }
+
+      const parts = [];
+      for (const [k, count] of Object.entries(allocated)) {
+        if (count > 0) {
+          const pct = Math.round((count / targetCount) * 100);
+          parts.push(`<span class="font-bold text-indigo-950">${count} ${escapeHtml(k)}</span> <span class="text-slate-500 font-semibold">(${pct}%)</span>`);
+        }
+      }
+
+      labelMultiPaketRatioText.innerHTML = `${parts.join(' <span class="text-slate-400 font-black">+</span> ')} &rarr; <strong>${targetCount} Soal per Paket</strong> <span class="text-slate-500">(dari total ${totalAvail} soal bank)</span>`;
+
+      if (badgeMultiPaketRatioTag) {
+        if (targetCount === totalAvail) {
+          badgeMultiPaketRatioTag.textContent = `Semua (${totalAvail} Soal)`;
+          badgeMultiPaketRatioTag.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0';
+        } else {
+          badgeMultiPaketRatioTag.textContent = `Rasio Adil: ${targetCount} Soal`;
+          badgeMultiPaketRatioTag.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 shrink-0';
+        }
+      }
+    }
+
+    if (selectMultiPaketSoalCount) {
+      selectMultiPaketSoalCount.addEventListener('change', updateMultiPaketRatioPreview);
+    }
+    if (inputMultiPaketSoalCustom) {
+      inputMultiPaketSoalCustom.addEventListener('input', updateMultiPaketRatioPreview);
+    }
+
     function openMultiPaketModal() {
       if (!ensureActiveExam('mengelola multi-paket')) return;
       modalMultiPaket.classList.remove('hidden');
+      updateMultiPaketRatioPreview();
       loadMultiPackages();
     }
     window.openMultiPaketModal = openMultiPaketModal;
@@ -14846,6 +15016,13 @@
         if (!activeUlanganId) return;
         const count = Number(selectMultiPaketCount?.value) || 4;
         const acakOpsi = chkAcakOpsiPg?.checked ? true : false;
+        const soalCountVal = selectMultiPaketSoalCount?.value || 'semua';
+        let targetQuestionCount = 'semua';
+        if (soalCountVal === 'kustom') {
+          targetQuestionCount = Number(inputMultiPaketSoalCustom?.value) || 20;
+        } else if (soalCountVal !== 'semua') {
+          targetQuestionCount = Number(soalCountVal);
+        }
 
         btnGenerateMultiPaket.disabled = true;
         btnGenerateMultiPaket.innerHTML = '<span class="inline-block animate-spin mr-1">⏳</span><span>Mengacak...</span>';
@@ -14854,13 +15031,21 @@
           const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/packages/generate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ packageCount: count, jumlah_paket: count, acak_opsi: acakOpsi })
+            body: JSON.stringify({
+              packageCount: count,
+              jumlah_paket: count,
+              questionCount: targetQuestionCount,
+              jumlah_soal: targetQuestionCount,
+              acak_opsi: acakOpsi,
+              seed: 'gen-' + Date.now()
+            })
           });
           const json = await res.json();
           if (!res.ok || !json.success) throw new Error(json.message || 'Gagal generate paket');
 
           const pkgs = json.packages || json.data || [];
-          alert(`✅ Berhasil menghasilkan ${pkgs.length} paket soal acak lengkap dengan kunci jawaban!`);
+          const infoText = json.summary_text ? `\n\n⚖️ Komposisi Rasio Adil:\n${json.summary_text}` : '';
+          alert(`✅ Berhasil menghasilkan ${pkgs.length} paket soal acak lengkap dengan kunci jawaban!${infoText}`);
           currentPackagesData = pkgs;
           activeSelectedPackageName = 'A';
           renderMultiPackagesView();

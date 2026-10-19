@@ -1363,12 +1363,13 @@ const examService = {
         return combined;
       }
 
-      // Kustom / limit jumlah numerik
+      // Kustom / limit jumlah numerik dengan rasio pembagian adil
       const targetCount = Number(options.jumlah_soal_cetak) || rawSoalList.length;
-      if (isRandom) {
-        return shuffleArray(rawSoalList).slice(0, targetCount);
+      if (targetCount < rawSoalList.length) {
+        const packageService = require('./packageService');
+        return packageService.sampleQuestionsWithFairRatio(rawSoalList, targetCount, isRandom ? 'print-fair-' + Date.now() : 'print-fair-fixed');
       } else {
-        return rawSoalList.slice(0, targetCount);
+        return isRandom ? shuffleArray(rawSoalList) : [...rawSoalList];
       }
     };
 
