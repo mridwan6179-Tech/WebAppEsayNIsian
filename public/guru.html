@@ -14326,10 +14326,50 @@
         if (res.ok && json.success) {
           const raw = json.packages || json.data;
           currentPackagesData = Array.isArray(raw) ? raw : [];
+
+          // Cek apakah paket sama sekali belum ada atau masih kosong (0 soal) padahal ulangan sudah memiliki soal di bank/naskah
+          const allEmpty = currentPackagesData.length === 0 || currentPackagesData.every(p => {
+            let m = p.mapping_soal || p.urutan_soal_ids || [];
+            if (typeof m === 'string') {
+              try { m = JSON.parse(m); } catch (e) { m = []; }
+            }
+            return (Array.isArray(m) ? m.length : 0) === 0;
+          });
+
+          if (allEmpty && activeUlanganData?.soal && activeUlanganData.soal.length > 0) {
+            // Auto-generate paket pertama kali agar langsung muncul tanpa guru bingung
+            await generatePackagesAuto();
+            return;
+          }
+
           renderMultiPackagesView();
         }
       } catch (err) {
         console.error('Gagal memuat paket:', err);
+      }
+    }
+
+    async function generatePackagesAuto() {
+      if (!activeUlanganId) return;
+      const count = Number(selectMultiPaketCount?.value) || 4;
+      const acakOpsi = chkAcakOpsiPg?.checked ? true : false;
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/packages/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ packageCount: count, jumlah_paket: count, acak_opsi: acakOpsi })
+        });
+        const json = await res.json();
+        if (res.ok && json.success) {
+          currentPackagesData = json.packages || json.data || [];
+          activeSelectedPackageName = 'A';
+          renderMultiPackagesView();
+        } else {
+          renderMultiPackagesView();
+        }
+      } catch (e) {
+        console.warn('Auto-generate packages notice:', e.message);
+        renderMultiPackagesView();
       }
     }
 
@@ -14376,21 +14416,38 @@
 
       // Render Active Package Detail
       const currentPkg = currentPackagesData.find(p => p.nama_paket === activeSelectedPackageName) || currentPackagesData[0];
-      const mapping = currentPkg.mapping_soal || [];
-      const keys = currentPkg.kunci_jawaban || {};
-      const totalSoal = mapping.length;
+      let mapping = currentPkg.mapping_soal || currentPkg.urutan_soal_ids || [];
+      if (typeof mapping === 'string') {
+        try { mapping = JSON.parse(mapping); } catch (e) { mapping = []; }
+      }
+      let keys = currentPkg.kunci_jawaban || currentPkg.kunci_jawaban_map || {};
+      if (typeof keys === 'string') {
+        try { keys = JSON.parse(keys); } catch (e) { keys = {}; }
+      }
+      const totalSoal = Array.isArray(mapping) ? mapping.length : 0;
 
       let keysSummaryHtml = '';
-      mapping.forEach((m, idx) => {
-        const no = idx + 1;
-        const k = keys[no] || '-';
-        keysSummaryHtml += `
-          <div class="p-1.5 bg-white border border-slate-200 rounded-lg text-center font-mono">
-            <span class="text-[10px] text-slate-400 block font-sans">#${no}</span>
-            <span class="font-bold text-indigo-700 text-xs">${k}</span>
+      if (totalSoal === 0) {
+        keysSummaryHtml = `
+          <div class="col-span-full p-4 bg-amber-50 border border-amber-300 rounded-xl text-center space-y-1.5 text-xs text-amber-900">
+            <p class="font-bold">⚠️ Paket Soal Belum Memiliki Butir Soal Terpetakan (0 Soal)</p>
+            <p class="text-[11px] text-amber-800 leading-relaxed">
+              Pastikan ulangan ini sudah memiliki butir soal, lalu klik tombol <strong>"⚡ Generate / Acak Ulang"</strong> di atas untuk memetakan naskah acak dan kunci jawaban otomatis.
+            </p>
           </div>
         `;
-      });
+      } else {
+        mapping.forEach((m, idx) => {
+          const no = idx + 1;
+          const k = keys[no] || keys[String(no)] || '-';
+          keysSummaryHtml += `
+            <div class="p-1.5 bg-white border border-slate-200 rounded-lg text-center font-mono">
+              <span class="text-[10px] text-slate-400 block font-sans">#${no}</span>
+              <span class="font-bold text-indigo-700 text-xs">${k}</span>
+            </div>
+          `;
+        });
+      }
 
       multiPaketDetailBox.innerHTML = `
         <div class="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
@@ -14416,7 +14473,13 @@
     function renderPackageKeyMatrixTable() {
       if (!tableKunciPaketThead || !tableKunciPaketTbody || currentPackagesData.length === 0) return;
       const packageNames = currentPackagesData.map(p => p.nama_paket);
-      const maxQuestions = Math.max(...currentPackagesData.map(p => (p.mapping_soal || []).length));
+      const maxQuestions = Math.max(0, ...currentPackagesData.map(p => {
+        let m = p.mapping_soal || p.urutan_soal_ids || [];
+        if (typeof m === 'string') {
+          try { m = JSON.parse(m); } catch (e) { m = []; }
+        }
+        return Array.isArray(m) ? m.length : 0;
+      }));
 
       let theadHtml = '<tr><th class="p-2 border-r border-slate-200 w-16 text-center">No</th>';
       packageNames.forEach(name => {
@@ -14426,14 +14489,22 @@
       tableKunciPaketThead.innerHTML = theadHtml;
 
       let tbodyHtml = '';
-      for (let i = 1; i <= maxQuestions; i++) {
-        tbodyHtml += `<tr class="hover:bg-slate-50"><td class="p-2 font-bold text-center border-r border-slate-200 text-slate-600">${i}</td>`;
-        packageNames.forEach(name => {
-          const pkg = currentPackagesData.find(p => p.nama_paket === name);
-          const k = pkg && pkg.kunci_jawaban ? (pkg.kunci_jawaban[i] || '-') : '-';
-          tbodyHtml += `<td class="p-2 text-center font-bold text-indigo-700 border-r border-slate-200 last:border-r-0">${k}</td>`;
-        });
-        tbodyHtml += '</tr>';
+      if (maxQuestions === 0) {
+        tbodyHtml = `<tr><td colspan="${packageNames.length + 1}" class="p-4 text-center text-slate-400 text-xs">Belum ada butir soal yang terpetakan dalam paket. Silakan klik tombol <strong>"⚡ Generate / Acak Ulang"</strong> di atas.</td></tr>`;
+      } else {
+        for (let i = 1; i <= maxQuestions; i++) {
+          tbodyHtml += `<tr class="hover:bg-slate-50"><td class="p-2 font-bold text-center border-r border-slate-200 text-slate-600">${i}</td>`;
+          packageNames.forEach(name => {
+            const pkg = currentPackagesData.find(p => p.nama_paket === name);
+            let keys = pkg ? (pkg.kunci_jawaban || pkg.kunci_jawaban_map || {}) : {};
+            if (typeof keys === 'string') {
+              try { keys = JSON.parse(keys); } catch (e) { keys = {}; }
+            }
+            const k = keys[i] || keys[String(i)] || '-';
+            tbodyHtml += `<td class="p-2 text-center font-bold text-indigo-700 border-r border-slate-200 last:border-r-0">${k}</td>`;
+          });
+          tbodyHtml += '</tr>';
+        }
       }
       tableKunciPaketTbody.innerHTML = tbodyHtml;
     }

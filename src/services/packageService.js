@@ -45,7 +45,9 @@ const packageService = {
       ORDER BY urutan ASC, nomor ASC
     `).all(ulanganId);
 
-    if (pgQuestions.length === 0) {
+    let targetQuestions = [...pgQuestions];
+
+    if (targetQuestions.length === 0) {
       // Jika belum ada jenis 'pilihan_ganda', cek apakah ada soal umum yang memiliki kunci_pg
       const fallbackPg = db.prepare(`
         SELECT id, nomor, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_pg, bobot, urutan
@@ -54,8 +56,25 @@ const packageService = {
         ORDER BY urutan ASC, nomor ASC
       `).all(ulanganId);
       if (fallbackPg.length > 0) {
-        pgQuestions.push(...fallbackPg);
+        targetQuestions.push(...fallbackPg);
       }
+    }
+
+    if (targetQuestions.length === 0) {
+      // Jika ulangan tidak memiliki soal berjenis pilihan_ganda, ambil seluruh butir soal yang ada
+      const allQ = db.prepare(`
+        SELECT id, nomor, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_pg, kunci_jawaban, jenis, bobot, urutan
+        FROM soal
+        WHERE ulangan_id = ?
+        ORDER BY urutan ASC, nomor ASC
+      `).all(ulanganId);
+      if (allQ.length > 0) {
+        targetQuestions.push(...allQ);
+      }
+    }
+
+    if (targetQuestions.length === 0) {
+      throw new Error('Ulangan ini belum memiliki butir soal untuk dibuatkan paket soal acak.');
     }
 
     // Hapus paket lama jika ada
@@ -67,10 +86,10 @@ const packageService = {
       let orderedQuestions;
       if (pkgName === 'A') {
         // Paket A selalu urutan asli
-        orderedQuestions = [...pgQuestions];
+        orderedQuestions = [...targetQuestions];
       } else {
         // Paket B, C, D diacak dengan seed deterministik
-        orderedQuestions = this.seededShuffle(pgQuestions, `ulangan-${ulanganId}-paket-${pkgName}`);
+        orderedQuestions = this.seededShuffle(targetQuestions, `ulangan-${ulanganId}-paket-${pkgName}`);
       }
 
       const questionIds = orderedQuestions.map(q => q.id);
@@ -78,7 +97,8 @@ const packageService = {
 
       orderedQuestions.forEach((q, index) => {
         const displayNum = index + 1;
-        answerKeyMap[String(displayNum)] = (q.kunci_pg || 'A').toUpperCase().trim();
+        const key = q.kunci_pg || q.kunci_jawaban || '-';
+        answerKeyMap[String(displayNum)] = String(key).toUpperCase().trim();
       });
 
       const stmt = db.prepare(`
@@ -98,8 +118,11 @@ const packageService = {
         ulangan_id: ulanganId,
         nama_paket: pkgName,
         total_soal_pg: orderedQuestions.length,
+        total_soal: orderedQuestions.length,
         kunci_jawaban_map: answerKeyMap,
-        urutan_soal_ids: questionIds
+        kunci_jawaban: answerKeyMap,
+        urutan_soal_ids: questionIds,
+        mapping_soal: questionIds
       });
     }
 
@@ -125,17 +148,23 @@ const packageService = {
     `).all(ulanganId);
 
     return packages.map(p => {
+      let urutan = [];
       try {
-        p.urutan_soal_ids = JSON.parse(p.urutan_soal_ids);
+        urutan = typeof p.urutan_soal_ids === 'string' ? JSON.parse(p.urutan_soal_ids) : (p.urutan_soal_ids || []);
       } catch (e) {
-        p.urutan_soal_ids = [];
+        urutan = [];
       }
+      let keys = {};
       try {
-        p.kunci_jawaban_map = JSON.parse(p.kunci_jawaban_map);
+        keys = typeof p.kunci_jawaban_map === 'string' ? JSON.parse(p.kunci_jawaban_map) : (p.kunci_jawaban_map || {});
       } catch (e) {
-        p.kunci_jawaban_map = {};
+        keys = {};
       }
-      p.total_soal = Array.isArray(p.urutan_soal_ids) ? p.urutan_soal_ids.length : 0;
+      p.urutan_soal_ids = urutan;
+      p.mapping_soal = urutan;
+      p.kunci_jawaban_map = keys;
+      p.kunci_jawaban = keys;
+      p.total_soal = Array.isArray(urutan) ? urutan.length : 0;
       return p;
     });
   },
@@ -211,9 +240,11 @@ const packageService = {
     return {
       ulangan,
       paket: packageName.toUpperCase(),
+      nama_paket: packageName.toUpperCase(),
       opsi_count: Number(ulangan.opsi_pg_count) || 4,
       soal_pg: orderedPg,
-      soal_essay: essayQuestions
+      soal_essay: essayQuestions,
+      soal_list: [...orderedPg, ...essayQuestions]
     };
   }
 };
