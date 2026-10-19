@@ -1,16 +1,10 @@
 {
   "version": 2,
-  "functions": {
-    "server.js": {
-      "maxDuration": 60
-    }
-  },
   "builds": [
     {
       "src": "server.js",
       "use": "@vercel/node",
       "config": {
-        "maxDuration": 60,
         "includeFiles": ["public/**", "src/**"]
       }
     }
