@@ -209,6 +209,56 @@
         background: white !important;
       }
 
+      /* Mode Cetak Presisi LJK OMR: 3 LJK per Kertas HVS A4 (Super Hemat: 3 Siswa per Lembar) */
+      .a4-ljk-page.mode-hemat-3 {
+        height: auto !important;
+        max-height: 275mm !important;
+        overflow: hidden !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-start !important;
+        padding: 0 !important;
+        margin: 0 auto !important;
+        box-sizing: border-box !important;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+      .mode-hemat-3 .ljk-third-container {
+        height: auto !important;
+        max-height: 88mm !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-start !important;
+        align-items: stretch !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+      .mode-hemat-3 .ljk-card {
+        width: 100% !important;
+        max-height: 86mm !important;
+        box-sizing: border-box !important;
+        border: 1.5px solid #000 !important;
+        background: white !important;
+        padding: 1.5mm 2.5mm !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+      .mode-hemat-3 .ljk-cut-line {
+        margin: 0.8mm 0 !important;
+        padding: 0.3mm 0 !important;
+        border-bottom: 1.2px dashed #475569 !important;
+        text-align: center !important;
+        font-size: 6.5pt !important;
+        color: #475569 !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        box-sizing: border-box !important;
+      }
+
       /* Mode Cetak Presisi LJK OMR: 2 LJK per Kertas HVS A4 */
       .a4-ljk-page.mode-hemat-kertas {
         height: auto !important;
@@ -3869,15 +3919,33 @@
       <div class="no-print p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
         <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-center">
           <div>
+            <label class="block font-semibold text-slate-700 mb-1">Format Lembar:</label>
+            <select id="select-ljk-layout-mode" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
+              <option value="hemat_3" selected>3 LJK per Kertas A4 (Super Hemat: 3 Siswa - 66%)</option>
+              <option value="hemat_kertas">2 LJK per Kertas A4 (Hemat Kertas: 2 Siswa - 50%)</option>
+              <option value="satu_halaman">1 Lembar Penuh (A4 Tunggal - Standar 1 Siswa)</option>
+            </select>
+          </div>
+          <div>
             <label class="block font-semibold text-slate-700 mb-1">Jumlah Butir Soal:</label>
             <select id="select-ljk-soal-count" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
-              <option value="10">10 Soal (Kuis / Latihan / Mini)</option>
+              <option value="10">10 Soal (Kuis / Mini)</option>
               <option value="15">15 Soal</option>
-              <option value="20">20 Soal</option>
-              <option value="25">25 Soal</option>
-              <option value="30">30 Soal</option>
-              <option value="40" selected>40 Soal</option>
-              <option value="50">50 Soal</option>
+              <option value="20">20 Soal (2 Kolom)</option>
+              <option value="25">25 Soal (3 Kolom)</option>
+              <option value="30">30 Soal (3 Kolom Jawaban)</option>
+              <option value="40" selected>40 Soal (4 Kolom Jawaban)</option>
+              <option value="50">50 Soal (5 Kolom Jawaban)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Kolom Jawaban:</label>
+            <select id="select-ljk-kolom-count" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
+              <option value="auto" selected>Otomatis (Sesuai Soal)</option>
+              <option value="3">3 Kolom Jawaban</option>
+              <option value="4">4 Kolom Jawaban</option>
+              <option value="2">2 Kolom Jawaban</option>
+              <option value="5">5 Kolom Jawaban</option>
             </select>
           </div>
           <div>
@@ -3887,17 +3955,10 @@
               <option value="5">5 Opsi (A - E)</option>
             </select>
           </div>
-          <div>
-            <label class="block font-semibold text-slate-700 mb-1">Format Lembar:</label>
-            <select id="select-ljk-layout-mode" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium">
-              <option value="hemat_kertas" selected>2 LJK per Kertas A4 (Hemat Kertas 50% - Atas & Bawah)</option>
-              <option value="satu_halaman">1 Lembar Penuh (A4 Tunggal - Standar)</option>
-            </select>
-          </div>
-          <div>
-            <label class="block font-semibold text-slate-700 mb-1">Label Ulangan di Kop:</label>
-            <input type="text" id="input-ljk-custom-title" placeholder="Nama Ulangan..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white">
-          </div>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Label Ulangan di Kop:</label>
+          <input type="text" id="input-ljk-custom-title" placeholder="Nama Ulangan..." class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white">
         </div>
         <div class="flex items-center space-x-4 pt-1 text-[11px] text-slate-600 flex-wrap gap-y-1">
           <label class="flex items-center space-x-1.5 cursor-pointer">
@@ -14939,6 +15000,7 @@
     const btnCloseCetakLjkModal = document.getElementById('btn-close-cetak-ljk-modal');
     const btnDoPrintLjk = document.getElementById('btn-do-print-ljk');
     const selectLjkSoalCount = document.getElementById('select-ljk-soal-count');
+    const selectLjkKolomCount = document.getElementById('select-ljk-kolom-count');
     const selectLjkOpsiCount = document.getElementById('select-ljk-opsi-count');
     const selectLjkLayoutMode = document.getElementById('select-ljk-layout-mode');
     const inputLjkCustomTitle = document.getElementById('input-ljk-custom-title');
@@ -14970,12 +15032,16 @@
     if (btnCloseCetakLjkModal) btnCloseCetakLjkModal.onclick = () => modalCetakLjk.classList.add('hidden');
     if (btnDoPrintLjk) btnDoPrintLjk.onclick = () => window.print();
 
-    [selectLjkSoalCount, selectLjkOpsiCount, selectLjkLayoutMode, inputLjkCustomTitle, chkLjkShowNis, chkLjkShowPaket, chkLjkShowTtd].forEach(el => {
+    [selectLjkSoalCount, selectLjkKolomCount, selectLjkOpsiCount, selectLjkLayoutMode, inputLjkCustomTitle, chkLjkShowNis, chkLjkShowPaket, chkLjkShowTtd].forEach(el => {
       if (el) el.addEventListener('change', renderLjkSheet);
       if (el && el.tagName === 'INPUT' && el.type === 'text') el.addEventListener('input', renderLjkSheet);
     });
 
-    function generateSingleLjkCardHtml(isHalf = false) {
+    function generateSingleLjkCardHtml(mode = 'third') {
+      const isThird = mode === 'third' || mode === 'hemat_3';
+      const isHalf = mode === 'half' || mode === 'hemat_kertas' || mode === true;
+      const isCompact = isThird || isHalf;
+
       const u = activeUlanganData || {};
       const title = inputLjkCustomTitle?.value?.trim() || u.judul || 'LEMBAR JAWABAN KOMPUTER (LJK)';
       const mapel = u.mata_pelajaran || 'Umum';
@@ -14987,13 +15053,15 @@
 
       const opsiList = opsiCount === 5 ? ['A', 'B', 'C', 'D', 'E'] : ['A', 'B', 'C', 'D'];
 
-      // Tentukan jumlah kolom optimal agar matriks jawaban simetris dan tinggi kartu tidak meluap (max 10 baris per kolom pada mode hemat kertas)
+      const userColChoice = selectLjkKolomCount?.value || 'auto';
       let cols;
-      if (isHalf) {
+      if (userColChoice !== 'auto' && !isNaN(Number(userColChoice))) {
+        cols = Number(userColChoice);
+      } else if (isCompact) {
         if (soalCount <= 10) cols = 2; // 5 baris/kolom
         else if (soalCount <= 15) cols = 3; // 5 baris/kolom
         else if (soalCount <= 20) cols = 2; // 10 baris/kolom
-        else if (soalCount <= 30) cols = 3; // 10 baris/kolom
+        else if (soalCount <= 30) cols = 3; // 10 baris/kolom (3 kolom jawaban!)
         else if (soalCount <= 40) cols = 4; // 10 baris/kolom
         else cols = 5; // 50 soal -> 5 kolom x 10 baris
       } else {
@@ -15016,15 +15084,17 @@
           const numStr = String(num).padStart(2, '0');
           let bubbles = '';
           opsiList.forEach(op => {
-            const bubbleSize = isHalf ? 'w-[13.5px] h-[13.5px] text-[8px]' : 'w-[18px] h-[18px] text-[10px]';
+            const bubbleSize = isThird 
+              ? 'w-[12.5px] h-[12.5px] text-[7.5px]' 
+              : (isHalf ? 'w-[13.5px] h-[13.5px] text-[8px]' : 'w-[18px] h-[18px] text-[10px]');
             bubbles += `
               <div class="inline-flex items-center justify-center ${bubbleSize} rounded-full border-[1.2px] border-black font-black leading-none mx-[0.5px] select-none text-black bg-white" style="-webkit-print-color-adjust: exact !important;">
                 ${op}
               </div>
             `;
           });
-          const py = isHalf ? 'py-[0.5px]' : 'py-[2px]';
-          const numWidth = isHalf ? 'w-4 text-[8px]' : 'w-6 text-[10px]';
+          const py = isThird ? 'py-[0.3px]' : (isHalf ? 'py-[0.5px]' : 'py-[2px]');
+          const numWidth = isThird ? 'w-3.5 text-[7.5px]' : (isHalf ? 'w-4 text-[8px]' : 'w-6 text-[10px]');
           colItems += `
             <div class="flex items-center justify-center space-x-0.5 ${py}">
               <span class="${numWidth} font-black text-right text-black font-mono shrink-0">${numStr}.</span>
@@ -15032,7 +15102,7 @@
             </div>
           `;
         }
-        const headerPad = isHalf ? 'py-0.5 mb-0.5 text-[7.5px]' : 'py-1 mb-1.5 text-[10px]';
+        const headerPad = isThird ? 'py-0.5 mb-0.5 text-[7px]' : (isHalf ? 'py-0.5 mb-0.5 text-[7.5px]' : 'py-1 mb-1.5 text-[10px]');
         bubbleColsHtml += `
           <div class="flex-1 px-0.5">
             <div class="bg-slate-100 text-center font-black border border-black ${headerPad} uppercase tracking-wider" style="-webkit-print-color-adjust: exact !important;">
@@ -15043,10 +15113,19 @@
         `;
       }
 
-      if (isHalf) {
-        // Layout Mode Hemat Kertas: 2 LJK per A4 (Maks tinggi ~115mm agar pas 1 lembar tanpa terpotong)
+      if (isCompact) {
+        const cardPadding = isThird ? 'p-1.5 sm:p-2' : 'p-2 sm:p-2.5';
+        const titleSize = isThird ? 'text-[10px]' : 'text-[11px]';
+        const mapelSize = isThird ? 'text-[8px]' : 'text-[9px]';
+        const petunjukSize = isThird ? 'text-[6.5px]' : 'text-[7px]';
+        const identitasTextSize = isThird ? 'text-[8px]' : 'text-[8.5px]';
+        const identitasLineHeight = isThird ? 'h-2.5' : 'h-3';
+        const paketBadgeSize = isThird ? 'w-[12px] h-[12px] text-[7.5px]' : 'w-[13px] h-[13px] text-[8px]';
+        const nisBoxSize = isThird ? 'w-2.5 h-2.5' : 'w-3 h-3';
+        const ttdLineHeight = isThird ? 'h-2' : 'h-2';
+
         return `
-          <div class="ljk-card relative bg-white text-black p-2 sm:p-2.5 border-2 border-black rounded-lg shadow-none select-none w-full box-border" style="box-sizing: border-box !important;">
+          <div class="ljk-card relative bg-white text-black ${cardPadding} border-2 border-black rounded-lg shadow-none select-none w-full box-border" style="box-sizing: border-box !important;">
             <!-- 4 Sudut Fiducial Black Square Anchors (Presisi Scanner OMR) -->
             <div class="absolute top-1 left-1 w-3 h-3 bg-black" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor TL"></div>
             <div class="absolute top-1 right-1 w-3 h-3 bg-black" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor TR"></div>
@@ -15054,10 +15133,10 @@
             <div class="absolute bottom-1 right-1 w-3 h-3 bg-black" style="background-color: black !important; -webkit-print-color-adjust: exact !important;" title="Anchor BR"></div>
 
             <!-- Header Kop LJK -->
-            <div class="px-5 text-center border-b border-black pb-0.5 mb-1">
-              <h1 class="text-[11px] font-black uppercase tracking-wider leading-tight">${escapeHtml(title)}</h1>
-              <p class="text-[9px] font-bold text-slate-800 leading-tight">${escapeHtml(mapel)} • LEMBAR JAWABAN UJIAN OMR</p>
-              <div class="text-[7px] text-slate-600 mt-0.5 italic flex justify-center items-center space-x-2">
+            <div class="px-4 text-center border-b border-black pb-0.5 mb-1">
+              <h1 class="${titleSize} font-black uppercase tracking-wider leading-tight">${escapeHtml(title)}</h1>
+              <p class="${mapelSize} font-bold text-slate-800 leading-tight">${escapeHtml(mapel)} • LEMBAR JAWABAN UJIAN OMR</p>
+              <div class="${petunjukSize} text-slate-600 mt-0.5 italic flex justify-center items-center space-x-2">
                 <span>PETUNJUK: Hitamkan bulatan penuh</span>
                 <span class="inline-flex items-center space-x-0.5 font-bold">[ ● ] Benar</span>
                 <span class="inline-flex items-center space-x-0.5 text-slate-400">[ ✕ ] [ ✓ ] Salah</span>
@@ -15065,16 +15144,16 @@
             </div>
 
             <!-- Kotak Identitas Siswa -->
-            <div class="px-1.5 grid grid-cols-12 gap-1.5 mb-1 text-[8.5px] border-b border-black pb-1">
+            <div class="px-1 grid grid-cols-12 gap-1 mb-1 ${identitasTextSize} border-b border-black pb-0.5">
               <!-- Nama Siswa & Kelas (7 col) -->
               <div class="${showNis || showPaket || showTtd ? 'col-span-7' : 'col-span-12'} space-y-0.5">
                 <div class="flex items-center space-x-1">
                   <span class="font-bold w-14 shrink-0">Nama Siswa:</span>
-                  <div class="flex-1 border-b border-dotted border-black h-3"></div>
+                  <div class="flex-1 border-b border-dotted border-black ${identitasLineHeight}"></div>
                 </div>
                 <div class="flex items-center space-x-1">
                   <span class="font-bold w-14 shrink-0">Kelas / Sesi:</span>
-                  <div class="flex-1 border-b border-dotted border-black h-3"></div>
+                  <div class="flex-1 border-b border-dotted border-black ${identitasLineHeight}"></div>
                 </div>
               </div>
 
@@ -15082,10 +15161,10 @@
               <div class="col-span-5 flex flex-col justify-between space-y-0.5">
                 ${showPaket ? `
                   <div class="flex items-center space-x-1">
-                    <span class="font-black text-[8px] uppercase">Paket:</span>
+                    <span class="font-black text-[7.5px] uppercase">Paket:</span>
                     <div class="flex items-center space-x-0.5">
                       ${['A', 'B', 'C', 'D'].map(p => `
-                        <div class="inline-flex items-center justify-center w-[13px] h-[13px] rounded-full border-[1px] border-black text-[8px] font-black">
+                        <div class="inline-flex items-center justify-center ${paketBadgeSize} rounded-full border-[1px] border-black text-[7.5px] font-black">
                           ${p}
                         </div>
                       `).join('')}
@@ -15095,17 +15174,17 @@
 
                 ${showNis ? `
                   <div class="flex items-center space-x-1">
-                    <span class="font-bold text-[8px]">No. Peserta:</span>
+                    <span class="font-bold text-[7.5px]">No. Peserta:</span>
                     <div class="flex space-x-0.5">
-                      ${[1, 2, 3, 4, 5, 6].map(() => `<div class="w-3 h-3 border border-black"></div>`).join('')}
+                      ${[1, 2, 3, 4, 5, 6].map(() => `<div class="${nisBoxSize} border border-black"></div>`).join('')}
                     </div>
                   </div>
                 ` : ''}
 
                 ${showTtd ? `
                   <div class="flex items-center space-x-1">
-                    <span class="font-bold text-[8px]">Tanda Tangan:</span>
-                    <div class="flex-1 border-b border-black h-2"></div>
+                    <span class="font-bold text-[7.5px]">Tanda Tangan:</span>
+                    <div class="flex-1 border-b border-black ${ttdLineHeight}"></div>
                   </div>
                 ` : ''}
               </div>
@@ -15196,9 +15275,61 @@
 
     function renderLjkSheet() {
       if (!cetakLjkSheetContainer) return;
-      const layout = selectLjkLayoutMode?.value || 'hemat_kertas';
+      const layout = selectLjkLayoutMode?.value || 'hemat_3';
 
-      if (layout === 'hemat_kertas') {
+      if (layout === 'hemat_3') {
+        // Mode 3 LJK per halaman A4 (Super Hemat Kertas 66% - 3 LJK Siswa: Atas, Tengah, Bawah)
+        cetakLjkSheetContainer.innerHTML = `
+          <div class="a4-sheet-page a4-ljk-page mode-hemat-3 bg-white mx-auto shadow-lg border border-slate-300 print:shadow-none print:border-none p-2 sm:p-3 print:p-0">
+            <div class="no-print pb-1.5 mb-1.5 border-b border-slate-200 flex items-center justify-between text-xs text-slate-500">
+              <span class="font-bold text-slate-700 flex items-center space-x-1.5">
+                <span>📄</span>
+                <span>Simulasi Lembar HVS A4 (Mode Super Hemat: 3 LJK Siswa - Atas, Tengah, Bawah)</span>
+              </span>
+              <span class="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                ✓ Pas 1 Halaman Cetak (Hemat Kertas 66%)
+              </span>
+            </div>
+
+            <!-- LJK 1: Bagian Atas -->
+            <div class="ljk-third-container">
+              ${generateSingleLjkCardHtml('third')}
+            </div>
+
+            <!-- Garis Potong Kertas Horizontal (Gunting 1) -->
+            <div class="ljk-cut-line flex items-center justify-center my-1 text-[8px] text-slate-500 select-none">
+              <div class="flex-1 border-b-[1.2px] border-dashed border-slate-400"></div>
+              <div class="px-2 shrink-0 flex items-center space-x-1 bg-white font-sans font-semibold text-[8px] text-slate-500">
+                <span>✂</span>
+                <span>Potong / Gunting di Sini (1 Kertas HVS A4 untuk 3 Lembar LJK Siswa)</span>
+                <span>✂</span>
+              </div>
+              <div class="flex-1 border-b-[1.2px] border-dashed border-slate-400"></div>
+            </div>
+
+            <!-- LJK 2: Bagian Tengah -->
+            <div class="ljk-third-container">
+              ${generateSingleLjkCardHtml('third')}
+            </div>
+
+            <!-- Garis Potong Kertas Horizontal (Gunting 2) -->
+            <div class="ljk-cut-line flex items-center justify-center my-1 text-[8px] text-slate-500 select-none">
+              <div class="flex-1 border-b-[1.2px] border-dashed border-slate-400"></div>
+              <div class="px-2 shrink-0 flex items-center space-x-1 bg-white font-sans font-semibold text-[8px] text-slate-500">
+                <span>✂</span>
+                <span>Potong / Gunting di Sini (1 Kertas HVS A4 untuk 3 Lembar LJK Siswa)</span>
+                <span>✂</span>
+              </div>
+              <div class="flex-1 border-b-[1.2px] border-dashed border-slate-400"></div>
+            </div>
+
+            <!-- LJK 3: Bagian Bawah -->
+            <div class="ljk-third-container">
+              ${generateSingleLjkCardHtml('third')}
+            </div>
+          </div>
+        `;
+      } else if (layout === 'hemat_kertas') {
         // Mode 2 LJK per halaman A4 (Hemat Kertas 50% - Atas & Bawah)
         cetakLjkSheetContainer.innerHTML = `
           <div class="a4-sheet-page a4-ljk-page mode-hemat-kertas bg-white mx-auto shadow-lg border border-slate-300 print:shadow-none print:border-none p-3 sm:p-5 print:p-0">
@@ -15214,7 +15345,7 @@
 
             <!-- LJK 1: Bagian Atas -->
             <div class="ljk-half-container">
-              ${generateSingleLjkCardHtml(true)}
+              ${generateSingleLjkCardHtml('half')}
             </div>
 
             <!-- Garis Potong Kertas Horizontal (Gunting Tengah) -->
@@ -15230,7 +15361,7 @@
 
             <!-- LJK 2: Bagian Bawah -->
             <div class="ljk-half-container">
-              ${generateSingleLjkCardHtml(true)}
+              ${generateSingleLjkCardHtml('half')}
             </div>
           </div>
         `;
@@ -15248,12 +15379,13 @@
               </span>
             </div>
             <div class="ljk-full-container">
-              ${generateSingleLjkCardHtml(false)}
+              ${generateSingleLjkCardHtml('full')}
             </div>
           </div>
         `;
       }
     }
+
 
     // =========================================================================
     // MODUL 3: OMR CAMERA SCANNER & INSTANT GRADER
