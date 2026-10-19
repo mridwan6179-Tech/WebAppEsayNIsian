@@ -4725,6 +4725,8 @@
         const canShowListeningText = (s.tampilkan_teks_listening !== null && s.tampilkan_teks_listening !== undefined)
           ? Boolean(Number(s.tampilkan_teks_listening))
           : Boolean(Number(data.ulangan?.tampilkan_teks_listening || 0));
+        const rawText = (s.pertanyaan || '').trim();
+        const cleanPertanyaan = rawText.replace(/\r/g, '').replace(/\n{3,}/g, '\n\n');
         const isPgKompleks = isPg && (
           s.tipe_pg === 'pg_kompleks' || 
           s.jenis_pg === 'pg_kompleks' ||
