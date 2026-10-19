@@ -52,12 +52,72 @@ test('=== SUITE: AI CHUNKING, TRUNCATED JSON REPAIR & ISOLASI TOKEN SESI VS MAST
     assert.strictEqual(repaired[1].pertanyaan, 'Soal B');
   });
 
-  await t.test('3. AI Generator: Auto-chunking untuk permintaan soal > 15 butir (misal 30 soal PG Biasa)', async () => {
+  await t.test('3. Robust Extractor: Mengekstrak format JSON objek bernomor { "1": {...}, "2": {...} }', () => {
+    const objectNumbered = {
+      "1": {
+        pertanyaan: "Apa kepanjangan dari CPU?",
+        opsi_a: "Central Processing Unit",
+        opsi_b: "Computer Personal Unit",
+        kunci_pg: "A"
+      },
+      "2": {
+        pertanyaan: "Apa fungsi dari RAM?",
+        opsi_a: "Memori sementara",
+        opsi_b: "Penyimpanan permanen",
+        kunci_pg: "A"
+      }
+    };
+
+    const extracted = geminiService.extractQuestionsArray(objectNumbered);
+    assert.ok(Array.isArray(extracted), 'Harus berhasil diekstrak menjadi array');
+    assert.strictEqual(extracted.length, 2);
+    assert.strictEqual(extracted[0].pertanyaan, 'Apa kepanjangan dari CPU?');
+    assert.strictEqual(extracted[1].pertanyaan, 'Apa fungsi dari RAM?');
+  });
+
+  await t.test('4. Anti-Duplikasi: Mendeteksi kemiripan soal dan menyaring soal yang berulang', () => {
+    const q1 = "Apa pengertian dari berpikir komputasional dalam ilmu informatika?";
+    const q2 = "Manakah yang merupakan definisi berpikir komputasional dalam informatika?"; // Duplikat konsep
+    const q3 = "Apa fungsi utama dari Random Access Memory (RAM) pada komputer?"; // Berbeda
+
+    assert.strictEqual(geminiService.isDuplicateQuestion(q1, q2), true, 'Harus mendeteksi q1 dan q2 sebagai duplikat konsep');
+    assert.strictEqual(geminiService.isDuplicateQuestion(q1, q3), false, 'q1 dan q3 bukan duplikat');
+
+    const rawList = [
+      { pertanyaan: q1, kunci_pg: 'A' },
+      { pertanyaan: q2, kunci_pg: 'B' },
+      { pertanyaan: q3, kunci_pg: 'C' }
+    ];
+
+    const deduplicated = geminiService.deduplicateQuestions(rawList);
+    assert.strictEqual(deduplicated.length, 2, 'Soal duplikat harus dieliminasi');
+    assert.strictEqual(deduplicated[0].pertanyaan, q1);
+    assert.strictEqual(deduplicated[1].pertanyaan, q3);
+  });
+
+  await t.test('5. Anti-Duplikasi Prompt: Prompt PG Kompleks menerima daftar soal PG Biasa sebagai larangan', () => {
+    const prompt = geminiService.buildMultipleChoicePrompt({
+      topik: 'Informatika',
+      jumlahSoal: 5,
+      tipePg: 'pg_kompleks',
+      soalSudahAda: [
+        { pertanyaan: 'Apa pengertian dari dekomposisi dalam berpikir komputasional?' },
+        { pertanyaan: 'Sebutkan fungsi dari ALU pada processor komputer!' }
+      ]
+    });
+
+    assert.match(prompt, /PANDUAN ANTI-DUPLIKASI|INSTRUKSI PENTING ANTI-DUPLIKASI/i);
+    assert.match(prompt, /DILARANG KERAS membuat soal yang sama/i);
+    assert.match(prompt, /dekomposisi dalam berpikir komputasional/i);
+    assert.match(prompt, /ALU pada processor/i);
+  });
+
+  await t.test('6. AI Generator: Auto-chunking untuk permintaan soal > 10 butir (misal 20 soal PG Biasa)', async () => {
     const originalCallJsonPrompt = geminiService.callJsonPrompt;
     let callCount = 0;
     const requestedAmounts = [];
 
-    // Mock callJsonPrompt untuk memverifikasi bahwa 30 soal dipecah menjadi 2 sub-batch (15 dan 15)
+    // Mock callJsonPrompt untuk memverifikasi bahwa 20 soal dipecah menjadi sub-batch <= 10
     geminiService.callJsonPrompt = async (prompt) => {
       callCount++;
       const match = prompt.match(/tepat (\d+) butir soal/i);
@@ -67,7 +127,7 @@ test('=== SUITE: AI CHUNKING, TRUNCATED JSON REPAIR & ISOLASI TOKEN SESI VS MAST
       const items = [];
       for (let i = 1; i <= count; i++) {
         items.push({
-          pertanyaan: `Pertanyaan butir #${i}`,
+          pertanyaan: `Pertanyaan butir #${callCount}-${i}`,
           opsi_a: 'Opsi A',
           opsi_b: 'Opsi B',
           opsi_c: 'Opsi C',
@@ -83,35 +143,38 @@ test('=== SUITE: AI CHUNKING, TRUNCATED JSON REPAIR & ISOLASI TOKEN SESI VS MAST
     try {
       const result = await geminiService.generateMultipleChoiceQuestions({
         topik: 'Sistem Komputer',
-        jumlahSoal: 30,
+        jumlahSoal: 20,
         tipePg: 'pg_biasa'
       });
 
-      assert.strictEqual(callCount, 2, 'Should invoke 2 parallel sub-batch calls for 30 questions');
-      assert.deepStrictEqual(requestedAmounts.sort((a, b) => a - b), [15, 15], 'Should split 30 questions into 15 and 15');
-      assert.strictEqual(result.length, 30, 'Total merged questions should be 30');
-      // Verifikasi penomoran urut 1 sampai 30
+      assert.strictEqual(callCount, 2, 'Should invoke 2 sub-batch calls for 20 questions');
+      assert.deepStrictEqual(requestedAmounts.sort((a, b) => a - b), [10, 10], 'Should split 20 questions into 10 and 10');
+      assert.strictEqual(result.length, 20, 'Total merged questions should be 20');
       assert.strictEqual(result[0].nomor, 1);
-      assert.strictEqual(result[29].nomor, 30);
+      assert.strictEqual(result[19].nomor, 20);
     } finally {
       geminiService.callJsonPrompt = originalCallJsonPrompt;
     }
   });
 
-  await t.test('4. AI Generator: Permintaan 37 soal (30 Biasa + 7 Kompleks) berjalan mulus tanpa timeout', async () => {
+  await t.test('7. AI Generator: Permintaan 22 soal (15 Biasa + 7 Kompleks) anti-duplikasi & tanpa timeout', async () => {
     const originalCallJsonPrompt = geminiService.callJsonPrompt;
     const batchSizes = [];
+    const receivedBans = [];
 
     geminiService.callJsonPrompt = async (prompt) => {
       const match = prompt.match(/tepat (\d+) butir soal/i);
       const count = match ? parseInt(match[1], 10) : 7;
       batchSizes.push(count);
 
+      const hasBan = prompt.includes('INSTRUKSI PENTING ANTI-DUPLIKASI');
+      receivedBans.push(hasBan);
+
       const isKompleks = prompt.includes('PILIHAN GANDA KOMPLEKS');
       const items = [];
       for (let i = 1; i <= count; i++) {
         items.push({
-          pertanyaan: `Soal #${i} (${isKompleks ? 'Kompleks' : 'Biasa'})`,
+          pertanyaan: `Soal #${batchSizes.length}-${i} (${isKompleks ? 'Kompleks' : 'Biasa'})`,
           opsi_a: 'Opsi 1',
           opsi_b: 'Opsi 2',
           opsi_c: 'Opsi 3',
@@ -127,29 +190,33 @@ test('=== SUITE: AI CHUNKING, TRUNCATED JSON REPAIR & ISOLASI TOKEN SESI VS MAST
     try {
       const result = await geminiService.generateMultipleChoiceQuestions({
         topik: 'Algoritma & Pemrograman',
-        jumlahSoal: 37,
+        jumlahSoal: 22,
         tipePg: 'campuran',
-        jumlahPgBiasa: 30,
+        jumlahPgBiasa: 15,
         jumlahPgKompleks: 7,
         kunciKompleksRule: 'tepat_2'
       });
 
-      assert.strictEqual(result.length, 37, 'Total 37 questions generated');
-      // 30 biasa dipecah jadi 15 + 15, lalu 7 kompleks -> total 3 sub-panggilan
+      assert.strictEqual(result.length, 22, 'Total 22 questions generated');
+      // 15 biasa dipecah jadi 8 + 7, lalu 7 kompleks -> total 3 sub-panggilan
       assert.strictEqual(batchSizes.length, 3);
-      assert.deepStrictEqual(batchSizes.sort((a, b) => a - b), [7, 15, 15]);
+      assert.deepStrictEqual(batchSizes.sort((a, b) => a - b), [7, 7, 8]);
+
+      // Verifikasi bahwa panggilan ke-2 dan ke-3 menerima instruksi anti-duplikasi
+      assert.strictEqual(receivedBans[1], true, 'Sub-batch 2 harus menerima daftar larangan soal sub-batch 1');
+      assert.strictEqual(receivedBans[2], true, 'PG Kompleks harus menerima daftar larangan seluruh soal PG Biasa');
 
       const biasaItems = result.filter(q => q.tipe_pg === 'pg_biasa');
       const kompleksItems = result.filter(q => q.tipe_pg === 'pg_kompleks');
-      assert.strictEqual(biasaItems.length, 30);
+      assert.strictEqual(biasaItems.length, 15);
       assert.strictEqual(kompleksItems.length, 7);
-      assert.strictEqual(result[36].nomor, 37);
+      assert.strictEqual(result[21].nomor, 22);
     } finally {
       geminiService.callJsonPrompt = originalCallJsonPrompt;
     }
   });
 
-  await t.test('5. Keamanan Token: Mencegah duplikasi dan bentrok token antara kode ujian induk dan sesi', () => {
+  await t.test('8. Keamanan Token: Mencegah duplikasi dan bentrok token antara kode ujian induk dan sesi', () => {
     const rand = Math.floor(Math.random() * 8999 + 1000);
     const ulangan = examService.createUlangan(1, {
       judul: `Ujian Uji Token dan Sesi ${rand}`,
@@ -193,7 +260,7 @@ test('=== SUITE: AI CHUNKING, TRUNCATED JSON REPAIR & ISOLASI TOKEN SESI VS MAST
     }, /sama dengan kode ujian utama/i);
   });
 
-  await t.test('6. Validasi Portal Siswa: Token Bawaan (Master) dan Token Sesi berfungsi independen tanpa tumpang tindih', () => {
+  await t.test('9. Validasi Portal Siswa: Token Bawaan (Master) dan Token Sesi berfungsi independen tanpa tumpang tindih', () => {
     const rand = Math.floor(Math.random() * 8999 + 1000);
     const ulangan = examService.createUlangan(1, {
       judul: `Ulangan Semester Genap Informatika ${rand}`,
