@@ -22,6 +22,8 @@ const reviewService = {
         p.ulangan_id,
         p.peserta_id,
         p.sesi_id,
+        p.attempt_ke,
+        p.nilai_terbaik,
         COALESCE(us.nama_sesi, p.nama_sesi) as nama_sesi,
         us.kode_sesi,
         p.status,
@@ -607,6 +609,29 @@ const reviewService = {
       `).run(totalAiScore, totalFinalScore, skorPg, skorKoding, skorEssay, pengerjaanId);
     }
 
+    try {
+      const pRow = db.prepare('SELECT ulangan_id, peserta_id FROM pengerjaan WHERE id = ?').get(pengerjaanId);
+      if (pRow) {
+        const ulRow = db.prepare('SELECT kebijakan_nilai FROM ulangan WHERE id = ?').get(pRow.ulangan_id);
+        const policy = ulRow?.kebijakan_nilai || 'tertinggi';
+        const allAttempts = db.prepare(`
+          SELECT nilai_final, nilai_ai FROM pengerjaan 
+          WHERE ulangan_id = ? AND peserta_id = ? AND status = 'submitted'
+          ORDER BY attempt_ke DESC, id DESC
+        `).all(pRow.ulangan_id, pRow.peserta_id);
+        let best = null;
+        if (policy === 'terakhir') {
+          best = allAttempts[0] ? (allAttempts[0].nilai_final ?? allAttempts[0].nilai_ai) : null;
+        } else {
+          const scores = allAttempts.map(a => Number(a.nilai_final ?? a.nilai_ai ?? 0));
+          best = scores.length > 0 ? Math.max(...scores) : null;
+        }
+        if (best !== null) {
+          db.prepare('UPDATE pengerjaan SET nilai_terbaik = ? WHERE ulangan_id = ? AND peserta_id = ?').run(best, pRow.ulangan_id, pRow.peserta_id);
+        }
+      }
+    } catch (eBest) {}
+
     if ((hasHealed || shouldAutoRelease) && typeof db.syncCloud === 'function') {
       db.syncCloud(true);
     }
@@ -767,6 +792,8 @@ const reviewService = {
       SELECT 
         p.id as pengerjaan_id,
         p.sesi_id,
+        p.attempt_ke,
+        p.nilai_terbaik,
         COALESCE(us.nama_sesi, p.nama_sesi) as nama_sesi,
         us.kode_sesi,
         p.status,
@@ -807,8 +834,66 @@ const reviewService = {
 
     const pesertaList = db.prepare(query).all(...params);
 
-    // Hitung statistik
-    let totalPeserta = pesertaList.length;
+    // Kelompokkan per peserta_id agar siswa yang mengulang tidak dihitung ganda
+    const policy = ulangan.kebijakan_nilai || 'tertinggi';
+    const studentGroupMap = new Map();
+
+    for (const p of pesertaList) {
+      if (!studentGroupMap.has(p.peserta_id)) {
+        studentGroupMap.set(p.peserta_id, []);
+      }
+      studentGroupMap.get(p.peserta_id).push(p);
+    }
+
+    const effectivePesertaList = [];
+    studentGroupMap.forEach((attempts) => {
+      // Urutkan attempts: attempt_ke DESC, id DESC
+      attempts.sort((a, b) => (b.attempt_ke || 0) - (a.attempt_ke || 0) || b.pengerjaan_id - a.pengerjaan_id);
+
+      const submitted = attempts.filter(a => a.status === 'submitted');
+      let effective = attempts[0]; // fallback ke attempt terbaru jika belum ada yang submit
+
+      if (submitted.length > 0) {
+        if (policy === 'terakhir') {
+          effective = submitted[0];
+        } else {
+          // 'tertinggi': ambil pengerjaan submitted dengan nilai tertinggi
+          let highestAttempt = submitted[0];
+          let highestVal = -1;
+          for (const att of submitted) {
+            const val = att.nilai_final !== null ? Number(att.nilai_final) : (att.nilai_ai !== null ? Number(att.nilai_ai) : -1);
+            if (val > highestVal) {
+              highestVal = val;
+              highestAttempt = att;
+            }
+          }
+          effective = highestAttempt;
+        }
+      }
+
+      // Hitung nilai terbaik dari seluruh percobaan submitted
+      const allScores = submitted.map(a => Number(a.nilai_final ?? a.nilai_ai ?? 0));
+      const bestScore = allScores.length > 0 ? Math.max(...allScores) : null;
+
+      effectivePesertaList.push({
+        ...effective,
+        total_attempts: attempts.length,
+        submitted_attempts: submitted.length,
+        attempt_ke: effective.attempt_ke || attempts.length,
+        kebijakan_nilai: policy,
+        nilai_terbaik: bestScore
+      });
+    });
+
+    // Urutkan kembali berdasarkan kelas dan nama siswa
+    effectivePesertaList.sort((a, b) => {
+      const classComp = (a.kelas_siswa || '').localeCompare(b.kelas_siswa || '', 'id', { sensitivity: 'base' });
+      if (classComp !== 0) return classComp;
+      return (a.nama_siswa || '').localeCompare(b.nama_siswa || '', 'id', { sensitivity: 'base' });
+    });
+
+    // Hitung statistik berdasarkan peserta unik
+    let totalPeserta = effectivePesertaList.length;
     let submittedCount = 0;
     let totalScore = 0;
     let highestScore = null;
@@ -819,7 +904,7 @@ const reviewService = {
     // Perhitungan statistik tersegmentasi per sesi
     const sesiStatsMap = new Map();
 
-    pesertaList.forEach(st => {
+    effectivePesertaList.forEach(st => {
       const sKey = st.sesi_id || 0;
       const sName = st.nama_sesi || 'Tanpa Sesi / Utama';
       if (!sesiStatsMap.has(sKey)) {
@@ -874,6 +959,8 @@ const reviewService = {
         durasi_menit: ulangan.durasi_menit,
         kkm: examKkm,
         status: ulangan.status,
+        maksimal_percobaan: (ulangan.maksimal_percobaan !== undefined && ulangan.maksimal_percobaan !== null) ? Number(ulangan.maksimal_percobaan) : 1,
+        kebijakan_nilai: policy,
         created_at: ulangan.created_at,
         nama_guru: ulangan.nama_guru,
         email_guru: ulangan.email_guru
@@ -893,7 +980,7 @@ const reviewService = {
         belum_tuntas_count: Math.max(0, submittedCount - tuntasCount)
       },
       statistik_sesi: statistikSesi,
-      peserta: pesertaList
+      peserta: effectivePesertaList
     };
   },
 

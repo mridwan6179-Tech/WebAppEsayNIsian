@@ -188,7 +188,7 @@ app.get('/api/siswa/sedang-mengerjakan/:kode', (req, res) => {
 
 app.post('/api/siswa/mulai', (req, res) => {
   try {
-    const { kode_ujian, nama, kelas, sesi_id } = req.body;
+    const { kode_ujian, nama, kelas, sesi_id, is_retake } = req.body;
 
     // Periksa batas kuota bersamaan (maks 20 siswa) & sistem antrean ruang tunggu
     const check = waitingRoomService.checkEntry(kode_ujian, nama, kelas, null, sesi_id);
@@ -205,7 +205,7 @@ app.post('/api/siswa/mulai', (req, res) => {
       });
     }
 
-    const result = studentService.startExam(kode_ujian, nama, kelas, sesi_id);
+    const result = studentService.startExam(kode_ujian, nama, kelas, sesi_id, Boolean(is_retake));
     res.json({ success: true, inQueue: false, ...result });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -223,7 +223,7 @@ app.get('/api/siswa/antrean/:ticketId', (req, res) => {
     if (status.status === 'ready') {
       const { ticket } = status;
       // Giliran tiba: mulai ujian dan konsumsi tiket
-      const examData = studentService.startExam(ticket.kodeUjian, ticket.nama, ticket.kelas, ticket.sesiId);
+      const examData = studentService.startExam(ticket.kodeUjian, ticket.nama, ticket.kelas, ticket.sesiId, Boolean(ticket.isRetake));
       waitingRoomService.consumeTicket(req.params.ticketId);
       return res.json({
         success: true,

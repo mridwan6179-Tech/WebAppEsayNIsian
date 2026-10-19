@@ -48,9 +48,9 @@ const studentService = {
       if (sesiActive.status !== 'aktif') {
         return { valid: false, message: `Sesi ujian "${sesiActive.nama_sesi}" sedang dinonaktifkan oleh guru.` };
       }
-      ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_pg, jumlah_soal_pg_kompleks, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_koding, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, konten_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening, pin_aktif, token_ujian, remedial_langsung FROM ulangan WHERE id = ?').get(sesiActive.ulangan_id);
+      ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_pg, jumlah_soal_pg_kompleks, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_koding, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, konten_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening, pin_aktif, token_ujian, remedial_langsung, maksimal_percobaan, kebijakan_nilai FROM ulangan WHERE id = ?').get(sesiActive.ulangan_id);
     } else {
-      ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_pg, jumlah_soal_pg_kompleks, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_koding, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, konten_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening, pin_aktif, token_ujian, remedial_langsung FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
+      ulangan = db.prepare('SELECT id, judul, mata_pelajaran, tingkat_kelas, deskripsi, status, jumlah_soal_tampil, jumlah_soal_pg, jumlah_soal_pg_kompleks, jumlah_soal_isian, jumlah_soal_essay, jumlah_soal_koding, jumlah_soal_listening, acak_soal, tanggal_mulai, tanggal_selesai, durasi_menit, kkm, zona_waktu, tampilkan_simbol, link_kisi_kisi, konten_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening, pin_aktif, token_ujian, remedial_langsung, maksimal_percobaan, kebijakan_nilai FROM ulangan WHERE kode_ujian = ?').get(cleanCode);
     }
 
     if (!ulangan) {
@@ -247,13 +247,15 @@ const studentService = {
         pin_aktif: (Number(ulangan.pin_aktif) === 1 || (ulangan.token_ujian && Number(ulangan.token_ujian) > 0)) ? 1 : 0,
         token_ujian: ulangan.token_ujian || null,
         remedial_langsung: Number(ulangan.remedial_langsung || 0),
+        maksimal_percobaan: (ulangan.maksimal_percobaan !== undefined && ulangan.maksimal_percobaan !== null) ? Number(ulangan.maksimal_percobaan) : 1,
+        kebijakan_nilai: ulangan.kebijakan_nilai || 'tertinggi',
         available_classes: kelasList
       }
     };
   },
 
   // FR-07: Identitas Siswa & Memulai Pengerjaan (Mendukung Paket Soal Acak per Siswa & Multi-Sesi)
-  startExam(kodeUjian, nama, kelas, sesiId = null) {
+  startExam(kodeUjian, nama, kelas, sesiId = null, isRetake = false) {
     const val = this.validateExamCode(kodeUjian);
     if (!val.valid) {
       throw new Error(val.message);
@@ -274,7 +276,7 @@ const studentService = {
     let activeSesi = val.sesi || null;
     if (!activeSesi && sesiId) {
       try {
-        const sRow = db.prepare('SELECT * FROM ulangan_sesi WHERE id = ? AND ulangan_id = ? AND status = "aktif"').get(sesiId, ulanganId);
+        const sRow = db.prepare("SELECT * FROM ulangan_sesi WHERE id = ? AND ulangan_id = ? AND status = 'aktif'").get(sesiId, ulanganId);
         if (sRow) activeSesi = sRow;
       } catch (e) {}
     }
@@ -326,17 +328,51 @@ const studentService = {
     }
 
     // Cek pengerjaan aktif atau submitted
-    let pengerjaan = db.prepare('SELECT * FROM pengerjaan WHERE ulangan_id = ? AND peserta_id = ?').get(ulanganId, peserta.id);
+    // 1. Cek apakah ada pengerjaan yang sedang aktif ('mengerjakan')
+    let pengerjaan = db.prepare("SELECT * FROM pengerjaan WHERE ulangan_id = ? AND peserta_id = ? AND status = 'mengerjakan' ORDER BY attempt_ke DESC, id DESC").get(ulanganId, peserta.id);
 
-    if (pengerjaan && pengerjaan.status === 'submitted') {
-      return {
-        alreadySubmitted: true,
-        pengerjaanId: pengerjaan.id,
-        submittedAt: pengerjaan.submitted_at,
-        releasedAt: pengerjaan.released_at,
-        nilaiFinal: pengerjaan.nilai_final,
-        message: 'Anda sudah mengumpulkan ulangan ini sebelumnya.'
-      };
+    // Ambil seluruh riwayat pengerjaan yang sudah submitted
+    const submittedAttempts = db.prepare("SELECT * FROM pengerjaan WHERE ulangan_id = ? AND peserta_id = ? AND status = 'submitted' ORDER BY attempt_ke DESC, id DESC").all(ulanganId, peserta.id);
+    const countSubmitted = submittedAttempts.length;
+
+    const maxAttempts = (val.ulangan.maksimal_percobaan !== undefined && val.ulangan.maksimal_percobaan !== null) ? Number(val.ulangan.maksimal_percobaan) : 1;
+    const kebijakanNilai = val.ulangan.kebijakan_nilai || 'tertinggi';
+
+    // Hitung nilai terbaik sejauh ini
+    let nilaiTerbaik = null;
+    if (countSubmitted > 0) {
+      if (kebijakanNilai === 'terakhir') {
+        nilaiTerbaik = submittedAttempts[0].nilai_final ?? submittedAttempts[0].nilai_ai;
+      } else {
+        const scores = submittedAttempts.map(a => Number(a.nilai_final ?? a.nilai_ai ?? 0));
+        nilaiTerbaik = Math.max(...scores);
+      }
+    }
+
+    if (!pengerjaan && countSubmitted > 0) {
+      const latestSubmitted = submittedAttempts[0];
+      const maxReached = (maxAttempts > 0 && countSubmitted >= maxAttempts);
+
+      if (maxReached || !isRetake) {
+        return {
+          alreadySubmitted: true,
+          pengerjaanId: latestSubmitted.id,
+          submittedAt: latestSubmitted.submitted_at,
+          releasedAt: latestSubmitted.released_at,
+          nilaiFinal: latestSubmitted.nilai_final,
+          nilaiTerbaik: nilaiTerbaik,
+          attemptKe: latestSubmitted.attempt_ke || countSubmitted,
+          totalAttempts: countSubmitted,
+          maksimalPercobaan: maxAttempts,
+          sisaPercobaan: maxAttempts === 0 ? 'Tanpa Batas' : Math.max(0, maxAttempts - countSubmitted),
+          canRetake: !maxReached,
+          kebijakanNilai: kebijakanNilai,
+          maxAttemptsReached: maxReached,
+          message: maxReached 
+            ? `Anda sudah mencapai batas maksimal pengerjaan (${maxAttempts}x).` 
+            : `Anda sudah mengumpulkan ulangan ini sebelumnya. (Percobaan ${latestSubmitted.attempt_ke || countSubmitted} dari ${maxAttempts === 0 ? 'Tanpa Batas' : maxAttempts})`
+        };
+      }
     }
 
     // Jika siswa masuk kembali setelah sempat terputus / DC,
@@ -542,11 +578,13 @@ const studentService = {
       const sesiIdToSave = activeSesi?.id || null;
       const namaSesiToSave = activeSesi?.nama_sesi || null;
 
+      const currentAttemptKe = (pengerjaan && pengerjaan.attempt_ke) ? pengerjaan.attempt_ke : (countSubmitted + 1);
+
       if (!pengerjaan) {
         const info = db.prepare(`
-          INSERT INTO pengerjaan (ulangan_id, peserta_id, status, soal_ids, started_at, last_active_at, sesi_id, nama_sesi)
-          VALUES (?, ?, 'mengerjakan', ?, ?, ?, ?, ?)
-        `).run(ulanganId, peserta.id, soalIdsJson, nowIso, nowIso, sesiIdToSave, namaSesiToSave);
+          INSERT INTO pengerjaan (ulangan_id, peserta_id, status, soal_ids, started_at, last_active_at, sesi_id, nama_sesi, attempt_ke)
+          VALUES (?, ?, 'mengerjakan', ?, ?, ?, ?, ?, ?)
+        `).run(ulanganId, peserta.id, soalIdsJson, nowIso, nowIso, sesiIdToSave, namaSesiToSave, currentAttemptKe);
         pengerjaan = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(info.lastInsertRowid);
         // Segera dorong pengerjaan baru ke Turso Cloud agar instance Vercel lain dapat langsung menemukannya
         if (typeof db.sync === 'function') {
@@ -557,9 +595,10 @@ const studentService = {
           UPDATE pengerjaan 
           SET soal_ids = ?, last_active_at = CURRENT_TIMESTAMP, 
               sesi_id = COALESCE(sesi_id, ?), 
-              nama_sesi = COALESCE(nama_sesi, ?) 
+              nama_sesi = COALESCE(nama_sesi, ?),
+              attempt_ke = COALESCE(attempt_ke, ?)
           WHERE id = ?
-        `).run(soalIdsJson, sesiIdToSave, namaSesiToSave, pengerjaan.id);
+        `).run(soalIdsJson, sesiIdToSave, namaSesiToSave, currentAttemptKe, pengerjaan.id);
         pengerjaan.soal_ids = soalIdsJson;
         if (typeof db.sync === 'function') {
           try { db.sync(); } catch (syncErr) {}
@@ -618,7 +657,12 @@ const studentService = {
       ulangan: val.ulangan,
       deadline_at: deadlineAt ? deadlineAt.toISOString() : null,
       server_time: new Date().toISOString(),
-      soal: displaySoalList
+      soal: displaySoalList,
+      attemptKe: pengerjaan.attempt_ke || (countSubmitted + 1),
+      totalAttempts: countSubmitted + 1,
+      maksimalPercobaan: maxAttempts,
+      kebijakanNilai: kebijakanNilai,
+      nilaiTerbaik: nilaiTerbaik
     };
   },
 
@@ -1066,12 +1110,37 @@ const studentService = {
       }
     }
 
+    // Hitung nilai terbaik peserta berdasarkan kebijakan_nilai ulangan
+    const ulRowAfterSubmit = db.prepare('SELECT kebijakan_nilai, maksimal_percobaan FROM ulangan WHERE id = ?').get(pengerjaan.ulangan_id);
+    const policy = ulRowAfterSubmit?.kebijakan_nilai || 'tertinggi';
+    const allSubmittedAttempts = db.prepare(`
+      SELECT id, attempt_ke, nilai_final, nilai_ai 
+      FROM pengerjaan 
+      WHERE ulangan_id = ? AND peserta_id = ? AND status = 'submitted'
+      ORDER BY attempt_ke DESC, id DESC
+    `).all(pengerjaan.ulangan_id, pengerjaan.peserta_id);
+
+    let bestScore = null;
+    if (policy === 'terakhir') {
+      const latestRow = allSubmittedAttempts[0];
+      bestScore = latestRow ? (latestRow.nilai_final ?? latestRow.nilai_ai) : null;
+    } else {
+      const scores = allSubmittedAttempts.map(a => Number(a.nilai_final ?? a.nilai_ai ?? 0));
+      bestScore = scores.length > 0 ? Math.max(...scores) : null;
+    }
+
+    if (bestScore !== null) {
+      db.prepare('UPDATE pengerjaan SET nilai_terbaik = ? WHERE id = ?').run(bestScore, pengerjaanId);
+      db.prepare('UPDATE pengerjaan SET nilai_terbaik = ? WHERE ulangan_id = ? AND peserta_id = ?').run(bestScore, pengerjaan.ulangan_id, pengerjaan.peserta_id);
+    }
+
     // Segera dorong jawaban dan status submitted ke Turso Cloud agar tersimpan permanen
     if (typeof db.sync === 'function') {
       try { db.sync(); } catch (syncErr) {}
     }
 
-    const updated = db.prepare('SELECT submitted_at, released_at, nilai_final FROM pengerjaan WHERE id = ?').get(pengerjaanId);
+    const updated = db.prepare('SELECT submitted_at, released_at, nilai_final, attempt_ke, nilai_terbaik FROM pengerjaan WHERE id = ?').get(pengerjaanId);
+    const maxAttempts = (ulRowAfterSubmit?.maksimal_percobaan !== undefined && ulRowAfterSubmit?.maksimal_percobaan !== null) ? Number(ulRowAfterSubmit.maksimal_percobaan) : 1;
 
     return {
       success: true,
@@ -1086,7 +1155,13 @@ const studentService = {
       skor_langsung_ai: isSkorLangsungActive,
       is_released: Boolean(updated?.released_at),
       auto_released: Boolean(updated?.released_at),
-      nilai_final: updated?.nilai_final ?? null
+      nilai_final: updated?.nilai_final ?? null,
+      attempt_ke: updated?.attempt_ke || allSubmittedAttempts.length || 1,
+      total_attempts: allSubmittedAttempts.length,
+      maksimal_percobaan: maxAttempts,
+      kebijakan_nilai: policy,
+      nilai_terbaik: updated?.nilai_terbaik ?? bestScore ?? updated?.nilai_final ?? null,
+      can_retake: (maxAttempts === 0 || allSubmittedAttempts.length < maxAttempts)
     };
   },
 
@@ -1432,7 +1507,8 @@ const studentService = {
   getPengerjaanStatus(pengerjaanId) {
     const query = `
       SELECT p.*, u.judul, u.mata_pelajaran, u.status as status_ulangan, u.kkm, u.kode_ujian,
-             u.instruksi_remedial, u.link_remedial, u.skor_langsung_ai, u.remedial_langsung, pes.nama, pes.kelas,
+             u.instruksi_remedial, u.link_remedial, u.skor_langsung_ai, u.remedial_langsung,
+             u.maksimal_percobaan, u.kebijakan_nilai, pes.nama, pes.kelas,
              g.nama as nama_guru, g.email as email_guru, g.no_wa as no_wa_guru
       FROM pengerjaan p
       JOIN ulangan u ON p.ulangan_id = u.id
@@ -1578,6 +1654,31 @@ const studentService = {
       });
     }
 
+    const maxAttempts = (pengerjaan.maksimal_percobaan !== undefined && pengerjaan.maksimal_percobaan !== null) ? Number(pengerjaan.maksimal_percobaan) : 1;
+    const policy = pengerjaan.kebijakan_nilai || 'tertinggi';
+
+    const allSubmittedAttempts = db.prepare(`
+      SELECT id, attempt_ke, nilai_final, nilai_ai 
+      FROM pengerjaan 
+      WHERE ulangan_id = ? AND peserta_id = ? AND status = 'submitted'
+      ORDER BY attempt_ke DESC, id DESC
+    `).all(pengerjaan.ulangan_id, pengerjaan.peserta_id);
+
+    const countSubmitted = allSubmittedAttempts.length;
+    let bestScore = pengerjaan.nilai_terbaik;
+    if (bestScore === null || bestScore === undefined) {
+      if (policy === 'terakhir') {
+        const latestRow = allSubmittedAttempts[0];
+        bestScore = latestRow ? (latestRow.nilai_final ?? latestRow.nilai_ai) : finalScore;
+      } else {
+        const scores = allSubmittedAttempts.map(a => Number(a.nilai_final ?? a.nilai_ai ?? 0));
+        bestScore = scores.length > 0 ? Math.max(...scores) : finalScore;
+      }
+    }
+
+    const canRetake = (maxAttempts === 0 || countSubmitted < maxAttempts);
+    const sisaPercobaan = maxAttempts === 0 ? 'Tanpa Batas' : Math.max(0, maxAttempts - countSubmitted);
+
     return {
       pengerjaanId: pengerjaan.id,
       ulanganId: pengerjaan.ulangan_id,
@@ -1594,6 +1695,13 @@ const studentService = {
       antreanInfo,
       kkm: examKkm,
       nilaiFinal: finalScore,
+      attempt_ke: pengerjaan.attempt_ke || countSubmitted || 1,
+      total_attempts: countSubmitted || 1,
+      maksimal_percobaan: maxAttempts,
+      sisa_percobaan: sisaPercobaan,
+      can_retake: canRetake,
+      kebijakan_nilai: policy,
+      nilai_terbaik: bestScore,
       isRemedial,
       remedial_langsung: isRemedialLangsungActive ? 1 : 0,
       canDirectRemedial: Boolean(isRemedial && isRemedialLangsungActive),

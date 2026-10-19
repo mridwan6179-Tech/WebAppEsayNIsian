@@ -152,6 +152,8 @@ const examService = {
     const cleanPinAktif = (data.pin_aktif !== undefined && data.pin_aktif !== null) ? (data.pin_aktif ? 1 : 0) : ((cleanTokenUjian && cleanTokenUjian > 0) ? 1 : 0);
     const cleanSkorLangsungAi = (data.skor_langsung_ai !== undefined && data.skor_langsung_ai !== null) ? (data.skor_langsung_ai ? 1 : 0) : 0;
     const cleanRemedialLangsung = (data.remedial_langsung !== undefined && data.remedial_langsung !== null) ? (data.remedial_langsung ? 1 : 0) : 0;
+    const cleanMaksimalPercobaan = (data.maksimal_percobaan !== undefined && data.maksimal_percobaan !== null && data.maksimal_percobaan !== '') ? Math.max(0, Number(data.maksimal_percobaan)) : 1;
+    const cleanKebijakanNilai = (data.kebijakan_nilai && ['tertinggi', 'terakhir'].includes(data.kebijakan_nilai)) ? data.kebijakan_nilai : 'tertinggi';
 
     const stmt = db.prepare(`
       INSERT INTO ulangan (
@@ -161,7 +163,8 @@ const examService = {
         izinkan_singkatan, izinkan_informal, toleransi_typo, instruksi_penilaian_khusus, tampilkan_simbol,
         link_kisi_kisi, konten_kisi_kisi, tampilkan_kisi_kisi, tampilkan_teks_listening,
         jenis_ulangan, jumlah_paket, bobot_pg, bobot_essay, bobot_koding, opsi_pg_count,
-        pin_aktif, token_ujian, skor_langsung_ai, remedial_langsung
+        pin_aktif, token_ujian, skor_langsung_ai, remedial_langsung,
+        maksimal_percobaan, kebijakan_nilai
       )
       VALUES (
         ?, ?, ?, ?, ?, ?, 'draft',
@@ -170,7 +173,8 @@ const examService = {
         ?, ?, ?, ?, ?,
         ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?
+        ?, ?, ?, ?,
+        ?, ?
       )
     `);
     const info = stmt.run(
@@ -179,7 +183,8 @@ const examService = {
       cleanKkm, cleanInstruksiRemedial, cleanLinkRemedial, cleanZonaWaktu,
       izinkanSingkatan, izinkanInformal, toleransiTypo, cleanInstruksiKhusus, tampilkanSimbol, cleanLinkKisiKisi, cleanKontenKisiKisi, tampilkanKisiKisi, tampilkanTeksListening,
       cleanJenisUlangan, cleanJumlahPaket, cleanBobotPg, cleanBobotEssay, cleanBobotKoding, cleanOpsiPgCount,
-      cleanPinAktif, cleanTokenUjian, cleanSkorLangsungAi, cleanRemedialLangsung
+      cleanPinAktif, cleanTokenUjian, cleanSkorLangsungAi, cleanRemedialLangsung,
+      cleanMaksimalPercobaan, cleanKebijakanNilai
     );
     const ulanganId = info.lastInsertRowid;
 
@@ -656,6 +661,16 @@ const examService = {
     if (data.remedial_langsung !== undefined) {
       updates.push('remedial_langsung = ?');
       params.push(data.remedial_langsung ? 1 : 0);
+    }
+    if (data.maksimal_percobaan !== undefined) {
+      const mp = (data.maksimal_percobaan !== null && data.maksimal_percobaan !== '') ? Math.max(0, Number(data.maksimal_percobaan)) : 1;
+      updates.push('maksimal_percobaan = ?');
+      params.push(mp);
+    }
+    if (data.kebijakan_nilai !== undefined) {
+      const kn = (data.kebijakan_nilai && ['tertinggi', 'terakhir'].includes(data.kebijakan_nilai)) ? data.kebijakan_nilai : 'tertinggi';
+      updates.push('kebijakan_nilai = ?');
+      params.push(kn);
     }
     if (status !== undefined) {
       if (!['draft', 'dibuka', 'ditutup', 'selesai'].includes(status)) {

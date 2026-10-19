@@ -135,9 +135,15 @@
         page-break-after: always !important;
         break-after: page !important;
       }
-      .print-avoid-break {
+      .print-avoid-break, .break-inside-avoid, .page-break-inside-avoid {
         page-break-inside: avoid !important;
         break-inside: avoid !important;
+      }
+
+      #cetak-naskah-paket-sheet-container {
+        font-family: 'Times New Roman', Times, serif, system-ui !important;
+        color: #000 !important;
+        padding: 4mm !important;
       }
 
       /* Sheet Page Styling */
@@ -649,6 +655,34 @@
                   </div>
                 </label>
               </div>
+            </div>
+
+            <!-- Batas Percobaan Ujian & Kebijakan Nilai -->
+            <div class="p-3 bg-purple-50/70 border border-purple-200 rounded-xl space-y-2">
+              <div class="flex items-center space-x-1.5 font-bold text-xs text-purple-950">
+                <span>🔁</span>
+                <span>Batas Percobaan Ulang &amp; Kebijakan Pengambilan Nilai</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                <div>
+                  <label class="block font-semibold text-slate-700 text-[11px] mb-1">Maksimal Percobaan:</label>
+                  <select id="new-exam-maksimal-percobaan" class="w-full px-2.5 py-1.5 rounded-lg border border-purple-300 bg-white font-medium text-xs focus:ring-purple-500">
+                    <option value="1" selected>1x Pengerjaan (Hanya 1 Kali - Default)</option>
+                    <option value="2">2x Pengerjaan (Bisa Mengulang 1 Kali)</option>
+                    <option value="3">3x Pengerjaan (Bisa Mengulang 2 Kali)</option>
+                    <option value="5">5x Pengerjaan</option>
+                    <option value="0">Tanpa Batas Percobaan (Bebas Mengulang)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block font-semibold text-slate-700 text-[11px] mb-1">Kebijakan Nilai:</label>
+                  <select id="new-exam-kebijakan-nilai" class="w-full px-2.5 py-1.5 rounded-lg border border-purple-300 bg-white font-medium text-xs focus:ring-purple-500">
+                    <option value="tertinggi" selected>🏆 Ambil Nilai Tertinggi (Direkomendasikan)</option>
+                    <option value="terakhir">⏱️ Ambil Nilai Terakhir (Pengerjaan Terbaru)</option>
+                  </select>
+                </div>
+              </div>
+              <p class="text-[10px] text-purple-800 italic">Siswa dapat mengulang ujian sesuai batas di atas. Nilai resmi yang masuk rapor dan statistik kelas akan otomatis mengikuti kebijakan yang Anda pilih.</p>
             </div>
 
             <div class="flex justify-end space-x-2 pt-1">
@@ -2130,6 +2164,34 @@
               </div>
             </label>
           </div>
+        </div>
+
+        <!-- Batas Percobaan Ujian & Kebijakan Nilai (Edit) -->
+        <div class="p-3.5 bg-purple-50/70 border border-purple-200 rounded-xl space-y-2">
+          <div class="flex items-center space-x-1.5 font-bold text-xs text-purple-950">
+            <span>🔁</span>
+            <span>Batas Percobaan Ulang &amp; Kebijakan Pengambilan Nilai</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div>
+              <label class="block font-semibold text-slate-700 text-xs mb-1">Maksimal Percobaan:</label>
+              <select id="edit-exam-maksimal-percobaan" class="w-full px-3 py-2 rounded-lg border border-purple-300 bg-white font-medium text-xs focus:ring-purple-500">
+                <option value="1">1x Pengerjaan (Hanya 1 Kali - Default)</option>
+                <option value="2">2x Pengerjaan (Bisa Mengulang 1 Kali)</option>
+                <option value="3">3x Pengerjaan (Bisa Mengulang 2 Kali)</option>
+                <option value="5">5x Pengerjaan</option>
+                <option value="0">Tanpa Batas Percobaan (Bebas Mengulang)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 text-xs mb-1">Kebijakan Pengambilan Nilai:</label>
+              <select id="edit-exam-kebijakan-nilai" class="w-full px-3 py-2 rounded-lg border border-purple-300 bg-white font-medium text-xs focus:ring-purple-500">
+                <option value="tertinggi">🏆 Ambil Nilai Tertinggi (Direkomendasikan)</option>
+                <option value="terakhir">⏱️ Ambil Nilai Terakhir (Pengerjaan Terbaru)</option>
+              </select>
+            </div>
+          </div>
+          <p class="text-[11px] text-purple-800 italic">Siswa dapat mengulang ujian sesuai batas di atas. Nilai resmi yang masuk rapor dan statistik kelas akan otomatis mengikuti kebijakan yang Anda pilih.</p>
         </div>
 
         <!-- Fitur Kisi-kisi Ulangan (Bisa Dihidupkan / Dimatikan) -->
@@ -5559,7 +5621,9 @@
         instruksi_penilaian_khusus: instruksiKhusus,
         tampilkan_simbol: document.getElementById('new-exam-tampilkan-simbol')?.checked ? 1 : 0,
         skor_langsung_ai: document.getElementById('new-exam-skor-langsung-ai')?.checked ? 1 : 0,
-        remedial_langsung: document.getElementById('new-exam-remedial-langsung')?.checked ? 1 : 0
+        remedial_langsung: document.getElementById('new-exam-remedial-langsung')?.checked ? 1 : 0,
+        maksimal_percobaan: parseInt(document.getElementById('new-exam-maksimal-percobaan')?.value || '1', 10),
+        kebijakan_nilai: document.getElementById('new-exam-kebijakan-nilai')?.value || 'tertinggi'
       };
 
       const btnSubmit = formCreateExam.querySelector('button[type="submit"]');
@@ -6283,7 +6347,7 @@
           <div class="border-b-2 border-black pb-2.5 text-center space-y-0.5">
             <p class="text-[11px] font-bold uppercase tracking-widest text-slate-700">${escapeHtml(namaInstansi)}</p>
             <h1 class="text-base sm:text-lg font-black uppercase tracking-wide">KISI-KISI &amp; RANGKUMAN MATERI PEMBAHASAN ULANGAN</h1>
-            <p class="text-xs font-bold text-slate-800">${escapeHtml(u.judul || kisi.judul_kisi_kisi || '-')}</p>
+            <p class="text-xs font-bold text-slate-800">${escapeHtml(u.judul || kisi.judul_kisi_kisi || '-')} &bull; ID: #${u.id || '-'} &bull; Kode Ujian: <span class="font-mono">${escapeHtml(u.kode_ujian || '-')}</span></p>
           </div>
 
           <!-- Tabel Identitas Ulangan + Ringkasan Singkat Terpadu -->
@@ -6293,7 +6357,7 @@
               <div class="flex"><span class="w-36 font-bold">Komposisi Soal</span><span>: ${totalSoalCount} Butir Soal (${escapeHtml(kompParts.join(', ') || 'Campuran')})</span></div>
               <div class="flex"><span class="w-36 font-bold">Kelas / Tingkat</span><span>: ${escapeHtml(u.tingkat_kelas || '-')}</span></div>
               <div class="flex"><span class="w-36 font-bold">Durasi / KKM</span><span>: ${u.durasi_menit ? u.durasi_menit + ' Menit' : 'Fleksibel'} / KKM: ${u.kkm || 75}</span></div>
-              <div class="flex"><span class="w-36 font-bold">Kode Akses Ujian</span><span class="font-mono font-bold">: ${escapeHtml(u.kode_ujian || '-')}</span></div>
+              <div class="flex"><span class="w-36 font-bold">ID / Kode Akses</span><span class="font-mono font-bold">: #${u.id || '-'} / ${escapeHtml(u.kode_ujian || '-')}</span></div>
               <div class="flex"><span class="w-36 font-bold">Pokok Pembahasan</span><span>: ${kisi.daftar_kisi_kisi.length} Topik Terpadu</span></div>
             </div>
             <div class="pt-1.5 border-t border-slate-300 text-[11px] text-slate-800 leading-relaxed">
@@ -7151,6 +7215,12 @@
         if (document.getElementById('edit-exam-remedial-langsung')) {
           document.getElementById('edit-exam-remedial-langsung').checked = Boolean(u.remedial_langsung);
         }
+        if (document.getElementById('edit-exam-maksimal-percobaan')) {
+          document.getElementById('edit-exam-maksimal-percobaan').value = (u.maksimal_percobaan !== undefined && u.maksimal_percobaan !== null) ? String(u.maksimal_percobaan) : '1';
+        }
+        if (document.getElementById('edit-exam-kebijakan-nilai')) {
+          document.getElementById('edit-exam-kebijakan-nilai').value = u.kebijakan_nilai || 'tertinggi';
+        }
 
         // Render target kelas checkboxes
         const activeKelasIds = (u.kelas || []).map(k => k.id);
@@ -7298,7 +7368,9 @@
         pin_aktif: (document.getElementById('edit-exam-pin-aktif')?.checked || (document.getElementById('edit-exam-token-ujian')?.value.trim() && parseInt(document.getElementById('edit-exam-token-ujian').value.trim(), 10) > 0)) ? 1 : 0,
         token_ujian: document.getElementById('edit-exam-token-ujian')?.value.trim() ? parseInt(document.getElementById('edit-exam-token-ujian').value.trim(), 10) : null,
         skor_langsung_ai: document.getElementById('edit-exam-skor-langsung-ai')?.checked ? 1 : 0,
-        remedial_langsung: document.getElementById('edit-exam-remedial-langsung')?.checked ? 1 : 0
+        remedial_langsung: document.getElementById('edit-exam-remedial-langsung')?.checked ? 1 : 0,
+        maksimal_percobaan: parseInt(document.getElementById('edit-exam-maksimal-percobaan')?.value || '1', 10),
+        kebijakan_nilai: document.getElementById('edit-exam-kebijakan-nilai')?.value || 'tertinggi'
       };
 
       const btnSave = document.getElementById('btn-save-edit-exam');
@@ -9226,7 +9298,9 @@
           <td class="p-3 font-semibold text-slate-900 min-w-[150px]">
             <div class="flex items-center space-x-1.5 flex-wrap">
               <span>${escapeHtml(st.nama_siswa)}</span>
-              ${dupCount > 1 ? `<span class="bg-rose-100 text-rose-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-rose-200" title="Nama siswa ini terdaftar ${dupCount} kali pengerjaan">⚠️ ${dupCount}x Kirim</span>` : ''}
+              ${st.attempt_ke ? `<span class="bg-indigo-100 text-indigo-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-indigo-200" title="Percobaan ke-${st.attempt_ke}">Uji #${st.attempt_ke}</span>` : ''}
+              ${(st.nilai_terbaik !== null && st.nilai_terbaik !== undefined) ? `<span class="bg-purple-100 text-purple-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-purple-200" title="Nilai Terbaik: ${st.nilai_terbaik}">Best: ${st.nilai_terbaik}</span>` : ''}
+              ${dupCount > 1 ? `<span class="bg-rose-100 text-rose-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-rose-200" title="Nama siswa ini terdaftar ${dupCount} kali pengerjaan">⚠️ ${dupCount}x Data</span>` : ''}
               ${st.paste_count > 0 ? `
                 <span class="bg-amber-100 text-amber-900 text-[10px] px-1.5 py-0.5 rounded font-bold border border-amber-300 shadow-2xs" title="Terdeteksi ${st.paste_count}x copy-paste teks ${st.paste_summary ? `pada: ${st.paste_summary}` : ''}">
                   📋 ${st.paste_count}x Paste ${st.paste_summary ? `<span class="font-normal text-amber-700">(${escapeHtml(st.paste_summary)})</span>` : ''}
@@ -10374,7 +10448,10 @@
           rowsHtml += `
             <tr class="border-b border-slate-200 text-xs">
               <td class="py-2.5 px-3 text-center text-slate-500 font-medium">${idx + 1}</td>
-              <td class="py-2.5 px-3 font-semibold text-slate-800">${escapeHtml(p.nama_siswa)}</td>
+              <td class="py-2.5 px-3 font-semibold text-slate-800">
+                <div>${escapeHtml(p.nama_siswa)}</div>
+                ${p.total_attempts > 1 ? `<span class="text-[10px] text-purple-700 font-medium">(${p.total_attempts}x Uji &bull; Kebijakan: ${u.kebijakan_nilai === 'terakhir' ? 'Terakhir' : 'Tertinggi'})</span>` : ''}
+              </td>
               <td class="py-2.5 px-3 text-center text-slate-600">${escapeHtml(p.kelas_siswa)}</td>
               <td class="py-2.5 px-3 text-center text-slate-600 text-[11px]">${p.nama_sesi ? escapeHtml(p.nama_sesi) : '-'}</td>
               <td class="py-2.5 px-3 text-center text-slate-500 text-[11px]">${statusText}</td>
@@ -10403,6 +10480,10 @@
             <span>Kode Ujian: <strong class="font-mono">${escapeHtml(u.kode_ujian)}</strong></span>
             <span>&bull;</span>
             <span>KKM: <strong>${examKkm}</strong></span>
+            <span>&bull;</span>
+            <span>Kebijakan Nilai: <strong>${u.kebijakan_nilai === 'terakhir' ? 'Nilai Terakhir' : 'Nilai Tertinggi'}</strong></span>
+            <span>&bull;</span>
+            <span>Batas Ulang: <strong>${u.maksimal_percobaan === 0 ? 'Tanpa Batas' : (u.maksimal_percobaan + 'x')}</strong></span>
             ${u.durasi_menit ? `<span>&bull;</span><span>Durasi: <strong>${u.durasi_menit} Menit</strong></span>` : ''}
           </div>
         </div>
@@ -14645,46 +14726,46 @@
       let qHtml = '';
       questions.forEach((q, idx) => {
         const no = idx + 1;
-        const isPg = q.jenis === 'pilihan_ganda';
+        const isPg = q.jenis === 'pilihan_ganda' || (q.opsi_a && q.opsi_b);
         qHtml += `
-          <div class="mb-3.5 space-y-1 text-xs">
-            <div class="flex items-start space-x-2">
-              <span class="font-bold text-slate-900">${no}.</span>
-              <div class="flex-1 font-medium text-slate-900 leading-relaxed" dir="auto">${escapeHtml(q.pertanyaan)}</div>
+          <div class="mb-4 break-inside-avoid print-avoid-break text-xs page-break-inside-avoid border-b border-dashed border-slate-300 pb-3">
+            <div class="flex items-start space-x-2 mb-1.5">
+              <span class="w-6 font-bold text-slate-900 text-right flex-shrink-0">${no}.</span>
+              <div class="flex-1 font-medium text-slate-900 leading-relaxed text-justify" dir="auto">${escapeHtml(q.pertanyaan)}</div>
             </div>
             ${q.gambar_url ? `
-              <div class="pl-5 py-1">
-                <img src="${q.gambar_url}" alt="Gambar Soal ${no}" class="max-h-36 max-w-sm rounded border border-slate-300 object-contain">
+              <div class="pl-8 py-1.5">
+                <img src="${q.gambar_url}" alt="Gambar Soal ${no}" class="max-h-40 max-w-sm rounded border border-slate-300 object-contain bg-white">
               </div>
             ` : ''}
             ${isPg ? `
-              <div class="pl-5 grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1 text-slate-800">
-                <div class="flex items-start space-x-1.5">
-                  <span class="font-bold">A.</span>
-                  <span>${escapeHtml(q.opsi_a || '')}</span>
+              <div class="pl-8 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 pt-1 text-slate-900">
+                <div class="flex items-start space-x-2">
+                  <span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-black/50 text-[10px] font-bold bg-slate-50 flex-shrink-0">A</span>
+                  <span class="leading-snug">${escapeHtml(q.opsi_a || '')}</span>
                 </div>
-                <div class="flex items-start space-x-1.5">
-                  <span class="font-bold">B.</span>
-                  <span>${escapeHtml(q.opsi_b || '')}</span>
+                <div class="flex items-start space-x-2">
+                  <span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-black/50 text-[10px] font-bold bg-slate-50 flex-shrink-0">B</span>
+                  <span class="leading-snug">${escapeHtml(q.opsi_b || '')}</span>
                 </div>
-                <div class="flex items-start space-x-1.5">
-                  <span class="font-bold">C.</span>
-                  <span>${escapeHtml(q.opsi_c || '')}</span>
+                <div class="flex items-start space-x-2">
+                  <span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-black/50 text-[10px] font-bold bg-slate-50 flex-shrink-0">C</span>
+                  <span class="leading-snug">${escapeHtml(q.opsi_c || '')}</span>
                 </div>
-                <div class="flex items-start space-x-1.5">
-                  <span class="font-bold">D.</span>
-                  <span>${escapeHtml(q.opsi_d || '')}</span>
+                <div class="flex items-start space-x-2">
+                  <span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-black/50 text-[10px] font-bold bg-slate-50 flex-shrink-0">D</span>
+                  <span class="leading-snug">${escapeHtml(q.opsi_d || '')}</span>
                 </div>
                 ${q.opsi_e ? `
-                <div class="flex items-start space-x-1.5">
-                  <span class="font-bold">E.</span>
-                  <span>${escapeHtml(q.opsi_e)}</span>
+                <div class="flex items-start space-x-2">
+                  <span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-black/50 text-[10px] font-bold bg-slate-50 flex-shrink-0">E</span>
+                  <span class="leading-snug">${escapeHtml(q.opsi_e)}</span>
                 </div>
                 ` : ''}
               </div>
             ` : `
-              <div class="pl-5 pt-1 text-slate-400 italic text-[11px]">
-                (Lembar Jawaban Esai / Isian terpisah)
+              <div class="pl-8 pt-1 text-slate-500 italic text-[11px]">
+                (Jawablah pertanyaan uraian/isian di atas pada lembar jawaban yang telah disediakan)
               </div>
             `}
           </div>
@@ -14692,23 +14773,39 @@
       });
 
       cetakNaskahPaketSheetContainer.innerHTML = `
-        <div class="border-b-2 border-black pb-3 mb-4 space-y-1">
-          <div class="flex justify-between items-start">
-            <div>
-              <h2 class="text-base font-extrabold uppercase tracking-wide text-slate-900">${escapeHtml(u.judul || 'LEMBAR NASKAH SOAL UJIAN')}</h2>
-              <p class="text-xs font-semibold text-slate-700">Mata Pelajaran: ${escapeHtml(u.mata_pelajaran || '-')} • Tingkat / Kelas: ${escapeHtml(u.tingkat_kelas || '-')}</p>
+        <div class="space-y-3 text-black leading-normal">
+          <!-- Kop Dokumen Naskah Soal -->
+          <div class="border-b-2 border-black pb-2.5 mb-3 text-center space-y-0.5">
+            <div class="flex justify-between items-center mb-1">
+              <span class="text-[10px] font-bold uppercase tracking-widest text-slate-600">DOKUMEN PENILAIAN / ULANGAN SEKOLAH</span>
+              <span class="border-2 border-black px-3 py-0.5 rounded bg-slate-100 font-black text-xs tracking-wider">PAKET ${escapeHtml(data.nama_paket)}</span>
             </div>
-            <div class="text-right border-2 border-black px-3 py-1 rounded bg-slate-50 font-black text-sm">
-              PAKET ${escapeHtml(data.nama_paket)}
+            <h1 class="text-base sm:text-lg font-black uppercase tracking-wide text-slate-900">${escapeHtml(u.judul || 'LEMBAR NASKAH SOAL UJIAN')}</h1>
+            <p class="text-xs font-semibold text-slate-700">Mata Pelajaran: ${escapeHtml(u.mata_pelajaran || '-')} &bull; Tingkat / Kelas: ${escapeHtml(u.tingkat_kelas || '-')} &bull; Waktu: ${u.durasi_menit ? u.durasi_menit + ' Menit' : 'Fleksibel'}</p>
+          </div>
+
+          <!-- Kolom Identitas Siswa & Petunjuk -->
+          <div class="border border-black p-2.5 rounded bg-slate-50/50 mb-3 text-xs">
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-1">
+                <div class="flex"><span class="w-28 font-bold">Nama Lengkap</span><span>: .....................................................................</span></div>
+                <div class="flex"><span class="w-28 font-bold">Kelas / No. Absen</span><span>: .....................................................................</span></div>
+              </div>
+              <div class="space-y-1">
+                <div class="flex"><span class="w-28 font-bold">No. Peserta / NIS</span><span>: .....................................................................</span></div>
+                <div class="flex"><span class="w-28 font-bold">Tanda Tangan</span><span>: .....................................................................</span></div>
+              </div>
+            </div>
+            <div class="pt-1.5 mt-1.5 border-t border-slate-300 flex justify-between text-[10px] text-slate-600">
+              <span><strong>Petunjuk:</strong> Berdoalah sebelum mengerjakan. Kerjakan soal yang mudah terlebih dahulu. Teliti kembali sebelum dikumpulkan.</span>
+              <span>Kode: <strong class="font-mono">${escapeHtml(u.kode_ujian || '-')}</strong></span>
             </div>
           </div>
-          <div class="text-[10px] text-slate-600 pt-1 border-t border-slate-300 flex justify-between">
-            <span>Petunjuk: Berdoalah sebelum mengerjakan. Kerjakan soal yang mudah terlebih dahulu.</span>
-            <span>Waktu: ${u.durasi_menit ? u.durasi_menit + ' Menit' : '-'}</span>
+
+          <!-- Butir Soal Naskah Cetak (2 Kolom Rapi Anti-Potong) -->
+          <div class="columns-1 sm:columns-2 gap-6 leading-relaxed">
+            ${qHtml}
           </div>
-        </div>
-        <div class="columns-1 sm:columns-2 gap-6 leading-relaxed">
-          ${qHtml}
         </div>
       `;
       renderMath(cetakNaskahPaketSheetContainer);

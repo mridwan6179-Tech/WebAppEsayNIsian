@@ -859,6 +859,32 @@
             <span>Periksa Pembaruan Nilai</span>
           </button>
         </div>
+
+        <!-- Kartu Kesempatan Mengulang Ujian & Kebijakan Nilai Tertinggi -->
+        <div id="retake-action-card" class="hidden p-4 rounded-xl border border-purple-200 bg-purple-50/80 text-purple-950 text-xs space-y-2.5 text-left">
+          <div class="flex items-center justify-between flex-wrap gap-1">
+            <span class="font-extrabold text-xs sm:text-sm text-purple-900 flex items-center space-x-1.5">
+              <span>🔁</span>
+              <span id="retake-attempt-badge">Percobaan Ujian 1 / 1</span>
+            </span>
+            <span id="retake-policy-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-200 text-purple-800 border border-purple-300">
+              Ambil Nilai Tertinggi
+            </span>
+          </div>
+          <p id="retake-info-text" class="text-slate-600 text-[11px] leading-relaxed">
+            Ujian ini memperbolehkan Anda mengulang pengerjaan. Nilai resmi yang akan dilaporkan ke guru adalah nilai terbaik dari seluruh percobaan Anda.
+          </p>
+          <div id="retake-best-score-box" class="p-2.5 rounded-lg bg-white border border-purple-200 flex justify-between items-center text-xs shadow-2xs">
+            <span class="font-semibold text-slate-700">🏆 Nilai Terbaik Anda Saat Ini:</span>
+            <span id="retake-best-score-val" class="font-black text-purple-700 text-base">0</span>
+          </div>
+          <div class="pt-1 text-center">
+            <button id="btn-do-retake-exam" type="button" class="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-md transition cursor-pointer">
+              <span>🔄</span>
+              <span id="btn-do-retake-label">Kerjakan Ulang Ujian</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Rincian Nilai Jika Sudah Dirilis -->
@@ -1978,6 +2004,14 @@
 
         currentPengerjaanId = data.pengerjaanId;
         localStorage.setItem('ulangan_pengerjaan_id', currentPengerjaanId);
+        try {
+          localStorage.setItem('ulangan_kode', kode);
+          localStorage.setItem('ulangan_nama', nama);
+          localStorage.setItem('ulangan_kelas', kelas);
+        } catch (e) {}
+        window._currentExamCode = kode;
+        window._currentStudentName = nama;
+        window._currentStudentClass = kelas;
 
         if (data.alreadySubmitted) {
           showResultStep(data);
@@ -5721,6 +5755,67 @@
         document.getElementById('submitted-time-info').textContent = `Waktu Pengumpulan: ${new Date(submitTime).toLocaleString('id-ID')}`;
       }
 
+      // Simpan data kredensial jika tersedia di payload status
+      if (data.kodeUjian) window._currentExamCode = data.kodeUjian;
+      if (data.nama) window._currentStudentName = data.nama;
+      if (data.kelas) window._currentStudentClass = data.kelas;
+
+      // Penanganan Kartu Kesempatan Mengulang & Kebijakan Nilai
+      const retakeCard = document.getElementById('retake-action-card');
+      if (retakeCard) {
+        const canRetake = Boolean(data.can_retake !== undefined ? data.can_retake : (data.canRetake !== undefined ? data.canRetake : false));
+        const attemptKe = Number(data.attempt_ke || data.attemptKe || 1);
+        const maxAttempts = data.maksimal_percobaan !== undefined ? Number(data.maksimal_percobaan) : (data.maksimalPercobaan !== undefined ? Number(data.maksimalPercobaan) : 1);
+        const policy = data.kebijakan_nilai || data.kebijakanNilai || 'tertinggi';
+        const bestScore = data.nilai_terbaik !== undefined ? data.nilai_terbaik : (data.nilaiTerbaik ?? (data.nilaiFinal ?? data.nilai_final));
+
+        if (maxAttempts !== 1) {
+          retakeCard.classList.remove('hidden');
+          const badgeEl = document.getElementById('retake-attempt-badge');
+          if (badgeEl) {
+            badgeEl.textContent = `Percobaan ke-${attemptKe} (${maxAttempts === 0 ? 'Tanpa Batas Ulang' : `Maksimal ${maxAttempts}x`})`;
+          }
+          const policyEl = document.getElementById('retake-policy-badge');
+          if (policyEl) {
+            policyEl.textContent = policy === 'terakhir' ? 'Ambil Nilai Terakhir' : '🏆 Ambil Nilai Tertinggi';
+          }
+          const bestScoreVal = document.getElementById('retake-best-score-val');
+          if (bestScoreVal) {
+            bestScoreVal.textContent = bestScore !== null && bestScore !== undefined ? bestScore : '-';
+          }
+          const infoText = document.getElementById('retake-info-text');
+          const btnRetake = document.getElementById('btn-do-retake-exam');
+          const btnRetakeLabel = document.getElementById('btn-do-retake-label');
+
+          if (canRetake) {
+            if (btnRetake) btnRetake.classList.remove('hidden');
+            if (infoText) {
+              infoText.textContent = policy === 'terakhir'
+                ? 'Ujian ini memperbolehkan Anda mengulang. Nilai yang digunakan adalah nilai dari pengerjaan paling terakhir.'
+                : 'Ujian ini memperbolehkan Anda mengulang pengerjaan. Nilai resmi yang tercatat adalah nilai tertinggi dari semua percobaan Anda.';
+            }
+            if (btnRetakeLabel) {
+              const sisa = (maxAttempts === 0) ? 'Bebas' : Math.max(0, maxAttempts - attemptKe);
+              btnRetakeLabel.textContent = `🔄 Kerjakan Ulang Ujian (Sisa Percobaan: ${sisa})`;
+            }
+            if (btnRetake) {
+              btnRetake.onclick = () => {
+                if (confirm('Apakah kamu yakin ingin mengulang ujian ini? Lembar pengerjaan baru akan dimulai.')) {
+                  doRetakeExam();
+                }
+              };
+            }
+          } else {
+            if (btnRetake) btnRetake.classList.add('hidden');
+            if (infoText) {
+              infoText.textContent = `Batas kesempatan mengulang (${maxAttempts}x) telah tercapai. Nilai akhir resmi Anda telah tersimpan secara permanen.`;
+            }
+          }
+        } else {
+          retakeCard.classList.add('hidden');
+        }
+      }
+
       const statusBox = document.getElementById('result-status-content');
       const releasedDetails = document.getElementById('released-details');
 
@@ -6097,6 +6192,63 @@
     }
 
     document.getElementById('btn-start-direct-remedial')?.addEventListener('click', startDirectRemedial);
+
+    // Mengulang Ujian Baru Sesuai Kebijakan Guru
+    async function doRetakeExam() {
+      const kode = (inputExamCode?.value || window._currentExamCode || localStorage.getItem('ulangan_kode') || '').trim();
+      const nama = (inputStudentName?.value || window._currentStudentName || localStorage.getItem('ulangan_nama') || '').trim();
+      const kelas = (selectStudentClass?.value || window._currentStudentClass || localStorage.getItem('ulangan_kelas') || '').trim();
+      const sesiId = window._currentSesi ? window._currentSesi.id : null;
+
+      if (!kode || !nama || !kelas) {
+        localStorage.removeItem('ulangan_pengerjaan_id');
+        window.location.reload();
+        return;
+      }
+
+      const btn = document.getElementById('btn-do-retake-exam');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="inline-block animate-spin mr-1">⏳</span><span>Mempersiapkan Ujian Baru...</span>';
+      }
+
+      try {
+        const res = await fetch('/api/siswa/mulai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            kode_ujian: kode,
+            nama,
+            kelas,
+            sesi_id: sesiId,
+            is_retake: true
+          })
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || 'Gagal memulai ujian ulang.');
+        }
+
+        if (data.alreadySubmitted) {
+          showAlert(data.message || 'Batas pengerjaan telah tercapai.');
+          showResultStep(data);
+          return;
+        }
+
+        currentPengerjaanId = data.pengerjaanId;
+        localStorage.setItem('ulangan_pengerjaan_id', currentPengerjaanId);
+        showExamStep(data);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (err) {
+        alert(err.message || 'Gagal memulai ujian ulang.');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>🔄</span><span id="btn-do-retake-label">Kerjakan Ulang Ujian</span>';
+        }
+      }
+    }
 
     // Muat Riwayat Nilai Ulangan Siswa (Urut Tanggal Descending)
     async function loadExamHistory(pengerjaanId) {

@@ -3005,6 +3005,8 @@ ${jsonExample}
     if (komposisi.koding_game > 0) jenisRingkas.push(`${komposisi.koding_game} Game Koding`);
 
     return {
+      ulangan_id: ulangan.id || null,
+      kode_ujian: ulangan.kode_ujian || null,
       judul_kisi_kisi: `Kisi-Kisi & Rangkuman Materi Pembahasan: ${judul}`,
       mata_pelajaran: mapel,
       tingkat_kelas: kelas,
@@ -3061,17 +3063,22 @@ ${extraInfo}`;
 Tugas Anda adalah menganalisis seluruh ${soalList.length} butir soal ulangan berikut (termasuk soal campuran: Pilihan Ganda, PG Kompleks, Isian Singkat, Essay, maupun Game Koding) dan menyusun **KISI-KISI & URAIAN MATERI PEMBAHASAN DETAIL TINGKAT SMP** yang terpadu, sangat jelas, dan tidak terlalu umum.
 
 ATURAN WAJIB (SANGAT PENTING):
-1. **SATUKAN SOAL YANG MASIH DALAM SATU PEMBAHASAN**:
+1. **ANALISIS EKSKLUSIF BERDASARKAN SOAL TERLAMPIR**:
+   - Analisis dan susun kisi-kisi ini HANYA dan MUTLAK bersumber dari ${soalList.length} butir soal spesifik yang dilampirkan di bawah ini.
+   - JANGAN mengambil atau mencampuradukkan materi dari ulangan lain atau topik umum lainnya sekalipun judul ulangannya sama/mirip!
+2. **SATUKAN SOAL YANG MASIH DALAM SATU PEMBAHASAN**:
    - Jangan memecah kisi-kisi menjadi terlalu banyak bagian yang berulang! Jika ada beberapa nomor soal (misalnya Soal No. 1 dan No. 9, atau Soal PG No. 2 dan Isian No. 3) yang membahas topik/konsep yang sama atau serumpun, **GABUNGKAN / SATUKAN ke dalam satu baris Pokok Pembahasan** (contoh \`"nomor_soal": "No. 2 & 3"\`, \`"bentuk_soal": "Pilihan Ganda & Isian Singkat"\`).
    - Pastikan seluruh nomor soal dari 1 sampai ${soalList.length} tercakup di dalam kelompok-kelompok pembahasan tersebut.
-2. **JANGAN TERLALU UMUM — BUAT SANGAT DETAIL & JELAS UNTUK SISWA SMP**:
+3. **JANGAN TERLALU UMUM — BUAT SANGAT DETAIL & JELAS UNTUK SISWA SMP**:
    - Hindari kalimat klise/umum seperti *"Disajikan soal, siswa dapat memilih jawaban yang tepat"*.
    - Pada kolom \`"indikator_soal"\`, jelaskan secara **spesifik dan konkret** apa yang ditanyakan di masing-masing nomor soal dalam pembahasan tersebut (tanpa menyebutkan huruf kunci jawaban A/B/C/D secara mentah).
    - Pada kolom \`"fokus_belajar"\`, tuliskan **Uraian Materi & Konsep Kunci yang Lengkap untuk Tingkat SMP**: jelaskan langsung pengertian istilah-istilah yang muncul di soal/opsi, perbedaan konsep, rumus/cara hitung (jika ada konversi/hitungan), atau cara kerja logika blok koding (jika ada soal Game Koding), sehingga siswa SMP cukup membaca tabel ini untuk memahami seluruh materi ulangan!
-3. Instruksi tambahan dari guru (jika ada): ${options.instruksiTambahan || 'Satukan soal yang satu pembahasan dan berikan penjelasan materi yang sangat detail serta mudah dipahami siswa tingkat SMP sederajat.'}
+4. Instruksi tambahan dari guru (jika ada): ${options.instruksiTambahan || 'Satukan soal yang satu pembahasan dan berikan penjelasan materi yang sangat detail serta mudah dipahami siswa tingkat SMP sederajat.'}
 
-IDENTITAS ULANGAN:
+IDENTITAS ULANGAN SPESIFIK:
+- ID Ulangan: #${ulangan.id || '-'}
 - Judul Ulangan: ${ulangan.judul || '-'}
+- Kode Akses Ujian: ${ulangan.kode_ujian || '-'}
 - Mata Pelajaran: ${ulangan.mata_pelajaran || '-'}
 - Kelas / Tingkat: ${ulangan.tingkat_kelas || 'SMP / Sederajat'}
 
@@ -3114,6 +3121,8 @@ Kembalikan HASIL HANYA dalam format JSON valid sesuai struktur berikut tanpa tek
         }));
 
         return {
+          ulangan_id: ulangan.id || null,
+          kode_ujian: ulangan.kode_ujian || null,
           judul_kisi_kisi: dataPayload.judul_kisi_kisi || fallback.judul_kisi_kisi,
           mata_pelajaran: fallback.mata_pelajaran,
           tingkat_kelas: fallback.tingkat_kelas,
@@ -3132,6 +3141,8 @@ Kembalikan HASIL HANYA dalam format JSON valid sesuai struktur berikut tanpa tek
 
     return {
       ...fallback,
+      ulangan_id: ulangan.id || null,
+      kode_ujian: ulangan.kode_ujian || null,
       generated_by: 'smart_analyzer_fallback'
     };
   }

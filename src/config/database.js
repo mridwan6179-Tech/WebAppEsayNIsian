@@ -585,6 +585,12 @@ function initDatabase() {
   safeAddColumn('pengerjaan', 'original_soal_ids', 'TEXT DEFAULT NULL');
   safeAddColumn('pengerjaan', 'remedial_ke', 'INTEGER DEFAULT 0');
 
+  // Migrasi: Batas Percobaan Ujian & Kebijakan Nilai Tertinggi
+  safeAddColumn('ulangan', 'maksimal_percobaan', 'INTEGER DEFAULT 1');
+  safeAddColumn('ulangan', 'kebijakan_nilai', "TEXT DEFAULT 'tertinggi'");
+  safeAddColumn('pengerjaan', 'attempt_ke', 'INTEGER DEFAULT 1');
+  safeAddColumn('pengerjaan', 'nilai_terbaik', 'REAL DEFAULT NULL');
+
   if (!existingObjects.has('idx_jawaban_pengerjaan_soal')) {
     try {
       db.exec("UPDATE pengerjaan SET last_active_at = COALESCE(last_active_at, started_at, CURRENT_TIMESTAMP) WHERE last_active_at IS NULL;");
