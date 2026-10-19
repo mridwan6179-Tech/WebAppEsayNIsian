@@ -106,9 +106,12 @@
         <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-2.5 leading-relaxed font-medium" id="resuming-error-msg">
           Koneksi internet terputus sesaat. Lembar soal dan seluruh jawaban Anda tetap tersimpan aman di perangkat ini.
         </p>
-        <div class="flex items-center justify-center space-x-2">
-          <button type="button" onclick="retryResumeSession()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow transition cursor-pointer flex items-center space-x-1.5">
-            <span>🔄 Hubungkan Kembali</span>
+        <div class="flex items-center justify-center space-x-2 flex-wrap gap-2">
+          <button type="button" onclick="window.location.reload()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow transition cursor-pointer flex items-center space-x-1.5">
+            <span>🔄 Muat Ulang Halaman</span>
+          </button>
+          <button type="button" onclick="retryResumeSession()" class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-xl border border-indigo-200 transition cursor-pointer flex items-center space-x-1.5">
+            <span>Hubungkan Ulang</span>
           </button>
           <button type="button" onclick="cancelResumeSession()" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold rounded-xl transition cursor-pointer">
             Keluar Ujian
