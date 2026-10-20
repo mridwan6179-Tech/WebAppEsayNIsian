@@ -347,7 +347,7 @@ test('=== SUITE: REMEDIAL LANGSUNG MANDIRI SISWA ===', async (t) => {
     assert.strictEqual(body.soal[0].id, s1.id);
   });
 
-  await t.test('6. Siswa yang terlanjur selesai (status = submitted) mendapat canDirectRemedial = true meskipun belum dirilis', async () => {
+  await t.test('6. Siswa yang belum dirilis tidak mendapat tombol/hak remedial (canDirectRemedial = false) sampai nilai dirilis', async () => {
     // Buat ulangan dengan remedial_langsung = 1
     const exam = examService.createUlangan(guruId, {
       judul: 'Ulangan Remedial Langsung Unreleased Test',
@@ -373,18 +373,29 @@ test('=== SUITE: REMEDIAL LANGSUNG MANDIRI SISWA ===', async (t) => {
     // Siswa jawab salah (B alih-alih A)
     studentService.submitExam(start.pengerjaanId, [{ soal_id: s1.id, jawaban_siswa: 'B' }]);
 
-    // CATATAN: Guru BELUM merilis nilai (released_at masih NULL!)
+    // CATATAN: Guru/AI BELUM merilis nilai (released_at masih NULL!)
     const pengerjaanDb = db.prepare('SELECT released_at, status FROM pengerjaan WHERE id = ?').get(start.pengerjaanId);
     assert.strictEqual(pengerjaanDb.status, 'submitted');
     assert.strictEqual(pengerjaanDb.released_at, null, 'Nilai belum dirilis resmi');
 
-    // Cek status siswa
+    // Cek status siswa selagi nilai belum dirilis
     const statusRes = studentService.getPengerjaanStatus(start.pengerjaanId);
     assert.strictEqual(statusRes.isReleased, false, 'isReleased harus false');
     assert.strictEqual(statusRes.remedial_langsung, 1, 'remedial_langsung aktif');
-    assert.strictEqual(statusRes.canDirectRemedial, true, 'canDirectRemedial HARUS bernilai true');
+    assert.strictEqual(statusRes.canDirectRemedial, false, 'canDirectRemedial HARUS bernilai false selagi belum dirilis');
 
-    // Siswa bisa langsung memulai sesi remedial
+    // Siswa TIDAK boleh memulai sesi remedial sebelum nilai dirilis
+    assert.throws(() => {
+      studentService.startDirectRemedial(start.pengerjaanId);
+    }, /belum dirilis/i);
+
+    // Sekarang simulasikan nilai dirilis resmi oleh guru / AI
+    db.prepare('UPDATE pengerjaan SET released_at = CURRENT_TIMESTAMP WHERE id = ?').run(start.pengerjaanId);
+    const statusReleased = studentService.getPengerjaanStatus(start.pengerjaanId);
+    assert.strictEqual(statusReleased.isReleased, true, 'isReleased harus true setelah dirilis');
+    assert.strictEqual(statusReleased.canDirectRemedial, true, 'canDirectRemedial menjadi true setelah dirilis dan nilai di bawah KKM');
+
+    // Siswa baru bisa memulai sesi remedial setelah nilai dirilis
     const remedialRes = studentService.startDirectRemedial(start.pengerjaanId);
     assert.strictEqual(remedialRes.success, true);
     assert.strictEqual(remedialRes.isRemedial, true);

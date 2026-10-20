@@ -1227,6 +1227,11 @@ const studentService = {
       throw new Error('Fitur remedial langsung tidak diaktifkan untuk ulangan ini.');
     }
 
+    const isReleased = Boolean(pengerjaan.released_at);
+    if (!isReleased) {
+      throw new Error('Nilai ujian belum dirilis oleh guru/AI. Remedial baru dapat dimulai setelah nilai resmi dirilis.');
+    }
+
     const kkm = Number(ulangan.kkm) || 75;
     const currentScore = pengerjaan.nilai_final !== null ? Number(pengerjaan.nilai_final) : (pengerjaan.nilai_ai !== null ? Number(pengerjaan.nilai_ai) : null);
     if (currentScore !== null && currentScore >= kkm) {
@@ -1700,9 +1705,10 @@ const studentService = {
 
     // Hitung status nilai saat ini untuk evaluasi hak remedial langsung
     const currentScore = pengerjaan.nilai_final !== null ? Number(pengerjaan.nilai_final) : (pengerjaan.nilai_ai !== null ? Number(pengerjaan.nilai_ai) : null);
-    const isUnderKkm = (currentScore !== null) ? (currentScore < examKkm) : true;
-    const isRemedial = Boolean((isReleased && finalScore !== null && finalScore < examKkm) || (isRemedialLangsungActive && pengerjaan.status === 'submitted' && isUnderKkm));
-    const canDirectRemedial = Boolean(isRemedialLangsungActive && pengerjaan.status === 'submitted' && isUnderKkm);
+    // PENTING: Remedial HANYA aktif jika nilai sudah dirilis oleh guru/AI (isReleased === true)
+    const isUnderKkm = (finalScore !== null) ? (finalScore < examKkm) : false;
+    const isRemedial = Boolean(isReleased && isUnderKkm);
+    const canDirectRemedial = Boolean(isReleased && isRemedialLangsungActive && isUnderKkm);
 
     // Normalisasi nomor WA untuk link wa.me
     let cleanWa = (pengerjaan.no_wa_guru || '').replace(/\D/g, '');
