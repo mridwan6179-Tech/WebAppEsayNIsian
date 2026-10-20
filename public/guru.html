@@ -5119,9 +5119,20 @@
     // Login check
     checkAuth();
 
+    // Safety timeout guard (maksimal 10 detik agar tidak pernah berputar tanpa henti)
+    setTimeout(() => {
+      const authLoading = document.getElementById('section-auth-loading');
+      if (authLoading && !authLoading.classList.contains('hidden')) {
+        showLogin();
+      }
+    }, 10000);
+
     async function checkAuth() {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
       try {
-        const res = await guruFetch('/api/auth/me');
+        const res = await guruFetch('/api/auth/me', { signal: controller.signal });
+        clearTimeout(timeoutId);
         const data = await res.json();
         if (res.ok && data.authenticated) {
           showDashboard(data.guru);
@@ -5129,6 +5140,7 @@
           showLogin();
         }
       } catch (e) {
+        clearTimeout(timeoutId);
         showLogin();
       }
     }
@@ -16600,7 +16612,6 @@
           `;
         }
       };
-    }
     }
 
     async function loadOmrLogs() {
