@@ -1149,11 +1149,11 @@ const studentService = {
 
       // 2. Pulihkan daftar soal lengkap ulangan dan hitung ulang nilai total seluruh pengerjaan
       try {
-        db.prepare('UPDATE pengerjaan SET soal_ids = COALESCE(original_soal_ids, soal_ids) WHERE id = ?').run(pengerjaanId);
+        db.prepare('UPDATE pengerjaan SET soal_ids = COALESCE(original_soal_ids, soal_ids), is_in_remedial = 0 WHERE id = ?').run(pengerjaanId);
         const reviewService = require('./reviewService');
         remedialRecalc = reviewService.recalculatePengerjaanTotal(pengerjaanId);
         if (remedialRecalc && remedialRecalc.nilai_final !== null) {
-          db.prepare('UPDATE pengerjaan SET nilai_final = ?, nilai_ai = ?, skor_pg = COALESCE(?, skor_pg), skor_koding = COALESCE(?, skor_koding), released_at = CURRENT_TIMESTAMP WHERE id = ?').run(remedialRecalc.nilai_final, remedialRecalc.nilai_ai, remedialRecalc.skor_pg, remedialRecalc.skor_koding, pengerjaanId);
+          db.prepare('UPDATE pengerjaan SET nilai_final = ?, nilai_ai = ?, skor_pg = COALESCE(?, skor_pg), skor_koding = COALESCE(?, skor_koding), released_at = CURRENT_TIMESTAMP, is_in_remedial = 0 WHERE id = ?').run(remedialRecalc.nilai_final, remedialRecalc.nilai_ai, remedialRecalc.skor_pg, remedialRecalc.skor_koding, pengerjaanId);
         }
       } catch (errRecalc) {
         console.warn('⚠️ Recalculate remedial notice:', errRecalc.message);
@@ -1316,6 +1316,14 @@ const studentService = {
     const newRemedialKe = Number(pengerjaan.remedial_ke || 0) + 1;
     const nowIso = new Date().toISOString();
 
+    // Backup nilai & status awal sebelum remedial untuk proteksi jika remedial tidak terkirim / terputus
+    const prevNilaiFinal = (pengerjaan.nilai_final !== null && pengerjaan.nilai_final !== undefined)
+      ? Number(pengerjaan.nilai_final)
+      : ((pengerjaan.nilai_ai !== null && pengerjaan.nilai_ai !== undefined) ? Number(pengerjaan.nilai_ai) : null);
+    const prevNilaiAi = (pengerjaan.nilai_ai !== null && pengerjaan.nilai_ai !== undefined) ? Number(pengerjaan.nilai_ai) : null;
+    const prevSubmittedAt = pengerjaan.submitted_at || nowIso;
+    const prevReleasedAt = pengerjaan.released_at;
+
     db.transaction(() => {
       db.prepare(`
         UPDATE pengerjaan
@@ -1323,16 +1331,27 @@ const studentService = {
             soal_ids = ?,
             original_soal_ids = COALESCE(original_soal_ids, ?),
             remedial_ke = ?,
+            pre_remedial_nilai_final = COALESCE(pre_remedial_nilai_final, ?),
+            pre_remedial_nilai_ai = COALESCE(pre_remedial_nilai_ai, ?),
+            pre_remedial_submitted_at = COALESCE(pre_remedial_submitted_at, ?),
+            pre_remedial_released_at = COALESCE(pre_remedial_released_at, ?),
+            remedial_started_at = ?,
+            is_in_remedial = 1,
             submitted_at = NULL,
             released_at = NULL,
             last_active_at = ?
         WHERE id = ?
-      `).run(remedialSoalIdsJson, originalSoalIdsJson, newRemedialKe, nowIso, pengerjaan.id);
+      `).run(remedialSoalIdsJson, originalSoalIdsJson, newRemedialKe, prevNilaiFinal, prevNilaiAi, prevSubmittedAt, prevReleasedAt, nowIso, nowIso, pengerjaan.id);
 
-      // Reset jawaban butir yang salah agar bersih dan siap dikerjakan ulang
+      // Backup & reset jawaban butir yang salah agar bersih untuk dikerjakan ulang,
+      // sekaligus mencadangkan jawaban asli jika remedial dibatalkan/ditinggalkan
       const resetJawabanStmt = db.prepare(`
         UPDATE jawaban
-        SET jawaban_siswa = '',
+        SET pre_remedial_jawaban = COALESCE(pre_remedial_jawaban, jawaban_siswa),
+            pre_remedial_skor = COALESCE(pre_remedial_skor, skor_rekomendasi),
+            pre_remedial_status_jawaban = COALESCE(pre_remedial_status_jawaban, status_jawaban),
+            pre_remedial_alasan_ai = COALESCE(pre_remedial_alasan_ai, alasan_ai),
+            jawaban_siswa = '',
             status_penilaian = 'menunggu',
             skor_rekomendasi = NULL,
             status_jawaban = NULL,
@@ -1426,14 +1445,24 @@ const studentService = {
           p.started_at,
           p.last_active_at,
           p.soal_ids,
+          p.original_soal_ids,
+          p.remedial_ke,
+          p.is_in_remedial,
+          p.remedial_started_at,
+          p.pre_remedial_nilai_final,
+          p.pre_remedial_nilai_ai,
+          p.pre_remedial_submitted_at,
+          p.pre_remedial_released_at,
+          p.nilai_ai,
+          p.nilai_final,
           u.durasi_menit,
           u.tanggal_selesai,
           pes.nama as nama_siswa,
           pes.kelas as kelas_siswa,
           COUNT(j.id) as count_jawaban,
           SUM(CASE WHEN j.jawaban_siswa IS NOT NULL AND TRIM(j.jawaban_siswa) != '' THEN 1 ELSE 0 END) as total_terisi,
-          CAST(ROUND((julianday('now') - julianday(COALESCE(p.last_active_at, p.started_at))) * 86400) AS INTEGER) as detik_inaktif,
-          CAST(ROUND((julianday('now') - julianday(p.started_at)) * 1440) AS INTEGER) as menit_berjalan
+          CAST(ROUND((julianday('now') - julianday(COALESCE(p.last_active_at, p.remedial_started_at, p.started_at))) * 86400) AS INTEGER) as detik_inaktif,
+          CAST(ROUND((julianday('now') - julianday(COALESCE(p.remedial_started_at, p.started_at))) * 1440) AS INTEGER) as menit_berjalan
         FROM pengerjaan p
         JOIN ulangan u ON p.ulangan_id = u.id
         JOIN peserta pes ON p.peserta_id = pes.id
@@ -1445,6 +1474,7 @@ const studentService = {
 
       const deletedSessions = [];
       const autoSubmittedSessions = [];
+      const restoredRemedialSessions = [];
 
       for (const row of candidates) {
         const totalTerisi = Number(row.total_terisi || 0);
@@ -1465,7 +1495,7 @@ const studentService = {
           totalJawaban = cRow ? Number(cRow.cnt || 0) : 0;
         }
 
-        const draftLengkap = (totalJawaban > 0 && totalTerisi >= totalJawaban);
+        const isRemedialSession = Boolean(Number(row.is_in_remedial) === 1 || Number(row.remedial_ke) > 0 || row.pre_remedial_submitted_at);
 
         // Sesi DC > 1 jam: inaktif terus-menerus tanpa jeda >= 3600 detik (1 jam) dan sesi sudah berjalan minimal 60 menit
         const isDcOver1Hour = (detikInaktif >= 3600 && menitBerjalan >= 60);
@@ -1484,45 +1514,143 @@ const studentService = {
         const isTimeExpired = isDcOver1Hour || isPastDuration || isPastEndDate;
 
         if (isTimeExpired) {
-          if (draftLengkap) {
-            // KASUS A: Jawaban sudah lengkap -> Auto-Submit (terkirim otomatis, aman tidak dihapus)
-            const nowIso = new Date().toISOString();
-            db.prepare(`
-              UPDATE pengerjaan
-              SET status = 'submitted', submitted_at = ?, auto_submitted = 1
-              WHERE id = ?
-            `).run(nowIso, row.pengerjaan_id);
+          const nowIso = new Date().toISOString();
 
-            autoSubmittedSessions.push({
-              pengerjaan_id: row.pengerjaan_id,
-              nama: row.nama_siswa,
-              kelas: row.kelas_siswa,
-              alasan: isDcOver1Hour ? 'Jawaban lengkap, DC > 1 jam (auto-submit otomatis)' : 'Jawaban lengkap, durasi ulangan habis (auto-submit otomatis)',
-              terisi: totalTerisi,
-              total_jawaban: totalJawaban
-            });
-            console.log(`[CLEANUP AUTO-SUBMIT] Mengirimkan otomatis pengerjaan ID ${row.pengerjaan_id} (${row.nama_siswa} - ${row.kelas_siswa}, jawaban lengkap ${totalTerisi}/${totalJawaban}) karena ${isDcOver1Hour ? 'DC > 1 jam' : 'durasi habis'}.`);
-          } else {
-            // KASUS B: Jawaban belum lengkap / kosong -> Hapus & Reset agar siswa dapat mengulang dari awal
-            const deleteTx = db.transaction(() => {
-              db.prepare('DELETE FROM jawaban WHERE pengerjaan_id = ?').run(row.pengerjaan_id);
-              db.prepare('DELETE FROM pengerjaan WHERE id = ?').run(row.pengerjaan_id);
-              const otherCount = db.prepare('SELECT COUNT(*) as cnt FROM pengerjaan WHERE peserta_id = ?').get(row.peserta_id);
-              if (!otherCount || otherCount.cnt === 0) {
-                db.prepare('DELETE FROM peserta WHERE id = ?').run(row.peserta_id);
+          if (isRemedialSession) {
+            // ========================================================
+            // KASUS REMEDIAL: DATA SISWA & NILAI SEBELUMNYA TIDAK BOLEH HILANG!
+            // ========================================================
+            let remedialTerisi = 0;
+            let activeSoalIds = [];
+            try {
+              if (row.soal_ids) activeSoalIds = JSON.parse(row.soal_ids);
+            } catch (e) {}
+
+            if (Array.isArray(activeSoalIds) && activeSoalIds.length > 0) {
+              const placeholders = activeSoalIds.map(() => '?').join(',');
+              const rRow = db.prepare(`
+                SELECT COUNT(*) as cnt
+                FROM jawaban
+                WHERE pengerjaan_id = ?
+                  AND soal_id IN (${placeholders})
+                  AND jawaban_siswa IS NOT NULL
+                  AND TRIM(jawaban_siswa) != ''
+              `).get(row.pengerjaan_id, ...activeSoalIds);
+              remedialTerisi = rRow ? Number(rRow.cnt || 0) : 0;
+            }
+
+            if (remedialTerisi > 0) {
+              // Jika siswa sempat mengisi butir jawaban remedial, kumpulkan & hitung nilainya
+              try {
+                this.submitExam(row.pengerjaan_id, [], 0, true);
+                autoSubmittedSessions.push({
+                  pengerjaan_id: row.pengerjaan_id,
+                  nama: row.nama_siswa,
+                  kelas: row.kelas_siswa,
+                  alasan: 'Remedial selesai/kedaluwarsa dengan jawaban terisi (auto-submit)',
+                  terisi: remedialTerisi,
+                  total_jawaban: activeSoalIds.length || totalJawaban
+                });
+                console.log(`[CLEANUP REMEDIAL SUBMIT] Mengumpulkan otomatis remedial pengerjaan ID ${row.pengerjaan_id} (${row.nama_siswa}) karena waktu habis.`);
+              } catch (eSub) {
+                console.warn('Gagal auto-submit remedial expired:', eSub.message);
               }
-            });
-            deleteTx();
+            } else {
+              // Jika siswa tidak mengirimkan remedial sama sekali (atau DC/tutup browser),
+              // KEMBALIKAN (RESTORE) status pengerjaan dan nilai ke nilai awal sebelum remedial!
+              db.transaction(() => {
+                // 1. Pulihkan jawaban butir yang sempat di-backup
+                db.prepare(`
+                  UPDATE jawaban
+                  SET jawaban_siswa = COALESCE(pre_remedial_jawaban, jawaban_siswa),
+                      skor_rekomendasi = COALESCE(pre_remedial_skor, skor_rekomendasi),
+                      status_jawaban = COALESCE(pre_remedial_status_jawaban, status_jawaban),
+                      alasan_ai = COALESCE(pre_remedial_alasan_ai, alasan_ai),
+                      status_penilaian = 'selesai'
+                  WHERE pengerjaan_id = ? AND pre_remedial_jawaban IS NOT NULL
+                `).run(row.pengerjaan_id);
 
-            deletedSessions.push({
-              pengerjaan_id: row.pengerjaan_id,
-              nama: row.nama_siswa,
-              kelas: row.kelas_siswa,
-              alasan: isDcOver1Hour ? 'Jawaban belum lengkap, DC > 1 jam (reset untuk ulang)' : 'Jawaban belum lengkap, durasi habis tanpa submit (reset untuk ulang)',
-              terisi: totalTerisi,
-              total_jawaban: totalJawaban
-            });
-            console.log(`[CLEANUP RESET] Menghapus pengerjaan ID ${row.pengerjaan_id} (${row.nama_siswa} - ${row.kelas_siswa}, terisi: ${totalTerisi}/${totalJawaban}) karena belum lengkap dan ${isDcOver1Hour ? 'DC > 1 jam' : 'durasi habis'}. Siswa dapat mengulang dari awal.`);
+                // 2. Pulihkan pengerjaan ke status submitted dengan nilai awal
+                const restoredNilaiFinal = row.pre_remedial_nilai_final !== null ? row.pre_remedial_nilai_final : (row.nilai_final ?? row.nilai_ai);
+                const restoredNilaiAi = row.pre_remedial_nilai_ai !== null ? row.pre_remedial_nilai_ai : row.nilai_ai;
+                const restoredSubmittedAt = row.pre_remedial_submitted_at || row.started_at || nowIso;
+                const restoredReleasedAt = row.pre_remedial_released_at || nowIso;
+
+                db.prepare(`
+                  UPDATE pengerjaan
+                  SET status = 'submitted',
+                      soal_ids = COALESCE(original_soal_ids, soal_ids),
+                      submitted_at = ?,
+                      released_at = ?,
+                      nilai_final = ?,
+                      nilai_ai = ?,
+                      is_in_remedial = 0,
+                      auto_submitted = 1
+                  WHERE id = ?
+                `).run(restoredSubmittedAt, restoredReleasedAt, restoredNilaiFinal, restoredNilaiAi, row.pengerjaan_id);
+              })();
+
+              restoredRemedialSessions.push({
+                pengerjaan_id: row.pengerjaan_id,
+                nama: row.nama_siswa,
+                kelas: row.kelas_siswa,
+                alasan: 'Remedial tidak dikumpulkan (nilai awal dipulihkan aman di database)',
+                terisi: 0,
+                total_jawaban: activeSoalIds.length || totalJawaban
+              });
+              console.log(`[CLEANUP REMEDIAL RESTORE] Nilai awal pengerjaan ID ${row.pengerjaan_id} (${row.nama_siswa}) berhasil dipulihkan aman karena remedial tidak diselesaikan.`);
+            }
+          } else {
+            // ========================================================
+            // KASUS SESI UTAMA (BUKAN REMEDIAL):
+            // ========================================================
+            if (totalTerisi > 0) {
+              // Jika siswa sudah menjawab sebagian atau seluruh soal -> AUTO-SUBMIT (JANGAN PERNAH HAPUS!)
+              db.prepare(`
+                UPDATE pengerjaan
+                SET status = 'submitted', submitted_at = ?, auto_submitted = 1
+                WHERE id = ?
+              `).run(nowIso, row.pengerjaan_id);
+
+              // Coba kalkulasi nilai awal jika pilihan ganda/koding sudah terisi
+              try {
+                const reviewService = require('./reviewService');
+                reviewService.recalculatePengerjaanTotal(row.pengerjaan_id);
+              } catch (eRecalc) {}
+
+              autoSubmittedSessions.push({
+                pengerjaan_id: row.pengerjaan_id,
+                nama: row.nama_siswa,
+                kelas: row.kelas_siswa,
+                alasan: isDcOver1Hour 
+                  ? `Siswa DC > 1 jam (${totalTerisi}/${totalJawaban} soal terisi - auto submit aman)` 
+                  : `Waktu pengerjaan habis (${totalTerisi}/${totalJawaban} soal terisi - auto submit aman)`,
+                terisi: totalTerisi,
+                total_jawaban: totalJawaban
+              });
+              console.log(`[CLEANUP AUTO-SUBMIT] Mengirimkan otomatis pengerjaan ID ${row.pengerjaan_id} (${row.nama_siswa} - ${row.kelas_siswa}, jawaban ${totalTerisi}/${totalJawaban}) karena ${isDcOver1Hour ? 'DC > 1 jam' : 'durasi habis'}. Data aman.`);
+            } else if (isDcOver1Hour) {
+              // HANYA hapus sesi jika BENAR-BENAR KOSONG (0 jawaban terisi) DAN DC > 1 jam
+              const deleteTx = db.transaction(() => {
+                db.prepare('DELETE FROM jawaban WHERE pengerjaan_id = ?').run(row.pengerjaan_id);
+                db.prepare('DELETE FROM pengerjaan WHERE id = ?').run(row.pengerjaan_id);
+                const otherCount = db.prepare('SELECT COUNT(*) as cnt FROM pengerjaan WHERE peserta_id = ?').get(row.peserta_id);
+                if (!otherCount || otherCount.cnt === 0) {
+                  db.prepare('DELETE FROM peserta WHERE id = ?').run(row.peserta_id);
+                }
+              });
+              deleteTx();
+
+              deletedSessions.push({
+                pengerjaan_id: row.pengerjaan_id,
+                nama: row.nama_siswa,
+                kelas: row.kelas_siswa,
+                alasan: 'Sesi kosong (0 soal terisi) dan DC > 1 jam (reset)',
+                terisi: 0,
+                total_jawaban: totalJawaban
+              });
+              console.log(`[CLEANUP RESET] Menghapus pengerjaan kosong ID ${row.pengerjaan_id} (${row.nama_siswa}) karena tidak ada jawaban terisi dan DC > 1 jam.`);
+            }
           }
         }
       }
@@ -1530,7 +1658,8 @@ const studentService = {
       return {
         success: true,
         deleted: deletedSessions,
-        autoSubmitted: autoSubmittedSessions
+        autoSubmitted: autoSubmittedSessions,
+        restoredRemedial: restoredRemedialSessions
       };
     } catch (err) {
       console.error('[CLEANUP ERROR] Gagal membersihkan sesi kedaluwarsa:', err.message);
@@ -1556,11 +1685,25 @@ const studentService = {
     }
 
     const nowIso = new Date().toISOString();
-    db.prepare(`
-      UPDATE pengerjaan
-      SET status = 'submitted', submitted_at = ?, auto_submitted = 1
-      WHERE id = ?
-    `).run(nowIso, pengerjaanId);
+    if (pengerjaan.is_in_remedial || (pengerjaan.remedial_ke && pengerjaan.remedial_ke > 0)) {
+      db.prepare(`
+        UPDATE pengerjaan
+        SET status = 'submitted', submitted_at = ?, auto_submitted = 1,
+            soal_ids = COALESCE(original_soal_ids, soal_ids),
+            is_in_remedial = 0
+        WHERE id = ?
+      `).run(nowIso, pengerjaanId);
+      try {
+        const reviewService = require('./reviewService');
+        reviewService.recalculatePengerjaanTotal(pengerjaanId);
+      } catch (eRecalc) {}
+    } else {
+      db.prepare(`
+        UPDATE pengerjaan
+        SET status = 'submitted', submitted_at = ?, auto_submitted = 1
+        WHERE id = ?
+      `).run(nowIso, pengerjaanId);
+    }
 
     return {
       success: true,
@@ -1863,6 +2006,8 @@ const studentService = {
       kebijakan_nilai: policy,
       nilai_terbaik: bestScore,
       isRemedial,
+      is_in_remedial: Boolean(Number(pengerjaan.is_in_remedial) === 1 || (pengerjaan.status === 'mengerjakan' && remedialKe > 0)),
+      pre_remedial_nilai: pengerjaan.pre_remedial_nilai_final !== null ? pengerjaan.pre_remedial_nilai_final : pengerjaan.pre_remedial_nilai_ai,
       remedial_langsung: isRemedialLangsungActive ? 1 : 0,
       canDirectRemedial,
       remedial_ke: remedialKe,

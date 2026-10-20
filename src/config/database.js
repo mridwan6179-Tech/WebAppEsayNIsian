@@ -610,6 +610,16 @@ function initDatabase() {
   safeAddColumn('ulangan', 'remedial_langsung', 'INTEGER DEFAULT 0');
   safeAddColumn('pengerjaan', 'original_soal_ids', 'TEXT DEFAULT NULL');
   safeAddColumn('pengerjaan', 'remedial_ke', 'INTEGER DEFAULT 0');
+  safeAddColumn('pengerjaan', 'pre_remedial_nilai_final', 'REAL DEFAULT NULL');
+  safeAddColumn('pengerjaan', 'pre_remedial_nilai_ai', 'REAL DEFAULT NULL');
+  safeAddColumn('pengerjaan', 'pre_remedial_submitted_at', 'TEXT DEFAULT NULL');
+  safeAddColumn('pengerjaan', 'pre_remedial_released_at', 'TEXT DEFAULT NULL');
+  safeAddColumn('pengerjaan', 'remedial_started_at', 'DATETIME DEFAULT NULL');
+  safeAddColumn('pengerjaan', 'is_in_remedial', 'INTEGER DEFAULT 0');
+  safeAddColumn('jawaban', 'pre_remedial_jawaban', 'TEXT DEFAULT NULL');
+  safeAddColumn('jawaban', 'pre_remedial_skor', 'REAL DEFAULT NULL');
+  safeAddColumn('jawaban', 'pre_remedial_status_jawaban', 'TEXT DEFAULT NULL');
+  safeAddColumn('jawaban', 'pre_remedial_alasan_ai', 'TEXT DEFAULT NULL');
 
   // Migrasi: Batas Percobaan Ujian & Kebijakan Nilai Tertinggi
   safeAddColumn('ulangan', 'maksimal_percobaan', 'INTEGER DEFAULT 1');

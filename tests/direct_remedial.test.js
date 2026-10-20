@@ -557,4 +557,61 @@ test('=== SUITE: REMEDIAL LANGSUNG MANDIRI SISWA ===', async (t) => {
     assert.ok(names.includes('Andi IPA1'), 'Harus memuat teman sekelas');
     assert.ok(!names.includes('Bambang IPA2'), 'DILARANG memuat siswa dari kelas lain (10-IPA-2)!');
   });
+
+  await t.test('11. Proteksi Nilai Saat Remedial Ditinggalkan / Tidak Terkirim (cleanAbandonedSessions)', async () => {
+    // 1. Buat ulangan KKM = 80, remedial_langsung = 1
+    const exam = examService.createUlangan(guruId, {
+      judul: 'Ulangan Proteksi Nilai Remedial Test',
+      mata_pelajaran: 'Fisika',
+      tingkat_kelas: '11',
+      kkm: 80,
+      remedial_langsung: 1
+    });
+
+    const s1 = examService.createSoal(exam.id, { nomor: 1, jenis: 'pilihan_ganda', pertanyaan: '1+1?', opsi_a: '2', opsi_b: '3', kunci_pg: 'A', bobot: 50 });
+    const s2 = examService.createSoal(exam.id, { nomor: 2, jenis: 'pilihan_ganda', pertanyaan: '2+2?', opsi_a: '4', opsi_b: '5', kunci_pg: 'A', bobot: 50 });
+    db.prepare("UPDATE ulangan SET status = 'dibuka' WHERE id = ?").run(exam.id);
+
+    // 2. Siswa mengerjakan: soal 1 Benar (50), soal 2 Salah (0) -> Nilai = 50 (< KKM 80)
+    const p1 = studentService.startExam(exam.kode_ujian, 'Siswa Tak Selesai Remedial', '11-IPA');
+    studentService.submitExam(p1.pengerjaanId, [
+      { soal_id: s1.id, jawaban_siswa: 'A' },
+      { soal_id: s2.id, jawaban_siswa: 'B' } // salah
+    ]);
+
+    // Rilis nilai
+    db.prepare('UPDATE pengerjaan SET released_at = CURRENT_TIMESTAMP WHERE id = ?').run(p1.pengerjaanId);
+    const st = studentService.getPengerjaanStatus(p1.pengerjaanId);
+    assert.strictEqual(st.nilaiFinal, 50, 'Nilai awal sebelum remedial harus 50');
+
+    // 3. Siswa memulai remedial
+    const remData = studentService.startDirectRemedial(p1.pengerjaanId);
+    assert.strictEqual(remData.success, true);
+    assert.strictEqual(remData.soal.length, 1, 'Hanya 1 butir yang salah yang muncul di remedial');
+
+    // Cek bahwa pengerjaan sekarang berstatus 'mengerjakan' dan is_in_remedial = 1
+    const rowRem = db.prepare('SELECT status, is_in_remedial, pre_remedial_nilai_final FROM pengerjaan WHERE id = ?').get(p1.pengerjaanId);
+    assert.strictEqual(rowRem.status, 'mengerjakan');
+    assert.strictEqual(rowRem.is_in_remedial, 1);
+    assert.strictEqual(rowRem.pre_remedial_nilai_final, 50);
+
+    // 4. Siswa TIDAK mengirim remedial (0 jawaban terisi) dan sesi inaktif / waktu lewat
+    // Simulasikan pengerjaan inaktif > 1 jam
+    db.prepare("UPDATE pengerjaan SET started_at = datetime('now', '-70 minutes'), remedial_started_at = datetime('now', '-70 minutes'), last_active_at = datetime('now', '-70 minutes') WHERE id = ?").run(p1.pengerjaanId);
+
+    // Jalankan cleanAbandonedSessions
+    const cleanRes = studentService.cleanAbandonedSessions(exam.id);
+    assert.strictEqual(cleanRes.restoredRemedial.length, 1, 'Harus merestore 1 sesi remedial yang ditinggalkan');
+    assert.strictEqual(cleanRes.deleted.length, 0, 'TIDAK BOLEH menghapus sesi remedial!');
+
+    // 5. Cek pengerjaan setelah cleanup: Nilai 50 HARUS UTUH dan status kembali ke 'submitted'
+    const afterClean = db.prepare('SELECT status, is_in_remedial, nilai_final, pre_remedial_nilai_final FROM pengerjaan WHERE id = ?').get(p1.pengerjaanId);
+    assert.strictEqual(afterClean.status, 'submitted', 'Status harus kembali ke submitted');
+    assert.strictEqual(afterClean.is_in_remedial, 0, 'is_in_remedial harus kembali ke 0');
+    assert.strictEqual(afterClean.nilai_final, 50, 'Nilai awal 50 TIDAK BOLEH HILANG!');
+
+    // Cek via getPengerjaanStatus
+    const stRestored = studentService.getPengerjaanStatus(p1.pengerjaanId);
+    assert.strictEqual(stRestored.nilaiFinal, 50, 'Nilai siswa di sisi siswa harus tetap 50!');
+  });
 });

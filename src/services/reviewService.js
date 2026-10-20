@@ -9,6 +9,13 @@ const reviewService = {
     const ulangan = db.prepare(`SELECT id, zona_waktu FROM ulangan WHERE id = ? AND ${isOwner ? 'guru_id IN (1, 3)' : 'guru_id = ?'}`).get(...(isOwner ? [ulanganId] : [ulanganId, guruId]));
     if (!ulangan) throw new Error('Ulangan tidak ditemukan atau bukan milik guru ini');
 
+    // Sinkronisasi non-blocking dengan Turso Cloud agar data submit peserta selalu terbarui
+    if (typeof db.syncCloud === 'function') {
+      try {
+        db.syncCloud(true);
+      } catch (syncErr) {}
+    }
+
     // Bersihkan sesi DC kosong (>1 jam atau lewat durasi) dan auto-submit sesi terisi yang kedaluwarsa
     try {
       studentService.cleanAbandonedSessions(ulanganId);
@@ -36,6 +43,14 @@ const reviewService = {
         p.paste_count,
         p.paste_details,
         p.soal_ids,
+        p.original_soal_ids,
+        p.remedial_ke,
+        p.is_in_remedial,
+        p.pre_remedial_nilai_final,
+        p.pre_remedial_nilai_ai,
+        p.pre_remedial_submitted_at,
+        p.pre_remedial_released_at,
+        p.remedial_started_at,
         pes.nama as nama_siswa,
         pes.kelas as kelas_siswa,
         COUNT(j.id) as total_jawaban,
@@ -202,32 +217,38 @@ const reviewService = {
       let terakhir_aktif_teks = 'Sudah mengumpulkan';
       let terakhir_aktif_teks_singkat = '';
 
+      const isRemedial = Boolean(Number(r.is_in_remedial) === 1 || (r.status !== 'submitted' && Number(r.remedial_ke) > 0));
+
       if (r.status !== 'submitted') {
         const diff = r.detik_sejak_aktif;
         // Batas toleransi heartbeat aktif: 45 detik (ping dikirim klien setiap 15 detik)
         if (diff !== null && diff !== undefined && diff >= 0 && diff <= 45) {
           status_kehadiran = 'aktif';
-          terakhir_aktif_teks = 'Sedang aktif di lembar ujian (mengetik/online)';
-          terakhir_aktif_teks_singkat = 'Aktif';
+          terakhir_aktif_teks = isRemedial ? 'Sedang aktif mengerjakan perbaikan remedial' : 'Sedang aktif di lembar ujian (mengetik/online)';
+          terakhir_aktif_teks_singkat = isRemedial ? 'Aktif Remedial' : 'Aktif';
         } else {
           status_kehadiran = 'dc';
           if (diff === null || diff === undefined || diff > 86400 * 30) {
-            terakhir_aktif_teks = 'Terputus (keluar/tutup browser/offline)';
-            terakhir_aktif_teks_singkat = 'Keluar';
+            terakhir_aktif_teks = isRemedial ? 'Terputus saat remedial (keluar/tutup browser/offline)' : 'Terputus (keluar/tutup browser/offline)';
+            terakhir_aktif_teks_singkat = isRemedial ? 'DC Remedial' : 'Keluar';
           } else if (diff < 60) {
-            terakhir_aktif_teks = `Terputus (${diff} detik lalu)`;
-            terakhir_aktif_teks_singkat = `${diff}s lalu`;
+            terakhir_aktif_teks = isRemedial ? `Terputus saat remedial (${diff} detik lalu)` : `Terputus (${diff} detik lalu)`;
+            terakhir_aktif_teks_singkat = isRemedial ? `DC (${diff}s)` : `${diff}s lalu`;
           } else if (diff < 3600) {
             const m = Math.floor(diff / 60);
-            terakhir_aktif_teks = `Terputus (${m} menit lalu)`;
-            terakhir_aktif_teks_singkat = `${m}m lalu`;
+            terakhir_aktif_teks = isRemedial ? `Terputus saat remedial (${m} menit lalu)` : `Terputus (${m} menit lalu)`;
+            terakhir_aktif_teks_singkat = isRemedial ? `DC (${m}m)` : `${m}m lalu`;
           } else {
             const h = Math.floor(diff / 3600);
-            terakhir_aktif_teks = `Terputus (${h} jam lalu)`;
-            terakhir_aktif_teks_singkat = `${h}j lalu`;
+            terakhir_aktif_teks = isRemedial ? `Terputus saat remedial (${h} jam lalu)` : `Terputus (${h} jam lalu)`;
+            terakhir_aktif_teks_singkat = isRemedial ? `DC (${h}j)` : `${h}j lalu`;
           }
         }
       }
+
+      const preNilaiFinal = r.pre_remedial_nilai_final !== null && r.pre_remedial_nilai_final !== undefined ? Number(r.pre_remedial_nilai_final) : null;
+      const preNilaiAi = r.pre_remedial_nilai_ai !== null && r.pre_remedial_nilai_ai !== undefined ? Number(r.pre_remedial_nilai_ai) : null;
+      const nilaiSebelumnya = preNilaiFinal ?? preNilaiAi;
 
       return {
         ...r,
@@ -237,6 +258,11 @@ const reviewService = {
         total_dinilai,
         nilai_ai,
         nilai_final,
+        is_in_remedial: isRemedial,
+        remedial_ke: Number(r.remedial_ke || 0),
+        pre_remedial_nilai_final: preNilaiFinal,
+        pre_remedial_nilai_ai: preNilaiAi,
+        nilai_sebelumnya: nilaiSebelumnya,
         zona_waktu,
         submitted_at_formatted,
         status_kehadiran,

@@ -9399,12 +9399,13 @@
 
     function renderStudentsTable() {
       const tbody = document.getElementById('students-table-body');
-      tbody.innerHTML = '';
+      if (!tbody) return;
 
       if (!currentStudentsList || currentStudentsList.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-slate-400">Belum ada siswa yang mengumpulkan jawaban.</td></tr>';
         document.getElementById('duplicate-warning-box')?.classList.add('hidden');
         renderPesertaPagination(0, 1, 0, 0);
+        tbody._lastRenderedKey = '__empty__';
         return;
       }
 
@@ -9517,6 +9518,7 @@
       if (totalFiltered === 0) {
         tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-slate-400">Tidak ada data siswa yang cocok dengan kriteria filter.</td></tr>';
         renderPesertaPagination(0, 1, 0, 0);
+        tbody._lastRenderedKey = '__no_match__';
         return;
       }
 
@@ -9529,6 +9531,32 @@
       const endIndex = Math.min(startIndex + STUDENTS_PER_PAGE, totalFiltered);
       const pagedStudents = filtered.slice(startIndex, endIndex);
 
+      // Proteksi Kedap-Kedip: Buat sidik jari data halaman aktif
+      const queueInfo = window._latestAiQueueStatus;
+      const renderSignature = JSON.stringify(pagedStudents.map(s => [
+        s.pengerjaan_id,
+        s.status,
+        s.total_terisi,
+        s.total_dinilai,
+        s.nilai_ai,
+        s.nilai_final,
+        s.released_at,
+        s.status_kehadiran,
+        s.is_in_remedial,
+        s.remedial_ke,
+        s.nilai_sebelumnya,
+        queueInfo?.currentlyGrading?.pengerjaan_id === s.pengerjaan_id,
+        (queueInfo?.waitingStudents || []).find(w => w.pengerjaan_id === s.pengerjaan_id)?.urutan
+      ]));
+
+      if (tbody._lastRenderedKey === renderSignature) {
+        renderPesertaPagination(totalFiltered, totalPages, startIndex, endIndex);
+        return; // Data tidak berubah: lewati repainting DOM (menghilangkan kedap-kedip)
+      }
+      tbody._lastRenderedKey = renderSignature;
+
+      const fragment = document.createDocumentFragment();
+
       pagedStudents.forEach(st => {
         const tr = document.createElement('tr');
         const cleanName = (st.nama_siswa || '').trim().toLowerCase();
@@ -9539,6 +9567,7 @@
         const queueInfo = window._latestAiQueueStatus;
         const isGradingNow = queueInfo && queueInfo.currentlyGrading && queueInfo.currentlyGrading.pengerjaan_id === st.pengerjaan_id;
         const waitStudent = queueInfo && Array.isArray(queueInfo.waitingStudents) ? queueInfo.waitingStudents.find(w => w.pengerjaan_id === st.pengerjaan_id) : null;
+        const isRemedialActive = Boolean(st.is_in_remedial || (st.status !== 'submitted' && st.remedial_ke > 0));
 
         tr.innerHTML = `
           <td class="p-3 font-semibold text-slate-900 min-w-[150px]">
@@ -9546,6 +9575,7 @@
               <span>${escapeHtml(st.nama_siswa)}</span>
               ${isGradingNow ? `<span class="bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded-full font-extrabold shadow-2xs animate-pulse flex items-center space-x-1"><span class="w-1.5 h-1.5 rounded-full bg-white"></span><span>⚡ Dinilai AI (#1)</span></span>` : ''}
               ${(waitStudent && !isGradingNow) ? `<span class="bg-indigo-100 text-indigo-900 border border-indigo-300 text-[10px] px-2 py-0.5 rounded-full font-bold" title="Urutan antrean penilaian AI ke-${waitStudent.urutan}">⏳ Antrean #${waitStudent.urutan}</span>` : ''}
+              ${isRemedialActive ? `<span class="bg-amber-100 text-amber-950 border border-amber-300 text-[10px] px-2 py-0.5 rounded-full font-extrabold flex items-center space-x-1 shadow-2xs"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span><span>🔄 Remedial #${st.remedial_ke || 1}</span></span>` : ''}
               ${st.attempt_ke ? `<span class="bg-indigo-100 text-indigo-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-indigo-200" title="Percobaan ke-${st.attempt_ke}">Uji #${st.attempt_ke}</span>` : ''}
               ${(st.nilai_terbaik !== null && st.nilai_terbaik !== undefined) ? `<span class="bg-purple-100 text-purple-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-purple-200" title="Nilai Terbaik: ${st.nilai_terbaik}">Best: ${st.nilai_terbaik}</span>` : ''}
               ${dupCount > 1 ? `<span class="bg-rose-100 text-rose-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-rose-200" title="Nama siswa ini terdaftar ${dupCount} kali pengerjaan">⚠️ ${dupCount}x Data</span>` : ''}
@@ -9576,15 +9606,24 @@
           <td class="p-3 whitespace-nowrap">
             ${st.submitted_at 
               ? formatWaktuSubmit(st.submitted_at, st.zona_waktu || 'WIB')
-              : `<span class="inline-flex items-center text-xs text-slate-400 italic bg-slate-50 px-2 py-0.5 rounded border border-slate-200" title="Jawaban masih berupa draft di server dan belum dikumpulkan">
-                   <span>📝 Draft Tersimpan</span>
-                 </span>`
+              : (isRemedialActive 
+                  ? `<span class="inline-flex items-center text-xs text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-300 font-semibold" title="Siswa sedang mengerjakan perbaikan remedial mandiri">
+                       <span>🔄 Lembar Remedial</span>
+                     </span>`
+                  : `<span class="inline-flex items-center text-xs text-slate-400 italic bg-slate-50 px-2 py-0.5 rounded border border-slate-200" title="Jawaban masih berupa draft di server dan belum dikumpulkan">
+                       <span>📝 Draft Tersimpan</span>
+                     </span>`
+                )
             }
           </td>
           <td class="p-3 whitespace-nowrap">
             ${st.status === 'submitted' ? `
               <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${st.total_dinilai >= st.total_jawaban ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
                 ${st.total_dinilai} / ${st.total_jawaban} Selesai
+              </span>
+            ` : (isRemedialActive ? `
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs" title="Siswa sedang memperbaiki butir remedial (#${st.remedial_ke || 1})">
+                <span class="mr-1">🔄</span> Sedang Remedial (#${st.remedial_ke || 1})
               </span>
             ` : (st.draft_lengkap ? `
               <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs cursor-help" title="Seluruh ${st.total_terisi} dari ${st.total_jawaban} butir soal telah terisi lengkap di server. Siswa terputus koneksi sebelum klik kumpulkan.">
@@ -9598,43 +9637,68 @@
               <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200" title="Belum ada jawaban terisi di draft">
                 0 / ${st.total_jawaban} Terisi
               </span>
-            `))}
+            `)))}
           </td>
-          <td class="p-3 font-semibold text-purple-700 text-center whitespace-nowrap">${st.nilai_ai !== null && st.nilai_ai !== undefined ? st.nilai_ai : '-'}</td>
-          <td class="p-3 font-bold text-blue-600 text-center whitespace-nowrap">${st.nilai_final !== null && st.nilai_final !== undefined ? st.nilai_final : '-'}</td>
+          <td class="p-3 font-semibold text-purple-700 text-center whitespace-nowrap">
+            ${st.nilai_ai !== null && st.nilai_ai !== undefined 
+              ? st.nilai_ai 
+              : (st.pre_remedial_nilai_ai !== null && st.pre_remedial_nilai_ai !== undefined 
+                  ? `<span class="text-purple-500 text-xs" title="Nilai AI awal">${st.pre_remedial_nilai_ai} (Awal)</span>` 
+                  : '-')}
+          </td>
+          <td class="p-3 font-bold text-blue-600 text-center whitespace-nowrap">
+            ${st.nilai_final !== null && st.nilai_final !== undefined 
+              ? st.nilai_final 
+              : (st.pre_remedial_nilai_final !== null && st.pre_remedial_nilai_final !== undefined 
+                  ? `<span class="text-blue-500 text-xs" title="Nilai resmi awal">${st.pre_remedial_nilai_final} (Awal)</span>` 
+                  : (st.nilai_sebelumnya !== null && st.nilai_sebelumnya !== undefined 
+                      ? `<span class="text-blue-500 text-xs" title="Nilai awal">${st.nilai_sebelumnya} (Awal)</span>` 
+                      : '-'))}
+          </td>
           <td class="p-3 whitespace-nowrap">
-            ${st.status !== 'submitted'
-              ? (st.status_kehadiran === 'aktif'
-                  ? `<div class="flex items-center space-x-1 flex-wrap">
-                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs cursor-help" title="${escapeHtml(st.terakhir_aktif_teks || 'Sedang aktif di halaman ujian')}">
-                        <span class="relative flex h-2 w-2 mr-1.5">
-                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                        </span>
-                        <span>Aktif</span>
-                      </span>
-                      ${st.draft_lengkap ? `<span class="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-emerald-300 shadow-2xs" title="Seluruh jawaban (${st.total_terisi} butir soal) sudah lengkap terisi di server">🟢 Jawaban Lengkap</span>` : ''}
-                     </div>`
-                  : `<div class="flex items-center space-x-1 flex-wrap">
-                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-300 shadow-2xs cursor-help" title="${escapeHtml(st.terakhir_aktif_teks || 'Koneksi terputus / keluar')}">
-                        <span class="w-2 h-2 rounded-full bg-rose-500 mr-1.5 inline-block"></span>
-                        <span>Terputus (DC)</span>
-                        ${st.terakhir_aktif_teks_singkat ? `<span class="text-[10px] text-rose-600 font-normal ml-1">(${escapeHtml(st.terakhir_aktif_teks_singkat)})</span>` : ''}
-                      </span>
-                      ${st.draft_lengkap ? `<span class="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-emerald-300 shadow-2xs" title="Siswa terputus namun seluruh jawaban (${st.total_terisi} butir soal) sudah lengkap di server">🟢 Jawaban Lengkap</span>` : ''}
-                     </div>`
-                )
-              : (st.released_at 
-                  ? `<button type="button" onclick="toggleReleaseSingleStudent(${st.pengerjaan_id}, false)" class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 hover:bg-rose-100 text-emerald-800 hover:text-rose-700 border border-emerald-300 hover:border-rose-300 shadow-xs transition group cursor-pointer" title="Nilai sudah dapat dilihat siswa. Klik untuk MENARIK rilis nilai siswa ini.">
-                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:bg-rose-500 mr-1.5 animate-pulse"></span>
-                      <span class="group-hover:hidden">🟢 Dirilis</span>
-                      <span class="hidden group-hover:inline">🔒 Tarik Rilis</span>
-                     </button>`
-                  : `<button type="button" onclick="toggleReleaseSingleStudent(${st.pengerjaan_id}, true)" class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-800 border border-slate-200 hover:border-emerald-300 transition group cursor-pointer" title="Nilai belum dirilis. Klik untuk MERILIS nilai siswa ini secara perorangan.">
-                      <span class="w-1.5 h-1.5 rounded-full bg-slate-400 group-hover:bg-emerald-500 mr-1.5"></span>
-                      <span class="group-hover:hidden">🔒 Belum Dirilis</span>
-                      <span class="hidden group-hover:inline">📢 Rilis Nilai</span>
-                     </button>`
+            ${isRemedialActive
+              ? `<div class="flex items-center space-x-1 flex-wrap">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${st.status_kehadiran === 'aktif' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-rose-50 text-rose-800 border border-rose-300'} shadow-2xs">
+                    <span class="w-2 h-2 rounded-full ${st.status_kehadiran === 'aktif' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'} mr-1.5 inline-block"></span>
+                    <span>${st.status_kehadiran === 'aktif' ? 'Aktif Remedial' : 'DC Remedial'}</span>
+                  </span>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs" title="Nilai awal ${st.nilai_sebelumnya ?? st.pre_remedial_nilai_final ?? '-'} aman di database">
+                    🔒 Nilai Awal Aman
+                  </span>
+                 </div>`
+              : (st.status !== 'submitted'
+                  ? (st.status_kehadiran === 'aktif'
+                      ? `<div class="flex items-center space-x-1 flex-wrap">
+                          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs cursor-help" title="${escapeHtml(st.terakhir_aktif_teks || 'Sedang aktif di halaman ujian')}">
+                            <span class="relative flex h-2 w-2 mr-1.5">
+                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                            <span>Aktif</span>
+                          </span>
+                          ${st.draft_lengkap ? `<span class="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-emerald-300 shadow-2xs" title="Seluruh jawaban (${st.total_terisi} butir soal) sudah lengkap terisi di server">🟢 Jawaban Lengkap</span>` : ''}
+                         </div>`
+                      : `<div class="flex items-center space-x-1 flex-wrap">
+                          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-300 shadow-2xs cursor-help" title="${escapeHtml(st.terakhir_aktif_teks || 'Koneksi terputus / keluar')}">
+                            <span class="w-2 h-2 rounded-full bg-rose-500 mr-1.5 inline-block"></span>
+                            <span>Terputus (DC)</span>
+                            ${st.terakhir_aktif_teks_singkat ? `<span class="text-[10px] text-rose-600 font-normal ml-1">(${escapeHtml(st.terakhir_aktif_teks_singkat)})</span>` : ''}
+                          </span>
+                          ${st.draft_lengkap ? `<span class="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-emerald-300 shadow-2xs" title="Siswa terputus namun seluruh jawaban (${st.total_terisi} butir soal) sudah lengkap di server">🟢 Jawaban Lengkap</span>` : ''}
+                         </div>`
+                    )
+                  : (st.released_at 
+                      ? `<button type="button" onclick="toggleReleaseSingleStudent(${st.pengerjaan_id}, false)" class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 hover:bg-rose-100 text-emerald-800 hover:text-rose-700 border border-emerald-300 hover:border-rose-300 shadow-xs transition group cursor-pointer" title="Nilai sudah dapat dilihat siswa. Klik untuk MENARIK rilis nilai siswa ini.">
+                          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:bg-rose-500 mr-1.5 animate-pulse"></span>
+                          <span class="group-hover:hidden">🟢 Dirilis</span>
+                          <span class="hidden group-hover:inline">🔒 Tarik Rilis</span>
+                         </button>`
+                      : `<button type="button" onclick="toggleReleaseSingleStudent(${st.pengerjaan_id}, true)" class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-800 border border-slate-200 hover:border-emerald-300 transition group cursor-pointer" title="Nilai belum dirilis. Klik untuk MERILIS nilai siswa ini secara perorangan.">
+                          <span class="w-1.5 h-1.5 rounded-full bg-slate-400 group-hover:bg-emerald-500 mr-1.5"></span>
+                          <span class="group-hover:hidden">🔒 Belum Dirilis</span>
+                          <span class="hidden group-hover:inline">📢 Rilis Nilai</span>
+                         </button>`
+                    )
                 )
             }
           </td>
@@ -9651,7 +9715,11 @@
                 <button type="button" onclick="forceSubmitSingleStudent(${st.pengerjaan_id}, this)" class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold px-2 py-1 rounded transition cursor-pointer" title="Kumpulkan pengerjaan draft siswa ini (Finalisasi oleh Guru)">
                   <span>📥 Kumpul</span>
                 </button>
-              ` : '')}
+              ` : (isRemedialActive ? `
+                <button type="button" onclick="forceSubmitSingleStudent(${st.pengerjaan_id}, this)" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-semibold px-2 py-1 rounded transition cursor-pointer" title="Finalisasi sesi remedial siswa ini">
+                  <span>📥 Finalisasi</span>
+                </button>
+              ` : ''))}
               <button onclick="openReviewModal(${st.pengerjaan_id})" class="text-xs bg-slate-100 hover:bg-blue-50 text-blue-600 font-semibold px-2.5 py-1 rounded transition cursor-pointer" title="Review butir jawaban siswa">
                 Review &orarr;
               </button>
@@ -9661,8 +9729,10 @@
             </div>
           </td>
         `;
-        tbody.appendChild(tr);
+        fragment.appendChild(tr);
       });
+
+      tbody.replaceChildren(fragment);
 
       renderPesertaPagination(totalFiltered, totalPages, startIndex, endIndex);
     }
@@ -9721,8 +9791,10 @@
       document.getElementById('students-table-body')?.closest('.overflow-x-auto')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
+    let isLoadingPeserta = false;
     async function loadPesertaList(ulanganId) {
-      if (!ulanganId) return;
+      if (!ulanganId || isLoadingPeserta) return;
+      isLoadingPeserta = true;
       try {
         const res = await guruFetch(`/api/guru/ulangan/${ulanganId}/peserta`);
         const data = await res.json();
@@ -9857,6 +9929,8 @@
         renderStudentsTable();
       } catch (err) {
         console.error(err);
+      } finally {
+        isLoadingPeserta = false;
       }
     }
 
@@ -10374,8 +10448,12 @@
 
           if (data.status) {
             renderAiStatusUI(data.status, true);
-            if (typeof loadPesertaList === 'function') {
-              loadPesertaList(ulanganId);
+            const now = Date.now();
+            if (!window._lastLoopPesertaLoad || now - window._lastLoopPesertaLoad > 5000) {
+              window._lastLoopPesertaLoad = now;
+              if (typeof loadPesertaList === 'function') {
+                loadPesertaList(ulanganId);
+              }
             }
           }
 
@@ -10631,7 +10709,9 @@
       aiPollingTimer = setInterval(() => {
         if (activeUlanganId) {
           checkAiStatus(activeUlanganId);
-          loadPesertaList(activeUlanganId);
+          if (!isAiReviewLoopActive) {
+            loadPesertaList(activeUlanganId);
+          }
         }
       }, 3000);
       checkAiStatus(activeUlanganId);
