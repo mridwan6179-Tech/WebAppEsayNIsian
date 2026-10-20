@@ -1520,6 +1520,11 @@ const studentService = {
           }
         }
 
+        // Proteksi: Jangan sentuh sesi siswa yang masih dalam durasi pengerjaan sah
+        if (durasiMenit > 0 && menitBerjalan < durasiMenit && !isDcOver1Hour && !isPastEndDate) {
+          continue;
+        }
+
         const isTimeExpired = isDcOver1Hour || isPastDuration || isPastEndDate;
 
         if (isTimeExpired) {
@@ -1638,8 +1643,8 @@ const studentService = {
                 total_jawaban: totalJawaban
               });
               console.log(`[CLEANUP AUTO-SUBMIT] Mengirimkan otomatis pengerjaan ID ${row.pengerjaan_id} (${row.nama_siswa} - ${row.kelas_siswa}, jawaban ${totalTerisi}/${totalJawaban}) karena ${isDcOver1Hour ? 'DC > 1 jam' : 'durasi habis'}. Data aman.`);
-            } else if (isDcOver1Hour) {
-              // HANYA hapus sesi jika BENAR-BENAR KOSONG (0 jawaban terisi) DAN DC > 1 jam
+            } else if (isDcOver1Hour && totalTerisi === 0 && !isRemedialSession) {
+              // HANYA hapus sesi jika BENAR-BENAR KOSONG (0 jawaban terisi) DAN DC > 1 jam terus-menerus
               const deleteTx = db.transaction(() => {
                 db.prepare('DELETE FROM jawaban WHERE pengerjaan_id = ?').run(row.pengerjaan_id);
                 db.prepare('DELETE FROM pengerjaan WHERE id = ?').run(row.pengerjaan_id);
@@ -1659,6 +1664,24 @@ const studentService = {
                 total_jawaban: totalJawaban
               });
               console.log(`[CLEANUP RESET] Menghapus pengerjaan kosong ID ${row.pengerjaan_id} (${row.nama_siswa}) karena tidak ada jawaban terisi dan DC > 1 jam.`);
+            } else if ((isPastDuration || isPastEndDate) && totalTerisi === 0) {
+              // Jika waktu durasi ulangan habis dan siswa tidak mengisi jawaban sama sekali (namun bukan DC > 1 jam),
+              // JANGAN HAPUS SESI! Tandai submitted nilai 0 agar rekaman kehadiran siswa tetap aman dan pengerjaan tidak hilang.
+              db.prepare(`
+                UPDATE pengerjaan
+                SET status = 'submitted', submitted_at = ?, auto_submitted = 1, nilai_final = 0, nilai_ai = 0
+                WHERE id = ?
+              `).run(nowIso, row.pengerjaan_id);
+
+              autoSubmittedSessions.push({
+                pengerjaan_id: row.pengerjaan_id,
+                nama: row.nama_siswa,
+                kelas: row.kelas_siswa,
+                alasan: 'Durasi ujian habis (0 jawaban terisi - auto submit nilai 0)',
+                terisi: 0,
+                total_jawaban: totalJawaban
+              });
+              console.log(`[CLEANUP EXPIRED 0] Auto-submit nilai 0 untuk ID ${row.pengerjaan_id} (${row.nama_siswa}) karena durasi habis. Data sesi tetap tersimpan.`);
             }
           }
         }
@@ -2293,6 +2316,8 @@ const studentService = {
       },
       deadline_at: deadlineAt ? deadlineAt.toISOString() : null,
       server_time: new Date().toISOString(),
+      isRemedial: Boolean(Number(pengerjaan.is_in_remedial) === 1 || Number(pengerjaan.remedial_ke) > 0),
+      remedial_ke: Number(pengerjaan.remedial_ke || 0),
       soal: displaySoalWithAnswers
     };
   },

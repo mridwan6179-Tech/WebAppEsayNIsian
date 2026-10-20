@@ -427,6 +427,10 @@ app.post('/api/siswa/submit', async (req, res) => {
       waitingRoomService.releaseSlot(pengerjaanBefore.ulangan_id);
     }
 
+    // Invalidate cache hasil & sesi seketika saat jawaban berhasil dikumpulkan
+    invalidateCache(`hasil:${pengerjaan_id}`);
+    invalidateCache(`sesi:${pengerjaan_id}`);
+
     res.json(result);
   } catch (err) {
     // Rescue guard: Jika submit melempar error, cek apakah sesi sebenarnya sudah berhasil tersimpan sebagai submitted di database
@@ -455,6 +459,9 @@ app.post('/api/siswa/draft', (req, res) => {
   try {
     const { pengerjaan_id, jawaban, paste_count, paste_details } = req.body;
     const result = studentService.saveDraft(pengerjaan_id, jawaban, paste_count, paste_details);
+    if (pengerjaan_id) {
+      invalidateCache(`sesi:${pengerjaan_id}`);
+    }
     res.json({ success: true, data: result });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -541,6 +548,8 @@ app.post('/api/siswa/remedial/mulai', (req, res) => {
       return res.status(400).json({ success: false, message: 'pengerjaan_id wajib disertakan' });
     }
     const result = studentService.startDirectRemedial(pengerjaan_id, { nama, kelas });
+    invalidateCache(`hasil:${pengerjaan_id}`);
+    invalidateCache(`sesi:${pengerjaan_id}`);
     res.json(result);
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });

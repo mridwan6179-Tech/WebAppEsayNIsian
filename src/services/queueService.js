@@ -16,7 +16,7 @@ const queueService = {
     return seconds * 1000; // milidetik
   },
 
-  // Pemulihan kunci antrean yang macet (misal serverless restart/crash/timeout > 60 detik)
+  // Pemulihan kunci antrean yang macet (misal serverless restart/crash/timeout > 25 detik)
   recoverStaleLocks(ulanganId = null) {
     try {
       const condition = ulanganId 
@@ -24,20 +24,52 @@ const queueService = {
         : '';
       const params = ulanganId ? [ulanganId] : [];
 
-      db.prepare(`
-        UPDATE antrean_review 
-        SET status = 'menunggu' 
-        WHERE status = 'diproses' 
-          AND (locked_at IS NULL OR datetime(locked_at) <= datetime('now', '-60 seconds'))
+      // Ambil butir yang terkunci lebih dari 25 detik (hang / crash / timeout)
+      const staleProcessing = db.prepare(`
+        SELECT a.id as antrean_id, j.id as jawaban_id, j.pengerjaan_id, j.jawaban_siswa, j.skor_maksimum,
+               s.pertanyaan, s.jenis, s.bobot, s.kunci_jawaban, s.rubrik
+        FROM antrean_review a
+        JOIN jawaban j ON a.jawaban_id = j.id
+        JOIN soal s ON j.soal_id = s.id
+        JOIN pengerjaan p ON j.pengerjaan_id = p.id
+        WHERE a.status = 'diproses'
+          AND (a.locked_at IS NULL OR datetime(a.locked_at) <= datetime('now', '-25 seconds'))
           ${condition}
-      `).run(...params);
+      `).all(...params);
 
-      db.prepare(`
-        UPDATE jawaban 
-        SET status_penilaian = 'menunggu' 
-        WHERE status_penilaian = 'diproses' 
-          AND id IN (SELECT jawaban_id FROM antrean_review WHERE status = 'menunggu')
-      `).run();
+      if (staleProcessing.length > 0) {
+        const geminiService = require('./geminiService');
+        const reviewService = require('./reviewService');
+        for (const item of staleProcessing) {
+          try {
+            const fb = geminiService.fallbackOfflineEvaluation({
+              pertanyaan: item.pertanyaan,
+              kunci_jawaban: item.kunci_jawaban || '',
+              rubrik: item.rubrik || '',
+              jawaban_siswa: item.jawaban_siswa || '',
+              bobot: item.bobot,
+              skor_maksimum: item.skor_maksimum,
+              jenis: item.jenis
+            });
+            db.prepare(`
+              UPDATE jawaban
+              SET skor_rekomendasi = ?, status_jawaban = ?, alasan_ai = ?, model_ai = 'fallback_offline', status_penilaian = 'selesai', reviewed_at = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `).run(fb.skor_rekomendasi, fb.status_jawaban, (fb.alasan_ai || '') + ' (Watchdog auto-recovery)', item.jawaban_id);
+            db.prepare(`
+              UPDATE antrean_review
+              SET status = 'selesai', completed_at = CURRENT_TIMESTAMP, error_message = 'Auto-recovered from stale lock'
+              WHERE id = ?
+            `).run(item.antrean_id);
+            if (item.pengerjaan_id) {
+              reviewService.recalculatePengerjaanTotal(item.pengerjaan_id);
+            }
+          } catch (healErr) {
+            db.prepare(`UPDATE antrean_review SET status = 'menunggu' WHERE id = ?`).run(item.antrean_id);
+            db.prepare(`UPDATE jawaban SET status_penilaian = 'menunggu' WHERE id = ?`).run(item.jawaban_id);
+          }
+        }
+      }
 
       // Auto-heal butir gagal agar antrean tidak macet selamanya
       const failedItems = db.prepare(`
@@ -349,7 +381,7 @@ const queueService = {
         WHERE p.ulangan_id = ?
           AND a.status = 'diproses' 
           AND a.locked_at IS NOT NULL 
-          AND datetime(a.locked_at) >= datetime('now', '-90 seconds')
+          AND datetime(a.locked_at) >= datetime('now', '-25 seconds')
         LIMIT 1
       `).get(id);
 
@@ -429,13 +461,10 @@ const queueService = {
         try {
           result = await geminiService.gradeAnswer(queueItem);
         } catch (aiErr) {
-          // Jika fitur skor_langsung_ai aktif dan sudah mencapai percobaan terakhir (attempt ke-3),
-          // gunakan evaluasi semantik offline sebagai jaring pengaman agar skor siswa tidak macet selamanya
-          if (Number(queueItem.skor_langsung_ai) === 1 && (queueItem.attempt_count + 1) >= 3) {
-            result = geminiService.fallbackOfflineEvaluation(queueItem);
-          } else {
-            throw aiErr;
-          }
+          // Jaring Pengaman Anti-Stuck: Jika API Gemini timeout, 429 rate limit, atau server offline,
+          // langsung evaluasi semantik offline agar antrean siswa berikutnya tidak tertahan!
+          console.warn(`[GEMINI GRADING NOTICE] Butir #${queueItem.jawaban_id} gagal dinilai online (${aiErr.message}). Menggunakan evaluasi offline darurat.`);
+          result = geminiService.fallbackOfflineEvaluation(queueItem);
         }
       }
 
@@ -612,20 +641,19 @@ const queueService = {
     }
 
     const isTestEnv = process.env.NODE_ENV === 'test' || process.argv.some(arg => arg.includes('test'));
-    const minIntervalMs = options.minIntervalMs !== undefined ? Number(options.minIntervalMs) : (isTestEnv ? 0 : 4500);
+    const minIntervalMs = options.minIntervalMs !== undefined ? Number(options.minIntervalMs) : (isTestEnv ? 0 : 2200);
     const now = Date.now();
 
     if (minIntervalMs > 0 && (now - lastAutoTickAt) < minIntervalMs) {
       return { skipped: true, reason: 'throttled_memory' };
     }
 
-    // Pastikan tidak ada item antrean yang sedang diproses baru-baru ini (< 5 detik) atau baru selesai (< 4 detik)
+    // Pastikan tidak ada item antrean yang saat ini sedang aktif dievaluasi (< 5 detik)
     if (minIntervalMs > 0) {
       try {
         const recentActivity = db.prepare(`
           SELECT id FROM antrean_review
-          WHERE (status = 'diproses' AND locked_at IS NOT NULL AND datetime(locked_at) >= datetime('now', '-5 seconds'))
-             OR (status = 'selesai' AND completed_at IS NOT NULL AND datetime(completed_at) >= datetime('now', '-4 seconds'))
+          WHERE status = 'diproses' AND locked_at IS NOT NULL AND datetime(locked_at) >= datetime('now', '-5 seconds')
           LIMIT 1
         `).get();
         if (recentActivity) {

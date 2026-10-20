@@ -513,7 +513,7 @@
       </div>
 
       <!-- Container Soal -->
-      <form id="form-exam" class="space-y-3.5 sm:space-y-5">
+      <form id="form-exam" autocomplete="off" class="space-y-3.5 sm:space-y-5">
         <div id="questions-container" class="space-y-3 sm:space-y-4 font-exam-normal"></div>
 
         <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
@@ -1021,11 +1021,19 @@
 
       <!-- Rincian Nilai Jika Sudah Dirilis -->
       <div id="released-details" class="hidden space-y-6 mt-6 border-t border-slate-200 pt-6">
-        <div class="flex items-center justify-between">
-          <h3 class="font-bold text-slate-900 text-base">Rincian Hasil Pengerjaan</h3>
-          <div class="text-right">
-            <span class="text-xs text-slate-500 block">Nilai Akhir (Skala 100)</span>
-            <span id="final-score-badge" class="text-2xl font-extrabold text-blue-600">0</span>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl shadow-2xs">
+          <div>
+            <h3 class="font-bold text-slate-900 text-base">Rincian Hasil Pengerjaan</h3>
+            <p class="text-xs text-slate-600 font-semibold flex items-center gap-1.5 mt-0.5">
+              <span>👤 Siswa:</span>
+              <strong id="review-student-name" class="font-black text-indigo-950">-</strong>
+              <span id="review-student-class" class="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded-md text-[11px] font-bold">-</span>
+            </p>
+          </div>
+          <div class="text-left sm:text-right bg-white sm:bg-transparent p-2 sm:p-0 rounded-lg border sm:border-0 border-slate-200">
+            <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Nilai Akhir Resmi</span>
+            <span id="final-score-badge" class="text-3xl font-black text-blue-600">0</span>
+            <span class="text-xs text-slate-400 font-normal"> / 100</span>
           </div>
         </div>
         <div id="answers-review-list" class="space-y-3"></div>
@@ -1036,7 +1044,9 @@
             <div>
               <span class="text-xs font-semibold text-blue-700 uppercase tracking-wider block">Ringkasan Hasil Evaluasi</span>
               <h4 class="text-lg font-black text-slate-900 mt-0.5">Total Nilai Kamu: <span id="card-total-score" class="text-2xl text-blue-600 font-black">0</span> <span class="text-sm font-medium text-slate-500">/ 100</span></h4>
-              <p class="text-xs text-slate-600 mt-1">Standar KKM Ulangan: <span id="card-kkm-val" class="font-bold text-slate-800">75</span></p>
+              <p class="text-xs text-slate-600 mt-1">
+                👤 Pemilik Lembar: <strong id="card-student-identity" class="text-indigo-900 font-black">-</strong> &bull; KKM: <span id="card-kkm-val" class="font-bold text-slate-800">75</span>
+              </p>
             </div>
             <div id="card-kkm-status-badge" class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-sm text-center">
               -
@@ -1114,6 +1124,9 @@
     const paramHasil = urlParams.get('hasil') || urlParams.get('id') || urlParams.get('pengerjaan');
     if (paramHasil) {
       localStorage.setItem('ulangan_pengerjaan_id', paramHasil);
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {}
     }
 
     let currentPengerjaanId = localStorage.getItem('ulangan_pengerjaan_id');
@@ -4794,6 +4807,14 @@
       document.getElementById('exam-desc').textContent = data.ulangan.deskripsi || 'Silakan kerjakan dengan teliti.';
       document.getElementById('student-info').textContent = data.peserta.nama;
       document.getElementById('student-class').textContent = data.peserta.kelas;
+      if (data.peserta?.nama) {
+        window._currentStudentName = data.peserta.nama;
+        try { localStorage.setItem('ulangan_nama', data.peserta.nama); } catch (e) {}
+      }
+      if (data.peserta?.kelas) {
+        window._currentStudentClass = data.peserta.kelas;
+        try { localStorage.setItem('ulangan_kelas', data.peserta.kelas); } catch (e) {}
+      }
 
       // Floating Sticky Header
       document.getElementById('bar-exam-badge').textContent = data.ulangan.mata_pelajaran || 'Ujian';
@@ -5119,16 +5140,14 @@
       });
       renderMath(container);
 
-      // Pemulihan Jawaban: 1) Dari server jika ada, 2) Dari localStorage jika ada data yang lebih baru
-      // Catatan: Jika ini sesi remedial baru, JANGAN pulihkan cache lokal lama agar lembar remedial bersih
+      // Pemulihan Jawaban Ganda: 1) Dari server jika ada, 2) Dari localStorage (draft & backup) jika ada data yang lebih baru
       const draftKey = `ulangan_draft_${currentPengerjaanId}`;
+      const backupKey = `ulangan_backup_${currentPengerjaanId}`;
       let localDrafts = {};
-      if (!data.isRemedial) {
-        try {
-          const savedDraft = localStorage.getItem(draftKey);
-          if (savedDraft) localDrafts = JSON.parse(savedDraft);
-        } catch (e) {}
-      }
+      try {
+        const savedDraft = localStorage.getItem(draftKey) || localStorage.getItem(backupKey);
+        if (savedDraft) localDrafts = JSON.parse(savedDraft);
+      } catch (e) {}
 
       // Pemulihan Catatan Copy-Paste
       const pasteKey = `ulangan_paste_${currentPengerjaanId}`;
@@ -5144,11 +5163,11 @@
         const sId = input.dataset.soalId;
         // Cek dari server data soal
         const soalItem = data.soal.find(s => String(s.id) === String(sId));
-        if (soalItem && soalItem.jawaban_siswa && !data.isRemedial) {
+        if (soalItem && soalItem.jawaban_siswa) {
           input.value = soalItem.jawaban_siswa;
         }
-        // Jika ada di localStorage dan tidak kosong, utamakan nilai lokal (hanya jika bukan remedial)
-        if (!data.isRemedial && localDrafts[sId] !== undefined && localDrafts[sId] !== '') {
+        // Jika ada di localStorage dan tidak kosong, utamakan nilai lokal yang paling mutakhir
+        if (localDrafts[sId] !== undefined && localDrafts[sId] !== '') {
           input.value = localDrafts[sId];
         }
         // Jika soal pilihan ganda, sinkronkan pilihan opsi aktif
@@ -5203,7 +5222,9 @@
           drafts[input.dataset.soalId] = input.value || '';
         });
         try {
-          localStorage.setItem(draftKey, JSON.stringify(drafts));
+          const draftStr = JSON.stringify(drafts);
+          localStorage.setItem(draftKey, draftStr);
+          localStorage.setItem(backupKey, draftStr);
         } catch (e) {}
 
         clearTimeout(syncServerTimer);
@@ -5645,11 +5666,11 @@
             });
             clearTimeout(timeoutId);
             data = await res.json();
-            // Jika replikasi Turso Cloud antar-instance Vercel butuh waktu sejenak
-            if (!res.ok && data && data.message && data.message.includes('tidak ditemukan') && submitAttempt < maxSubmitAttempts) {
+            // Jika server sedang sibuk, sinkronisasi Turso, atau server down sesaat (500, 502, 503, 504)
+            if (!res.ok && submitAttempt < maxSubmitAttempts) {
               const descEl = document.getElementById('submit-overlay-desc');
-              if (descEl) descEl.textContent = 'Menyelaraskan data sesi pengerjaan ke server, mencoba kembali...';
-              await new Promise(r => setTimeout(r, 1200));
+              if (descEl) descEl.textContent = `Server sedang memproses data ujian (Percobaan ${submitAttempt} dari ${maxSubmitAttempts}), mencoba kembali secara otomatis...`;
+              await new Promise(r => setTimeout(r, 1500));
               continue;
             }
             break; // Berhasil dapat respons final dari server
@@ -5657,7 +5678,7 @@
             clearTimeout(timeoutId);
             if (submitAttempt < maxSubmitAttempts) {
               const descEl = document.getElementById('submit-overlay-desc');
-              if (descEl) descEl.textContent = 'Koneksi internet lambat, mencoba mengirim ulang jawaban Anda secara otomatis...';
+              if (descEl) descEl.textContent = `Koneksi internet terputus sesaat (${submitAttempt}/${maxSubmitAttempts}), mencoba mengirim ulang jawaban Anda secara otomatis...`;
               await new Promise(r => setTimeout(r, 2000));
             } else {
               throw fetchErr;
@@ -5742,9 +5763,9 @@
         const overlay = document.getElementById('submit-loading-overlay');
         if (overlay) overlay.classList.add('hidden');
         const errMsg = err.name === 'AbortError'
-          ? 'Koneksi pengumpulan ke server melebihi batas waktu (timeout). Silakan periksa jaringan internet Anda dan coba tekan tombol Kumpulkan Jawaban lagi.'
+          ? 'Koneksi pengumpulan ke server melebihi batas waktu (timeout). Seluruh jawaban Anda tetap tersimpan aman di form ini.'
           : (err.message || 'Gagal mengumpulkan');
-        alert('⚠️ Gagal mengumpulkan: ' + errMsg);
+        alert('⚠️ ' + errMsg + '\n\nSilakan tekan tombol "Kumpulkan Jawaban" sekali lagi. TIDAK PERLU REFRESH HALAMAN karena jawaban Anda tetap aman.');
         const btn = document.getElementById('btn-submit');
         if (btn) {
           btn.disabled = false;
@@ -5778,11 +5799,21 @@
         const result = await res.json();
 
         if (res.status === 404) {
-          // Hanya hapus sesi jika server eksplisit menyatakan 404 (sesi tidak ada)
-          localStorage.removeItem('ulangan_pengerjaan_id');
-          currentPengerjaanId = null;
-          if (stepResuming) stepResuming.classList.add('hidden');
-          stepAuth.classList.remove('hidden');
+          // Jangan langsung hapus sesi seketika saat dapat 404 (mencegah sesi terhapus jika server sedang restart/replikasi)
+          console.warn('Sesi pengerjaan 404 dari server');
+          if (stepResuming) {
+            stepResuming.classList.remove('hidden');
+            stepAuth.classList.add('hidden');
+            stepExam.classList.add('hidden');
+            stepResult.classList.add('hidden');
+          }
+          if (resumingRetryBox) {
+            resumingRetryBox.classList.remove('hidden');
+            const errEl = document.getElementById('resuming-error-msg');
+            if (errEl) {
+              errEl.textContent = 'Server sedang menyelaraskan data sesi ujian Anda. Seluruh jawaban Anda tetap tersimpan aman di perangkat ini. Silakan klik tombol "Coba Sambungkan Lagi".';
+            }
+          }
           return;
         }
 
@@ -5984,8 +6015,22 @@
 
       // Simpan data kredensial jika tersedia di payload status
       if (data.kodeUjian) window._currentExamCode = data.kodeUjian;
-      if (data.nama) window._currentStudentName = data.nama;
-      if (data.kelas) window._currentStudentClass = data.kelas;
+      if (data.nama) {
+        window._currentStudentName = data.nama;
+        try { localStorage.setItem('ulangan_nama', data.nama); } catch (e) {}
+      }
+      if (data.kelas) {
+        window._currentStudentClass = data.kelas;
+        try { localStorage.setItem('ulangan_kelas', data.kelas); } catch (e) {}
+      }
+
+      const curName = (data.nama || window._currentStudentName || localStorage.getItem('ulangan_nama') || 'Siswa').trim();
+      const curClass = (data.kelas || window._currentStudentClass || localStorage.getItem('ulangan_kelas') || '').trim();
+
+      const identityEl = document.getElementById('student-identity-banner');
+      if (identityEl) {
+        identityEl.innerHTML = `<strong>${escapeHtml(curName)}</strong> ${curClass ? `<span class="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded-md font-bold text-xs ml-1">(${escapeHtml(curClass)})</span>` : ''}`;
+      }
 
       // Penanganan Kartu Kesempatan Mengulang & Kebijakan Nilai
       const retakeCard = document.getElementById('retake-action-card');
@@ -6081,13 +6126,25 @@
       if (data.isReleased && data.nilaiFinal !== null) {
         statusBox.innerHTML = `
           <div class="flex flex-wrap items-center justify-center gap-1.5 mb-2">
-            <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">Nilai Resmi Telah Dirilis</span>
+            <span class="inline-block px-3 py-1 text-xs font-bold rounded-full bg-emerald-100 text-emerald-800">✓ Nilai Resmi Telah Dirilis</span>
             ${data.skorLangsungAi ? `<span class="inline-block px-2.5 py-1 text-[11px] font-bold rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">⚡ Skor Keluar Langsung oleh AI Dinamis</span>` : ''}
           </div>
-          <p class="text-sm font-bold text-slate-800">Total Nilai Anda: <span class="text-blue-600 text-lg">${data.nilaiFinal}</span> / 100</p>
+          <div class="my-2 p-3 bg-white border border-blue-200 rounded-xl max-w-md mx-auto shadow-2xs text-center">
+            <p class="text-[11px] uppercase font-bold text-slate-400 tracking-wider">Pemilik Lembar Nilai Resmi:</p>
+            <p class="text-sm sm:text-base font-black text-indigo-950">${escapeHtml(curName)} <span class="text-indigo-700 font-bold">(${escapeHtml(curClass)})</span></p>
+            <p class="text-xs text-slate-500 mt-1">Total Nilai Anda: <span class="text-blue-600 text-2xl font-black">${data.nilaiFinal}</span> <span class="text-xs text-slate-400">/ 100</span></p>
+          </div>
         `;
         document.getElementById('final-score-badge').textContent = data.nilaiFinal;
         releasedDetails.classList.remove('hidden');
+
+        const reviewNameEl = document.getElementById('review-student-name');
+        if (reviewNameEl) reviewNameEl.textContent = curName;
+        const reviewClassEl = document.getElementById('review-student-class');
+        if (reviewClassEl) reviewClassEl.textContent = curClass || '-';
+
+        const cardIdentityEl = document.getElementById('card-student-identity');
+        if (cardIdentityEl) cardIdentityEl.textContent = `${curName} ${curClass ? `(${curClass})` : ''}`;
 
         // Render butir review
         const listContainer = document.getElementById('answers-review-list');
@@ -6293,6 +6350,17 @@
                   <svg class="w-3.5 h-3.5 stroke-current fill-none stroke-2 shrink-0 refresh-spinner inline-block transition-transform" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                   <span>Cek Status</span>
                 </button>
+              </div>
+
+              <!-- Tanda Pengenal Siswa Pemilik Antrean Live AI -->
+              <div class="p-2.5 bg-white/95 border border-indigo-100 rounded-xl flex items-center justify-between text-xs">
+                <div class="flex items-center space-x-2 truncate">
+                  <span class="text-sm">👤</span>
+                  <span class="text-slate-500 text-[11px]">Siswa yang Mengantre:</span>
+                  <strong class="text-indigo-950 font-black truncate">${escapeHtml(curName)}</strong>
+                  <span class="text-indigo-700 font-bold shrink-0">(${escapeHtml(curClass)})</span>
+                </div>
+                <button type="button" onclick="window.confirmExitStudentExam()" class="text-[10px] text-rose-600 hover:text-rose-700 font-bold underline shrink-0 cursor-pointer ml-2">Bukan Anda?</button>
               </div>
 
               <!-- Dua Kartu: Posisi Antrean (Bergerak Live) & Estimasi Waktu -->
@@ -6552,14 +6620,13 @@
       }
 
       // Verifikasi identitas siswa agar tidak terlempar ke orang lain di komputer bersama
-      const curNama = (window._currentStudentName || localStorage.getItem('ulangan_nama') || '').trim();
+      const bannerText = (document.getElementById('student-identity-banner')?.textContent || '').trim();
+      const curNama = (window._currentStudentName || localStorage.getItem('ulangan_nama') || bannerText || '').trim();
       const curKelas = (window._currentStudentClass || localStorage.getItem('ulangan_kelas') || '').trim();
-      if (curNama) {
-        const ok = confirm(`Konfirmasi Remedial Mandiri:\n\nApakah benar Anda adalah:\n"${curNama}" ${curKelas ? `(${curKelas})` : ''}?\n\n• Klik OK jika benar ini Anda.\n• Klik BATAL jika Anda siswa lain yang menggunakan komputer ini.`);
-        if (!ok) {
-          window.confirmExitStudentExam();
-          return;
-        }
+      const ok = confirm(`Konfirmasi Remedial Mandiri:\n\nApakah benar Anda adalah:\n"${curNama || 'Siswa'}" ${curKelas ? `(${curKelas})` : ''}?\n\n• Klik OK jika benar ini Anda.\n• Klik BATAL jika Anda siswa lain yang menggunakan komputer ini.`);
+      if (!ok) {
+        window.confirmExitStudentExam();
+        return;
       }
 
       const btn = document.getElementById('btn-start-direct-remedial');
@@ -6583,6 +6650,7 @@
         // Bersihkan draft jawaban lokal browser agar lembar soal remedial bersih (tanpa bekas cache)
         try {
           localStorage.removeItem(`ulangan_draft_${pid}`);
+          localStorage.removeItem(`ulangan_backup_${pid}`);
           localStorage.removeItem(`ulangan_paste_${pid}`);
           localStorage.removeItem(`ujian_draft_${pid}`);
           localStorage.removeItem(`exam_answers_${pid}`);
@@ -6819,22 +6887,30 @@
         clearInterval(countdownInterval);
         countdownInterval = null;
       }
-      const pId = currentPengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
-      if (pId) {
-        try {
-          localStorage.removeItem(`ulangan_draft_${pId}`);
-          localStorage.removeItem(`ulangan_paste_${pId}`);
-          localStorage.removeItem(`ujian_draft_${pId}`);
-          localStorage.removeItem(`exam_answers_${pId}`);
-        } catch (e) {}
+      if (autoScorePollTimer) {
+        clearTimeout(autoScorePollTimer);
+        autoScorePollTimer = null;
       }
+      try {
+        // Hapus seluruh draft & backup ujian dari localStorage komputer ini (Pencegah bocor jawaban ke siswa berikutnya)
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('ulangan_draft_') || key.startsWith('ulangan_backup_') || key.startsWith('ulangan_paste_') || key.startsWith('ujian_draft_') || key.startsWith('exam_answers_'))) {
+            localStorage.removeItem(key);
+          }
+        }
+      } catch (e) {}
       try {
         localStorage.removeItem('ulangan_pengerjaan_id');
         localStorage.removeItem('ulangan_kode');
         localStorage.removeItem('ulangan_nama');
         localStorage.removeItem('ulangan_kelas');
+        window.history.replaceState({}, document.title, window.location.pathname);
       } catch (e) {}
       currentPengerjaanId = null;
+      window._currentExamCode = null;
+      window._currentStudentName = null;
+      window._currentStudentClass = null;
       isSubmitting = false;
     };
 
