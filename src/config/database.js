@@ -52,11 +52,22 @@ if (tursoUrl && tursoToken) {
   function isHranaStreamError(err) {
     if (!err) return false;
     const msg = String(err.message || err);
-    return msg.includes('stream not found') || msg.includes('Hrana|Api') || (msg.includes('status=404') && msg.includes('stream'));
+    return (
+      msg.includes('stream not found') ||
+      msg.includes('Hrana') ||
+      msg.includes('connection closed') ||
+      msg.includes('connection reset') ||
+      msg.includes('socket hang up') ||
+      msg.includes('broken pipe') ||
+      msg.includes('ECONNRESET') ||
+      msg.includes('ETIMEDOUT') ||
+      msg.includes('fetch failed') ||
+      (msg.includes('status=404') && msg.includes('stream'))
+    );
   }
 
   function reconnectTurso() {
-    console.warn('🔄 Mendeteksi stream Turso kedaluwarsa (Hrana 404), memperbarui instance Libsql...');
+    console.warn('🔄 Mendeteksi stream/koneksi Turso kedaluwarsa atau terputus (Hrana), menyambung ulang instance Libsql...');
     try {
       currentDb = initTursoDb();
     } catch (e) {
@@ -83,7 +94,9 @@ if (tursoUrl && tursoToken) {
       } catch (err) {
         lastErr = err;
         if (isHranaStreamError(err)) {
+          console.warn(`🔄 Mendeteksi kendala koneksi Turso/Hrana (percobaan ${attempt + 1}/${maxRetries}):`, err.message);
           reconnectTurso();
+          sleepSync(200 * (attempt + 1));
         } else if (isTursoConcurrencyError(err)) {
           console.warn(`⚠️ Turso concurrency busy/429 (percobaan ${attempt + 1}/${maxRetries}):`, err.message);
           sleepSync(150 * (attempt + 1));
@@ -97,19 +110,17 @@ if (tursoUrl && tursoToken) {
 
   db = {
     prepare(sql) {
-      const wrapStmt = (stmt) => ({
+      return {
         all(...args) {
-          return executeWithRetry(() => stmt.all(...args), sql);
+          return executeWithRetry(() => currentDb.prepare(sql).all(...args), sql);
         },
         get(...args) {
-          return executeWithRetry(() => stmt.get(...args), sql);
+          return executeWithRetry(() => currentDb.prepare(sql).get(...args), sql);
         },
         run(...args) {
-          return executeWithRetry(() => stmt.run(...args), sql);
+          return executeWithRetry(() => currentDb.prepare(sql).run(...args), sql);
         }
-      });
-
-      return executeWithRetry(() => wrapStmt(currentDb.prepare(sql)), sql);
+      };
     },
     exec(sql) {
       return executeWithRetry(() => currentDb.exec(sql), sql);

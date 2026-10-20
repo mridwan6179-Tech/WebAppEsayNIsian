@@ -686,7 +686,7 @@ const queueService = {
       }
 
       if (i < pendingAnswers.length - 1) {
-        const delayMs = delayOverride !== null ? delayOverride : 600;
+        const delayMs = delayOverride !== null ? delayOverride : 50;
         if (delayMs > 0) {
           await new Promise(resolve => setTimeout(resolve, delayMs));
         }
