@@ -16,7 +16,7 @@ const queueService = {
     return seconds * 1000; // milidetik
   },
 
-  // Pemulihan kunci antrean yang macet (misal serverless restart/crash/timeout > 2 menit)
+  // Pemulihan kunci antrean yang macet (misal serverless restart/crash/timeout > 60 detik)
   recoverStaleLocks(ulanganId = null) {
     try {
       const condition = ulanganId 
@@ -28,7 +28,7 @@ const queueService = {
         UPDATE antrean_review 
         SET status = 'menunggu' 
         WHERE status = 'diproses' 
-          AND (locked_at IS NULL OR datetime(locked_at) <= datetime('now', '-2 minutes'))
+          AND (locked_at IS NULL OR datetime(locked_at) <= datetime('now', '-60 seconds'))
           ${condition}
       `).run(...params);
 
@@ -38,6 +38,50 @@ const queueService = {
         WHERE status_penilaian = 'diproses' 
           AND id IN (SELECT jawaban_id FROM antrean_review WHERE status = 'menunggu')
       `).run();
+
+      // Auto-heal butir gagal agar antrean tidak macet selamanya
+      const failedItems = db.prepare(`
+        SELECT a.id as antrean_id, j.id as jawaban_id, j.pengerjaan_id, j.jawaban_siswa, j.skor_maksimum,
+               s.pertanyaan, s.jenis, s.bobot, s.kunci_jawaban, s.rubrik
+        FROM antrean_review a
+        JOIN jawaban j ON a.jawaban_id = j.id
+        JOIN soal s ON j.soal_id = s.id
+        JOIN pengerjaan p ON j.pengerjaan_id = p.id
+        WHERE (a.status = 'gagal' OR j.status_penilaian = 'gagal')
+          ${condition}
+        LIMIT 5
+      `).all(...params);
+
+      if (failedItems.length > 0) {
+        const geminiService = require('./geminiService');
+        const reviewService = require('./reviewService');
+        for (const item of failedItems) {
+          try {
+            const fb = geminiService.fallbackOfflineEvaluation({
+              pertanyaan: item.pertanyaan,
+              kunci_jawaban: item.kunci_jawaban || '',
+              rubrik: item.rubrik || '',
+              jawaban_siswa: item.jawaban_siswa || '',
+              bobot: item.bobot,
+              skor_maksimum: item.skor_maksimum,
+              jenis: item.jenis
+            });
+            db.prepare(`
+              UPDATE jawaban
+              SET skor_rekomendasi = ?, status_jawaban = ?, alasan_ai = ?, model_ai = 'fallback_offline', status_penilaian = 'selesai', reviewed_at = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `).run(fb.skor_rekomendasi, fb.status_jawaban, (fb.alasan_ai || '') + ' (Auto-recovery)', item.jawaban_id);
+            db.prepare(`
+              UPDATE antrean_review
+              SET status = 'selesai', completed_at = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `).run(item.antrean_id);
+            if (item.pengerjaan_id) {
+              reviewService.recalculatePengerjaanTotal(item.pengerjaan_id);
+            }
+          } catch (healErr) {}
+        }
+      }
     } catch (e) {
       console.warn('⚠️ Recover stale locks warning:', e.message);
     }
@@ -461,28 +505,79 @@ const queueService = {
       const newAttempt = queueItem.attempt_count + 1;
       const maxRetry = 3;
 
-      // Adaptive delay jika terjadi rate limit (FR-12 & NFR-05)
-      const retrySeconds = isRateLimit ? 15 : 8;
-      const finalStatus = newAttempt >= maxRetry ? 'gagal' : 'menunggu';
+      if (newAttempt >= maxRetry) {
+        // FAILOVER OTOMATIS: Jangan biarkan antrean macet selamanya!
+        // Jika AI gagal 3x, otomatis evaluasi dengan fallback offline
+        try {
+          const geminiService = require('./geminiService');
+          const fb = geminiService.fallbackOfflineEvaluation({
+            pertanyaan: queueItem.pertanyaan,
+            kunci_jawaban: queueItem.kunci_jawaban || '',
+            rubrik: queueItem.rubrik || '',
+            jawaban_siswa: queueItem.jawaban_siswa || '',
+            bobot: queueItem.bobot,
+            skor_maksimum: queueItem.skor_maksimum,
+            jenis: queueItem.jenis
+          });
 
-      db.transaction(() => {
-        db.prepare(`
-          UPDATE antrean_review
-          SET status = ?,
-              attempt_count = ?,
-              next_attempt_at = datetime('now', '+' || ? || ' seconds'),
-              error_message = ?
-          WHERE id = ?
-        `).run(finalStatus, newAttempt, retrySeconds, String(err.message), queueItem.antrean_id);
+          db.transaction(() => {
+            db.prepare(`
+              UPDATE jawaban
+              SET skor_rekomendasi = ?,
+                  status_jawaban = ?,
+                  alasan_ai = ?,
+                  model_ai = 'fallback_offline',
+                  status_penilaian = 'selesai',
+                  reviewed_at = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `).run(
+              fb.skor_rekomendasi,
+              fb.status_jawaban,
+              (fb.alasan_ai || 'Penilaian otomatis cadangan.') + ' (Fallback offline AI limit/timeout)',
+              queueItem.jawaban_id
+            );
 
-        db.prepare(`
-          UPDATE jawaban
-          SET status_penilaian = ?,
-              attempt_count = ?,
-              last_error = ?
-          WHERE id = ?
-        `).run(finalStatus, newAttempt, String(err.message), queueItem.jawaban_id);
-      })();
+            db.prepare(`
+              UPDATE antrean_review
+              SET status = 'selesai', completed_at = CURRENT_TIMESTAMP, error_message = 'Fallback offline sukses'
+              WHERE id = ?
+            `).run(queueItem.antrean_id);
+          })();
+
+          try {
+            const reviewService = require('./reviewService');
+            if (queueItem.pengerjaan_id) {
+              reviewService.recalculatePengerjaanTotal(queueItem.pengerjaan_id);
+            }
+          } catch (eRec) {}
+
+          console.log(`[QUEUE FAILOVER] Butir jawaban ID ${queueItem.jawaban_id} dievaluasi otomatis via offline fallback agar antrean AI tidak stuck.`);
+        } catch (fbErr) {
+          console.warn('[QUEUE FAILOVER ERROR]', fbErr.message);
+        }
+      } else {
+        // Adaptive delay jika terjadi rate limit (FR-12 & NFR-05)
+        const retrySeconds = isRateLimit ? 15 : 8;
+
+        db.transaction(() => {
+          db.prepare(`
+            UPDATE antrean_review
+            SET status = 'menunggu',
+                attempt_count = ?,
+                next_attempt_at = datetime('now', '+' || ? || ' seconds'),
+                error_message = ?
+            WHERE id = ?
+          `).run(newAttempt, retrySeconds, String(err.message), queueItem.antrean_id);
+
+          db.prepare(`
+            UPDATE jawaban
+            SET status_penilaian = 'menunggu',
+                attempt_count = ?,
+                last_error = ?
+            WHERE id = ?
+          `).run(newAttempt, String(err.message), queueItem.jawaban_id);
+        })();
+      }
 
       if (typeof db.syncCloud === 'function') {
         db.syncCloud(true);

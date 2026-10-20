@@ -6013,23 +6013,17 @@
 
       const statusBox = document.getElementById('result-status-content');
       const releasedDetails = document.getElementById('released-details');
+      const isExamFullyGradedAndReleased = Boolean(data.isReleased && data.nilaiFinal !== null);
 
       const pgCard = document.getElementById('pg-instant-score-card');
       if (pgCard) {
-        if (data.skor_pg !== null && data.skor_pg !== undefined && !data.canDirectRemedial) {
+        if (isExamFullyGradedAndReleased && data.skor_pg !== null && data.skor_pg !== undefined && !data.canDirectRemedial) {
           pgCard.classList.remove('hidden');
           const pgScoreVal = document.getElementById('pg-instant-score-val');
           if (pgScoreVal) pgScoreVal.textContent = data.skor_pg;
           const pgDesc = document.getElementById('pg-instant-score-desc');
           if (pgDesc) {
-            const hasEssay = (data.jawaban || []).some(j => j.jenis !== 'pilihan_ganda' && j.jenis !== 'koding_game');
-            if (hasEssay) {
-              pgDesc.textContent = data.skorLangsungAi
-                ? 'Bagian Pilihan Ganda telah dinilai seketika. Bagian Isian/Esai sedang dinilai otomatis oleh AI Dinamis via Antrean Anti-Limit.'
-                : 'Bagian Pilihan Ganda telah dinilai seketika. Bagian Isian/Esai sedang diproses oleh Guru & AI.';
-            } else {
-              pgDesc.textContent = 'Semua butir soal pilihan ganda telah selesai dinilai otomatis 100%.';
-            }
+            pgDesc.textContent = 'Semua butir soal pilihan ganda telah selesai dinilai otomatis 100%.';
           }
         } else {
           pgCard.classList.add('hidden');
@@ -6038,7 +6032,7 @@
 
       const codingCard = document.getElementById('coding-instant-score-card');
       if (codingCard) {
-        if (data.skor_koding !== null && data.skor_koding !== undefined && !data.canDirectRemedial) {
+        if (isExamFullyGradedAndReleased && data.skor_koding !== null && data.skor_koding !== undefined && !data.canDirectRemedial) {
           codingCard.classList.remove('hidden');
           const cScoreVal = document.getElementById('coding-instant-score-val');
           if (cScoreVal) cScoreVal.textContent = data.skor_koding;

@@ -1705,6 +1705,20 @@ const studentService = {
       `).run(nowIso, pengerjaanId);
     }
 
+    // Hitung skor awal dan auto-enqueue ke antrean AI jika skor_langsung_ai aktif
+    try {
+      const reviewService = require('./reviewService');
+      reviewService.recalculatePengerjaanTotal(pengerjaanId);
+
+      const ulRow = db.prepare('SELECT skor_langsung_ai FROM ulangan WHERE id = ?').get(pengerjaan.ulangan_id);
+      if (Number(ulRow?.skor_langsung_ai) === 1) {
+        const queueService = require('./queueService');
+        queueService.enqueuePengerjaan(pengerjaanId);
+      }
+    } catch (qErr) {
+      console.warn('⚠️ Auto-enqueue force submit error:', qErr.message);
+    }
+
     return {
       success: true,
       message: 'Pengerjaan siswa berhasil dikumpulkan secara resmi oleh guru',

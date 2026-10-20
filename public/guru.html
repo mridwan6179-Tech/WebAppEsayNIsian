@@ -9646,14 +9646,27 @@
                   ? `<span class="text-purple-500 text-xs" title="Nilai AI awal">${st.pre_remedial_nilai_ai} (Awal)</span>` 
                   : '-')}
           </td>
-          <td class="p-3 font-bold text-blue-600 text-center whitespace-nowrap">
-            ${st.nilai_final !== null && st.nilai_final !== undefined 
-              ? st.nilai_final 
-              : (st.pre_remedial_nilai_final !== null && st.pre_remedial_nilai_final !== undefined 
-                  ? `<span class="text-blue-500 text-xs" title="Nilai resmi awal">${st.pre_remedial_nilai_final} (Awal)</span>` 
-                  : (st.nilai_sebelumnya !== null && st.nilai_sebelumnya !== undefined 
-                      ? `<span class="text-blue-500 text-xs" title="Nilai awal">${st.nilai_sebelumnya} (Awal)</span>` 
-                      : '-'))}
+          <td class="p-3 font-bold text-center whitespace-nowrap">
+            ${(() => {
+              const curKkm = activeUlanganData?.kkm || 75;
+              const val = (st.nilai_final !== null && st.nilai_final !== undefined) ? Number(st.nilai_final) : null;
+              if (val !== null) {
+                const isTuntas = val >= curKkm;
+                return `
+                  <div class="inline-flex flex-col items-center">
+                    <span class="${isTuntas ? 'text-emerald-700 font-extrabold text-sm' : 'text-rose-600 font-extrabold text-sm'}">${val}</span>
+                    <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold ${isTuntas ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-rose-100 text-rose-800 border border-rose-300'} mt-0.5">
+                      ${isTuntas ? '✓ Tuntas' : '✕ < KKM'}
+                    </span>
+                  </div>
+                `;
+              }
+              const preVal = st.pre_remedial_nilai_final ?? st.nilai_sebelumnya;
+              if (preVal !== null && preVal !== undefined) {
+                return `<span class="text-blue-500 text-xs" title="Nilai resmi awal">${preVal} (Awal)</span>`;
+              }
+              return `<span class="text-slate-400 font-medium">-</span>`;
+            })()}
           </td>
           <td class="p-3 whitespace-nowrap">
             ${isRemedialActive
@@ -9797,8 +9810,14 @@
       isLoadingPeserta = true;
       try {
         const res = await guruFetch(`/api/guru/ulangan/${ulanganId}/peserta`);
+        if (!res.ok) {
+          return; // Jika server sibuk/lag, pertahankan data yang sudah ada (cegah tabel hilang)
+        }
         const data = await res.json();
-        currentStudentsList = Array.isArray(data.data) ? data.data : [];
+        if (!data || !data.success || !Array.isArray(data.data)) {
+          return; // Jika respon tidak valid, pertahankan data yang sudah ada
+        }
+        currentStudentsList = data.data;
         document.getElementById('count-peserta').textContent = currentStudentsList.length;
 
         // Hitung Ringkasan Aktivitas / Kehadiran Siswa (Aktif vs DC)
@@ -9879,51 +9898,74 @@
           }
         }
 
-        // Update pilihan kelas pada filter dropdown dengan label status rilis
+        // Update pilihan kelas pada filter dropdown dengan label status rilis hanya jika berubah
         if (filterKelasEl) {
           const currentVal = filterKelasEl.value;
-          filterKelasEl.innerHTML = '<option value="">Semua Kelas</option>';
-          classes.forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = c.toLowerCase();
-            const studentsInClass = currentStudentsList.filter(s => (s.kelas_siswa || '').trim().toLowerCase() === c.toLowerCase() && s.status === 'submitted');
-            const releasedInClass = studentsInClass.filter(s => Boolean(s.released_at)).length;
-            const isAll = studentsInClass.length > 0 && releasedInClass === studentsInClass.length;
-            const statusIcon = isAll ? '🟢 Sudah Dirilis' : (releasedInClass > 0 ? '🟡 Sebagian' : '🔒 Belum Dirilis');
-            opt.textContent = `${c} (${statusIcon} - ${studentsInClass.length} Siswa)`;
-            if (c.toLowerCase() === currentVal.toLowerCase()) opt.selected = true;
-            filterKelasEl.appendChild(opt);
-          });
+          const classOptionsKey = classes.map(c => {
+            const inClass = currentStudentsList.filter(s => (s.kelas_siswa || '').trim().toLowerCase() === c.toLowerCase());
+            const submitted = inClass.filter(s => s.status === 'submitted');
+            const rel = submitted.filter(s => Boolean(s.released_at)).length;
+            return `${c}_${inClass.length}_${submitted.length}_${rel}`;
+          }).join('||');
+
+          if (filterKelasEl._lastOptionsKey !== classOptionsKey) {
+            filterKelasEl._lastOptionsKey = classOptionsKey;
+            filterKelasEl.innerHTML = '<option value="">Semua Kelas</option>';
+            classes.forEach(c => {
+              const inClass = currentStudentsList.filter(s => (s.kelas_siswa || '').trim().toLowerCase() === c.toLowerCase());
+              const submitted = inClass.filter(s => s.status === 'submitted');
+              const rel = submitted.filter(s => Boolean(s.released_at)).length;
+              const isAll = submitted.length > 0 && rel === submitted.length;
+              const statusIcon = isAll ? '🟢 Sudah Dirilis' : (rel > 0 ? '🟡 Sebagian' : '🔒 Belum Dirilis');
+              const opt = document.createElement('option');
+              opt.value = c.toLowerCase();
+              opt.textContent = `${c} (${statusIcon} - ${inClass.length} Siswa)`;
+              if (c.toLowerCase() === currentVal.toLowerCase()) opt.selected = true;
+              filterKelasEl.appendChild(opt);
+            });
+            if (currentVal) filterKelasEl.value = currentVal;
+          }
         }
 
-        // Update pilihan sesi pada filter dropdown
+        // Update pilihan sesi pada filter dropdown hanya jika berubah
         const filterSesiEl = document.getElementById('filter-peserta-sesi');
         if (filterSesiEl) {
           const currentSesiVal = filterSesiEl.value;
-          filterSesiEl.innerHTML = '<option value="">Semua Sesi</option>';
           const sessions = Array.from(new Set(currentStudentsList.map(s => s.nama_sesi).filter(Boolean))).sort();
-          if (sessions.length > 0) {
-            sessions.forEach(ses => {
-              const opt = document.createElement('option');
-              opt.value = ses.toLowerCase();
-              const countInSesi = currentStudentsList.filter(s => (s.nama_sesi || '').trim().toLowerCase() === ses.toLowerCase()).length;
-              opt.textContent = `${ses} (${countInSesi} Siswa)`;
-              if (ses.toLowerCase() === currentSesiVal.toLowerCase()) opt.selected = true;
-              filterSesiEl.appendChild(opt);
-            });
-            const nonSesiCount = currentStudentsList.filter(s => !s.nama_sesi).length;
-            if (nonSesiCount > 0) {
-              const opt = document.createElement('option');
-              opt.value = '__none__';
-              opt.textContent = `Umum / Tanpa Sesi (${nonSesiCount} Siswa)`;
-              if (currentSesiVal === '__none__') opt.selected = true;
-              filterSesiEl.appendChild(opt);
+          const sessionOptionsKey = sessions.map(ses => {
+            const countInSesi = currentStudentsList.filter(s => (s.nama_sesi || '').trim().toLowerCase() === ses.toLowerCase()).length;
+            return `${ses}_${countInSesi}`;
+          }).join('||') + `_nonSesi_${currentStudentsList.filter(s => !s.nama_sesi).length}`;
+
+          if (filterSesiEl._lastOptionsKey !== sessionOptionsKey) {
+            filterSesiEl._lastOptionsKey = sessionOptionsKey;
+            filterSesiEl.innerHTML = '<option value="">Semua Sesi</option>';
+            if (sessions.length > 0) {
+              sessions.forEach(ses => {
+                const opt = document.createElement('option');
+                opt.value = ses.toLowerCase();
+                const countInSesi = currentStudentsList.filter(s => (s.nama_sesi || '').trim().toLowerCase() === ses.toLowerCase()).length;
+                opt.textContent = `${ses} (${countInSesi} Siswa)`;
+                if (ses.toLowerCase() === currentSesiVal.toLowerCase()) opt.selected = true;
+                filterSesiEl.appendChild(opt);
+              });
+              const nonSesiCount = currentStudentsList.filter(s => !s.nama_sesi).length;
+              if (nonSesiCount > 0) {
+                const opt = document.createElement('option');
+                opt.value = '__none__';
+                opt.textContent = `Umum / Tanpa Sesi (${nonSesiCount} Siswa)`;
+                if (currentSesiVal === '__none__') opt.selected = true;
+                filterSesiEl.appendChild(opt);
+              }
             }
+            if (currentSesiVal) filterSesiEl.value = currentSesiVal;
           }
-          filterSesiEl.onchange = () => {
-            currentStudentPage = 1;
-            renderStudentsTable();
-          };
+          if (!filterSesiEl.onchange) {
+            filterSesiEl.onchange = () => {
+              currentStudentPage = 1;
+              renderStudentsTable();
+            };
+          }
         }
 
         renderStudentsTable();

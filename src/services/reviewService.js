@@ -100,7 +100,15 @@ const reviewService = {
       // Pastikan total_jawaban mencerminkan kuota soal unik pengerjaan siswa
       let total_jawaban = r.total_jawaban || 0;
       let parsedSoalIds = [];
-      if (r.soal_ids) {
+      if (r.original_soal_ids) {
+        try {
+          const origIds = JSON.parse(r.original_soal_ids);
+          if (Array.isArray(origIds) && origIds.length > 0) {
+            total_jawaban = origIds.length;
+            parsedSoalIds = origIds.map(Number);
+          }
+        } catch (e) {}
+      } else if (r.soal_ids) {
         try {
           const parsedIds = JSON.parse(r.soal_ids);
           if (Array.isArray(parsedIds) && parsedIds.length > 0) {
@@ -109,6 +117,9 @@ const reviewService = {
           }
         } catch (e) {}
       }
+
+      // Pastikan penyebut total_jawaban tidak pernah lebih kecil dari total_dinilai atau total_terisi
+      total_jawaban = Math.max(total_jawaban, Number(r.total_dinilai || 0), Number(r.total_terisi || 0));
 
       let total_terisi = r.total_terisi || 0;
       let draft_lengkap = (total_jawaban > 0 && total_terisi >= total_jawaban);
