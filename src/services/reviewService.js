@@ -2,6 +2,9 @@ const db = require('../config/database');
 const examService = require('./examService');
 const studentService = require('./studentService');
 
+// Throttle pembersihan sesi kedaluwarsa agar tidak membebani database pada setiap request polling guru
+const lastCleanAbandonedMap = new Map();
+
 const reviewService = {
   // Ambil daftar seluruh siswa/pengerjaan pada suatu ulangan
   getPengerjaanListByUlangan(ulanganId, guruId) {
@@ -9,18 +12,23 @@ const reviewService = {
     const ulangan = db.prepare(`SELECT id, zona_waktu FROM ulangan WHERE id = ? AND ${isOwner ? 'guru_id IN (1, 3)' : 'guru_id = ?'}`).get(...(isOwner ? [ulanganId] : [ulanganId, guruId]));
     if (!ulangan) throw new Error('Ulangan tidak ditemukan atau bukan milik guru ini');
 
-    // Sinkronisasi non-blocking dengan Turso Cloud agar data submit peserta selalu terbarui
+    // Sinkronisasi background dengan Turso Cloud (dengan throttle wajar tanpa force)
     if (typeof db.syncCloud === 'function') {
       try {
-        db.syncCloud(true);
+        db.syncCloud(false);
       } catch (syncErr) {}
     }
 
-    // Bersihkan sesi DC kosong (>1 jam atau lewat durasi) dan auto-submit sesi terisi yang kedaluwarsa
-    try {
-      studentService.cleanAbandonedSessions(ulanganId);
-    } catch (cleanErr) {
-      console.warn('[CLEANUP WARN]', cleanErr.message);
+    // Bersihkan sesi DC kosong (>1 jam) dan auto-submit sesi terisi yang kedaluwarsa (dibatasi maksimal 1x per 60 detik per ulangan)
+    const now = Date.now();
+    const lastClean = lastCleanAbandonedMap.get(Number(ulanganId)) || 0;
+    if (now - lastClean > 60000) {
+      lastCleanAbandonedMap.set(Number(ulanganId), now);
+      try {
+        studentService.cleanAbandonedSessions(ulanganId);
+      } catch (cleanErr) {
+        console.warn('[CLEANUP WARN]', cleanErr.message);
+      }
     }
 
     const rows = db.prepare(`

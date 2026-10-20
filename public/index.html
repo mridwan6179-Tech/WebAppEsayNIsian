@@ -644,6 +644,16 @@
           <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
             <div class="bg-emerald-600 h-1.5 rounded-full animate-pulse w-full"></div>
           </div>
+          <!-- Watchdog Pemantau Koneksi & Tombol Darurat Cek Status -->
+          <div id="submit-overlay-watchdog" class="hidden pt-3 border-t border-slate-100">
+            <p class="text-[11px] text-amber-700 font-medium mb-2 leading-relaxed">
+              Proses pengumpulan memakan waktu lebih lama dari biasanya (mungkin terjadi gangguan jaringan sesaat).
+            </p>
+            <button type="button" onclick="window.emergencyCheckSubmitStatus(this)" class="w-full py-2.5 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow transition cursor-pointer flex items-center justify-center space-x-1.5">
+              <span>🔍</span>
+              <span>Cek Langsung Status Pengumpulan</span>
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -850,6 +860,18 @@
 
     <!-- STEP 3: Sukses Pengumpulan & Tampilan Hasil -->
     <section id="step-result" class="hidden bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200">
+      <!-- Identitas Pemilik Lembar Ujian (Pencegah Tertukar Akun di Lab Komputer Bersama) -->
+      <div class="p-3.5 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl mb-6 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
+        <div class="flex items-center space-x-2 text-indigo-950 text-xs sm:text-sm">
+          <span class="text-base sm:text-lg">👤</span>
+          <span>Lembar Ujian Milik: <strong id="student-identity-banner" class="font-black text-indigo-900">-</strong></span>
+        </div>
+        <button type="button" onclick="window.confirmExitStudentExam()" class="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 text-xs font-bold rounded-lg border border-rose-200 hover:border-rose-300 transition shadow-xs cursor-pointer">
+          <span>🚪</span>
+          <span>Bukan Anda? / Ganti Siswa Baru</span>
+        </button>
+      </div>
+
       <div class="text-center max-w-md mx-auto mb-6">
         <div class="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3 shadow-inner">
           <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
@@ -2002,6 +2024,14 @@
       const kode = document.getElementById('input-kode').value.trim();
       const nama = document.getElementById('input-nama').value.trim();
       const kelas = document.getElementById('input-kelas').value.trim();
+
+      // ISOLASI SESI KOMPUTER BERSAMA: Jika nama atau kelas yang dimasukkan berbeda dari sesi sebelumnya di perangkat ini,
+      // bersihkan seluruh memori sesi dan draft lama agar tidak tumpang-tindih ke siswa sebelumnya!
+      const savedNama = localStorage.getItem('ulangan_nama');
+      const savedKelas = localStorage.getItem('ulangan_kelas');
+      if (savedNama && (savedNama.trim().toLowerCase() !== nama.toLowerCase() || (savedKelas && savedKelas.trim().toLowerCase() !== kelas.toLowerCase()))) {
+        window.clearCurrentStudentSession();
+      }
 
       const btn = document.getElementById('btn-masuk');
       btn.disabled = true;
@@ -5074,8 +5104,8 @@
               </div>
               ` : ''}
               ${isEssay 
-                ? `<textarea name="soal_${s.id}" data-soal-id="${s.id}" rows="3" dir="auto" placeholder="Ketik jawaban essay Anda di sini..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm sm:text-base transition leading-relaxed"></textarea>`
-                : `<input type="text" name="soal_${s.id}" data-soal-id="${s.id}" dir="auto" placeholder="Ketik jawaban singkat Anda..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm sm:text-base transition">`
+                ? `<textarea name="soal_${s.id}" data-soal-id="${s.id}" rows="3" dir="auto" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Ketik jawaban essay Anda di sini..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm sm:text-base transition leading-relaxed"></textarea>`
+                : `<input type="text" name="soal_${s.id}" data-soal-id="${s.id}" dir="auto" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Ketik jawaban singkat Anda..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm sm:text-base transition">`
               }
             `)}
           </div>
@@ -5090,12 +5120,15 @@
       renderMath(container);
 
       // Pemulihan Jawaban: 1) Dari server jika ada, 2) Dari localStorage jika ada data yang lebih baru
+      // Catatan: Jika ini sesi remedial baru, JANGAN pulihkan cache lokal lama agar lembar remedial bersih
       const draftKey = `ulangan_draft_${currentPengerjaanId}`;
       let localDrafts = {};
-      try {
-        const savedDraft = localStorage.getItem(draftKey);
-        if (savedDraft) localDrafts = JSON.parse(savedDraft);
-      } catch (e) {}
+      if (!data.isRemedial) {
+        try {
+          const savedDraft = localStorage.getItem(draftKey);
+          if (savedDraft) localDrafts = JSON.parse(savedDraft);
+        } catch (e) {}
+      }
 
       // Pemulihan Catatan Copy-Paste
       const pasteKey = `ulangan_paste_${currentPengerjaanId}`;
@@ -5111,11 +5144,11 @@
         const sId = input.dataset.soalId;
         // Cek dari server data soal
         const soalItem = data.soal.find(s => String(s.id) === String(sId));
-        if (soalItem && soalItem.jawaban_siswa) {
+        if (soalItem && soalItem.jawaban_siswa && !data.isRemedial) {
           input.value = soalItem.jawaban_siswa;
         }
-        // Jika ada di localStorage dan tidak kosong, utamakan nilai lokal
-        if (localDrafts[sId] !== undefined && localDrafts[sId] !== '') {
+        // Jika ada di localStorage dan tidak kosong, utamakan nilai lokal (hanya jika bukan remedial)
+        if (!data.isRemedial && localDrafts[sId] !== undefined && localDrafts[sId] !== '') {
           input.value = localDrafts[sId];
         }
         // Jika soal pilihan ganda, sinkronkan pilihan opsi aktif
@@ -6518,6 +6551,17 @@
         return;
       }
 
+      // Verifikasi identitas siswa agar tidak terlempar ke orang lain di komputer bersama
+      const curNama = (window._currentStudentName || localStorage.getItem('ulangan_nama') || '').trim();
+      const curKelas = (window._currentStudentClass || localStorage.getItem('ulangan_kelas') || '').trim();
+      if (curNama) {
+        const ok = confirm(`Konfirmasi Remedial Mandiri:\n\nApakah benar Anda adalah:\n"${curNama}" ${curKelas ? `(${curKelas})` : ''}?\n\n• Klik OK jika benar ini Anda.\n• Klik BATAL jika Anda siswa lain yang menggunakan komputer ini.`);
+        if (!ok) {
+          window.confirmExitStudentExam();
+          return;
+        }
+      }
+
       const btn = document.getElementById('btn-start-direct-remedial');
       const originalText = btn ? btn.innerHTML : '';
       if (btn) {
@@ -6529,15 +6573,17 @@
         const res = await fetch('/api/siswa/remedial/mulai', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pengerjaan_id: pid })
+          body: JSON.stringify({ pengerjaan_id: pid, nama: curNama, kelas: curKelas })
         });
         const result = await res.json();
         if (!res.ok || !result.success) {
           throw new Error(result.message || 'Gagal memulai sesi remedial.');
         }
 
-        // Bersihkan draft jawaban lokal browser agar lembar soal remedial bersih
+        // Bersihkan draft jawaban lokal browser agar lembar soal remedial bersih (tanpa bekas cache)
         try {
+          localStorage.removeItem(`ulangan_draft_${pid}`);
+          localStorage.removeItem(`ulangan_paste_${pid}`);
           localStorage.removeItem(`ujian_draft_${pid}`);
           localStorage.removeItem(`exam_answers_${pid}`);
         } catch (e) {}

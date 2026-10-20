@@ -1219,10 +1219,22 @@ const studentService = {
   },
 
   // Sesi Remedial Langsung Mandiri (Hanya butir soal yang salah / belum sempurna)
-  startDirectRemedial(pengerjaanId) {
+  startDirectRemedial(pengerjaanId, verification = {}) {
     if (!pengerjaanId) throw new Error('ID pengerjaan tidak valid');
     const pengerjaan = this.findPengerjaanWithSync(pengerjaanId);
     if (!pengerjaan) throw new Error('Data pengerjaan tidak ditemukan');
+
+    const peserta = db.prepare('SELECT id, nama, kelas FROM peserta WHERE id = ?').get(pengerjaan.peserta_id);
+    if (!peserta) throw new Error('Data peserta tidak ditemukan');
+
+    // Verifikasi identitas jika dikirimkan oleh klien (anti-terlempar ke orang lain di komputer yang sama)
+    if (verification && verification.nama && peserta.nama) {
+      const vNama = verification.nama.trim().toLowerCase();
+      const pNama = peserta.nama.trim().toLowerCase();
+      if (vNama !== pNama) {
+        throw new Error(`Akses ditolak: Pengerjaan ini milik "${peserta.nama}" (${peserta.kelas}), bukan "${verification.nama}". Silakan mulai ujian dengan akun Anda sendiri.`);
+      }
+    }
 
     const ulangan = db.prepare('SELECT * FROM ulangan WHERE id = ?').get(pengerjaan.ulangan_id);
     if (!ulangan) throw new Error('Data ulangan tidak ditemukan');
@@ -1249,9 +1261,6 @@ const studentService = {
     if (maxAttempts !== 0 && remedialKe >= maxRemedialLimit) {
       throw new Error(`Batas kesempatan remedial (${maxRemedialLimit}x) untuk ulangan ini telah tercapai.`);
     }
-
-    const peserta = db.prepare('SELECT id, nama, kelas FROM peserta WHERE id = ?').get(pengerjaan.peserta_id);
-    if (!peserta) throw new Error('Data peserta tidak ditemukan');
 
     // Ambil basis ID seluruh soal dari pengerjaan awal
     let baseSoalIds = [];
@@ -1792,15 +1801,16 @@ const studentService = {
         let jawabanDiDepan = 0;
 
         try {
-          // Ambil daftar seluruh siswa yang masih memiliki jawaban yang belum selesai dinilai (FIFO per siswa)
+          // Ambil daftar seluruh siswa yang masih memiliki jawaban yang belum selesai dinilai (FIFO per siswa terisolasi)
           const queueStudents = db.prepare(`
-            SELECT DISTINCT p.id, COALESCE(p.submitted_at, p.started_at) as queue_time
+            SELECT p.id, MIN(COALESCE(p.submitted_at, p.started_at)) as queue_time
             FROM pengerjaan p
             JOIN jawaban j ON j.pengerjaan_id = p.id
             WHERE p.ulangan_id = ?
               AND p.status = 'submitted'
               AND j.status_penilaian != 'selesai'
-            ORDER BY COALESCE(p.submitted_at, p.started_at) ASC, p.id ASC
+            GROUP BY p.id
+            ORDER BY MIN(COALESCE(p.submitted_at, p.started_at)) ASC, p.id ASC
           `).all(pengerjaan.ulangan_id);
 
           totalAntreanSiswa = Math.max(1, queueStudents.length);

@@ -828,6 +828,15 @@
             </div>
           </form>
 
+          <!-- Filter / Pencarian Cepat Ulangan -->
+          <div class="relative my-2.5">
+            <input type="text" id="search-exam-input" placeholder="🔍 Cari judul, mapel, kelas, kode..." 
+              class="w-full pl-8 pr-7 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition outline-none"
+              autocomplete="off" spellcheck="false" />
+            <span class="absolute left-2.5 top-1.5 text-slate-400 text-xs pointer-events-none">🔍</span>
+            <button type="button" id="btn-clear-search-exam" class="hidden absolute right-2.5 top-1.5 text-slate-400 hover:text-slate-600 font-bold text-xs cursor-pointer">&times;</button>
+          </div>
+
           <!-- List Card Ulangan -->
           <div id="exam-list" class="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
             <p class="text-xs text-slate-400 text-center py-4">Memuat ulangan...</p>
@@ -5465,58 +5474,120 @@
       }
     }
 
+    let cachedExamList = [];
+    let isShowingAllExams = false;
+
+    function updateExamCardSelection(id) {
+      const cards = document.querySelectorAll('#exam-list > div[data-exam-id]');
+      cards.forEach(card => {
+        const isSelected = String(card.dataset.examId) === String(id);
+        if (isSelected) {
+          card.className = 'p-3.5 rounded-xl border text-xs cursor-pointer transition bg-blue-50/70 border-blue-300 ring-1 ring-blue-300';
+        } else {
+          card.className = 'p-3.5 rounded-xl border text-xs cursor-pointer transition bg-white border-slate-200 hover:border-slate-300';
+        }
+      });
+    }
+
+    function renderExamListCards(filterQuery = '') {
+      const container = document.getElementById('exam-list');
+      if (!container) return;
+      container.innerHTML = '';
+
+      const query = (filterQuery || '').trim().toLowerCase();
+      let filtered = cachedExamList;
+      if (query) {
+        filtered = cachedExamList.filter(u => {
+          const judul = (u.judul || '').toLowerCase();
+          const mapel = (u.mata_pelajaran || '').toLowerCase();
+          const kelas = (u.tingkat_kelas || '').toLowerCase();
+          const kode = (u.kode_ujian || '').toLowerCase();
+          return judul.includes(query) || mapel.includes(query) || kelas.includes(query) || kode.includes(query);
+        });
+      }
+
+      const totalCount = filtered.length;
+      const countBadge = document.getElementById('search-exam-count-badge');
+      if (countBadge) {
+        countBadge.textContent = query ? `${totalCount} ditemukan` : `${cachedExamList.length} total`;
+      }
+
+      if (totalCount === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">${query ? 'Tidak ada ulangan yang cocok dengan pencarian.' : 'Belum ada ulangan. Klik "+ Buat Baru" di atas.'}</p>`;
+        return;
+      }
+
+      const limit = (query || isShowingAllExams) ? totalCount : 35;
+      const displayItems = filtered.slice(0, limit);
+
+      const fragment = document.createDocumentFragment();
+      displayItems.forEach(u => {
+        const card = document.createElement('div');
+        card.dataset.examId = u.id;
+        const isSelected = activeUlanganId === u.id;
+        card.className = `p-3.5 rounded-xl border text-xs cursor-pointer transition ${isSelected ? 'bg-blue-50/70 border-blue-300 ring-1 ring-blue-300' : 'bg-white border-slate-200 hover:border-slate-300'}`;
+        card.onclick = () => selectUlangan(u.id);
+
+        card.innerHTML = `
+          <div class="flex justify-between items-start mb-1">
+            <span class="font-bold text-slate-900">${escapeHtml(u.judul)}</span>
+            <div class="flex items-center space-x-1 flex-wrap justify-end gap-1">
+              ${u.has_missing_soal ? `<span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs" title="Ada kuota tipe soal yang belum dibuat / masih kurang di bank soal">⚠️ Kurang: ${escapeHtml(u.missing_quota_summary)}</span>` : ''}
+              ${(u.tampilkan_kisi_kisi && u.link_kisi_kisi) ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200" title="Kisi-kisi Aktif">📖 Kisi-kisi</span>' : ''}
+              <span class="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${u.status === 'dibuka' ? 'bg-green-100 text-green-800' : (u.status === 'draft' ? 'bg-slate-100 text-slate-600' : 'bg-red-100 text-red-700')}">
+                ${escapeHtml(u.status)}
+              </span>
+            </div>
+          </div>
+          <p class="text-slate-500 mb-2">${escapeHtml(u.mata_pelajaran || '-')} &bull; ${escapeHtml(u.tingkat_kelas || '-')}</p>
+          <div class="flex justify-between items-center text-[11px] text-slate-400">
+            <span>Kode: <strong class="font-mono text-blue-600 font-bold">${escapeHtml(u.kode_ujian)}</strong></span>
+            <span>${u.durasi_menit ? `⏱️${u.durasi_menit}m &bull; ` : ''}${u.total_peserta || 0} Siswa &bull; ${u.jumlah_soal_tampil ? `${u.jumlah_soal_tampil}/` : ''}${u.total_soal || 0} Soal ${u.acak_soal ? '🎲' : ''}</span>
+          </div>
+        `;
+        fragment.appendChild(card);
+      });
+
+      container.appendChild(fragment);
+
+      if (!query && !isShowingAllExams && totalCount > 35) {
+        const btnMore = document.createElement('button');
+        btnMore.type = 'button';
+        btnMore.className = 'w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 transition cursor-pointer text-center';
+        btnMore.innerHTML = `Tampilkan Seluruhnya (${totalCount - 35} ulangan lainnya) &darr;`;
+        btnMore.onclick = () => {
+          isShowingAllExams = true;
+          renderExamListCards(query);
+        };
+        container.appendChild(btnMore);
+      }
+    }
+
     // Load Ulangan List
     async function loadUlanganList() {
       try {
         const res = await guruFetch('/api/guru/ulangan');
         const data = await res.json();
-        const container = document.getElementById('exam-list');
-        container.innerHTML = '';
+        cachedExamList = Array.isArray(data.data) ? data.data : [];
 
-        if (!data.data || data.data.length === 0) {
-          container.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">Belum ada ulangan. Klik "+ Buat Baru" di atas.</p>';
-          return;
-        }
-
-        data.data.forEach(u => {
-          const card = document.createElement('div');
-          const isSelected = activeUlanganId === u.id;
-          card.className = `p-3.5 rounded-xl border text-xs cursor-pointer transition ${isSelected ? 'bg-blue-50/70 border-blue-300 ring-1 ring-blue-300' : 'bg-white border-slate-200 hover:border-slate-300'}`;
-          card.onclick = () => selectUlangan(u.id);
-
-          card.innerHTML = `
-            <div class="flex justify-between items-start mb-1">
-              <span class="font-bold text-slate-900">${u.judul}</span>
-              <div class="flex items-center space-x-1 flex-wrap justify-end gap-1">
-                ${u.has_missing_soal ? `<span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs" title="Ada kuota tipe soal yang belum dibuat / masih kurang di bank soal">⚠️ Kurang: ${escapeHtml(u.missing_quota_summary)}</span>` : ''}
-                ${(u.tampilkan_kisi_kisi && u.link_kisi_kisi) ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200" title="Kisi-kisi Aktif">📖 Kisi-kisi</span>' : ''}
-                <span class="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${u.status === 'dibuka' ? 'bg-green-100 text-green-800' : (u.status === 'draft' ? 'bg-slate-100 text-slate-600' : 'bg-red-100 text-red-700')}">
-                  ${u.status}
-                </span>
-              </div>
-            </div>
-            <p class="text-slate-500 mb-2">${u.mata_pelajaran} &bull; ${u.tingkat_kelas}</p>
-            <div class="flex justify-between items-center text-[11px] text-slate-400">
-              <span>Kode: <strong class="font-mono text-blue-600 font-bold">${u.kode_ujian}</strong></span>
-              <span>${u.durasi_menit ? `⏱️${u.durasi_menit}m &bull; ` : ''}${u.total_peserta || 0} Siswa &bull; ${u.jumlah_soal_tampil ? `${u.jumlah_soal_tampil}/` : ''}${u.total_soal || 0} Soal ${u.acak_soal ? '🎲' : ''}</span>
-            </div>
-          `;
-          container.appendChild(card);
-        });
+        const searchInput = document.getElementById('search-exam-input');
+        renderExamListCards(searchInput ? searchInput.value : '');
 
         // Pulihkan paket ulangan yang sedang aktif jika halaman di-refresh atau auto-select ulangan pertama
         if (!activeUlanganId) {
           const savedId = sessionStorage.getItem('active_guru_ulangan_id');
-          if (savedId && data.data.some(x => String(x.id) === String(savedId))) {
+          if (savedId && cachedExamList.some(x => String(x.id) === String(savedId))) {
             selectUlangan(parseInt(savedId, 10));
-          } else if (data.data.length > 0) {
-            selectUlangan(data.data[0].id);
+          } else if (cachedExamList.length > 0) {
+            selectUlangan(cachedExamList[0].id);
           }
+        } else {
+          updateExamCardSelection(activeUlanganId);
         }
 
         // Kumpulkan dan sinkronkan daftar mata pelajaran yang pernah dibuat guru
-        if (data.data && Array.isArray(data.data)) {
-          data.data.forEach(u => {
+        if (cachedExamList.length > 0) {
+          cachedExamList.forEach(u => {
             const sub = u.mata_pelajaran ? u.mata_pelajaran.trim() : '';
             if (sub && !teacherSubjectsCache.some(s => s.toLowerCase() === sub.toLowerCase())) {
               teacherSubjectsCache.push(sub);
@@ -5527,6 +5598,31 @@
       } catch (err) {
         console.error(err);
       }
+    }
+
+    // Event listener pencarian / filter ulangan instan
+    const searchExamInput = document.getElementById('search-exam-input');
+    const btnClearSearchExam = document.getElementById('btn-clear-search-exam');
+    let searchDebounceTimer = null;
+    if (searchExamInput) {
+      searchExamInput.addEventListener('input', () => {
+        const val = searchExamInput.value;
+        if (btnClearSearchExam) {
+          if (val) btnClearSearchExam.classList.remove('hidden');
+          else btnClearSearchExam.classList.add('hidden');
+        }
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(() => {
+          renderExamListCards(val);
+        }, 120);
+      });
+    }
+    if (btnClearSearchExam) {
+      btnClearSearchExam.addEventListener('click', () => {
+        if (searchExamInput) searchExamInput.value = '';
+        btnClearSearchExam.classList.add('hidden');
+        renderExamListCards('');
+      });
     }
 
     // Helper sinkronisasi kuota tipe soal dengan batas jumlah total soal
@@ -5918,7 +6014,11 @@
       activeUlanganId = id;
       sessionStorage.setItem('active_guru_ulangan_id', id);
       currentStudentPage = 1;
-      loadUlanganList();
+      if (!cachedExamList || cachedExamList.length === 0) {
+        loadUlanganList();
+      } else {
+        updateExamCardSelection(id);
+      }
 
       const res = await guruFetch(`/api/guru/ulangan/${id}`);
       const data = await res.json();

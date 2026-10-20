@@ -82,8 +82,12 @@ if (tursoUrl && tursoToken) {
   }
 
   function sleepSync(ms) {
-    const end = Date.now() + ms;
-    while (Date.now() < end) {}
+    try {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+    } catch (e) {
+      const end = Date.now() + ms;
+      while (Date.now() < end) {}
+    }
   }
 
   function executeWithRetry(fn, sql = '', maxRetries = 3) {
@@ -200,9 +204,9 @@ let lastSyncTime = 0;
 db.syncCloud = function(force = false) {
   if (typeof db.sync !== 'function' || isSyncing) return;
   const now = Date.now();
-  // Throttle sinkronisasi: minimal jeda 60 detik jika normal, 20 detik jika force
-  // Ini menghemat kuota bandwidth hingga 90%+
-  const minInterval = force ? 1000 : 60000;
+  // Throttle sinkronisasi: minimal jeda 60 detik jika normal, 15 detik jika force
+  // Ini menghemat kuota bandwidth hingga 90%+ dan mencegah lock loop pada database
+  const minInterval = force ? 15000 : 60000;
   if (now - lastSyncTime < minInterval) return;
 
   lastSyncTime = now;
@@ -887,6 +891,10 @@ function initDatabase() {
     { name: 'idx_soal_ulangan_urutan', sql: "CREATE INDEX IF NOT EXISTS idx_soal_ulangan_urutan ON soal(ulangan_id, urutan);" },
     // Untuk query jawaban siswa: WHERE pengerjaan_id = ? (sering dipanggil saat submit & review)
     { name: 'idx_jawaban_pengerjaan_id', sql: "CREATE INDEX IF NOT EXISTS idx_jawaban_pengerjaan_id ON jawaban(pengerjaan_id);" },
+    // Optimasi query hitung total peserta & komposisi soal per ulangan (dashboard guru)
+    { name: 'idx_peserta_ulangan', sql: "CREATE INDEX IF NOT EXISTS idx_peserta_ulangan ON peserta(ulangan_id);" },
+    { name: 'idx_soal_ulangan_jenis', sql: "CREATE INDEX IF NOT EXISTS idx_soal_ulangan_jenis ON soal(ulangan_id, jenis);" },
+    { name: 'idx_jawaban_penilaian', sql: "CREATE INDEX IF NOT EXISTS idx_jawaban_penilaian ON jawaban(status_penilaian);" },
   ];
 
   for (const idx of additionalIndexes) {

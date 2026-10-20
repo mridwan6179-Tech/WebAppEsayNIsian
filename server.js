@@ -536,11 +536,11 @@ app.get('/api/siswa/riwayat/:pengerjaan_id', (req, res) => {
 // Siswa: Mulai Sesi Remedial Langsung Mandiri (Hanya butir soal yang salah/belum sempurna)
 app.post('/api/siswa/remedial/mulai', (req, res) => {
   try {
-    const { pengerjaan_id } = req.body;
+    const { pengerjaan_id, nama, kelas } = req.body;
     if (!pengerjaan_id) {
       return res.status(400).json({ success: false, message: 'pengerjaan_id wajib disertakan' });
     }
-    const result = studentService.startDirectRemedial(pengerjaan_id);
+    const result = studentService.startDirectRemedial(pengerjaan_id, { nama, kelas });
     res.json(result);
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
