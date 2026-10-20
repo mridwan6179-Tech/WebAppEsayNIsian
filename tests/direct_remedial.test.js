@@ -401,4 +401,160 @@ test('=== SUITE: REMEDIAL LANGSUNG MANDIRI SISWA ===', async (t) => {
     assert.strictEqual(remedialRes.isRemedial, true);
     assert.strictEqual(remedialRes.soal.length, 1);
   });
+
+  await t.test('7. Batas remedial: Setelah menyelesaikan batas remedial, tombol remedial hilang (canDirectRemedial = false)', async () => {
+    // Buat ulangan dengan remedial_langsung = 1 dan maksimal_percobaan = 1
+    const exam = examService.createUlangan(guruId, {
+      judul: 'Ulangan Limit Remedial Test',
+      mata_pelajaran: 'Matematika',
+      tingkat_kelas: '7',
+      kkm: 80,
+      remedial_langsung: 1,
+      maksimal_percobaan: 1
+    });
+
+    const s1 = examService.createSoal(exam.id, { nomor: 1, jenis: 'pilihan_ganda', pertanyaan: '1+1?', opsi_a: '2', opsi_b: '3', kunci_pg: 'A', bobot: 50 });
+    const s2 = examService.createSoal(exam.id, { nomor: 2, jenis: 'pilihan_ganda', pertanyaan: '2+2?', opsi_a: '4', opsi_b: '5', kunci_pg: 'A', bobot: 50 });
+    db.prepare("UPDATE ulangan SET status = 'dibuka' WHERE id = ?").run(exam.id);
+
+    // Siswa jawab: s1 benar, s2 salah -> Skor 50 (< KKM 80)
+    const start = studentService.startExam(exam.kode_ujian, 'Doni Remedial', '7A');
+    studentService.submitExam(start.pengerjaanId, [
+      { soal_id: s1.id, jawaban_siswa: 'A' },
+      { soal_id: s2.id, jawaban_siswa: 'B' }
+    ]);
+
+    // Rilis nilai awal
+    db.prepare('UPDATE pengerjaan SET released_at = CURRENT_TIMESTAMP WHERE id = ?').run(start.pengerjaanId);
+    let st = studentService.getPengerjaanStatus(start.pengerjaanId);
+    assert.strictEqual(st.canDirectRemedial, true, 'Sebelum remedial pertama, canDirectRemedial harus true');
+
+    // Siswa mulai remedial (remedial_ke menjadi 1)
+    studentService.startDirectRemedial(start.pengerjaanId);
+    
+    // Siswa submit jawaban remedial (masih salah di s2, sehingga skor tetap 50)
+    studentService.submitExam(start.pengerjaanId, [
+      { soal_id: s2.id, jawaban_siswa: 'B' }
+    ]);
+
+    // Sekarang cek status siswa setelah selesai remedial: batas remedial tercapai!
+    st = studentService.getPengerjaanStatus(start.pengerjaanId);
+    assert.strictEqual(st.remedial_ke, 1);
+    assert.strictEqual(st.is_remedial_limit_reached, true, 'is_remedial_limit_reached harus true');
+    assert.strictEqual(st.canDirectRemedial, false, 'canDirectRemedial HARUS false karena batas remedial sudah habis');
+    assert.strictEqual(st.can_retake, false, 'can_retake HARUS false');
+
+    // Percobaan memulai remedial lagi harus dilemparkan error
+    assert.throws(() => {
+      studentService.startDirectRemedial(start.pengerjaanId);
+    }, /batas kesempatan remedial/i);
+  });
+
+  await t.test('8. Nilai hasil remedial menggabungkan butir yang sudah benar sebelumnya + hasil perbaikan butir remedial', async () => {
+    // Ulangan 3 soal: s1 bobot 40, s2 bobot 30, s3 bobot 30 (total 100)
+    const exam = examService.createUlangan(guruId, {
+      judul: 'Ulangan Remedial Kombinasi Nilai',
+      mata_pelajaran: 'Fisika',
+      tingkat_kelas: '8',
+      kkm: 75,
+      remedial_langsung: 1
+    });
+
+    const s1 = examService.createSoal(exam.id, { nomor: 1, jenis: 'pilihan_ganda', pertanyaan: 'Soal 1', opsi_a: 'A', opsi_b: 'B', kunci_pg: 'A', bobot: 40 });
+    const s2 = examService.createSoal(exam.id, { nomor: 2, jenis: 'pilihan_ganda', pertanyaan: 'Soal 2', opsi_a: 'A', opsi_b: 'B', kunci_pg: 'A', bobot: 30 });
+    const s3 = examService.createSoal(exam.id, { nomor: 3, jenis: 'pilihan_ganda', pertanyaan: 'Soal 3', opsi_a: 'A', opsi_b: 'B', kunci_pg: 'A', bobot: 30 });
+    db.prepare("UPDATE ulangan SET status = 'dibuka' WHERE id = ?").run(exam.id);
+
+    // Ujian Pertama: s1 benar (40), s2 benar (30), s3 salah (0). Total awal: 70 (< KKM 75)
+    const start = studentService.startExam(exam.kode_ujian, 'Siti Fisika', '8B');
+    studentService.submitExam(start.pengerjaanId, [
+      { soal_id: s1.id, jawaban_siswa: 'A' },
+      { soal_id: s2.id, jawaban_siswa: 'A' },
+      { soal_id: s3.id, jawaban_siswa: 'B' }
+    ]);
+
+    db.prepare('UPDATE pengerjaan SET released_at = CURRENT_TIMESTAMP WHERE id = ?').run(start.pengerjaanId);
+    let st = studentService.getPengerjaanStatus(start.pengerjaanId);
+    assert.strictEqual(st.nilaiFinal, 66.7);
+
+    // Mulai remedial: hanya s3 yang disajikan
+    const remStart = studentService.startDirectRemedial(start.pengerjaanId);
+    assert.strictEqual(remStart.soal.length, 1);
+    assert.strictEqual(remStart.soal[0].id, s3.id);
+
+    // Submit jawaban remedial: s3 sekarang dijawab BENAR ('A')
+    const submitRem = studentService.submitExam(start.pengerjaanId, [
+      { soal_id: s3.id, jawaban_siswa: 'A' }
+    ]);
+    assert.strictEqual(submitRem.success, true);
+
+    // Nilai baru harus 100 (40 dari s1 + 30 dari s2 + 30 dari perbaikan remedial s3)
+    st = studentService.getPengerjaanStatus(start.pengerjaanId);
+    assert.strictEqual(st.nilaiFinal, 100, 'Nilai akhir harus menjadi 100 (gabungan nilai lama yang benar + remedial)');
+    assert.strictEqual(st.isRemedial, false, 'Karena sudah 100 >= 75 KKM, isRemedial harus false');
+  });
+
+  await t.test('9. Indikator antrean AI guru: getQueueStatus menyediakan currentlyGrading dan waitingStudents', async () => {
+    const queueService = require('../src/services/queueService');
+    const exam = examService.createUlangan(guruId, {
+      judul: 'Ulangan Queue Monitor Guru Test',
+      mata_pelajaran: 'Bahasa Indonesia',
+      tingkat_kelas: '9',
+      kkm: 75
+    });
+
+    const s1 = examService.createSoal(exam.id, { nomor: 1, jenis: 'essay', pertanyaan: 'Jelaskan amanat puisi!', bobot: 100, kunci_jawaban: 'Amanat perjuangan.' });
+    db.prepare("UPDATE ulangan SET status = 'dibuka' WHERE id = ?").run(exam.id);
+
+    // Dua siswa submit essay
+    const st1 = studentService.startExam(exam.kode_ujian, 'Siswa Antre 1', '9A');
+    studentService.submitExam(st1.pengerjaanId, [{ soal_id: s1.id, jawaban_siswa: 'Perjuangan membela bangsa.' }]);
+
+    const st2 = studentService.startExam(exam.kode_ujian, 'Siswa Antre 2', '9B');
+    studentService.submitExam(st2.pengerjaanId, [{ soal_id: s1.id, jawaban_siswa: 'Semangat persatuan.' }]);
+
+    queueService.enqueuePengerjaan(st1.pengerjaanId);
+    queueService.enqueuePengerjaan(st2.pengerjaanId);
+
+    const qStatus = queueService.getQueueStatus(exam.id);
+    assert.ok(qStatus.waitingStudents.length >= 2, 'Daftar antrean siswa harus memuat minimal 2 siswa');
+    assert.strictEqual(qStatus.waitingStudents[0].nama_siswa, 'Siswa Antre 1');
+    assert.strictEqual(qStatus.waitingStudents[0].urutan, 1);
+    assert.strictEqual(qStatus.waitingStudents[1].nama_siswa, 'Siswa Antre 2');
+    assert.strictEqual(qStatus.waitingStudents[1].urutan, 2);
+    assert.strictEqual(qStatus.currentlyGrading.nama_siswa, 'Siswa Antre 1');
+  });
+
+  await t.test('10. Leaderboard rekapNilaiKelas hanya menampilkan teman satu kelas (kawan sekelas)', async () => {
+    const exam = examService.createUlangan(guruId, {
+      judul: 'Ulangan Kelas Terisolasi Test',
+      mata_pelajaran: 'Kimia',
+      tingkat_kelas: '10',
+      kkm: 75
+    });
+
+    const s1 = examService.createSoal(exam.id, { nomor: 1, jenis: 'pilihan_ganda', pertanyaan: 'Simbol air?', opsi_a: 'H2O', opsi_b: 'CO2', kunci_pg: 'A', bobot: 100 });
+    db.prepare("UPDATE ulangan SET status = 'dibuka' WHERE id = ?").run(exam.id);
+
+    // Siswa 1 di kelas 10-IPA-1
+    const p1 = studentService.startExam(exam.kode_ujian, 'Andi IPA1', '10-IPA-1');
+    studentService.submitExam(p1.pengerjaanId, [{ soal_id: s1.id, jawaban_siswa: 'A' }]);
+
+    // Siswa 2 di kelas 10-IPA-2 (kelas lain!)
+    const p2 = studentService.startExam(exam.kode_ujian, 'Bambang IPA2', '10-IPA-2');
+    studentService.submitExam(p2.pengerjaanId, [{ soal_id: s1.id, jawaban_siswa: 'A' }]);
+
+    // Rilis nilai keduanya
+    db.prepare('UPDATE pengerjaan SET released_at = CURRENT_TIMESTAMP WHERE id IN (?, ?)').run(p1.pengerjaanId, p2.pengerjaanId);
+
+    // Cek status Siswa 1 (10-IPA-1)
+    const st1 = studentService.getPengerjaanStatus(p1.pengerjaanId);
+    assert.strictEqual(st1.isReleased, true);
+    assert.ok(Array.isArray(st1.rekapNilaiKelas));
+    
+    // Harus hanya ada siswa kelas 10-IPA-1
+    const names = st1.rekapNilaiKelas.map(r => r.nama);
+    assert.ok(names.includes('Andi IPA1'), 'Harus memuat teman sekelas');
+    assert.ok(!names.includes('Bambang IPA2'), 'DILARANG memuat siswa dari kelas lain (10-IPA-2)!');
+  });
 });

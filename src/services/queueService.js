@@ -204,13 +204,70 @@ const queueService = {
 
     const workerState = runningWorkers.get(Number(ulanganId));
 
+    // Ambil butir antrean yang saat ini sedang aktif dievaluasi (status 'diproses')
+    let activeItem = null;
+    try {
+      activeItem = db.prepare(`
+        SELECT a.id as antrean_id, j.id as jawaban_id, j.pengerjaan_id,
+               pes.nama as nama_siswa, pes.kelas as kelas_siswa,
+               s.nomor as nomor_soal, s.jenis as jenis_soal
+        FROM antrean_review a
+        JOIN jawaban j ON a.jawaban_id = j.id
+        JOIN pengerjaan p ON j.pengerjaan_id = p.id
+        JOIN peserta pes ON p.peserta_id = pes.id
+        JOIN soal s ON j.soal_id = s.id
+        WHERE p.ulangan_id = ? AND a.status = 'diproses'
+        ORDER BY a.locked_at DESC
+        LIMIT 1
+      `).get(ulanganId);
+    } catch (eActive) {}
+
+    // Ambil urutan seluruh siswa yang sedang mengantre penilaian AI (FIFO)
+    let waitingStudents = [];
+    try {
+      waitingStudents = db.prepare(`
+        SELECT 
+          p.id as pengerjaan_id,
+          pes.nama as nama_siswa,
+          pes.kelas as kelas_siswa,
+          COALESCE(p.submitted_at, p.started_at) as submitted_at,
+          COUNT(j.id) as total_butir,
+          SUM(CASE WHEN j.status_penilaian = 'selesai' THEN 1 ELSE 0 END) as selesai_butir,
+          SUM(CASE WHEN j.status_penilaian = 'diproses' THEN 1 ELSE 0 END) as diproses_butir,
+          SUM(CASE WHEN j.status_penilaian = 'menunggu' THEN 1 ELSE 0 END) as menunggu_butir
+        FROM pengerjaan p
+        JOIN peserta pes ON p.peserta_id = pes.id
+        JOIN jawaban j ON j.pengerjaan_id = p.id
+        WHERE p.ulangan_id = ? AND p.status = 'submitted'
+        GROUP BY p.id, pes.nama, pes.kelas, p.submitted_at, p.started_at
+        HAVING SUM(CASE WHEN j.status_penilaian != 'selesai' THEN 1 ELSE 0 END) > 0
+        ORDER BY COALESCE(p.submitted_at, p.started_at) ASC, p.id ASC
+      `).all(ulanganId).map((row, idx) => ({
+        urutan: idx + 1,
+        pengerjaan_id: row.pengerjaan_id,
+        nama_siswa: row.nama_siswa,
+        kelas_siswa: row.kelas_siswa,
+        total_butir: Number(row.total_butir) || 0,
+        selesai_butir: Number(row.selesai_butir) || 0,
+        diproses_butir: Number(row.diproses_butir) || 0,
+        menunggu_butir: Number(row.menunggu_butir) || 0,
+        isCurrentlyGraded: (activeItem && activeItem.pengerjaan_id === row.pengerjaan_id) || idx === 0
+      }));
+    } catch (eWait) {}
+
+    const currentlyGrading = waitingStudents.length > 0 ? waitingStudents[0] : null;
+
     return {
       total: stats?.total || 0,
       selesai: stats?.selesai || 0,
       diproses: stats?.diproses || 0,
       menunggu: stats?.menunggu || 0,
       gagal: stats?.gagal || 0,
-      isRunning: Boolean(workerState?.isRunning)
+      isRunning: Boolean(workerState?.isRunning),
+      activeItem: activeItem || null,
+      currentlyGrading,
+      waitingStudents: waitingStudents.slice(0, 10),
+      totalWaitingStudents: waitingStudents.length
     };
   },
 

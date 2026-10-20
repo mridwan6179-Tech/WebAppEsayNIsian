@@ -1113,6 +1113,7 @@ const studentService = {
     }
 
     // Penanganan Pengumpulan Jawaban Sesi Remedial Langsung
+    let remedialRecalc = null;
     if (pengerjaan.remedial_ke && pengerjaan.remedial_ke > 0) {
       // 1. Evaluasi otomatis jika ada butir isian/essay pada sesi remedial
       const pendingAnswers = db.prepare(`
@@ -1150,9 +1151,9 @@ const studentService = {
       try {
         db.prepare('UPDATE pengerjaan SET soal_ids = COALESCE(original_soal_ids, soal_ids) WHERE id = ?').run(pengerjaanId);
         const reviewService = require('./reviewService');
-        const recalc = reviewService.recalculatePengerjaanTotal(pengerjaanId);
-        if (recalc && recalc.nilai_final !== null) {
-          db.prepare('UPDATE pengerjaan SET nilai_final = ?, nilai_ai = ?, skor_pg = COALESCE(?, skor_pg), skor_koding = COALESCE(?, skor_koding), released_at = CURRENT_TIMESTAMP WHERE id = ?').run(recalc.nilai_final, recalc.nilai_ai, recalc.skor_pg, recalc.skor_koding, pengerjaanId);
+        remedialRecalc = reviewService.recalculatePengerjaanTotal(pengerjaanId);
+        if (remedialRecalc && remedialRecalc.nilai_final !== null) {
+          db.prepare('UPDATE pengerjaan SET nilai_final = ?, nilai_ai = ?, skor_pg = COALESCE(?, skor_pg), skor_koding = COALESCE(?, skor_koding), released_at = CURRENT_TIMESTAMP WHERE id = ?').run(remedialRecalc.nilai_final, remedialRecalc.nilai_ai, remedialRecalc.skor_pg, remedialRecalc.skor_koding, pengerjaanId);
         }
       } catch (errRecalc) {
         console.warn('⚠️ Recalculate remedial notice:', errRecalc.message);
@@ -1183,19 +1184,22 @@ const studentService = {
       db.prepare('UPDATE pengerjaan SET nilai_terbaik = ? WHERE ulangan_id = ? AND peserta_id = ?').run(bestScore, pengerjaan.ulangan_id, pengerjaan.peserta_id);
     }
 
-    // Segera dorong jawaban dan status submitted ke Turso Cloud agar tersimpan permanen
-    if (typeof db.sync === 'function') {
-      try { db.sync(); } catch (syncErr) {}
+    // Segera dorong jawaban dan status submitted ke Turso Cloud secara non-blocking di latar belakang
+    if (typeof db.syncCloud === 'function') {
+      db.syncCloud(true);
     }
 
     const updated = db.prepare('SELECT submitted_at, released_at, nilai_final, attempt_ke, nilai_terbaik FROM pengerjaan WHERE id = ?').get(pengerjaanId);
     const maxAttempts = (ulRowAfterSubmit?.maksimal_percobaan !== undefined && ulRowAfterSubmit?.maksimal_percobaan !== null) ? Number(ulRowAfterSubmit.maksimal_percobaan) : 1;
+    const finalSkorPg = (pengerjaan.remedial_ke && pengerjaan.remedial_ke > 0 && remedialRecalc?.skor_pg !== undefined) 
+      ? remedialRecalc.skor_pg 
+      : computedSkorPg;
 
     return {
       success: true,
       message: 'Jawaban berhasil dikumpulkan',
       submitted_at: updated ? updated.submitted_at : new Date().toISOString(),
-      skor_pg: computedSkorPg,
+      skor_pg: finalSkorPg,
       total_pg: totalPg,
       benar_pg: benarPg,
       skor_koding: computedSkorKoding,
@@ -1236,6 +1240,14 @@ const studentService = {
     const currentScore = pengerjaan.nilai_final !== null ? Number(pengerjaan.nilai_final) : (pengerjaan.nilai_ai !== null ? Number(pengerjaan.nilai_ai) : null);
     if (currentScore !== null && currentScore >= kkm) {
       throw new Error('Nilai Anda sudah mencapai atau melampaui KKM, tidak memerlukan remedial.');
+    }
+
+    // Cek batas remedial (jika sudah mencapai batas, jangan ada lagi kesempatan remedial)
+    const maxAttempts = (ulangan.maksimal_percobaan !== undefined && ulangan.maksimal_percobaan !== null) ? Number(ulangan.maksimal_percobaan) : 1;
+    const remedialKe = Number(pengerjaan.remedial_ke || 0);
+    const maxRemedialLimit = maxAttempts === 0 ? Infinity : Math.max(1, maxAttempts > 1 ? maxAttempts - 1 : 1);
+    if (maxAttempts !== 0 && remedialKe >= maxRemedialLimit) {
+      throw new Error(`Batas kesempatan remedial (${maxRemedialLimit}x) untuk ulangan ini telah tercapai.`);
     }
 
     const peserta = db.prepare('SELECT id, nama, kelas FROM peserta WHERE id = ?').get(pengerjaan.peserta_id);
@@ -1341,8 +1353,8 @@ const studentService = {
       }
     })();
 
-    if (typeof db.sync === 'function') {
-      try { db.sync(); } catch (syncErr) {}
+    if (typeof db.syncCloud === 'function') {
+      db.syncCloud(true);
     }
 
     // Ambil data butir soal yang salah (DIRAHASIAKAN dari kunci jawaban dan status salah sebelumnya)
@@ -1705,10 +1717,18 @@ const studentService = {
 
     // Hitung status nilai saat ini untuk evaluasi hak remedial langsung
     const currentScore = pengerjaan.nilai_final !== null ? Number(pengerjaan.nilai_final) : (pengerjaan.nilai_ai !== null ? Number(pengerjaan.nilai_ai) : null);
-    // PENTING: Remedial HANYA aktif jika nilai sudah dirilis oleh guru/AI (isReleased === true)
+    const maxAttempts = (pengerjaan.maksimal_percobaan !== undefined && pengerjaan.maksimal_percobaan !== null) ? Number(pengerjaan.maksimal_percobaan) : 1;
+    const remedialKe = Number(pengerjaan.remedial_ke || 0);
+    // Batas remedial: jika maksimal_percobaan = 0, tanpa batas.
+    // Jika maksimal_percobaan = 1 (default 1x), kesempatan remedial adalah 1x (remedialKe < 1).
+    // Jika maksimal_percobaan > 1, total kesempatan remedial adalah maksimal_percobaan - 1 (atau maksimal_percobaan).
+    const maxRemedialLimit = maxAttempts === 0 ? Infinity : Math.max(1, maxAttempts > 1 ? maxAttempts - 1 : 1);
+    const isRemedialLimitReached = (maxAttempts !== 0) && (remedialKe >= maxRemedialLimit);
+
+    // PENTING: Remedial HANYA aktif jika nilai sudah dirilis oleh guru/AI (isReleased === true) dan belum mencapai batas remedial
     const isUnderKkm = (finalScore !== null) ? (finalScore < examKkm) : false;
     const isRemedial = Boolean(isReleased && isUnderKkm);
-    const canDirectRemedial = Boolean(isReleased && isRemedialLangsungActive && isUnderKkm);
+    const canDirectRemedial = Boolean(isReleased && isRemedialLangsungActive && isUnderKkm && !isRemedialLimitReached);
 
     // Normalisasi nomor WA untuk link wa.me
     let cleanWa = (pengerjaan.no_wa_guru || '').replace(/\D/g, '');
@@ -1722,7 +1742,7 @@ const studentService = {
     let rekapNilaiKelas = [];
 
     if (isReleased) {
-      if (isRemedial && isRemedialLangsungActive) {
+      if (isRemedial && isRemedialLangsungActive && canDirectRemedial) {
         // "tapi ingat ini jangan diberitahukan mana yang salah dan benar"
         // Rahasiakan perincian kunci dan benar/salah per butir soal agar siswa mandiri saat remedial langsung
         jawabanList = [];
@@ -1740,20 +1760,47 @@ const studentService = {
       }
 
       // Ambil seluruh rekap nilai peserta yang sudah dirilis pada ulangan ini untuk tabel leaderboard
-      rekapNilaiKelas = db.prepare(`
-        SELECT 
-          pes.id as peserta_id,
-          pes.nama as nama_siswa,
-          pes.kelas as kelas_siswa,
-          p2.id as pengerjaan_id,
-          p2.nilai_final,
-          p2.nilai_ai,
-          p2.auto_submitted
-        FROM pengerjaan p2
-        JOIN peserta pes ON p2.peserta_id = pes.id
-        WHERE p2.ulangan_id = ? AND p2.status = 'submitted' AND p2.released_at IS NOT NULL
-        ORDER BY COALESCE(p2.nilai_final, p2.nilai_ai, 0) DESC, pes.nama ASC
-      `).all(pengerjaan.ulangan_id).map((r, idx) => {
+      // PENTING: Siswa hanya dapat melihat nilai teman satu kelas (kawan sekelas)
+      const studentClass = (pengerjaan.kelas || '').trim();
+      let rawRekap = [];
+      if (studentClass) {
+        rawRekap = db.prepare(`
+          SELECT 
+            pes.id as peserta_id,
+            pes.nama as nama_siswa,
+            pes.kelas as kelas_siswa,
+            p2.id as pengerjaan_id,
+            p2.nilai_final,
+            p2.nilai_ai,
+            p2.auto_submitted
+          FROM pengerjaan p2
+          JOIN peserta pes ON p2.peserta_id = pes.id
+          WHERE p2.ulangan_id = ? 
+            AND LOWER(TRIM(pes.kelas)) = LOWER(TRIM(?))
+            AND p2.status = 'submitted' 
+            AND p2.released_at IS NOT NULL
+          ORDER BY COALESCE(p2.nilai_final, p2.nilai_ai, 0) DESC, pes.nama ASC
+        `).all(pengerjaan.ulangan_id, studentClass);
+      } else {
+        rawRekap = db.prepare(`
+          SELECT 
+            pes.id as peserta_id,
+            pes.nama as nama_siswa,
+            pes.kelas as kelas_siswa,
+            p2.id as pengerjaan_id,
+            p2.nilai_final,
+            p2.nilai_ai,
+            p2.auto_submitted
+          FROM pengerjaan p2
+          JOIN peserta pes ON p2.peserta_id = pes.id
+          WHERE p2.ulangan_id = ? 
+            AND p2.status = 'submitted' 
+            AND p2.released_at IS NOT NULL
+          ORDER BY COALESCE(p2.nilai_final, p2.nilai_ai, 0) DESC, pes.nama ASC
+        `).all(pengerjaan.ulangan_id);
+      }
+
+      rekapNilaiKelas = rawRekap.map((r, idx) => {
         const score = r.nilai_final !== null ? r.nilai_final : (r.nilai_ai !== null ? r.nilai_ai : 0);
         return {
           ranking: idx + 1,
@@ -1768,7 +1815,6 @@ const studentService = {
       });
     }
 
-    const maxAttempts = (pengerjaan.maksimal_percobaan !== undefined && pengerjaan.maksimal_percobaan !== null) ? Number(pengerjaan.maksimal_percobaan) : 1;
     const policy = pengerjaan.kebijakan_nilai || 'tertinggi';
 
     const allSubmittedAttempts = db.prepare(`
@@ -1790,7 +1836,7 @@ const studentService = {
       }
     }
 
-    const canRetake = (maxAttempts === 0 || countSubmitted < maxAttempts);
+    const canRetake = (maxAttempts === 0 || (countSubmitted < maxAttempts && !isRemedialLimitReached));
     const sisaPercobaan = maxAttempts === 0 ? 'Tanpa Batas' : Math.max(0, maxAttempts - countSubmitted);
 
     return {
@@ -1819,6 +1865,9 @@ const studentService = {
       isRemedial,
       remedial_langsung: isRemedialLangsungActive ? 1 : 0,
       canDirectRemedial,
+      remedial_ke: remedialKe,
+      max_remedial: maxRemedialLimit === Infinity ? 0 : maxRemedialLimit,
+      is_remedial_limit_reached: isRemedialLimitReached,
       currentScore: currentScore,
       instruksi_remedial: pengerjaan.instruksi_remedial || null,
       link_remedial: pengerjaan.link_remedial || null,

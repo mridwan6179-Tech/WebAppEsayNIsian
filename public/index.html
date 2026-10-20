@@ -948,6 +948,17 @@
               </a>
             </div>
 
+            <!-- Pesan Batas Remedial Tercapai -->
+            <div id="remedial-limit-reached-msg" class="hidden mt-3 p-3.5 bg-slate-100 border border-slate-300 rounded-xl space-y-1 text-slate-700">
+              <div class="flex items-center space-x-1.5 font-bold text-xs text-slate-800">
+                <span>🛑</span>
+                <span>Batas Kesempatan Remedial Telah Tercapai</span>
+              </div>
+              <p class="text-[11px] text-slate-600 leading-relaxed">
+                Anda telah menyelesaikan batas kesempatan remedial / ujian ulang untuk ulangan ini. Nilai akhir resmi Anda telah tersimpan secara permanen.
+              </p>
+            </div>
+
             <!-- Tombol & Info Remedial Langsung Mandiri -->
             <div id="remedial-direct-box" class="hidden mt-3 p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-xl space-y-2">
               <div class="flex items-center space-x-2 text-amber-900 font-extrabold text-xs">
@@ -5952,7 +5963,8 @@
         const policy = data.kebijakan_nilai || data.kebijakanNilai || 'tertinggi';
         const bestScore = data.nilai_terbaik !== undefined ? data.nilai_terbaik : (data.nilaiTerbaik ?? (data.nilaiFinal ?? data.nilai_final));
 
-        if (maxAttempts !== 1) {
+        // Kartu retake/ulang hanya boleh muncul jika nilai sudah dirilis resmi oleh guru/AI
+        if (Boolean(data.isReleased && maxAttempts !== 1)) {
           retakeCard.classList.remove('hidden');
           const badgeEl = document.getElementById('retake-attempt-badge');
           if (badgeEl) {
@@ -5970,7 +5982,7 @@
           const btnRetake = document.getElementById('btn-do-retake-exam');
           const btnRetakeLabel = document.getElementById('btn-do-retake-label');
 
-          if (canRetake) {
+          if (canRetake && !data.is_remedial_limit_reached) {
             if (btnRetake) btnRetake.classList.remove('hidden');
             if (infoText) {
               infoText.textContent = policy === 'terakhir'
@@ -6134,16 +6146,25 @@
           }
         }
 
-        // Update Tabel Pengumuman Nilai Se-Kelas
+        // Update Tabel Pengumuman Nilai Se-Kelas (Khusus Teman Sekelas)
         const tableBody = document.getElementById('released-class-table-body');
         const badgePeserta = document.getElementById('badge-total-peserta-rilis');
+        const tableTitle = document.querySelector('#released-class-table-section h4');
+        const tableSubtitle = document.querySelector('#released-class-table-section p');
+        if (tableTitle) {
+          tableTitle.textContent = data.kelas ? `Tabel Pengumuman Nilai Kelas ${data.kelas}` : 'Tabel Pengumuman Nilai Teman Sekelas';
+        }
+        if (tableSubtitle) {
+          tableSubtitle.textContent = `Rekapitulasi nilai resmi yang telah dirilis oleh guru untuk siswa kelas ${data.kelas || ''}`;
+        }
+
         if (tableBody) {
           tableBody.innerHTML = '';
           const rekapList = Array.isArray(data.rekapNilaiKelas) ? data.rekapNilaiKelas : [];
           if (badgePeserta) badgePeserta.textContent = `${rekapList.length} Siswa`;
 
           if (rekapList.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">Belum ada rekapitulasi nilai yang dirilis.</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">Belum ada rekapitulasi nilai kawan sekelas yang dirilis.</td></tr>`;
           } else {
             rekapList.forEach(row => {
               const tr = document.createElement('tr');
@@ -6158,11 +6179,11 @@
                 </td>
                 <td class="px-3.5 py-2.5">
                   <div class="flex items-center gap-1.5">
-                    <span>${row.nama}</span>
+                    <span>${escapeHtml(row.nama)}</span>
                     ${isCurrent ? '<span class="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm">Kamu</span>' : ''}
                   </div>
                 </td>
-                <td class="px-3.5 py-2.5">${row.kelas || '-'}</td>
+                <td class="px-3.5 py-2.5">${escapeHtml(row.kelas || '-')}</td>
                 <td class="px-3.5 py-2.5 text-center font-extrabold ${row.isTuntas ? 'text-emerald-600' : 'text-rose-600'}">
                   ${row.nilai}
                 </td>
@@ -6208,28 +6229,7 @@
           }
         };
 
-        const curScoreVal = (data.nilaiFinal !== null && data.nilaiFinal !== undefined)
-          ? Number(data.nilaiFinal)
-          : ((data.currentScore !== null && data.currentScore !== undefined) ? Number(data.currentScore) : null);
-        const examKkmVal = Number(data.kkm || 75);
-        const isUnderKkmVal = curScoreVal !== null ? (curScoreVal < examKkmVal) : false;
-        // PENTING: Tombol / Kesempatan Remedial HANYA aktif jika nilai SUDAH dirilis resmi oleh guru/AI (data.isReleased === true)
-        const isDirectRemedialEligible = Boolean(data.isReleased && (data.canDirectRemedial || (Boolean(Number(data.remedial_langsung || 0) === 1) && isUnderKkmVal)));
-
-        if (isDirectRemedialEligible) {
-          statusBox.innerHTML = `
-            <div class="space-y-2 text-center bg-amber-50/90 border border-amber-300 rounded-xl p-4">
-              <div class="flex items-center justify-center gap-1.5 flex-wrap">
-                <span class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full bg-amber-600 text-white shadow-2xs">
-                  <span>🚀 Kesempatan Remedial Langsung Aktif</span>
-                </span>
-              </div>
-              <p class="text-xs text-amber-900 font-medium leading-relaxed">
-                Ujian telah dikumpulkan. Nilai Anda belum mencapai KKM (${examKkmVal}). Guru telah membuka kesempatan untuk <strong>memperbaiki butir-butir soal yang belum sempurna</strong> secara mandiri.
-              </p>
-            </div>
-          `;
-        } else if (data.skorLangsungAi || (data.antreanInfo && !data.isReleased)) {
+        if (data.skorLangsungAi || (data.antreanInfo && !data.isReleased)) {
           const antrean = data.antreanInfo || {};
           const totalSoal = antrean.totalSoal || (data.jawaban || []).length || 1;
           const selesaiSoal = antrean.selesaiSoal || 0;
@@ -6396,54 +6396,62 @@
             customInstruksiBox.classList.add('hidden');
           }
 
-          // Tampilkan Tombol & Info Remedial Mandiri Langsung jika diaktifkan guru
+          // Tampilkan Tombol & Info Remedial Mandiri Langsung jika diaktifkan guru dan belum mencapai batas
           const directRemedialBox = document.getElementById('remedial-direct-box');
-          if (directRemedialBox) {
-            if (data.canDirectRemedial || Boolean(Number(data.remedial_langsung || 0) === 1)) {
-              directRemedialBox.classList.remove('hidden');
+          const remedialLimitMsg = document.getElementById('remedial-limit-reached-msg');
 
-              // Tampilkan opsi membaca kisi-kisi sebelum remedial dimulai
-              window._currentStudentKisiUlangan = {
-                ...data,
-                judul: data.judul,
-                mata_pelajaran: data.mataPelajaran,
-                kode_ujian: data.kodeUjian
-              };
-              let parsedKisiAi = null;
-              if (data.konten_kisi_kisi) {
-                try {
-                  parsedKisiAi = typeof data.konten_kisi_kisi === 'string'
-                    ? JSON.parse(data.konten_kisi_kisi)
-                    : data.konten_kisi_kisi;
-                } catch (_) {
-                  parsedKisiAi = null;
+          if (data.is_remedial_limit_reached) {
+            if (remedialLimitMsg) remedialLimitMsg.classList.remove('hidden');
+            if (directRemedialBox) directRemedialBox.classList.add('hidden');
+          } else {
+            if (remedialLimitMsg) remedialLimitMsg.classList.add('hidden');
+            if (directRemedialBox) {
+              if (data.canDirectRemedial) {
+                directRemedialBox.classList.remove('hidden');
+
+                // Tampilkan opsi membaca kisi-kisi sebelum remedial dimulai
+                window._currentStudentKisiUlangan = {
+                  ...data,
+                  judul: data.judul,
+                  mata_pelajaran: data.mataPelajaran,
+                  kode_ujian: data.kodeUjian
+                };
+                let parsedKisiAi = null;
+                if (data.konten_kisi_kisi) {
+                  try {
+                    parsedKisiAi = typeof data.konten_kisi_kisi === 'string'
+                      ? JSON.parse(data.konten_kisi_kisi)
+                      : data.konten_kisi_kisi;
+                  } catch (_) {
+                    parsedKisiAi = null;
+                  }
                 }
-              }
-              window._currentStudentParsedKisiAi = parsedKisiAi;
+                window._currentStudentParsedKisiAi = parsedKisiAi;
 
-              const btnRemedialKisi = document.getElementById('btn-remedial-kisi-kisi');
-              const hasKisiLink = Boolean(data.link_kisi_kisi && String(data.link_kisi_kisi).trim());
-              const hasKisiAi = Boolean(parsedKisiAi && Array.isArray(parsedKisiAi.daftar_kisi_kisi) && parsedKisiAi.daftar_kisi_kisi.length > 0);
-              const isKisiAvailable = (hasKisiAi || hasKisiLink);
+                const btnRemedialKisi = document.getElementById('btn-remedial-kisi-kisi');
+                const hasKisiLink = Boolean(data.link_kisi_kisi && String(data.link_kisi_kisi).trim());
+                const hasKisiAi = Boolean(parsedKisiAi && Array.isArray(parsedKisiAi.daftar_kisi_kisi) && parsedKisiAi.daftar_kisi_kisi.length > 0);
+                const isKisiAvailable = (hasKisiAi || hasKisiLink);
 
-              if (btnRemedialKisi) {
-                if (isKisiAvailable) {
-                  btnRemedialKisi.classList.remove('hidden');
-                  btnRemedialKisi.classList.add('inline-flex');
-                  btnRemedialKisi.onclick = () => {
-                    if (hasKisiAi) {
-                      window.openSiswaKisiKisiModal && window.openSiswaKisiKisiModal();
-                    } else if (hasKisiLink) {
-                      window.open(String(data.link_kisi_kisi).trim(), '_blank');
-                    }
-                  };
-                } else {
-                  btnRemedialKisi.classList.add('hidden');
-                  btnRemedialKisi.classList.remove('inline-flex');
+                if (btnRemedialKisi) {
+                  if (isKisiAvailable) {
+                    btnRemedialKisi.classList.remove('hidden');
+                    btnRemedialKisi.classList.add('inline-flex');
+                    btnRemedialKisi.onclick = () => {
+                      if (hasKisiAi) {
+                        window.openSiswaKisiKisiModal && window.openSiswaKisiKisiModal();
+                      } else if (hasKisiLink) {
+                        window.open(String(data.link_kisi_kisi).trim(), '_blank');
+                      }
+                    };
+                  } else {
+                    btnRemedialKisi.classList.add('hidden');
+                    btnRemedialKisi.classList.remove('inline-flex');
+                  }
                 }
+              } else {
+                directRemedialBox.classList.add('hidden');
               }
-            } else {
-              directRemedialBox.classList.add('hidden');
             }
           }
 
@@ -6499,6 +6507,8 @@
           remedialCard.classList.add('hidden');
           const directRemedialBox = document.getElementById('remedial-direct-box');
           if (directRemedialBox) directRemedialBox.classList.add('hidden');
+          const remedialLimitMsg = document.getElementById('remedial-limit-reached-msg');
+          if (remedialLimitMsg) remedialLimitMsg.classList.add('hidden');
         }
       }
 

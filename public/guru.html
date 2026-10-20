@@ -1300,6 +1300,9 @@
                   <div id="ai-progress-bar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
                 </div>
               </div>
+
+              <!-- Indikator Live Antrean AI Guru: Siswa yang sedang dinilai, nomor urut, dan antrean berikutnya -->
+              <div id="ai-live-queue-indicator-guru" class="hidden"></div>
             </div>
 
             <!-- Toolbar Filter, Pengurutan & Deteksi Duplikat -->
@@ -9533,10 +9536,16 @@
         const key = `${cleanName}___${cleanClass}`;
         const dupCount = nameFreq[key] || 0;
 
+        const queueInfo = window._latestAiQueueStatus;
+        const isGradingNow = queueInfo && queueInfo.currentlyGrading && queueInfo.currentlyGrading.pengerjaan_id === st.pengerjaan_id;
+        const waitStudent = queueInfo && Array.isArray(queueInfo.waitingStudents) ? queueInfo.waitingStudents.find(w => w.pengerjaan_id === st.pengerjaan_id) : null;
+
         tr.innerHTML = `
           <td class="p-3 font-semibold text-slate-900 min-w-[150px]">
             <div class="flex items-center space-x-1.5 flex-wrap">
               <span>${escapeHtml(st.nama_siswa)}</span>
+              ${isGradingNow ? `<span class="bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded-full font-extrabold shadow-2xs animate-pulse flex items-center space-x-1"><span class="w-1.5 h-1.5 rounded-full bg-white"></span><span>⚡ Dinilai AI (#1)</span></span>` : ''}
+              ${(waitStudent && !isGradingNow) ? `<span class="bg-indigo-100 text-indigo-900 border border-indigo-300 text-[10px] px-2 py-0.5 rounded-full font-bold" title="Urutan antrean penilaian AI ke-${waitStudent.urutan}">⏳ Antrean #${waitStudent.urutan}</span>` : ''}
               ${st.attempt_ke ? `<span class="bg-indigo-100 text-indigo-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-indigo-200" title="Percobaan ke-${st.attempt_ke}">Uji #${st.attempt_ke}</span>` : ''}
               ${(st.nilai_terbaik !== null && st.nilai_terbaik !== undefined) ? `<span class="bg-purple-100 text-purple-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-purple-200" title="Nilai Terbaik: ${st.nilai_terbaik}">Best: ${st.nilai_terbaik}</span>` : ''}
               ${dupCount > 1 ? `<span class="bg-rose-100 text-rose-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-rose-200" title="Nama siswa ini terdaftar ${dupCount} kali pengerjaan">⚠️ ${dupCount}x Data</span>` : ''}
@@ -10229,6 +10238,7 @@
     let isAiReviewLoopActive = false;
 
     function renderAiStatusUI(s, isProcessing = false) {
+      window._latestAiQueueStatus = s;
       const btnStart = document.getElementById('btn-start-ai');
       const btnReeval = document.getElementById('btn-reevaluate-all');
       const btnStop = document.getElementById('btn-stop-ai');
@@ -10258,6 +10268,60 @@
           txtEl.textContent = `Status: ${s.selesai}/${s.total} ternilai (${s.menunggu} menunggu)`;
         } else {
           txtEl.textContent = 'Menunggu instruksi review...';
+        }
+      }
+
+      // Live Indikator Siswa yang Sedang Dinilai AI & Antrean Berikutnya
+      const indicatorEl = document.getElementById('ai-live-queue-indicator-guru');
+      if (indicatorEl) {
+        if (s.currentlyGrading && (isProcessing || s.isRunning || isAiReviewLoopActive || (s.menunggu > 0) || (s.diproses > 0))) {
+          indicatorEl.classList.remove('hidden');
+          const cg = s.currentlyGrading;
+          const act = s.activeItem;
+          const actNomor = act && act.nomor_soal ? ` • Soal #${act.nomor_soal}` : '';
+          const waitingOthers = (s.waitingStudents || []).filter(w => w.pengerjaan_id !== cg.pengerjaan_id);
+
+          indicatorEl.innerHTML = `
+            <div class="mt-2.5 p-3 rounded-xl bg-slate-900/90 border border-indigo-400/50 text-slate-200 shadow-sm space-y-2">
+              <div class="flex items-center justify-between flex-wrap gap-2">
+                <div class="flex items-center space-x-2.5 min-w-0">
+                  <span class="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-emerald-500 text-slate-950 font-black text-xs shadow-xs animate-pulse shrink-0">
+                    ⚡
+                  </span>
+                  <div class="min-w-0">
+                    <span class="text-[10px] uppercase font-bold text-indigo-300 tracking-wider block">Sedang Dinilai AI Sekarang:</span>
+                    <h5 class="text-xs font-black text-white truncate">
+                      ${escapeHtml(cg.nama_siswa)} <span class="text-indigo-200 font-normal">(${escapeHtml(cg.kelas_siswa || '-')})</span>
+                    </h5>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="px-2 py-0.5 rounded-md bg-indigo-600 text-white font-mono text-[10px] font-bold shadow-2xs">
+                    Urutan #1
+                  </span>
+                  <span class="px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-mono text-[10px] font-bold">
+                    ${cg.selesai_butir}/${cg.total_butir} Butir Selesai${actNomor}
+                  </span>
+                </div>
+              </div>
+              ${waitingOthers.length > 0 ? `
+                <div class="pt-2 border-t border-slate-800 flex items-center gap-1.5 flex-wrap text-[11px] text-slate-400">
+                  <span class="font-bold text-slate-300 text-[10px] uppercase tracking-wider shrink-0">Antrean Siswa Berikutnya (${waitingOthers.length} Siswa):</span>
+                  ${waitingOthers.slice(0, 3).map(w => `
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-200 text-[10px]">
+                      <strong class="text-indigo-400">#${w.urutan}</strong>
+                      <span class="truncate max-w-[120px]">${escapeHtml(w.nama_siswa)}</span>
+                      <span class="text-slate-400">(${escapeHtml(w.kelas_siswa || '-')})</span>
+                    </span>
+                  `).join('')}
+                  ${waitingOthers.length > 3 ? `<span class="text-[10px] text-indigo-300 font-medium">+${waitingOthers.length - 3} siswa lainnya</span>` : ''}
+                </div>
+              ` : ''}
+            </div>
+          `;
+        } else {
+          indicatorEl.classList.add('hidden');
+          indicatorEl.innerHTML = '';
         }
       }
     }
