@@ -23,6 +23,11 @@ const cloudSyncState = {
   error_detail: null
 };
 
+function resolveTursoMode({ isVercel: runningOnVercel, hasUrl, hasToken }) {
+  if (!hasUrl || !hasToken) return 'sqlite';
+  return runningOnVercel ? 'remote' : 'embedded';
+}
+
 function classifySyncError(err) {
   const msg = String(err?.message || err || '').toLowerCase();
   if (msg.includes('401') || msg.includes('403') || msg.includes('unauthorized') || msg.includes('forbidden') || msg.includes('auth')) return 'auth';
@@ -39,15 +44,19 @@ function safeSyncErrorDetail(err) {
 let db;
 let dbPath;
 
-if (tursoUrl && tursoToken) {
+const tursoMode = resolveTursoMode({
+  isVercel,
+  hasUrl: Boolean(tursoUrl),
+  hasToken: Boolean(tursoToken)
+});
+
+if (tursoMode === 'remote') {
   const LibsqlDatabase = require('libsql');
-  dbPath = path.join(dataDir, 'turso.sqlite');
-  console.log('📡 Menghubungkan ke Turso Cloud Database (libSQL Embedded Replica)...');
+  console.log('📡 Menghubungkan langsung ke Turso Cloud Database (remote libSQL)...');
 
   function initTursoDb() {
     try {
-      const inst = new LibsqlDatabase(dbPath, {
-        syncUrl: tursoUrl,
+      const inst = new LibsqlDatabase(tursoUrl, {
         authToken: tursoToken
       });
       try {
@@ -57,14 +66,8 @@ if (tursoUrl && tursoToken) {
       } catch (e) {}
       return inst;
     } catch (err) {
-      console.error('⚠️ Gagal koneksi replica Turso, mencoba fallback lokal:', err.message);
-      const inst = new LibsqlDatabase(dbPath);
-      try {
-        inst.pragma('journal_mode = WAL');
-        inst.pragma('foreign_keys = ON');
-        inst.pragma('busy_timeout = 5000');
-      } catch (e) {}
-      return inst;
+      console.error('⚠️ Gagal koneksi remote Turso:', err.message);
+      throw err;
     }
   }
 
@@ -155,6 +158,15 @@ if (tursoUrl && tursoToken) {
     },
     sync() {
       cloudSyncState.last_attempt_at = new Date().toISOString();
+      // Remote Turso connections are already authoritative; there is no local
+      // replica file to sync in Vercel.
+      if (tursoMode === 'remote' || typeof currentDb.sync !== 'function') {
+        cloudSyncState.status = 'ok';
+        cloudSyncState.last_success_at = new Date().toISOString();
+        cloudSyncState.error_code = null;
+        cloudSyncState.error_detail = null;
+        return true;
+      }
       try {
         if (typeof currentDb.sync === 'function') {
           const result = currentDb.sync();
@@ -198,6 +210,31 @@ if (tursoUrl && tursoToken) {
       const wrapped = function(...args) {
         return fn(...args);
       };
+      wrapped.default = wrapped;
+      wrapped.deferred = wrapped;
+      wrapped.immediate = wrapped;
+      wrapped.exclusive = wrapped;
+      return wrapped;
+    }
+  };
+} else if (tursoMode === 'embedded') {
+  const LibsqlDatabase = require('libsql');
+  dbPath = path.join(dataDir, 'turso.sqlite');
+  console.log('📡 Menghubungkan ke Turso Cloud Database (libSQL Embedded Replica)...');
+  const currentDb = new LibsqlDatabase(dbPath, { syncUrl: tursoUrl, authToken: tursoToken });
+  db = {
+    prepare(sql) {
+      return {
+        all(...args) { return currentDb.prepare(sql).all(...args); },
+        get(...args) { return currentDb.prepare(sql).get(...args); },
+        run(...args) { return currentDb.prepare(sql).run(...args); }
+      };
+    },
+    exec(sql) { return currentDb.exec(sql); },
+    pragma(sql) { return currentDb.pragma(sql); },
+    sync() { return currentDb.sync(); },
+    transaction(fn) {
+      const wrapped = (...args) => fn(...args);
       wrapped.default = wrapped;
       wrapped.deferred = wrapped;
       wrapped.immediate = wrapped;
@@ -276,6 +313,7 @@ db.syncCloud = function(force = false) {
 db.getRuntimeInfo = function() {
   return {
     mode: cloudDatabaseConfigured ? 'turso' : 'sqlite',
+    connection: tursoMode,
     cloud_configured: cloudDatabaseConfigured,
     sync_status: cloudSyncState.status,
     last_sync_at: cloudSyncState.last_success_at,
@@ -283,6 +321,7 @@ db.getRuntimeInfo = function() {
     sync_error_detail: cloudSyncState.error_detail
   };
 };
+db.resolveTursoMode = resolveTursoMode;
 
 function initDatabase() {
   // Refresh an existing /tmp replica too. Vercel can reuse the file across
