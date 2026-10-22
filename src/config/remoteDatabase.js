@@ -9,9 +9,19 @@ function createRemoteDatabase({ url, authToken }) {
     workerData: { url, authToken: authToken || '' }
   });
   let closed = false;
+  let workerFailure = null;
+  worker.on('error', (error) => {
+    workerFailure = error;
+  });
+  worker.on('exit', (code) => {
+    if (code !== 0 && !closed && !workerFailure) {
+      workerFailure = new Error(`Worker database berhenti dengan kode ${code}.`);
+    }
+  });
 
   function execute(op, sql, args) {
     if (closed) throw new Error('Koneksi database sudah ditutup.');
+    if (workerFailure) throw workerFailure;
     const sharedBuffer = new SharedArrayBuffer(8 + RESULT_BUFFER_BYTES);
     const control = new Int32Array(sharedBuffer, 0, 2);
     worker.postMessage({ op, sql, args, sharedBuffer });

@@ -76,7 +76,9 @@ if (tursoMode === 'remote') {
   function reconnectTurso() {
     console.warn('🔄 Mendeteksi stream/koneksi Turso kedaluwarsa atau terputus (Hrana), menyambung ulang instance Libsql...');
     try {
+      const previousDb = currentDb;
       currentDb = createRemoteDatabase({ url: tursoUrl, authToken: tursoToken });
+      if (typeof previousDb?.close === 'function') previousDb.close();
     } catch (e) {
       console.error('⚠️ Gagal menyambung ulang ke Turso:', e.message);
     }
