@@ -19,7 +19,8 @@ const cloudSyncState = {
   status: cloudDatabaseConfigured ? 'pending' : 'disabled',
   last_attempt_at: null,
   last_success_at: null,
-  error_code: null
+  error_code: null,
+  error_detail: null
 };
 
 function classifySyncError(err) {
@@ -28,6 +29,11 @@ function classifySyncError(err) {
   if (msg.includes('429') || msg.includes('limit exceeded') || msg.includes('concurrency') || msg.includes('busy') || msg.includes('locked')) return 'rate_limit';
   if (msg.includes('fetch') || msg.includes('timeout') || msg.includes('socket') || msg.includes('dns') || msg.includes('econn') || msg.includes('network') || msg.includes('connection')) return 'network';
   return 'sync_failed';
+}
+
+function safeSyncErrorDetail(err) {
+  const raw = String(err?.message || err || '').replace(/https?:\/\/\S+/gi, '<url>');
+  return raw.replace(/[A-Za-z0-9_-]{32,}/g, '<redacted>').slice(0, 160) || 'unknown';
 }
 
 let db;
@@ -155,11 +161,13 @@ if (tursoUrl && tursoToken) {
           cloudSyncState.status = 'ok';
           cloudSyncState.last_success_at = new Date().toISOString();
           cloudSyncState.error_code = null;
+          cloudSyncState.error_detail = null;
           return result;
         }
       } catch (err) {
         cloudSyncState.status = 'error';
         cloudSyncState.error_code = classifySyncError(err);
+        cloudSyncState.error_detail = safeSyncErrorDetail(err);
         if (isTursoConcurrencyError(err)) {
           console.warn('⚠️ Turso replica sync concurrency 429 ditangguhkan:', err.message);
           return;
@@ -172,10 +180,12 @@ if (tursoUrl && tursoToken) {
               cloudSyncState.status = 'ok';
               cloudSyncState.last_success_at = new Date().toISOString();
               cloudSyncState.error_code = null;
+              cloudSyncState.error_detail = null;
               return result;
             } catch (retryErr) {
               cloudSyncState.status = 'error';
               cloudSyncState.error_code = classifySyncError(retryErr);
+              cloudSyncState.error_detail = safeSyncErrorDetail(retryErr);
               console.warn('⚠️ db.sync() retry notice:', retryErr.message);
             }
           }
@@ -269,7 +279,8 @@ db.getRuntimeInfo = function() {
     cloud_configured: cloudDatabaseConfigured,
     sync_status: cloudSyncState.status,
     last_sync_at: cloudSyncState.last_success_at,
-    sync_error: cloudSyncState.error_code
+    sync_error: cloudSyncState.error_code,
+    sync_error_detail: cloudSyncState.error_detail
   };
 };
 
