@@ -46,6 +46,7 @@ test('T-07: Integrasi Penuh API & Header Google Sites (FR-22 - FR-23, NFR-09, NF
     assert.ok(data.database, 'Health check harus menyertakan status database');
     assert.ok(['sqlite', 'turso'].includes(data.database.mode), 'Mode database harus dikenal');
     assert.strictEqual(typeof data.database.cloud_configured, 'boolean');
+    assert.ok(data.database.sync_error === null || ['auth', 'network', 'rate_limit', 'sync_failed'].includes(data.database.sync_error));
     assert.strictEqual(Object.prototype.hasOwnProperty.call(data.database, 'url'), false);
     assert.strictEqual(Object.prototype.hasOwnProperty.call(data.database, 'token'), false);
   });

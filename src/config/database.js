@@ -18,8 +18,17 @@ const cloudDatabaseConfigured = Boolean(tursoUrl && tursoToken);
 const cloudSyncState = {
   status: cloudDatabaseConfigured ? 'pending' : 'disabled',
   last_attempt_at: null,
-  last_success_at: null
+  last_success_at: null,
+  error_code: null
 };
+
+function classifySyncError(err) {
+  const msg = String(err?.message || err || '').toLowerCase();
+  if (msg.includes('401') || msg.includes('403') || msg.includes('unauthorized') || msg.includes('forbidden') || msg.includes('auth')) return 'auth';
+  if (msg.includes('429') || msg.includes('limit exceeded') || msg.includes('concurrency') || msg.includes('busy') || msg.includes('locked')) return 'rate_limit';
+  if (msg.includes('fetch') || msg.includes('timeout') || msg.includes('socket') || msg.includes('dns') || msg.includes('econn') || msg.includes('network') || msg.includes('connection')) return 'network';
+  return 'sync_failed';
+}
 
 let db;
 let dbPath;
@@ -145,10 +154,12 @@ if (tursoUrl && tursoToken) {
           const result = currentDb.sync();
           cloudSyncState.status = 'ok';
           cloudSyncState.last_success_at = new Date().toISOString();
+          cloudSyncState.error_code = null;
           return result;
         }
       } catch (err) {
         cloudSyncState.status = 'error';
+        cloudSyncState.error_code = classifySyncError(err);
         if (isTursoConcurrencyError(err)) {
           console.warn('⚠️ Turso replica sync concurrency 429 ditangguhkan:', err.message);
           return;
@@ -160,9 +171,11 @@ if (tursoUrl && tursoToken) {
               const result = currentDb.sync();
               cloudSyncState.status = 'ok';
               cloudSyncState.last_success_at = new Date().toISOString();
+              cloudSyncState.error_code = null;
               return result;
             } catch (retryErr) {
               cloudSyncState.status = 'error';
+              cloudSyncState.error_code = classifySyncError(retryErr);
               console.warn('⚠️ db.sync() retry notice:', retryErr.message);
             }
           }
@@ -255,7 +268,8 @@ db.getRuntimeInfo = function() {
     mode: cloudDatabaseConfigured ? 'turso' : 'sqlite',
     cloud_configured: cloudDatabaseConfigured,
     sync_status: cloudSyncState.status,
-    last_sync_at: cloudSyncState.last_success_at
+    last_sync_at: cloudSyncState.last_success_at,
+    sync_error: cloudSyncState.error_code
   };
 };
 
