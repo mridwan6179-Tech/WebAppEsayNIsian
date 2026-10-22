@@ -51,6 +51,9 @@ app.set('etag', 'strong');   // Aktifkan strong ETags untuk caching static files
 // Map TTL sederhana untuk mengurangi beban DB pada endpoint yang sering dibaca
 // ─────────────────────────────────────────────────────────
 const _apiCache = new Map();
+// Deduplicate retries in one Node instance. studentService also claims the
+// database row so concurrent Vercel instances are guarded as well.
+const inFlightStudentSubmits = new Map();
 
 function withCache(key, ttlMs, fn) {
   const hit = _apiCache.get(key);
@@ -468,9 +471,6 @@ app.post('/api/siswa/submit', async (req, res) => {
 
     // Jika pengerjaan ternyata sudah submitted (misal retry karena sinyal HP sempat putus), langsung kirim sukses
     if (pengerjaanBefore && pengerjaanBefore.status === 'submitted') {
-      if (pengerjaanBefore.ulangan_id) {
-        waitingRoomService.releaseSlot(pengerjaanBefore.ulangan_id);
-      }
       return res.json({
         success: true,
         message: 'Ulangan sudah pernah dikumpulkan sebelumnya',
@@ -479,19 +479,41 @@ app.post('/api/siswa/submit', async (req, res) => {
       });
     }
 
-    // Eksekusi submit melalui antrean penulisan aman dengan fallback eksekusi langsung
-    let result;
-    try {
-      result = await waitingRoomService.queueSubmit(async () => {
-        return studentService.submitExam(pengerjaan_id, jawaban, paste_count, Boolean(is_auto_submit), paste_details, studentSessionToken);
-      });
-    } catch (queueErr) {
-      console.warn('⚠️ Antrean submit padat/timeout, memproses submit langsung:', queueErr.message);
-      result = studentService.submitExam(pengerjaan_id, jawaban, paste_count, Boolean(is_auto_submit), paste_details, studentSessionToken);
+    // Request retry menunggu promise yang sama. Jangan menjalankan fallback
+    // langsung ketika antrean timeout karena task pertama masih bisa commit.
+    const submitKey = String(pengerjaan_id);
+    let submitPromise = inFlightStudentSubmits.get(submitKey);
+    const ownsSubmitPromise = !submitPromise;
+    if (!submitPromise) {
+      submitPromise = waitingRoomService.queueSubmit(async () => (
+        studentService.submitExam(pengerjaan_id, jawaban, paste_count, Boolean(is_auto_submit), paste_details, studentSessionToken)
+      ));
+      inFlightStudentSubmits.set(submitKey, submitPromise);
+      submitPromise.finally(() => {
+        if (inFlightStudentSubmits.get(submitKey) === submitPromise) {
+          inFlightStudentSubmits.delete(submitKey);
+        }
+      }).catch(() => {});
     }
 
-    // Lepaskan 1 slot untuk antrean ruang tunggu
-    if (pengerjaanBefore?.ulangan_id) {
+    let result;
+    try {
+      result = await submitPromise;
+    } catch (submitErr) {
+      if (submitErr.code === 'SUBMIT_IN_PROGRESS') {
+        return res.status(425).json({
+          success: false,
+          submit_in_progress: true,
+          message: submitErr.message,
+          retry_after_ms: 1500
+        });
+      }
+      throw submitErr;
+    }
+
+    // Hanya request yang membuat pekerjaan submit yang melepas slot; retry
+    // bersamaan tidak boleh memajukan dua tiket antrean untuk satu siswa.
+    if (ownsSubmitPromise && pengerjaanBefore?.ulangan_id) {
       waitingRoomService.releaseSlot(pengerjaanBefore.ulangan_id);
     }
 
@@ -506,9 +528,6 @@ app.post('/api/siswa/submit', async (req, res) => {
       if (pengerjaan_id) {
         const checkAfter = studentService.findPengerjaanWithSync(pengerjaan_id);
         if (checkAfter && checkAfter.status === 'submitted') {
-          if (checkAfter.ulangan_id) {
-            waitingRoomService.releaseSlot(checkAfter.ulangan_id);
-          }
           return res.json({
             success: true,
             message: 'Ulangan sudah berhasil dikumpulkan sebelumnya',

@@ -288,34 +288,15 @@ const waitingRoomService = {
 
   // GERBANG 2: Pengumpulan Jawaban Serentak (Submit Queue Gate)
   // Menjaga agar saat puluhan siswa submit serentak, proses penulisan ke database
-  // diproses dalam antrean cepat (maks 20 proses paralel) sehingga SQLite tidak terkunci (database is locked)
-  // dan server tidak hang / down. Dilengkapi timeout guard 10 detik agar tidak pernah menggantung.
+  // diproses dalam antrean cepat (maks 20 proses paralel) sehingga SQLite tidak terkunci.
+  // Task yang sudah diterima tidak boleh dibatalkan oleh timeout lokal: request HTTP
+  // dapat habis waktunya, tetapi pekerjaan submit harus tetap menyelesaikan commit.
   queueSubmit(submitFn) {
     return new Promise((resolve, reject) => {
-      let settled = false;
-      const timeoutId = setTimeout(() => {
-        if (!settled) {
-          settled = true;
-          reject(new Error('Batas waktu antrean submit terlampaui (timeout)'));
-        }
-      }, 10000);
-
       submitQueue.push({
         fn: submitFn,
-        resolve: (val) => {
-          if (!settled) {
-            settled = true;
-            clearTimeout(timeoutId);
-            resolve(val);
-          }
-        },
-        reject: (err) => {
-          if (!settled) {
-            settled = true;
-            clearTimeout(timeoutId);
-            reject(err);
-          }
-        }
+        resolve,
+        reject
       });
       processNextSubmit();
     });

@@ -2293,6 +2293,8 @@
         window._currentStudentClass = kelas;
 
         if (data.alreadySubmitted) {
+          // Attempt selesai tidak boleh diwariskan ke refresh atau siswa berikutnya.
+          forgetPersistedStudentAttempt();
           setStudentPengerjaanId(data.pengerjaanId || currentPengerjaanId);
           if (currentPengerjaanId) {
             checkResultStatus(currentPengerjaanId);
@@ -2381,6 +2383,7 @@
           if (data.studentSessionToken) setStudentSessionToken(data.studentSessionToken);
 
           if (data.alreadySubmitted) {
+            forgetPersistedStudentAttempt();
             checkResultStatus(currentPengerjaanId);
           } else {
             showExamStep(data);
@@ -6014,6 +6017,9 @@
 
         if (result.data.alreadySubmitted) {
           // Sudah disubmit sebelumnya -> tampilkan hasil nilai
+          // Hapus pegangan sesi dari tab agar refresh berikutnya tidak
+          // membuka kembali lembar ujian yang sudah selesai.
+          forgetPersistedStudentAttempt();
           checkResultStatus(pengerjaanId);
         } else {
           // Siswa me-refresh halaman saat sedang ujian -> Lanjutkan (Resume) sesi ujian!

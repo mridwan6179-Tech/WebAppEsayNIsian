@@ -877,6 +877,11 @@ const studentService = {
     if (pengerjaan.status === 'submitted') {
       return { success: true, message: 'Ulangan sudah dikumpulkan', alreadySubmitted: true };
     }
+    // Jangan biarkan autosave yang terlambat menimpa payload submit yang
+    // sedang diproses. Request submit akan menghapus lock setelah commit.
+    if (pengerjaan.submit_lock_token) {
+      return { success: true, message: 'Pengumpulan jawaban sedang diproses', submitInProgress: true, savedCount: 0 };
+    }
 
     // Perbarui waktu aktif pengerjaan (presence / heartbeat)
     db.prepare('UPDATE pengerjaan SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?').run(pengerjaanId);
@@ -1042,6 +1047,36 @@ const studentService = {
           message: 'Kamu belum mengisi jawaban apapun. Ulangan tidak dapat dikumpulkan dalam kondisi kosong.'
         };
       }
+    }
+
+    // Klaim atomik sebelum memproses semua jawaban. Retry yang datang saat
+    // request pertama masih berjalan tidak boleh mengevaluasi attempt dua kali.
+    const submitLockToken = createStudentSessionToken();
+    const submitStartedAt = new Date().toISOString();
+    const claim = db.prepare(`
+      UPDATE pengerjaan
+      SET submit_lock_token = ?, submit_started_at = ?
+      WHERE id = ? AND status = 'mengerjakan'
+        AND (
+          submit_lock_token IS NULL OR submit_lock_token = ''
+          OR submit_started_at IS NULL
+          OR julianday('now') - julianday(submit_started_at) > 0.00138889
+        )
+    `).run(submitLockToken, submitStartedAt, pengerjaanId);
+
+    if (!claim || Number(claim.changes || 0) !== 1) {
+      const current = this.findPengerjaanWithSync(pengerjaanId);
+      if (current && current.status === 'submitted') {
+        return {
+          success: true,
+          message: 'Ulangan sudah pernah dikumpulkan sebelumnya',
+          alreadySubmitted: true,
+          submitted_at: current.submitted_at
+        };
+      }
+      const inProgress = new Error('Pengumpulan jawaban sedang diproses. Silakan tunggu sebentar.');
+      inProgress.code = 'SUBMIT_IN_PROGRESS';
+      throw inProgress;
     }
 
     let totalPg = 0;
@@ -1213,6 +1248,8 @@ const studentService = {
         UPDATE pengerjaan 
         SET status = 'submitted', submitted_at = ?, paste_count = MAX(COALESCE(paste_count, 0), ?),
             auto_submitted = ?, paste_details = COALESCE(?, paste_details),
+            submit_lock_token = NULL,
+            submit_started_at = NULL,
             skor_pg = ?,
             skor_koding = ?,
             nilai_ai = COALESCE(?, nilai_ai),
@@ -1222,7 +1259,18 @@ const studentService = {
       `).run(nowIso, Number(pasteCount) || 0, isAutoSubmit ? 1 : 0, pasteDetailsStr, computedSkorPg, computedSkorKoding, nilaiFinal, nilaiFinal, autoReleaseIso, pengerjaanId);
     });
 
-    insertOrUpdateJawaban();
+    try {
+      insertOrUpdateJawaban();
+    } catch (err) {
+      try {
+        db.prepare(`
+          UPDATE pengerjaan
+          SET submit_lock_token = NULL, submit_started_at = NULL
+          WHERE id = ? AND submit_lock_token = ?
+        `).run(pengerjaanId, submitLockToken);
+      } catch (releaseErr) {}
+      throw err;
+    }
 
     // Jika fitur Skor Langsung AI aktif dan ada soal Essay/Isian, masukkan ke antrean AI dinamis anti-limit
     const ulRowAfter = db.prepare('SELECT skor_langsung_ai FROM ulangan WHERE id = ?').get(pengerjaan.ulangan_id);
