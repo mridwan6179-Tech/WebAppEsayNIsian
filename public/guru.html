@@ -5572,6 +5572,15 @@
 
         const searchInput = document.getElementById('search-exam-input');
         renderExamListCards(searchInput ? searchInput.value : '');
+        if (data.warning && cachedExamList.length === 0) {
+          const container = document.getElementById('exam-list');
+          if (container) {
+            container.innerHTML = `<div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              <p class="font-bold">Data ulangan belum tersambung</p>
+              <p class="mt-1">${escapeHtml(data.warning)}</p>
+            </div>`;
+          }
+        }
 
         // Pulihkan paket ulangan yang sedang aktif jika halaman di-refresh atau auto-select ulangan pertama
         if (!activeUlanganId) {

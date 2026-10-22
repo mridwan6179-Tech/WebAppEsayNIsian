@@ -14,6 +14,12 @@ if (!fs.existsSync(dataDir)) {
 const isTest = process.env.NODE_ENV === 'test' || process.argv.some(arg => arg.includes('test'));
 const tursoUrl = isTest ? null : process.env.TURSO_DATABASE_URL;
 const tursoToken = isTest ? null : process.env.TURSO_AUTH_TOKEN;
+const cloudDatabaseConfigured = Boolean(tursoUrl && tursoToken);
+const cloudSyncState = {
+  status: cloudDatabaseConfigured ? 'pending' : 'disabled',
+  last_attempt_at: null,
+  last_success_at: null
+};
 
 let db;
 let dbPath;
@@ -133,11 +139,16 @@ if (tursoUrl && tursoToken) {
       return executeWithRetry(() => currentDb.pragma(sql), sql);
     },
     sync() {
+      cloudSyncState.last_attempt_at = new Date().toISOString();
       try {
         if (typeof currentDb.sync === 'function') {
-          return currentDb.sync();
+          const result = currentDb.sync();
+          cloudSyncState.status = 'ok';
+          cloudSyncState.last_success_at = new Date().toISOString();
+          return result;
         }
       } catch (err) {
+        cloudSyncState.status = 'error';
         if (isTursoConcurrencyError(err)) {
           console.warn('⚠️ Turso replica sync concurrency 429 ditangguhkan:', err.message);
           return;
@@ -146,8 +157,12 @@ if (tursoUrl && tursoToken) {
           reconnectTurso();
           if (typeof currentDb.sync === 'function') {
             try {
-              return currentDb.sync();
+              const result = currentDb.sync();
+              cloudSyncState.status = 'ok';
+              cloudSyncState.last_success_at = new Date().toISOString();
+              return result;
             } catch (retryErr) {
+              cloudSyncState.status = 'error';
               console.warn('⚠️ db.sync() retry notice:', retryErr.message);
             }
           }
@@ -211,7 +226,19 @@ db.syncCloud = function(force = false) {
 
   lastSyncTime = now;
   isSyncing = true;
-  // Jalankan sinkronisasi di background tanpa memblokir event loop dan respons Express
+  // Mutasi penting harus menunggu sync selesai sebelum serverless function berhenti.
+  // Sinkronisasi rutin tetap dijalankan di background agar request baca tetap cepat.
+  if (force) {
+    try {
+      db.sync();
+    } catch (e) {
+      console.warn('⚠️ Turso sync notice:', e.message);
+    } finally {
+      isSyncing = false;
+    }
+    return;
+  }
+
   setImmediate(() => {
     try {
       db.sync();
@@ -223,7 +250,26 @@ db.syncCloud = function(force = false) {
   });
 };
 
+db.getRuntimeInfo = function() {
+  return {
+    mode: cloudDatabaseConfigured ? 'turso' : 'sqlite',
+    cloud_configured: cloudDatabaseConfigured,
+    sync_status: cloudSyncState.status,
+    last_sync_at: cloudSyncState.last_success_at
+  };
+};
+
 function initDatabase() {
+  // Refresh an existing /tmp replica too. Vercel can reuse the file across
+  // invocations while its contents are older than the Turso source of truth.
+  if (typeof db.sync === 'function') {
+    try {
+      db.sync();
+    } catch (e) {
+      console.warn('⚠️ Initial replica sync notice:', e.message);
+    }
+  }
+
   let hasSchema = false;
   try {
     hasSchema = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='guru'").get());

@@ -39,6 +39,17 @@ test('T-07: Integrasi Penuh API & Header Google Sites (FR-22 - FR-23, NFR-09, NF
     assert.strictEqual(xfo, null, 'X-Frame-Options tidak boleh memblokir iframe (harus null)');
   });
 
+  await t.test('Health check melaporkan mode database tanpa membocorkan kredensial', async () => {
+    const res = await fetch(`${baseUrl}/health`);
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.ok(data.database, 'Health check harus menyertakan status database');
+    assert.ok(['sqlite', 'turso'].includes(data.database.mode), 'Mode database harus dikenal');
+    assert.strictEqual(typeof data.database.cloud_configured, 'boolean');
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(data.database, 'url'), false);
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(data.database, 'token'), false);
+  });
+
   await t.test('API Guru: Login dan Verifikasi Token', async () => {
     const res = await fetch(`${baseUrl}/api/auth/login`, {
       method: 'POST',

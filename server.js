@@ -190,6 +190,12 @@ app.get('/health', (req, res) => {
       rss_mb: Math.round(mem.rss / 1024 / 1024),
       total_mb: Math.round(mem.heapTotal / 1024 / 1024)
     },
+    database: typeof db.getRuntimeInfo === 'function' ? db.getRuntimeInfo() : {
+      mode: 'unknown',
+      cloud_configured: false,
+      sync_status: 'unknown',
+      last_sync_at: null
+    },
     cache_entries: _apiCache.size
   });
 });
@@ -639,7 +645,11 @@ const requireGuru = authService.authMiddleware;
 app.get('/api/guru/ulangan', requireGuru, (req, res) => {
   try {
     const list = examService.getUlanganByGuru(req.guru.guruId);
-    res.json({ success: true, data: list });
+    const runtime = typeof db.getRuntimeInfo === 'function' ? db.getRuntimeInfo() : null;
+    const warning = process.env.VERCEL && runtime && (
+      runtime.mode !== 'turso' || runtime.sync_status !== 'ok'
+    ) ? 'Database production belum tersambung stabil ke Turso. Periksa /health dan env TURSO_DATABASE_URL/TURSO_AUTH_TOKEN di Vercel.' : null;
+    res.json({ success: true, data: list, ...(warning ? { warning } : {}) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
