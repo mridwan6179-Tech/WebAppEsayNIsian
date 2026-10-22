@@ -602,6 +602,8 @@ function initDatabase() {
   safeAddColumn('soal', 'tampilkan_teks_listening', 'INTEGER DEFAULT NULL');
   safeAddColumn('bank_soal', 'tampilkan_teks_listening', 'INTEGER DEFAULT 0');
   safeAddColumn('pengerjaan', 'last_active_at', 'DATETIME');
+  // Token acak yang mengikat browser ke pemilik satu percobaan ujian.
+  safeAddColumn('pengerjaan', 'student_session_token', 'TEXT DEFAULT NULL');
 
   // Migrasi: kolom PIN sekali pakai untuk ulangan
   safeAddColumn('ulangan', 'pin_aktif', 'INTEGER DEFAULT 0');
@@ -875,6 +877,7 @@ function initDatabase() {
   //   - Validasi kode ujian & log pengumpulan
   // ─────────────────────────────────────────────────────────
   const additionalIndexes = [
+    { name: 'idx_pengerjaan_student_session_token', sql: "CREATE UNIQUE INDEX IF NOT EXISTS idx_pengerjaan_student_session_token ON pengerjaan(student_session_token) WHERE student_session_token IS NOT NULL;" },
     // Untuk query monitor siswa: WHERE ulangan_id = ? AND status = 'mengerjakan'
     { name: 'idx_pengerjaan_ulangan_status', sql: "CREATE INDEX IF NOT EXISTS idx_pengerjaan_ulangan_status ON pengerjaan(ulangan_id, status);" },
     // Untuk query last_active_at / DC detection: ORDER BY last_active_at DESC

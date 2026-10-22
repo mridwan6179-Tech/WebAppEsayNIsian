@@ -335,7 +335,7 @@ test('=== SUITE: REMEDIAL LANGSUNG MANDIRI SISWA ===', async (t) => {
     // Panggil endpoint HTTP
     const res = await fetch(`${baseUrl}/api/siswa/remedial/mulai`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Student-Session-Token': start.studentSessionToken },
       body: JSON.stringify({ pengerjaan_id: start.pengerjaanId })
     });
 

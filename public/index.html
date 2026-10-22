@@ -1120,16 +1120,95 @@
 
   <script>
     // Dukungan direct query params: ?hasil=ID atau ?id=ID atau ?kode=KODE
+    const studentSessionTokenKey = 'ulangan_student_session_token';
+    const studentAttemptKey = 'ulangan_pengerjaan_id';
+    const studentQueueTicketKey = 'ulangan_queue_ticket_id';
     const urlParams = new URLSearchParams(window.location.search);
     const paramHasil = urlParams.get('hasil') || urlParams.get('id') || urlParams.get('pengerjaan');
-    if (paramHasil) {
-      localStorage.setItem('ulangan_pengerjaan_id', paramHasil);
+    const paramStudentToken = urlParams.get('student_session_token');
+
+    function readStudentSessionValue(key) {
+      try { return sessionStorage.getItem(key) || ''; } catch (e) { return ''; }
+    }
+
+    function setStudentPengerjaanId(id) {
+      currentPengerjaanId = id || null;
       try {
+        if (id) sessionStorage.setItem(studentAttemptKey, String(id));
+        else sessionStorage.removeItem(studentAttemptKey);
+        // Remove pre-session-isolation values left by older builds.
+        localStorage.removeItem(studentAttemptKey);
+      } catch (e) {}
+      return currentPengerjaanId;
+    }
+
+    if (paramStudentToken) {
+      try {
+        sessionStorage.setItem(studentSessionTokenKey, paramStudentToken);
+        localStorage.removeItem(studentSessionTokenKey);
+      } catch (e) {}
+    }
+    if (paramHasil) {
+      try {
+        sessionStorage.setItem(studentAttemptKey, paramHasil);
+        localStorage.removeItem(studentAttemptKey);
         window.history.replaceState({}, document.title, window.location.pathname);
       } catch (e) {}
     }
 
-    let currentPengerjaanId = localStorage.getItem('ulangan_pengerjaan_id');
+    let currentPengerjaanId = readStudentSessionValue(studentAttemptKey);
+    let currentStudentSessionToken = readStudentSessionValue(studentSessionTokenKey);
+
+    function getStudentSessionToken() {
+      return currentStudentSessionToken || readStudentSessionValue(studentSessionTokenKey) || '';
+    }
+
+    function setStudentSessionToken(token) {
+      currentStudentSessionToken = token || null;
+      try {
+        if (token) sessionStorage.setItem(studentSessionTokenKey, token);
+        else sessionStorage.removeItem(studentSessionTokenKey);
+        localStorage.removeItem(studentSessionTokenKey);
+      } catch (e) {}
+    }
+
+    // Hapus hanya pegangan attempt yang tersimpan agar refresh komputer bersama
+    // tidak membuka ulang sesi siswa sebelumnya. State memory tetap hidup sampai
+    // layar hasil selesai dipakai (polling, identitas, dan tautan hasil).
+    function forgetPersistedStudentAttempt() {
+      const attemptId = currentPengerjaanId || readStudentSessionValue(studentAttemptKey);
+      try {
+        if (attemptId) {
+          localStorage.removeItem(`ulangan_draft_${attemptId}`);
+          localStorage.removeItem(`ulangan_backup_${attemptId}`);
+          localStorage.removeItem(`ulangan_paste_${attemptId}`);
+          localStorage.removeItem(`ujian_draft_${attemptId}`);
+          localStorage.removeItem(`exam_answers_${attemptId}`);
+        }
+        sessionStorage.removeItem(studentAttemptKey);
+        sessionStorage.removeItem(studentSessionTokenKey);
+        localStorage.removeItem(studentAttemptKey);
+        localStorage.removeItem(studentSessionTokenKey);
+        sessionStorage.removeItem('ulangan_kode');
+        sessionStorage.removeItem('ulangan_nama');
+        sessionStorage.removeItem('ulangan_kelas');
+        localStorage.removeItem('ulangan_kode');
+        localStorage.removeItem('ulangan_nama');
+        localStorage.removeItem('ulangan_kelas');
+      } catch (e) {}
+    }
+
+    // Tambahkan bukti kepemilikan otomatis ke endpoint yang bekerja atas pengerjaan_id.
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = (input, init = {}) => {
+      const url = typeof input === 'string' ? input : (input?.url || '');
+      const protectedStudentEndpoint = /\/api\/siswa\/(submit|draft|ping|sesi|hasil|riwayat|antrean|remedial\/mulai)(?:[/?]|$)/.test(url);
+      const token = getStudentSessionToken();
+      if (!protectedStudentEndpoint || !token) return nativeFetch(input, init);
+      const headers = new Headers(init.headers || (typeof input !== 'string' ? input.headers : undefined));
+      headers.set('X-Student-Session-Token', token);
+      return nativeFetch(input, { ...init, headers });
+    };
 
     // State Global Rangkuman (dideklarasikan di awal agar aman dari TDZ ReferenceError)
     let currentRangkumanTask = null;
@@ -1174,7 +1253,7 @@
     }
 
     function sendHeartbeat() {
-      const pId = currentPengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
+      const pId = currentPengerjaanId || readStudentSessionValue(studentAttemptKey);
       if (!pId || !stepExam || stepExam.classList.contains('hidden') || isSubmitting) return;
       fetch('/api/siswa/ping', {
         method: 'POST',
@@ -1192,10 +1271,10 @@
 
     // Deteksi siswa menutup tab browser atau keluar dari lembar ujian (DC eksplisit)
     window.addEventListener('pagehide', () => {
-      const pId = currentPengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
+      const pId = currentPengerjaanId || readStudentSessionValue(studentAttemptKey);
       if (pId && stepExam && !stepExam.classList.contains('hidden') && !isSubmitting) {
         try {
-          const payload = JSON.stringify({ pengerjaan_id: pId, status: 'offline' });
+          const payload = JSON.stringify({ pengerjaan_id: pId, status: 'offline', student_session_token: getStudentSessionToken() });
           if (navigator.sendBeacon) {
             const blob = new Blob([payload], { type: 'application/json' });
             navigator.sendBeacon('/api/siswa/ping', blob);
@@ -1400,7 +1479,7 @@
 
       if (isSameSubmittedRgk) {
         startPollingRangkumanStatus(savedRgkPId);
-      } else if (currentPengerjaanId) {
+      } else if (currentPengerjaanId && !directParamKode) {
         stepAuth.classList.add('hidden');
         const stepRes = document.getElementById('step-resuming');
         if (stepRes) stepRes.classList.remove('hidden');
@@ -2040,8 +2119,17 @@
 
       // ISOLASI SESI KOMPUTER BERSAMA: Jika nama atau kelas yang dimasukkan berbeda dari sesi sebelumnya di perangkat ini,
       // bersihkan seluruh memori sesi dan draft lama agar tidak tumpang-tindih ke siswa sebelumnya!
-      const savedNama = localStorage.getItem('ulangan_nama');
-      const savedKelas = localStorage.getItem('ulangan_kelas');
+      const savedNama = readStudentSessionValue('ulangan_nama');
+      const savedKelas = readStudentSessionValue('ulangan_kelas');
+      const savedKode = readStudentSessionValue('ulangan_kode');
+      const resumePengerjaanId = currentPengerjaanId || readStudentSessionValue(studentAttemptKey);
+      const resumeStudentSessionToken = getStudentSessionToken();
+      const canResumeSameAttempt = Boolean(
+        !directParamKode && resumePengerjaanId && resumeStudentSessionToken && savedKode
+        && savedKode.trim().toUpperCase() === kode.toUpperCase()
+        && savedNama && savedNama.trim().toLowerCase() === nama.toLowerCase()
+        && savedKelas && savedKelas.trim().toLowerCase() === kelas.toLowerCase()
+      );
       if (savedNama && (savedNama.trim().toLowerCase() !== nama.toLowerCase() || (savedKelas && savedKelas.trim().toLowerCase() !== kelas.toLowerCase()))) {
         window.clearCurrentStudentSession();
       }
@@ -2139,7 +2227,11 @@
             kode_ujian: kode,
             nama,
             kelas,
-            sesi_id: window._currentSesi ? window._currentSesi.id : null
+            sesi_id: window._currentSesi ? window._currentSesi.id : null,
+            ...(canResumeSameAttempt ? {
+              pengerjaan_id: resumePengerjaanId,
+              student_session_token: resumeStudentSessionToken
+            } : {})
           })
         });
         const data = await res.json();
@@ -2149,25 +2241,31 @@
         }
 
         if (data.inQueue) {
+          // Selama menunggu, jangan biarkan attempt lama (terutama saat retake)
+          // dipulihkan sebagai sesi aktif setelah refresh tab.
+          setStudentPengerjaanId(null);
+          if (data.studentSessionToken) setStudentSessionToken(data.studentSessionToken);
           showWaitingRoom(data);
           return;
         }
 
-        currentPengerjaanId = data.pengerjaanId;
-        localStorage.setItem('ulangan_pengerjaan_id', currentPengerjaanId);
+        setStudentPengerjaanId(data.pengerjaanId);
+        if (data.studentSessionToken) setStudentSessionToken(data.studentSessionToken);
         try {
-          localStorage.setItem('ulangan_kode', kode);
-          localStorage.setItem('ulangan_nama', nama);
-          localStorage.setItem('ulangan_kelas', kelas);
+          sessionStorage.setItem('ulangan_kode', kode);
+          sessionStorage.setItem('ulangan_nama', nama);
+          sessionStorage.setItem('ulangan_kelas', kelas);
+          localStorage.removeItem('ulangan_kode');
+          localStorage.removeItem('ulangan_nama');
+          localStorage.removeItem('ulangan_kelas');
         } catch (e) {}
         window._currentExamCode = kode;
         window._currentStudentName = nama;
         window._currentStudentClass = kelas;
 
         if (data.alreadySubmitted) {
-          currentPengerjaanId = data.pengerjaanId || currentPengerjaanId;
+          setStudentPengerjaanId(data.pengerjaanId || currentPengerjaanId);
           if (currentPengerjaanId) {
-            try { localStorage.setItem('ulangan_pengerjaan_id', currentPengerjaanId); } catch (e) {}
             checkResultStatus(currentPengerjaanId);
           } else {
             showResultStep(data);
@@ -2184,7 +2282,7 @@
     });
 
     let queuePollInterval = null;
-    let activeTicketId = null;
+    let activeTicketId = readStudentSessionValue(studentQueueTicketKey) || null;
 
     function showWaitingRoom(queueData) {
       if (stepAuth) stepAuth.classList.add('hidden');
@@ -2194,7 +2292,11 @@
       const wr = document.getElementById('step-waiting-room');
       if (wr) wr.classList.remove('hidden');
 
-      activeTicketId = queueData.ticketId;
+      activeTicketId = queueData.ticketId || null;
+      try {
+        if (activeTicketId) sessionStorage.setItem(studentQueueTicketKey, activeTicketId);
+        else sessionStorage.removeItem(studentQueueTicketKey);
+      } catch (e) {}
       updateWaitingRoomUI(queueData.position, queueData.totalWaiting, queueData.activeCount, queueData.maxLimit);
 
       if (queuePollInterval) clearInterval(queuePollInterval);
@@ -2226,6 +2328,10 @@
         const data = await res.json();
         if (!res.ok || !data.success) {
           if (queuePollInterval) clearInterval(queuePollInterval);
+          queuePollInterval = null;
+          activeTicketId = null;
+          try { sessionStorage.removeItem(studentQueueTicketKey); } catch (e) {}
+          setStudentSessionToken(null);
           document.getElementById('step-waiting-room')?.classList.add('hidden');
           if (stepAuth) stepAuth.classList.remove('hidden');
           showAlert(data.message || 'Sesi antrean berakhir. Silakan coba masuk kembali.');
@@ -2236,10 +2342,11 @@
           if (queuePollInterval) clearInterval(queuePollInterval);
           queuePollInterval = null;
           activeTicketId = null;
+          try { sessionStorage.removeItem(studentQueueTicketKey); } catch (e) {}
 
           document.getElementById('step-waiting-room')?.classList.add('hidden');
-          currentPengerjaanId = data.pengerjaanId;
-          localStorage.setItem('ulangan_pengerjaan_id', currentPengerjaanId);
+          setStudentPengerjaanId(data.pengerjaanId);
+          if (data.studentSessionToken) setStudentSessionToken(data.studentSessionToken);
 
           if (data.alreadySubmitted) {
             checkResultStatus(currentPengerjaanId);
@@ -2258,9 +2365,17 @@
       if (queuePollInterval) clearInterval(queuePollInterval);
       queuePollInterval = null;
       activeTicketId = null;
+      try { sessionStorage.removeItem(studentQueueTicketKey); } catch (e) {}
+      setStudentSessionToken(null);
       document.getElementById('step-waiting-room')?.classList.add('hidden');
       document.getElementById('step-auth')?.classList.remove('hidden');
     });
+
+    // Pulihkan antrean yang masih hidup setelah refresh pada tab yang sama.
+    if (activeTicketId && !currentPengerjaanId && !directParamKode) {
+      showWaitingRoom({ ticketId: activeTicketId, position: 1, totalWaiting: 1 });
+      pollQueueStatus();
+    }
 
     let pasteDetectionCount = 0;
     let pasteDetailsMap = {}; // { [soalId]: count }
@@ -4784,6 +4899,7 @@
     // Render Lembar Soal
     function showExamStep(data) {
       isSubmitting = false;
+      if (data?.studentSessionToken) setStudentSessionToken(data.studentSessionToken);
       if (countdownInterval) {
         clearInterval(countdownInterval);
         countdownInterval = null;
@@ -4809,11 +4925,11 @@
       document.getElementById('student-class').textContent = data.peserta.kelas;
       if (data.peserta?.nama) {
         window._currentStudentName = data.peserta.nama;
-        try { localStorage.setItem('ulangan_nama', data.peserta.nama); } catch (e) {}
+        try { sessionStorage.setItem('ulangan_nama', data.peserta.nama); } catch (e) {}
       }
       if (data.peserta?.kelas) {
         window._currentStudentClass = data.peserta.kelas;
-        try { localStorage.setItem('ulangan_kelas', data.peserta.kelas); } catch (e) {}
+        try { sessionStorage.setItem('ulangan_kelas', data.peserta.kelas); } catch (e) {}
       }
 
       // Floating Sticky Header
@@ -5645,6 +5761,7 @@
         let data;
         let submitAttempt = 0;
         const maxSubmitAttempts = 3;
+        const retryableSubmitStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
 
         while (submitAttempt < maxSubmitAttempts) {
           submitAttempt++;
@@ -5666,8 +5783,19 @@
             });
             clearTimeout(timeoutId);
             data = await res.json();
-            // Jika server sedang sibuk, sinkronisasi Turso, atau server down sesaat (500, 502, 503, 504)
-            if (!res.ok && submitAttempt < maxSubmitAttempts) {
+
+            if (res.status === 401) {
+              window.clearCurrentStudentSession();
+              if (overlay) overlay.classList.add('hidden');
+              stepExam.classList.add('hidden');
+              stepResult.classList.add('hidden');
+              stepAuth.classList.remove('hidden');
+              showAlert(data.message || 'Sesi ujian sudah tidak valid. Silakan masuk kembali sebelum mengirim jawaban.');
+              return;
+            }
+
+            // Ulangi hanya gangguan sementara; validasi 4xx lain harus berhenti segera.
+            if (retryableSubmitStatuses.has(res.status) && submitAttempt < maxSubmitAttempts) {
               const descEl = document.getElementById('submit-overlay-desc');
               if (descEl) descEl.textContent = `Server sedang memproses data ujian (Percobaan ${submitAttempt} dari ${maxSubmitAttempts}), mencoba kembali secara otomatis...`;
               await new Promise(r => setTimeout(r, 1500));
@@ -5703,11 +5831,8 @@
         // Hentikan detak jantung hanya setelah lembar ujian berhasil terkirim 100%
         stopHeartbeat();
 
-        // Bersihkan draft tersimpan saat berhasil submit
-        try {
-          localStorage.removeItem(`ulangan_draft_${currentPengerjaanId}`);
-          localStorage.removeItem(`ulangan_paste_${currentPengerjaanId}`);
-        } catch (e) {}
+        // Putuskan resume otomatis di komputer bersama setelah submit berhasil.
+        forgetPersistedStudentAttempt();
 
         // TRANSISI INSTAN KE LAYAR SUKSES PENGUMPULAN (ANTI-HANG / ZERO LAG)
         if (overlay) overlay.classList.add('hidden');
@@ -5733,13 +5858,20 @@
           try {
             const rescueRes = await fetch(`/api/siswa/sesi/${currentPengerjaanId}`);
             const rescueData = await rescueRes.json();
+            if (rescueRes.status === 401) {
+              window.clearCurrentStudentSession();
+              const overlay = document.getElementById('submit-loading-overlay');
+              if (overlay) overlay.classList.add('hidden');
+              stepExam.classList.add('hidden');
+              stepResult.classList.add('hidden');
+              stepAuth.classList.remove('hidden');
+              showAlert(rescueData.message || 'Sesi ujian sudah tidak valid. Silakan masuk kembali.');
+              return;
+            }
             if (rescueRes.ok && rescueData.success && rescueData.data && rescueData.data.alreadySubmitted) {
               // Terbukti ujian siswa sebenarnya SUDAH tersimpan dan berstatus submitted di server!
               stopHeartbeat();
-              try {
-                localStorage.removeItem(`ulangan_draft_${currentPengerjaanId}`);
-                localStorage.removeItem(`ulangan_paste_${currentPengerjaanId}`);
-              } catch (e) {}
+              forgetPersistedStudentAttempt();
               const overlay = document.getElementById('submit-loading-overlay');
               if (overlay) overlay.classList.add('hidden');
               stepAuth.classList.add('hidden');
@@ -5798,6 +5930,16 @@
         const res = await fetch(`/api/siswa/sesi/${pengerjaanId}`);
         const result = await res.json();
 
+        if (res.status === 401) {
+          window.clearCurrentStudentSession();
+          if (stepResuming) stepResuming.classList.add('hidden');
+          stepAuth.classList.remove('hidden');
+          stepExam.classList.add('hidden');
+          stepResult.classList.add('hidden');
+          showAlert(result.message || 'Sesi ujian lama sudah tidak valid. Silakan masuk kembali.');
+          return;
+        }
+
         if (res.status === 404) {
           // Jangan langsung hapus sesi seketika saat dapat 404 (mencegah sesi terhapus jika server sedang restart/replikasi)
           console.warn('Sesi pengerjaan 404 dari server');
@@ -5828,7 +5970,7 @@
           checkResultStatus(pengerjaanId);
         } else {
           // Siswa me-refresh halaman saat sedang ujian -> Lanjutkan (Resume) sesi ujian!
-          currentPengerjaanId = pengerjaanId;
+          setStudentPengerjaanId(pengerjaanId);
           showExamStep(result.data);
         }
       } catch (e) {
@@ -5851,7 +5993,7 @@
     }
 
     window.retryResumeSession = function() {
-      const pId = currentPengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
+      const pId = currentPengerjaanId || readStudentSessionValue(studentAttemptKey);
       const stepRes = document.getElementById('step-resuming');
       const retryBox = document.getElementById('resuming-retry-box');
       if (retryBox) retryBox.classList.add('hidden');
@@ -5870,7 +6012,7 @@
 
     // Auto-reconnect jika perangkat mendeteksi koneksi internet kembali aktif di HP / Laptop
     window.addEventListener('online', () => {
-      const pId = currentPengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
+      const pId = currentPengerjaanId || readStudentSessionValue(studentAttemptKey);
       const stepRes = document.getElementById('step-resuming');
       if (pId && stepRes && !stepRes.classList.contains('hidden')) {
         console.log('Koneksi internet kembali aktif, memulihkan sesi ujian otomatis...');
@@ -5889,6 +6031,15 @@
         const res = await fetch(`/api/siswa/hasil/${pengerjaanId}`, { signal: controller.signal });
         clearTimeout(timeoutId);
         const result = await res.json();
+
+        if (res.status === 401) {
+          window.clearCurrentStudentSession();
+          document.getElementById('step-result')?.classList.add('hidden');
+          document.getElementById('step-exam')?.classList.add('hidden');
+          stepAuth.classList.remove('hidden');
+          showAlert(result.message || 'Sesi hasil ujian sudah tidak valid. Silakan masuk kembali.');
+          return;
+        }
 
         // Bersihkan badge peringatan sinyal lemah jika request berhasil
         const existingNetBadge = document.getElementById('ai-queue-net-badge');
@@ -5951,7 +6102,7 @@
 
     // Tombol Periksa Pembaruan Nilai Manual
     document.getElementById('btn-refresh-status-nilai')?.addEventListener('click', async () => {
-      const pId = currentPengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
+      const pId = currentPengerjaanId || readStudentSessionValue(studentAttemptKey);
       if (!pId) return;
       const btn = document.getElementById('btn-refresh-status-nilai');
       if (btn) {
@@ -5970,7 +6121,7 @@
 
     // Helper refresh manual untuk kartu antrean AI siswa
     window.manualRefreshStudentResult = async function(btn) {
-      const pId = currentPengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
+      const pId = currentPengerjaanId || readStudentSessionValue(studentAttemptKey);
       if (!pId) return;
       if (btn) {
         btn.disabled = true;
@@ -6017,15 +6168,15 @@
       if (data.kodeUjian) window._currentExamCode = data.kodeUjian;
       if (data.nama) {
         window._currentStudentName = data.nama;
-        try { localStorage.setItem('ulangan_nama', data.nama); } catch (e) {}
+        try { sessionStorage.setItem('ulangan_nama', data.nama); } catch (e) {}
       }
       if (data.kelas) {
         window._currentStudentClass = data.kelas;
-        try { localStorage.setItem('ulangan_kelas', data.kelas); } catch (e) {}
+        try { sessionStorage.setItem('ulangan_kelas', data.kelas); } catch (e) {}
       }
 
-      const curName = (data.nama || window._currentStudentName || localStorage.getItem('ulangan_nama') || 'Siswa').trim();
-      const curClass = (data.kelas || window._currentStudentClass || localStorage.getItem('ulangan_kelas') || '').trim();
+      const curName = (data.nama || window._currentStudentName || readStudentSessionValue('ulangan_nama') || 'Siswa').trim();
+      const curClass = (data.kelas || window._currentStudentClass || readStudentSessionValue('ulangan_kelas') || '').trim();
 
       const identityEl = document.getElementById('student-identity-banner');
       if (identityEl) {
@@ -6432,7 +6583,7 @@
           `;
 
           // Auto-polling cerdas setiap 3.2 detik agar antrean bergerak otomatis di layar siswa
-          const targetPid = currentPengerjaanId || data.pengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
+          const targetPid = currentPengerjaanId || data.pengerjaanId || readStudentSessionValue(studentAttemptKey);
           if (targetPid) {
             if (autoScorePollTimer) clearTimeout(autoScorePollTimer);
             autoScorePollTimer = setTimeout(() => {
@@ -6613,7 +6764,7 @@
 
     // FR-Remedial: Mulai Sesi Remedial Mandiri Langsung
     async function startDirectRemedial() {
-      const pid = currentPengerjaanId || localStorage.getItem('ulangan_pengerjaan_id');
+      const pid = currentPengerjaanId || readStudentSessionValue(studentAttemptKey);
       if (!pid) {
         alert('ID pengerjaan tidak ditemukan.');
         return;
@@ -6621,8 +6772,8 @@
 
       // Verifikasi identitas siswa agar tidak terlempar ke orang lain di komputer bersama
       const bannerText = (document.getElementById('student-identity-banner')?.textContent || '').trim();
-      const curNama = (window._currentStudentName || localStorage.getItem('ulangan_nama') || bannerText || '').trim();
-      const curKelas = (window._currentStudentClass || localStorage.getItem('ulangan_kelas') || '').trim();
+      const curNama = (window._currentStudentName || readStudentSessionValue('ulangan_nama') || bannerText || '').trim();
+      const curKelas = (window._currentStudentClass || readStudentSessionValue('ulangan_kelas') || '').trim();
       const ok = confirm(`Konfirmasi Remedial Mandiri:\n\nApakah benar Anda adalah:\n"${curNama || 'Siswa'}" ${curKelas ? `(${curKelas})` : ''}?\n\n• Klik OK jika benar ini Anda.\n• Klik BATAL jika Anda siswa lain yang menggunakan komputer ini.`);
       if (!ok) {
         window.confirmExitStudentExam();
@@ -6694,13 +6845,13 @@
 
     // Mengulang Ujian Baru Sesuai Kebijakan Guru
     async function doRetakeExam() {
-      const kode = (inputExamCode?.value || window._currentExamCode || localStorage.getItem('ulangan_kode') || '').trim();
-      const nama = (inputStudentName?.value || window._currentStudentName || localStorage.getItem('ulangan_nama') || '').trim();
-      const kelas = (selectStudentClass?.value || window._currentStudentClass || localStorage.getItem('ulangan_kelas') || '').trim();
+      const kode = (inputExamCode?.value || window._currentExamCode || readStudentSessionValue('ulangan_kode') || '').trim();
+      const nama = (inputStudentName?.value || window._currentStudentName || readStudentSessionValue('ulangan_nama') || '').trim();
+      const kelas = (selectStudentClass?.value || window._currentStudentClass || readStudentSessionValue('ulangan_kelas') || '').trim();
       const sesiId = window._currentSesi ? window._currentSesi.id : null;
 
       if (!kode || !nama || !kelas) {
-        localStorage.removeItem('ulangan_pengerjaan_id');
+        setStudentPengerjaanId(null);
         window.location.reload();
         return;
       }
@@ -6720,7 +6871,9 @@
             nama,
             kelas,
             sesi_id: sesiId,
-            is_retake: true
+            is_retake: true,
+            pengerjaan_id: currentPengerjaanId,
+            student_session_token: getStudentSessionToken()
           })
         });
         const data = await res.json();
@@ -6731,9 +6884,9 @@
 
         if (data.alreadySubmitted) {
           showAlert(data.message || 'Batas pengerjaan telah tercapai.');
-          currentPengerjaanId = data.pengerjaanId || currentPengerjaanId;
+          setStudentPengerjaanId(data.pengerjaanId || currentPengerjaanId);
+          if (data.studentSessionToken) setStudentSessionToken(data.studentSessionToken);
           if (currentPengerjaanId) {
-            try { localStorage.setItem('ulangan_pengerjaan_id', currentPengerjaanId); } catch (e) {}
             checkResultStatus(currentPengerjaanId);
           } else {
             showResultStep(data);
@@ -6741,8 +6894,7 @@
           return;
         }
 
-        currentPengerjaanId = data.pengerjaanId;
-        localStorage.setItem('ulangan_pengerjaan_id', currentPengerjaanId);
+        setStudentPengerjaanId(data.pengerjaanId);
         showExamStep(data);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } catch (err) {
@@ -6869,7 +7021,8 @@
     if (btnCopyLink) {
       btnCopyLink.addEventListener('click', () => {
         if (!currentPengerjaanId) return;
-        const shareUrl = `${window.location.origin}/?hasil=${currentPengerjaanId}`;
+        const token = getStudentSessionToken();
+        const shareUrl = `${window.location.origin}/?hasil=${encodeURIComponent(currentPengerjaanId)}&student_session_token=${encodeURIComponent(token)}`;
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(shareUrl).then(() => {
             alert(`✅ Tautan hasil ujian Anda berhasil disalin:\n${shareUrl}`);
@@ -6883,6 +7036,13 @@
     }
 
     window.clearCurrentStudentSession = function() {
+      stopHeartbeat();
+      if (queuePollInterval) {
+        clearInterval(queuePollInterval);
+        queuePollInterval = null;
+      }
+      activeTicketId = null;
+      try { sessionStorage.removeItem(studentQueueTicketKey); } catch (e) {}
       if (countdownInterval) {
         clearInterval(countdownInterval);
         countdownInterval = null;
@@ -6892,22 +7052,30 @@
         autoScorePollTimer = null;
       }
       try {
-        // Hapus seluruh draft & backup ujian dari localStorage komputer ini (Pencegah bocor jawaban ke siswa berikutnya)
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-          const key = localStorage.key(i);
-          if (key && (key.startsWith('ulangan_draft_') || key.startsWith('ulangan_backup_') || key.startsWith('ulangan_paste_') || key.startsWith('ujian_draft_') || key.startsWith('exam_answers_'))) {
-            localStorage.removeItem(key);
-          }
+        // Hapus hanya draft attempt tab ini. Draft tab siswa lain tidak boleh
+        // ikut terhapus ketika komputer dipakai bersama.
+        const attemptId = currentPengerjaanId || readStudentSessionValue(studentAttemptKey);
+        if (attemptId) {
+          localStorage.removeItem(`ulangan_draft_${attemptId}`);
+          localStorage.removeItem(`ulangan_backup_${attemptId}`);
+          localStorage.removeItem(`ulangan_paste_${attemptId}`);
+          localStorage.removeItem(`ujian_draft_${attemptId}`);
+          localStorage.removeItem(`exam_answers_${attemptId}`);
         }
       } catch (e) {}
       try {
         localStorage.removeItem('ulangan_pengerjaan_id');
+        localStorage.removeItem(studentSessionTokenKey);
+        sessionStorage.removeItem('ulangan_kode');
+        sessionStorage.removeItem('ulangan_nama');
+        sessionStorage.removeItem('ulangan_kelas');
         localStorage.removeItem('ulangan_kode');
         localStorage.removeItem('ulangan_nama');
         localStorage.removeItem('ulangan_kelas');
         window.history.replaceState({}, document.title, window.location.pathname);
       } catch (e) {}
-      currentPengerjaanId = null;
+      setStudentPengerjaanId(null);
+      currentStudentSessionToken = null;
       window._currentExamCode = null;
       window._currentStudentName = null;
       window._currentStudentClass = null;

@@ -62,12 +62,13 @@ const waitingRoomService = {
   // GERBANG 1: Masuk Ujian (Entry Gate)
   // Memastikan siswa yang sedang mengerjakan di dalam bisa mencapai kapasitas penuh (200 siswa),
   // namun jika ada lonjakan serentak > 20 siswa dalam detik yang sama, siswa diantrekan beberapa detik secara halus.
-  checkEntry(kodeUjian, nama, kelas, customMax = null, sesiId = null) {
+  checkEntry(kodeUjian, nama, kelas, customMax = null, sesiId = null, studentSessionToken = null, ownershipPengerjaanId = null, ownershipStudentSessionToken = null) {
     const maxCapacity = customMax || this.getMaxInside();
     const burstLimit = this.getMaxBurst();
     const cleanKode = (kodeUjian || '').trim().toUpperCase();
     const cleanNama = (nama || '').trim();
     const cleanKelas = (kelas || '').trim();
+    const strictOwnership = Boolean(studentSessionToken || ownershipPengerjaanId || ownershipStudentSessionToken);
 
     // 1. Validasi awal kode ujian
     const val = studentService.validateExamCode(cleanKode);
@@ -77,6 +78,23 @@ const waitingRoomService = {
 
     const ulanganId = val.ulangan.id;
 
+    // Validasi ownership langsung berdasarkan attempt ID + token. Jangan
+    // bergantung pada pencarian peserta berdasarkan nama/kelas yang bisa duplikat.
+    if (ownershipPengerjaanId && ownershipStudentSessionToken) {
+      const ownedAttempt = db.prepare(`
+        SELECT p.id
+        FROM pengerjaan p
+        JOIN peserta pes ON pes.id = p.peserta_id
+        WHERE p.id = ? AND p.ulangan_id = ? AND p.student_session_token = ?
+          AND LOWER(TRIM(pes.nama)) = LOWER(?)
+          AND LOWER(TRIM(pes.kelas)) = LOWER(?)
+      `).get(ownershipPengerjaanId, ulanganId, ownershipStudentSessionToken, cleanNama, cleanKelas);
+      if (ownedAttempt) {
+        return { allowed: true, inQueue: false, ulanganId };
+      }
+      return { allowed: false, inQueue: false, error: 'Sesi siswa tidak valid atau identitas tidak cocok.' };
+    }
+
     // 2. Periksa apakah siswa sudah memiliki pengerjaan aktif atau submitted (Rejoin / Refresh)
     const existingPeserta = db.prepare(`
       SELECT id FROM peserta 
@@ -84,13 +102,25 @@ const waitingRoomService = {
     `).get(ulanganId, cleanNama, cleanKelas);
 
     if (existingPeserta) {
-      const existingPengerjaan = db.prepare(`
-        SELECT status FROM pengerjaan 
-        WHERE ulangan_id = ? AND peserta_id = ?
-      `).get(ulanganId, existingPeserta.id);
+      const existingPengerjaan = ownershipPengerjaanId
+        ? db.prepare(`
+          SELECT id, status, student_session_token FROM pengerjaan
+          WHERE ulangan_id = ? AND peserta_id = ? AND id = ?
+        `).get(ulanganId, existingPeserta.id, ownershipPengerjaanId)
+        : db.prepare(`
+          SELECT id, status, student_session_token FROM pengerjaan
+          WHERE ulangan_id = ? AND peserta_id = ?
+          ORDER BY id DESC
+        `).get(ulanganId, existingPeserta.id);
 
-      // Siswa yang sudah di dalam boleh langsung masuk tanpa antre
-      if (existingPengerjaan) {
+      // Hanya sesi yang dibuktikan dengan ID + token yang boleh melewati
+      // gerbang sebagai rejoin. Nama/kelas saja tidak cukup.
+      const ownsExisting = existingPengerjaan
+        && ownershipPengerjaanId
+        && Number(existingPengerjaan.id) === Number(ownershipPengerjaanId)
+        && ownershipStudentSessionToken
+        && existingPengerjaan.student_session_token === ownershipStudentSessionToken;
+      if (ownsExisting || !strictOwnership) {
         return { allowed: true, inQueue: false, ulanganId };
       }
     }
@@ -100,14 +130,14 @@ const waitingRoomService = {
 
     // Jika ruang ujian sudah penuh total (misal 200 siswa)
     if (activeCount >= maxCapacity) {
-      return this.createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, 'Ruang ujian sedang penuh', sesiId);
+      return this.createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, 'Ruang ujian sedang penuh', sesiId, studentSessionToken, ownershipPengerjaanId, ownershipStudentSessionToken);
     }
 
     // 4. Cek apakah terjadi lonjakan serentak masuk (Burst Entry Gate > 20)
     // Jika antrean tiket sedang ada siswa yang mengantre, siswa baru harus antre di belakangnya
     const waitingForThisExam = this.getWaitingListForExam(ulanganId);
     if (waitingForThisExam.length > 0 || activeEnteringCount >= burstLimit) {
-      return this.createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, 'Sistem sedang mengatur antrean gerbang masuk', sesiId);
+      return this.createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, 'Sistem sedang mengatur antrean gerbang masuk', sesiId, studentSessionToken, ownershipPengerjaanId, ownershipStudentSessionToken);
     }
 
     // Lolos masuk ke lembar ujian
@@ -130,12 +160,15 @@ const waitingRoomService = {
     return list;
   },
 
-  createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, reason, sesiId = null) {
+  createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, reason, sesiId = null, studentSessionToken = null, ownershipPengerjaanId = null, ownershipStudentSessionToken = null) {
     for (const [tId, t] of waitingTickets.entries()) {
       if (
         t.ulanganId === ulanganId &&
         t.nama.toLowerCase() === cleanNama.toLowerCase() &&
-        t.kelas.toLowerCase() === cleanKelas.toLowerCase()
+        t.kelas.toLowerCase() === cleanKelas.toLowerCase() &&
+        t.studentSessionToken === studentSessionToken &&
+        t.ownershipPengerjaanId === ownershipPengerjaanId &&
+        t.ownershipStudentSessionToken === ownershipStudentSessionToken
       ) {
         const pos = this.getQueuePosition(tId, ulanganId);
         return {
@@ -159,6 +192,9 @@ const waitingRoomService = {
       nama: cleanNama,
       kelas: cleanKelas,
       sesiId: sesiId || null,
+      studentSessionToken: studentSessionToken || null,
+      ownershipPengerjaanId: ownershipPengerjaanId || null,
+      ownershipStudentSessionToken: ownershipStudentSessionToken || null,
       status: 'waiting',
       createdAt: Date.now(),
       lastPolledAt: Date.now()
@@ -186,6 +222,11 @@ const waitingRoomService = {
       position: index >= 0 ? index + 1 : 1,
       totalWaiting: list.length
     };
+  },
+
+  ownsTicket(ticketId, studentSessionToken) {
+    const ticket = waitingTickets.get(ticketId);
+    return Boolean(ticket && studentSessionToken && ticket.studentSessionToken === studentSessionToken);
   },
 
   getTicketStatus(ticketId, customMax = null) {

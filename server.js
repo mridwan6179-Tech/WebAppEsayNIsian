@@ -280,6 +280,22 @@ app.get('/api/waktu-server', (req, res) => {
 // ----------------------------------------------------
 // ROUTE: Modul Siswa (FR-06 - FR-08, FR-22, NFR-01)
 // ----------------------------------------------------
+function getStudentSessionToken(req) {
+  const headerToken = req.headers['x-student-session-token'];
+  const bodyToken = req.body && (req.body.student_session_token || req.body.studentSessionToken);
+  const queryToken = req.query && (req.query.student_session_token || req.query.studentSessionToken);
+  return String(headerToken || bodyToken || queryToken || '').trim();
+}
+
+function requireStudentSession(req, res, pengerjaanId) {
+  const token = getStudentSessionToken(req);
+  if (!token || !studentService.verifyStudentSession(pengerjaanId, token)) {
+    res.status(401).json({ success: false, message: 'Akses ditolak. Sesi siswa tidak valid atau sudah berganti.' });
+    return null;
+  }
+  return token;
+}
+
 app.post('/api/siswa/cek-kode', (req, res) => {
   try {
     const { kode_ujian } = req.body;
@@ -331,10 +347,35 @@ app.get('/api/siswa/sedang-mengerjakan/:kode', (req, res) => {
 
 app.post('/api/siswa/mulai', rateLimit(10, 60000), (req, res) => {
   try {
-    const { kode_ujian, nama, kelas, sesi_id, is_retake } = req.body;
+    const { kode_ujian, nama, kelas, sesi_id, is_retake, pengerjaan_id } = req.body || {};
+    const existingPengerjaanId = pengerjaan_id || null;
+    // Hanya body retake yang boleh membawa bukti attempt lama. Header/query
+    // sesi aktif tidak dipakai untuk membuat sesi ujian baru.
+    const submittedStudentSessionToken = String(
+      req.body?.student_session_token || req.body?.studentSessionToken || ''
+    ).trim() || null;
+    const existingStudentSessionToken = existingPengerjaanId ? submittedStudentSessionToken : null;
+    // A new entry always receives a server-generated token; stale browser tokens cannot be adopted.
+    const studentSessionToken = studentService.generateStudentSessionToken();
+
+    // Retake/rejoin wajib membawa bukti attempt lama. Token tersebut hanya
+    // dipakai untuk verifikasi; attempt baru tetap menerima token baru.
+    if (Boolean(is_retake) && (!existingPengerjaanId || !existingStudentSessionToken)) {
+      return res.status(401).json({ success: false, message: 'Sesi ujian sebelumnya tidak terbukti. Silakan buka hasil ujian dari tab yang sama.' });
+    }
 
     // Periksa batas kuota bersamaan (maks 20 siswa) & sistem antrean ruang tunggu
-    const check = waitingRoomService.checkEntry(kode_ujian, nama, kelas, null, sesi_id);
+    const entrySessionToken = studentSessionToken;
+    const check = waitingRoomService.checkEntry(
+      kode_ujian,
+      nama,
+      kelas,
+      null,
+      sesi_id,
+      entrySessionToken || null,
+      existingPengerjaanId || null,
+      existingStudentSessionToken || null
+    );
     if (!check.allowed && check.inQueue) {
       return res.json({
         success: true,
@@ -344,20 +385,30 @@ app.post('/api/siswa/mulai', rateLimit(10, 60000), (req, res) => {
         totalWaiting: check.totalWaiting,
         activeCount: check.activeCount,
         maxLimit: check.maxLimit,
-        message: check.message
+        message: check.message,
+        studentSessionToken: entrySessionToken || null
       });
     }
 
-    const result = studentService.startExam(kode_ujian, nama, kelas, sesi_id, Boolean(is_retake));
+    let result;
+    if (existingPengerjaanId || existingStudentSessionToken) {
+      result = studentService.startExam(kode_ujian, nama, kelas, sesi_id, Boolean(is_retake), studentSessionToken || null, true, existingPengerjaanId, existingStudentSessionToken);
+    } else {
+      result = studentService.startExam(kode_ujian, nama, kelas, sesi_id, Boolean(is_retake), studentSessionToken || null, true);
+    }
     res.json({ success: true, inQueue: false, ...result });
   } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
+    res.status(err.code === 'INVALID_STUDENT_SESSION' ? 401 : 400).json({ success: false, message: err.message });
   }
 });
 
 // Polling status antrean ruang tunggu siswa
 app.get('/api/siswa/antrean/:ticketId', (req, res) => {
   try {
+    const studentSessionToken = getStudentSessionToken(req);
+    if (!waitingRoomService.ownsTicket(req.params.ticketId, studentSessionToken)) {
+      return res.status(401).json({ success: false, message: 'Akses ditolak. Tiket antrean bukan milik sesi siswa ini.' });
+    }
     const status = waitingRoomService.getTicketStatus(req.params.ticketId);
     if (!status.valid) {
       return res.status(404).json({ success: false, message: status.message });
@@ -366,7 +417,12 @@ app.get('/api/siswa/antrean/:ticketId', (req, res) => {
     if (status.status === 'ready') {
       const { ticket } = status;
       // Giliran tiba: mulai ujian dan konsumsi tiket
-      const examData = studentService.startExam(ticket.kodeUjian, ticket.nama, ticket.kelas, ticket.sesiId, Boolean(ticket.isRetake));
+      let examData;
+      if (ticket.ownershipPengerjaanId || ticket.ownershipStudentSessionToken) {
+        examData = studentService.startExam(ticket.kodeUjian, ticket.nama, ticket.kelas, ticket.sesiId, Boolean(ticket.isRetake), ticket.studentSessionToken || null, true, ticket.ownershipPengerjaanId || null, ticket.ownershipStudentSessionToken || null);
+      } else {
+        examData = studentService.startExam(ticket.kodeUjian, ticket.nama, ticket.kelas, ticket.sesiId, Boolean(ticket.isRetake), ticket.studentSessionToken || null, true);
+      }
       waitingRoomService.consumeTicket(req.params.ticketId);
       return res.json({
         success: true,
@@ -384,7 +440,11 @@ app.get('/api/siswa/antrean/:ticketId', (req, res) => {
       maxLimit: status.maxLimit
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    if (err.code === 'INVALID_STUDENT_SESSION') {
+      waitingRoomService.consumeTicket(req.params.ticketId);
+      return res.status(401).json({ success: false, message: err.message });
+    }
+    res.status(400).json({ success: false, message: err.message });
   }
 });
 
@@ -394,6 +454,8 @@ app.post('/api/siswa/submit', async (req, res) => {
     if (!pengerjaan_id) {
       return res.status(400).json({ success: false, message: 'pengerjaan_id wajib disertakan' });
     }
+    const studentSessionToken = requireStudentSession(req, res, pengerjaan_id);
+    if (!studentSessionToken) return;
 
     // Ambil data pengerjaan sebelum submit dengan sinkronisasi Turso yang andal
     const pengerjaanBefore = studentService.findPengerjaanWithSync(pengerjaan_id);
@@ -415,11 +477,11 @@ app.post('/api/siswa/submit', async (req, res) => {
     let result;
     try {
       result = await waitingRoomService.queueSubmit(async () => {
-        return studentService.submitExam(pengerjaan_id, jawaban, paste_count, Boolean(is_auto_submit), paste_details);
+        return studentService.submitExam(pengerjaan_id, jawaban, paste_count, Boolean(is_auto_submit), paste_details, studentSessionToken);
       });
     } catch (queueErr) {
       console.warn('⚠️ Antrean submit padat/timeout, memproses submit langsung:', queueErr.message);
-      result = studentService.submitExam(pengerjaan_id, jawaban, paste_count, Boolean(is_auto_submit), paste_details);
+      result = studentService.submitExam(pengerjaan_id, jawaban, paste_count, Boolean(is_auto_submit), paste_details, studentSessionToken);
     }
 
     // Lepaskan 1 slot untuk antrean ruang tunggu
@@ -458,7 +520,9 @@ app.post('/api/siswa/submit', async (req, res) => {
 app.post('/api/siswa/draft', (req, res) => {
   try {
     const { pengerjaan_id, jawaban, paste_count, paste_details } = req.body;
-    const result = studentService.saveDraft(pengerjaan_id, jawaban, paste_count, paste_details);
+    const studentSessionToken = requireStudentSession(req, res, pengerjaan_id);
+    if (!studentSessionToken) return;
+    const result = studentService.saveDraft(pengerjaan_id, jawaban, paste_count, paste_details, studentSessionToken);
     if (pengerjaan_id) {
       invalidateCache(`sesi:${pengerjaan_id}`);
     }
@@ -477,7 +541,9 @@ app.post('/api/siswa/ping', rateLimit(60, 60000), (req, res) => {
     }
     const pengerjaan_id = body?.pengerjaan_id;
     const status = body?.status || 'active';
-    const result = studentService.recordPing(pengerjaan_id, status);
+    const studentSessionToken = requireStudentSession(req, res, pengerjaan_id);
+    if (!studentSessionToken) return;
+    const result = studentService.recordPing(pengerjaan_id, status, studentSessionToken);
     res.json(result);
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -486,7 +552,9 @@ app.post('/api/siswa/ping', rateLimit(60, 60000), (req, res) => {
 
 app.get('/api/siswa/sesi/:pengerjaan_id', (req, res) => {
   try {
-    const session = studentService.getActiveSession(req.params.pengerjaan_id);
+    const studentSessionToken = requireStudentSession(req, res, req.params.pengerjaan_id);
+    if (!studentSessionToken) return;
+    const session = studentService.getActiveSession(req.params.pengerjaan_id, studentSessionToken);
     if (!session) {
       return res.status(404).json({ success: false, message: 'Data sesi pengerjaan tidak ditemukan' });
     }
@@ -499,7 +567,9 @@ app.get('/api/siswa/sesi/:pengerjaan_id', (req, res) => {
 app.get('/api/siswa/hasil/:pengerjaan_id', async (req, res) => {
   try {
     const pid = req.params.pengerjaan_id;
-    let status = studentService.getPengerjaanStatus(pid);
+    const studentSessionToken = requireStudentSession(req, res, pid);
+    if (!studentSessionToken) return;
+    let status = studentService.getPengerjaanStatus(pid, studentSessionToken);
     if (!status) {
       return res.status(404).json({ success: false, message: 'Data pengerjaan tidak ditemukan' });
     }
@@ -508,7 +578,7 @@ app.get('/api/siswa/hasil/:pengerjaan_id', async (req, res) => {
     if ((status.skorLangsungAi || status.antreanInfo) && !status.isReleased && status.status === 'submitted' && status.ulanganId) {
       try {
         await queueService.tickAutoQueueIfDue(status.ulanganId);
-        status = studentService.getPengerjaanStatus(pid) || status;
+        status = studentService.getPengerjaanStatus(pid, studentSessionToken) || status;
         // Setelah released, invalidate cache lama agar refresh berikutnya dapat data baru
         invalidateCache(`hasil:${pid}`);
       } catch (eTick) {
@@ -520,7 +590,7 @@ app.get('/api/siswa/hasil/:pengerjaan_id', async (req, res) => {
     // Jika nilai sudah dirilis: cache 8 detik untuk hemat DB query saat banyak siswa polling
     if (status.isReleased) {
       const cachedStatus = withCache(`hasil:${pid}`, 8000, () =>
-        studentService.getPengerjaanStatus(pid)
+        studentService.getPengerjaanStatus(pid, studentSessionToken)
       );
       return res.json({ success: true, data: cachedStatus || status });
     }
@@ -533,7 +603,9 @@ app.get('/api/siswa/hasil/:pengerjaan_id', async (req, res) => {
 
 app.get('/api/siswa/riwayat/:pengerjaan_id', (req, res) => {
   try {
-    const list = studentService.getStudentExamHistory(req.params.pengerjaan_id);
+    const studentSessionToken = requireStudentSession(req, res, req.params.pengerjaan_id);
+    if (!studentSessionToken) return;
+    const list = studentService.getStudentExamHistory(req.params.pengerjaan_id, studentSessionToken);
     res.json({ success: true, data: list });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -547,7 +619,9 @@ app.post('/api/siswa/remedial/mulai', (req, res) => {
     if (!pengerjaan_id) {
       return res.status(400).json({ success: false, message: 'pengerjaan_id wajib disertakan' });
     }
-    const result = studentService.startDirectRemedial(pengerjaan_id, { nama, kelas });
+    const studentSessionToken = requireStudentSession(req, res, pengerjaan_id);
+    if (!studentSessionToken) return;
+    const result = studentService.startDirectRemedial(pengerjaan_id, { nama, kelas }, studentSessionToken);
     invalidateCache(`hasil:${pengerjaan_id}`);
     invalidateCache(`sesi:${pengerjaan_id}`);
     res.json(result);

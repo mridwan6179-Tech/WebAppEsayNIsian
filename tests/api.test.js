@@ -11,6 +11,7 @@ test('T-07: Integrasi Penuh API & Header Google Sites (FR-22 - FR-23, NFR-09, NF
   let examCode;
   let soalId;
   let pengerjaanId;
+  let studentSessionToken;
 
   // Jalankan server di ephemeral port untuk testing
   await new Promise((resolve) => {
@@ -121,12 +122,14 @@ test('T-07: Integrasi Penuh API & Header Google Sites (FR-22 - FR-23, NFR-09, NF
     assert.strictEqual(resMulai.status, 200);
     const mData = await resMulai.json();
     assert.ok(mData.pengerjaanId);
+    assert.ok(mData.studentSessionToken);
     pengerjaanId = mData.pengerjaanId;
+    studentSessionToken = mData.studentSessionToken;
 
     // Submit Jawaban
     const resSubmit = await fetch(`${baseUrl}/api/siswa/submit`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Student-Session-Token': mData.studentSessionToken },
       body: JSON.stringify({
         pengerjaan_id: pengerjaanId,
         jawaban: [{ soal_id: soalId, jawaban_siswa: 'Sistem komputer yang mampu belajar dan memecahkan masalah seperti manusia.' }]
@@ -138,7 +141,9 @@ test('T-07: Integrasi Penuh API & Header Google Sites (FR-22 - FR-23, NFR-09, NF
   });
 
   await t.test('FR-22 & NFR-09: Siswa belum dapat melihat nilai sebelum dirilis', async () => {
-    const res = await fetch(`${baseUrl}/api/siswa/hasil/${pengerjaanId}`);
+    const res = await fetch(`${baseUrl}/api/siswa/hasil/${pengerjaanId}`, {
+      headers: { 'X-Student-Session-Token': studentSessionToken }
+    });
     const data = await res.json();
     assert.strictEqual(data.success, true);
     assert.strictEqual(data.data.isReleased, false);
@@ -180,7 +185,9 @@ test('T-07: Integrasi Penuh API & Header Google Sites (FR-22 - FR-23, NFR-09, NF
   });
 
   await t.test('FR-23: Siswa dapat melihat nilai final (skala 100) setelah dirilis', async () => {
-    const res = await fetch(`${baseUrl}/api/siswa/hasil/${pengerjaanId}`);
+    const res = await fetch(`${baseUrl}/api/siswa/hasil/${pengerjaanId}`, {
+      headers: { 'X-Student-Session-Token': studentSessionToken }
+    });
     const data = await res.json();
     assert.strictEqual(data.success, true);
     assert.strictEqual(data.data.isReleased, true);

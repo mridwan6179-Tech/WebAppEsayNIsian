@@ -1,6 +1,18 @@
 const db = require('../config/database');
 const examService = require('./examService');
 const codingGameService = require('./codingGameService');
+const crypto = require('crypto');
+
+function createStudentSessionToken() {
+  return crypto.randomBytes(32).toString('base64url');
+}
+
+function tokensMatch(expected, received) {
+  if (!expected || !received || typeof received !== 'string') return false;
+  const expectedBuffer = Buffer.from(String(expected));
+  const receivedBuffer = Buffer.from(received);
+  return expectedBuffer.length === receivedBuffer.length && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+}
 
 function maskStudentName(name) {
   if (!name || typeof name !== 'string') return '-';
@@ -21,6 +33,36 @@ function maskStudentName(name) {
 }
 
 const studentService = {
+  generateStudentSessionToken: createStudentSessionToken,
+
+  // Pastikan attempt memiliki token pemilik sebelum dikirim ke browser.
+  ensureStudentSessionToken(pengerjaan) {
+    if (!pengerjaan || !pengerjaan.id) return pengerjaan;
+    if (pengerjaan.student_session_token) return pengerjaan;
+
+    const token = createStudentSessionToken();
+    try {
+      db.prepare(`
+        UPDATE pengerjaan
+        SET student_session_token = ?
+        WHERE id = ? AND (student_session_token IS NULL OR student_session_token = '')
+      `).run(token, pengerjaan.id);
+    } catch (e) {
+      // Another instance may have won the race to assign the token.
+    }
+    const refreshed = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(pengerjaan.id);
+    return refreshed || { ...pengerjaan, student_session_token: token };
+  },
+
+  // Verifikasi bukti kepemilikan attempt untuk seluruh endpoint siswa.
+  verifyStudentSession(pengerjaanId, studentSessionToken) {
+    if (!pengerjaanId || !studentSessionToken) return null;
+    const pengerjaan = this.findPengerjaanWithSync(pengerjaanId);
+    if (!pengerjaan) return null;
+    const secured = this.ensureStudentSessionToken(pengerjaan);
+    return tokensMatch(secured.student_session_token, studentSessionToken) ? secured : null;
+  },
+
   // FR-06: Validasi Kode Ulangan
   validateExamCode(kodeUjian) {
     if (!kodeUjian || typeof kodeUjian !== 'string') {
@@ -255,7 +297,19 @@ const studentService = {
   },
 
   // FR-07: Identitas Siswa & Memulai Pengerjaan (Mendukung Paket Soal Acak per Siswa & Multi-Sesi)
-  startExam(kodeUjian, nama, kelas, sesiId = null, isRetake = false) {
+  // `requireExistingSessionToken` dipakai oleh endpoint publik agar nama/kelas
+  // tidak lagi cukup untuk mengambil pengerjaan milik browser lain.
+  startExam(
+    kodeUjian,
+    nama,
+    kelas,
+    sesiId = null,
+    isRetake = false,
+    requestedStudentSessionToken = null,
+    requireExistingSessionToken = false,
+    existingPengerjaanId = null,
+    existingStudentSessionToken = null
+  ) {
     const val = this.validateExamCode(kodeUjian);
     if (!val.valid) {
       throw new Error(val.message);
@@ -319,17 +373,76 @@ const studentService = {
       }
     }
 
-    // Cek apakah peserta sudah pernah mengerjakan ulangan ini
-    let peserta = db.prepare('SELECT id FROM peserta WHERE ulangan_id = ? AND LOWER(nama) = LOWER(?) AND LOWER(kelas) = LOWER(?)').get(ulanganId, cleanNama, cleanKelas);
+    // Bukti sesi hanya boleh dipakai untuk attempt yang sama dan peserta yang sama.
+    // Token dari URL/kode ujian tidak pernah dianggap sebagai bukti kepemilikan.
+    let provedPengerjaan = null;
+    if (existingPengerjaanId || existingStudentSessionToken) {
+      if (existingPengerjaanId && !existingStudentSessionToken) {
+        const err = new Error('Bukti sesi siswa tidak lengkap. Silakan masuk kembali.');
+        err.code = 'INVALID_STUDENT_SESSION';
+        throw err;
+      }
+      if (existingPengerjaanId) {
+        provedPengerjaan = this.verifyStudentSession(existingPengerjaanId, existingStudentSessionToken);
+      } else {
+        // Ticket antrean menyimpan token lama; token unik cukup untuk
+        // menemukan attempt tanpa menaruh ID pengerjaan di tiket publik.
+        const tokenRow = db.prepare('SELECT * FROM pengerjaan WHERE student_session_token = ?').get(existingStudentSessionToken);
+        provedPengerjaan = tokenRow ? this.verifyStudentSession(tokenRow.id, existingStudentSessionToken) : null;
+      }
+      if (!provedPengerjaan || Number(provedPengerjaan.ulangan_id) !== Number(ulanganId)) {
+        const err = new Error('Sesi siswa sudah tidak valid atau sudah berganti.');
+        err.code = 'INVALID_STUDENT_SESSION';
+        throw err;
+      }
+      const provedPeserta = db.prepare('SELECT id, ulangan_id, nama, kelas FROM peserta WHERE id = ?').get(provedPengerjaan.peserta_id);
+      if (!provedPeserta || Number(provedPeserta.ulangan_id) !== Number(ulanganId)
+        || provedPeserta.nama.trim().toLowerCase() !== cleanNama.toLowerCase()
+        || provedPeserta.kelas.trim().toLowerCase() !== cleanKelas.toLowerCase()) {
+        const err = new Error('Identitas siswa tidak cocok dengan sesi yang dipilih.');
+        err.code = 'INVALID_STUDENT_SESSION';
+        throw err;
+      }
+    }
+
+    if (isRetake && requireExistingSessionToken && !provedPengerjaan) {
+      const err = new Error('Untuk ujian ulang, sesi ujian sebelumnya harus diverifikasi terlebih dahulu.');
+      err.code = 'INVALID_STUDENT_SESSION';
+      throw err;
+    }
+
+    // Sesi publik baru tidak boleh memakai peserta lama hanya karena nama/kelas sama.
+    // Pemanggilan internal lama (tanpa strict mode) tetap mempertahankan perilaku rejoin.
+    const namedPeserta = db.prepare('SELECT id, ulangan_id, nama, kelas FROM peserta WHERE ulangan_id = ? AND LOWER(nama) = LOWER(?) AND LOWER(kelas) = LOWER(?)').get(ulanganId, cleanNama, cleanKelas);
+
+    let peserta;
+    if (provedPengerjaan) {
+      peserta = db.prepare('SELECT id, ulangan_id, nama, kelas FROM peserta WHERE id = ?').get(provedPengerjaan.peserta_id);
+    } else if (!requireExistingSessionToken) {
+      // Pemanggilan service internal lama boleh melakukan rejoin berdasarkan
+      // identitas. Endpoint HTTP siswa selalu memakai strict mode.
+      peserta = namedPeserta;
+    }
 
     if (!peserta) {
       const pInfo = db.prepare('INSERT INTO peserta (ulangan_id, nama, kelas) VALUES (?, ?, ?)').run(ulanganId, cleanNama, cleanKelas);
-      peserta = { id: pInfo.lastInsertRowid };
+      peserta = { id: pInfo.lastInsertRowid, ulangan_id: ulanganId, nama: cleanNama, kelas: cleanKelas };
     }
 
-    // Cek pengerjaan aktif atau submitted
-    // 1. Cek apakah ada pengerjaan yang sedang aktif ('mengerjakan')
-    let pengerjaan = db.prepare("SELECT * FROM pengerjaan WHERE ulangan_id = ? AND peserta_id = ? AND status = 'mengerjakan' ORDER BY attempt_ke DESC, id DESC").get(ulanganId, peserta.id);
+    // Cek pengerjaan aktif atau submitted. Strict mode hanya boleh rejoin
+    // attempt yang dibuktikan oleh token; login baru selalu membuat attempt baru.
+    let pengerjaan = null;
+    if (provedPengerjaan) {
+      if (provedPengerjaan.status === 'mengerjakan' && isRetake) {
+        const err = new Error('Sesi ujian sebelumnya masih aktif. Selesaikan atau kumpulkan dahulu sebelum mengulang.');
+        err.code = 'INVALID_STUDENT_SESSION';
+        throw err;
+      }
+      pengerjaan = provedPengerjaan.status === 'mengerjakan' ? provedPengerjaan : null;
+    } else if (!requireExistingSessionToken) {
+      pengerjaan = db.prepare("SELECT * FROM pengerjaan WHERE ulangan_id = ? AND peserta_id = ? AND status = 'mengerjakan' ORDER BY attempt_ke DESC, id DESC").get(ulanganId, peserta.id);
+    }
+    if (pengerjaan) pengerjaan = this.ensureStudentSessionToken(pengerjaan);
 
     // Ambil seluruh riwayat pengerjaan yang sudah submitted
     const submittedAttempts = db.prepare("SELECT * FROM pengerjaan WHERE ulangan_id = ? AND peserta_id = ? AND status = 'submitted' ORDER BY attempt_ke DESC, id DESC").all(ulanganId, peserta.id);
@@ -351,17 +464,19 @@ const studentService = {
 
     if (!pengerjaan && countSubmitted > 0) {
       const latestSubmitted = submittedAttempts[0];
+      const securedLatest = this.ensureStudentSessionToken(latestSubmitted);
       const maxReached = (maxAttempts > 0 && countSubmitted >= maxAttempts);
 
       if (maxReached || !isRetake) {
         return {
           alreadySubmitted: true,
-          pengerjaanId: latestSubmitted.id,
-          submittedAt: latestSubmitted.submitted_at,
-          releasedAt: latestSubmitted.released_at,
-          nilaiFinal: latestSubmitted.nilai_final,
+          pengerjaanId: securedLatest.id,
+          studentSessionToken: securedLatest.student_session_token,
+          submittedAt: securedLatest.submitted_at,
+          releasedAt: securedLatest.released_at,
+          nilaiFinal: securedLatest.nilai_final,
           nilaiTerbaik: nilaiTerbaik,
-          attemptKe: latestSubmitted.attempt_ke || countSubmitted,
+          attemptKe: securedLatest.attempt_ke || countSubmitted,
           totalAttempts: countSubmitted,
           maksimalPercobaan: maxAttempts,
           sisaPercobaan: maxAttempts === 0 ? 'Tanpa Batas' : Math.max(0, maxAttempts - countSubmitted),
@@ -398,7 +513,7 @@ const studentService = {
         try {
           this.submitExam(pengerjaan.id, [], pengerjaan.paste_count || 0, true);
         } catch (eExp) {}
-        const refreshedSubmitted = db.prepare("SELECT * FROM pengerjaan WHERE ulangan_id = ? AND peserta_id = ? AND status = 'submitted' ORDER BY attempt_ke DESC, id DESC").all(ulanganId, peserta.id);
+        const refreshedSubmitted = db.prepare("SELECT * FROM pengerjaan WHERE ulangan_id = ? AND peserta_id = ? AND status = 'submitted' ORDER BY attempt_ke DESC, id DESC").all(ulanganId, peserta.id).map(row => this.ensureStudentSessionToken(row));
         const refreshedCount = refreshedSubmitted.length;
         const maxReached = (maxAttempts > 0 && refreshedCount >= maxAttempts);
         if (maxReached || !isRetake) {
@@ -406,6 +521,7 @@ const studentService = {
           return {
             alreadySubmitted: true,
             pengerjaanId: latest ? latest.id : pengerjaan.id,
+            studentSessionToken: latest ? latest.student_session_token : pengerjaan.student_session_token,
             submittedAt: latest ? latest.submitted_at : new Date().toISOString(),
             releasedAt: latest ? latest.released_at : null,
             nilaiFinal: latest ? latest.nilai_final : null,
@@ -630,16 +746,21 @@ const studentService = {
       const currentAttemptKe = (pengerjaan && pengerjaan.attempt_ke) ? pengerjaan.attempt_ke : (countSubmitted + 1);
 
       if (!pengerjaan) {
+        let studentSessionToken = requestedStudentSessionToken || createStudentSessionToken();
+        if (db.prepare('SELECT id FROM pengerjaan WHERE student_session_token = ?').get(studentSessionToken)) {
+          studentSessionToken = createStudentSessionToken();
+        }
         const info = db.prepare(`
-          INSERT INTO pengerjaan (ulangan_id, peserta_id, status, soal_ids, started_at, last_active_at, sesi_id, nama_sesi, attempt_ke)
-          VALUES (?, ?, 'mengerjakan', ?, ?, ?, ?, ?, ?)
-        `).run(ulanganId, peserta.id, soalIdsJson, nowIso, nowIso, sesiIdToSave, namaSesiToSave, currentAttemptKe);
+          INSERT INTO pengerjaan (ulangan_id, peserta_id, status, soal_ids, started_at, last_active_at, sesi_id, nama_sesi, attempt_ke, student_session_token)
+          VALUES (?, ?, 'mengerjakan', ?, ?, ?, ?, ?, ?, ?)
+        `).run(ulanganId, peserta.id, soalIdsJson, nowIso, nowIso, sesiIdToSave, namaSesiToSave, currentAttemptKe, studentSessionToken);
         pengerjaan = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(info.lastInsertRowid);
         // Segera dorong pengerjaan baru ke Turso Cloud agar instance Vercel lain dapat langsung menemukannya
         if (typeof db.sync === 'function') {
           try { db.sync(); } catch (syncErr) {}
         }
       } else {
+        pengerjaan = this.ensureStudentSessionToken(pengerjaan);
         db.prepare(`
           UPDATE pengerjaan 
           SET soal_ids = ?, last_active_at = CURRENT_TIMESTAMP, 
@@ -701,6 +822,7 @@ const studentService = {
     return {
       alreadySubmitted: false,
       pengerjaanId: pengerjaan.id,
+      studentSessionToken: pengerjaan.student_session_token,
       peserta: { id: peserta.id, nama: cleanNama, kelas: cleanKelas },
       sesi: activeSesi || null,
       ulangan: val.ulangan,
@@ -743,11 +865,14 @@ const studentService = {
   },
 
   // Auto-Save Draft Jawaban Siswa (Sinkronisasi berkala dari HP/Klien ke Server)
-  saveDraft(pengerjaanId, rawAnswers, pasteCount = null, pasteDetails = null) {
+  saveDraft(pengerjaanId, rawAnswers, pasteCount = null, pasteDetails = null, studentSessionToken = null) {
     if (!pengerjaanId) throw new Error('ID pengerjaan tidak valid');
     const pengerjaan = this.findPengerjaanWithSync(pengerjaanId);
     if (!pengerjaan) {
       throw new Error('Data pengerjaan tidak ditemukan');
+    }
+    if (studentSessionToken && !this.verifyStudentSession(pengerjaanId, studentSessionToken)) {
+      throw new Error('Akses ditolak: token sesi siswa tidak valid');
     }
     if (pengerjaan.status === 'submitted') {
       return { success: true, message: 'Ulangan sudah dikumpulkan', alreadySubmitted: true };
@@ -835,10 +960,13 @@ const studentService = {
   },
 
   // FR-08 & NFR-01: Submit Seluruh Jawaban Siswa
-  submitExam(pengerjaanId, rawAnswers, pasteCount = 0, isAutoSubmit = false, pasteDetails = null) {
+  submitExam(pengerjaanId, rawAnswers, pasteCount = 0, isAutoSubmit = false, pasteDetails = null, studentSessionToken = null) {
     const pengerjaan = this.findPengerjaanWithSync(pengerjaanId);
     if (!pengerjaan) {
       throw new Error('Data pengerjaan tidak ditemukan');
+    }
+    if (studentSessionToken && !this.verifyStudentSession(pengerjaanId, studentSessionToken)) {
+      throw new Error('Akses ditolak: token sesi siswa tidak valid');
     }
 
     if (pengerjaan.status === 'submitted') {
@@ -1219,10 +1347,13 @@ const studentService = {
   },
 
   // Sesi Remedial Langsung Mandiri (Hanya butir soal yang salah / belum sempurna)
-  startDirectRemedial(pengerjaanId, verification = {}) {
+  startDirectRemedial(pengerjaanId, verification = {}, studentSessionToken = null) {
     if (!pengerjaanId) throw new Error('ID pengerjaan tidak valid');
     const pengerjaan = this.findPengerjaanWithSync(pengerjaanId);
     if (!pengerjaan) throw new Error('Data pengerjaan tidak ditemukan');
+    if (studentSessionToken && !this.verifyStudentSession(pengerjaanId, studentSessionToken)) {
+      throw new Error('Akses ditolak: token sesi siswa tidak valid');
+    }
 
     const peserta = db.prepare('SELECT id, nama, kelas FROM peserta WHERE id = ?').get(pengerjaan.peserta_id);
     if (!peserta) throw new Error('Data peserta tidak ditemukan');
@@ -1421,6 +1552,7 @@ const studentService = {
       isRemedial: true,
       remedial_ke: newRemedialKe,
       pengerjaanId: pengerjaan.id,
+      studentSessionToken: pengerjaan.student_session_token,
       peserta: {
         id: peserta.id,
         nama: peserta.nama,
@@ -1759,7 +1891,8 @@ const studentService = {
   },
 
   // Cek status pengerjaan untuk siswa
-  getPengerjaanStatus(pengerjaanId) {
+  getPengerjaanStatus(pengerjaanId, studentSessionToken = null) {
+    if (studentSessionToken && !this.verifyStudentSession(pengerjaanId, studentSessionToken)) return null;
     const query = `
       SELECT p.*, u.judul, u.mata_pelajaran, u.status as status_ulangan, u.kkm, u.kode_ujian,
              u.instruksi_remedial, u.link_remedial, u.skor_langsung_ai, u.remedial_langsung,
@@ -2078,9 +2211,10 @@ const studentService = {
   },
 
   // Riwayat pengerjaan seluruh ulangan siswa urut tanggal terbaru ke lama (descending)
-  getStudentExamHistory(pengerjaanId) {
+  getStudentExamHistory(pengerjaanId, studentSessionToken = null) {
+    if (studentSessionToken && !this.verifyStudentSession(pengerjaanId, studentSessionToken)) return null;
     const current = db.prepare(`
-      SELECT pes.nama, pes.kelas 
+      SELECT pes.id as peserta_id, pes.nama, pes.kelas
       FROM pengerjaan p 
       JOIN peserta pes ON p.peserta_id = pes.id 
       WHERE p.id = ?
@@ -2111,9 +2245,9 @@ const studentService = {
       JOIN peserta pes ON p.peserta_id = pes.id
       JOIN ulangan u ON p.ulangan_id = u.id
       JOIN guru g ON u.guru_id = g.id
-      WHERE LOWER(pes.nama) = LOWER(?) AND LOWER(pes.kelas) = LOWER(?) AND p.status = 'submitted'
+      WHERE p.peserta_id = ? AND p.status = 'submitted'
       ORDER BY COALESCE(p.submitted_at, p.started_at) DESC, p.id DESC
-    `).all(current.nama, current.kelas);
+    `).all(current.peserta_id);
 
     return history.map(item => {
       const isReleased = Boolean(item.released_at);
@@ -2152,8 +2286,10 @@ const studentService = {
   },
 
   // Mengambil sesi pengerjaan aktif siswa (Mendukung Resume Sesi & Anti-Refresh)
-  getActiveSession(pengerjaanId) {
+  getActiveSession(pengerjaanId, studentSessionToken = null) {
     if (!pengerjaanId) return null;
+
+    if (studentSessionToken && !this.verifyStudentSession(pengerjaanId, studentSessionToken)) return null;
 
     const numId = Number(pengerjaanId);
     const cleanId = isNaN(numId) ? pengerjaanId : numId;
@@ -2186,6 +2322,7 @@ const studentService = {
       return {
         alreadySubmitted: true,
         pengerjaanId: pengerjaan.id,
+        studentSessionToken: pengerjaan.student_session_token,
         submittedAt: pengerjaan.submitted_at,
         releasedAt: pengerjaan.released_at,
         nilaiFinal: pengerjaan.nilai_final,
@@ -2291,6 +2428,7 @@ const studentService = {
       alreadySubmitted: false,
       timeExpired: isTimeExpired,
       pengerjaanId: pengerjaan.id,
+      studentSessionToken: pengerjaan.student_session_token,
       peserta: {
         id: pengerjaan.peserta_id,
         nama: pengerjaan.nama_peserta,
@@ -2323,8 +2461,11 @@ const studentService = {
   },
 
   // Rekam detak jantung / presence siswa saat mengerjakan (mendeteksi aktif vs terputus/dc)
-  recordPing(pengerjaanId, status = 'active') {
+  recordPing(pengerjaanId, status = 'active', studentSessionToken = null) {
     if (!pengerjaanId) return { success: false, message: 'pengerjaan_id wajib diisi' };
+    if (studentSessionToken && !this.verifyStudentSession(pengerjaanId, studentSessionToken)) {
+      return { success: false, message: 'Akses ditolak: token sesi siswa tidak valid' };
+    }
     const pengerjaan = db.prepare('SELECT id, status FROM pengerjaan WHERE id = ?').get(pengerjaanId);
     if (!pengerjaan || pengerjaan.status !== 'mengerjakan') {
       return { success: false, message: 'Pengerjaan tidak ditemukan atau sudah dikumpulkan' };
