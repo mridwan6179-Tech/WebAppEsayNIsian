@@ -1132,6 +1132,8 @@
     }
 
     function setStudentPengerjaanId(id) {
+      const nextId = id ? String(id) : '';
+      if (typeof studentSessionEpoch !== 'undefined' && String(currentPengerjaanId || '') !== nextId) studentSessionEpoch++;
       currentPengerjaanId = id || null;
       try {
         if (id) sessionStorage.setItem(studentAttemptKey, String(id));
@@ -1158,12 +1160,32 @@
 
     let currentPengerjaanId = readStudentSessionValue(studentAttemptKey);
     let currentStudentSessionToken = readStudentSessionValue(studentSessionTokenKey);
+    // Naik setiap kali attempt/token berganti. Respons async dari sesi lama
+    // tidak boleh menyentuh layar atau state siswa yang baru.
+    let studentSessionEpoch = 0;
+
+    function captureStudentContext(attemptId = currentPengerjaanId) {
+      return {
+        attemptId: attemptId ? String(attemptId) : '',
+        token: getStudentSessionToken(),
+        epoch: studentSessionEpoch
+      };
+    }
+
+    function isActiveStudentContext(context) {
+      if (!context || context.epoch !== studentSessionEpoch) return false;
+      const activeId = currentPengerjaanId || readStudentSessionValue(studentAttemptKey);
+      return String(activeId || '') === context.attemptId
+        && getStudentSessionToken() === context.token;
+    }
 
     function getStudentSessionToken() {
       return currentStudentSessionToken || readStudentSessionValue(studentSessionTokenKey) || '';
     }
 
     function setStudentSessionToken(token) {
+      const nextToken = token || '';
+      if (String(currentStudentSessionToken || '') !== nextToken) studentSessionEpoch++;
       currentStudentSessionToken = token || null;
       try {
         if (token) sessionStorage.setItem(studentSessionTokenKey, token);
@@ -1179,11 +1201,13 @@
       const attemptId = currentPengerjaanId || readStudentSessionValue(studentAttemptKey);
       try {
         if (attemptId) {
-          localStorage.removeItem(`ulangan_draft_${attemptId}`);
-          localStorage.removeItem(`ulangan_backup_${attemptId}`);
-          localStorage.removeItem(`ulangan_paste_${attemptId}`);
-          localStorage.removeItem(`ujian_draft_${attemptId}`);
-          localStorage.removeItem(`exam_answers_${attemptId}`);
+          for (const storage of [sessionStorage, localStorage]) {
+            storage.removeItem(`ulangan_draft_${attemptId}`);
+            storage.removeItem(`ulangan_backup_${attemptId}`);
+            storage.removeItem(`ulangan_paste_${attemptId}`);
+            storage.removeItem(`ujian_draft_${attemptId}`);
+            storage.removeItem(`exam_answers_${attemptId}`);
+          }
         }
         sessionStorage.removeItem(studentAttemptKey);
         sessionStorage.removeItem(studentSessionTokenKey);
@@ -1206,7 +1230,7 @@
       const token = getStudentSessionToken();
       if (!protectedStudentEndpoint || !token) return nativeFetch(input, init);
       const headers = new Headers(init.headers || (typeof input !== 'string' ? input.headers : undefined));
-      headers.set('X-Student-Session-Token', token);
+      if (!headers.has('X-Student-Session-Token')) headers.set('X-Student-Session-Token', token);
       return nativeFetch(input, { ...init, headers });
     };
 
@@ -2134,6 +2158,9 @@
         window.clearCurrentStudentSession();
       }
 
+      // Setiap percobaan masuk membatalkan respons async dari form/sesi lama.
+      const loginEpoch = ++studentSessionEpoch;
+
       const btn = document.getElementById('btn-masuk');
       btn.disabled = true;
       btn.innerHTML = 'Memeriksa data...';
@@ -2236,6 +2263,8 @@
         });
         const data = await res.json();
 
+        if (loginEpoch !== studentSessionEpoch) return;
+
         if (!res.ok || !data.success) {
           throw new Error(data.message || 'Gagal masuk ujian');
         }
@@ -2323,9 +2352,12 @@
 
     async function pollQueueStatus() {
       if (!activeTicketId) return;
+      const ticketId = activeTicketId;
+      const queueContext = captureStudentContext();
       try {
-        const res = await fetch(`/api/siswa/antrean/${activeTicketId}`);
+        const res = await fetch(`/api/siswa/antrean/${ticketId}`);
         const data = await res.json();
+        if (ticketId !== activeTicketId || !isActiveStudentContext(queueContext)) return;
         if (!res.ok || !data.success) {
           if (queuePollInterval) clearInterval(queuePollInterval);
           queuePollInterval = null;
@@ -2387,7 +2419,7 @@
         pasteDetailsMap[soalId] = (pasteDetailsMap[soalId] || 0) + 1;
         if (currentPengerjaanId) {
           try {
-            localStorage.setItem(`ulangan_paste_${currentPengerjaanId}`, JSON.stringify(pasteDetailsMap));
+            sessionStorage.setItem(`ulangan_paste_${currentPengerjaanId}`, JSON.stringify(pasteDetailsMap));
           } catch (e) {}
         }
       }
@@ -5256,19 +5288,20 @@
       });
       renderMath(container);
 
-      // Pemulihan Jawaban Ganda: 1) Dari server jika ada, 2) Dari localStorage (draft & backup) jika ada data yang lebih baru
+      // Pemulihan Jawaban Ganda: 1) Dari server jika ada, 2) Dari storage sesi tab
       const draftKey = `ulangan_draft_${currentPengerjaanId}`;
       const backupKey = `ulangan_backup_${currentPengerjaanId}`;
+      const examContext = captureStudentContext(currentPengerjaanId);
       let localDrafts = {};
       try {
-        const savedDraft = localStorage.getItem(draftKey) || localStorage.getItem(backupKey);
+        const savedDraft = sessionStorage.getItem(draftKey) || sessionStorage.getItem(backupKey);
         if (savedDraft) localDrafts = JSON.parse(savedDraft);
       } catch (e) {}
 
       // Pemulihan Catatan Copy-Paste
       const pasteKey = `ulangan_paste_${currentPengerjaanId}`;
       try {
-        const savedPaste = localStorage.getItem(pasteKey);
+        const savedPaste = sessionStorage.getItem(pasteKey);
         if (savedPaste) {
           pasteDetailsMap = JSON.parse(savedPaste);
           pasteDetectionCount = Object.values(pasteDetailsMap).reduce((sum, n) => sum + Number(n || 0), 0);
@@ -5306,10 +5339,10 @@
       // Update status tanda visual seluruh butir soal & badge progres di awal render
       updateQuestionStatusAndProgress();
 
-      // Sinkronisasi Ganda (localStorage seketika + Server DB Debounced)
+      // Sinkronisasi Ganda (storage sesi tab seketika + Server DB Debounced)
       syncServerTimer = null;
       const syncDraftToServer = () => {
-        if (!currentPengerjaanId || isSubmitting) return;
+        if (!isActiveStudentContext(examContext) || isSubmitting) return;
         const answersPayload = [];
         container.querySelectorAll('input[data-soal-id], textarea[data-soal-id]').forEach(input => {
           const sId = Number(input.dataset.soalId);
@@ -5321,9 +5354,9 @@
         });
         fetch('/api/siswa/draft', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-Student-Session-Token': examContext.token },
           body: JSON.stringify({
-            pengerjaan_id: currentPengerjaanId,
+            pengerjaan_id: examContext.attemptId,
             jawaban: answersPayload,
             paste_count: pasteDetectionCount,
             paste_details: pasteDetailsMap
@@ -5332,15 +5365,15 @@
       };
 
       const saveDraft = () => {
-        if (!currentPengerjaanId) return;
+        if (!isActiveStudentContext(examContext)) return;
         const drafts = {};
         container.querySelectorAll('input[data-soal-id], textarea[data-soal-id]').forEach(input => {
           drafts[input.dataset.soalId] = input.value || '';
         });
         try {
           const draftStr = JSON.stringify(drafts);
-          localStorage.setItem(draftKey, draftStr);
-          localStorage.setItem(backupKey, draftStr);
+          sessionStorage.setItem(draftKey, draftStr);
+          sessionStorage.setItem(backupKey, draftStr);
         } catch (e) {}
 
         clearTimeout(syncServerTimer);
@@ -5412,7 +5445,7 @@
       const draftKey = `ulangan_draft_${currentPengerjaanId}`;
       let savedDraftObj = {};
       try {
-        const savedDraftStr = localStorage.getItem(draftKey);
+        const savedDraftStr = sessionStorage.getItem(draftKey);
         if (savedDraftStr) savedDraftObj = JSON.parse(savedDraftStr);
       } catch (e) {}
 
@@ -5506,7 +5539,7 @@
       const draftKey = `ulangan_draft_${currentPengerjaanId}`;
       let savedDraftObj = {};
       try {
-        const savedDraftStr = localStorage.getItem(draftKey);
+        const savedDraftStr = sessionStorage.getItem(draftKey);
         if (savedDraftStr) savedDraftObj = JSON.parse(savedDraftStr);
       } catch (e) {}
 
@@ -5667,6 +5700,11 @@
     async function doSubmit(isAutoSubmit = false) {
       if (isSubmitting && !isAutoSubmit) return;
       isSubmitting = true;
+      const submitContext = captureStudentContext(currentPengerjaanId);
+      if (!isActiveStudentContext(submitContext)) {
+        isSubmitting = false;
+        return;
+      }
 
       try {
         closeConfirmSubmitModal();
@@ -5704,11 +5742,11 @@
           btn.textContent = isAutoSubmit ? 'Mengumpulkan Otomatis...' : 'Mengumpulkan...';
         }
 
-        // Kumpulkan draft dari localStorage sebagai fallback proteksi jawaban kosong
-        const draftKey = `ulangan_draft_${currentPengerjaanId}`;
+        // Kumpulkan draft dari storage sesi tab sebagai fallback proteksi jawaban kosong
+        const draftKey = `ulangan_draft_${submitContext.attemptId}`;
         let savedDraftObj = {};
         try {
-          const savedDraftStr = localStorage.getItem(draftKey);
+          const savedDraftStr = sessionStorage.getItem(draftKey);
           if (savedDraftStr) savedDraftObj = JSON.parse(savedDraftStr);
         } catch (e) {}
 
@@ -5771,10 +5809,10 @@
           try {
             res = await fetch('/api/siswa/submit', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', 'X-Student-Session-Token': submitContext.token },
               signal: controller.signal,
               body: JSON.stringify({ 
-                pengerjaan_id: currentPengerjaanId, 
+                pengerjaan_id: submitContext.attemptId,
                 jawaban,
                 paste_count: pasteDetectionCount,
                 paste_details: pasteDetailsMap,
@@ -5783,6 +5821,8 @@
             });
             clearTimeout(timeoutId);
             data = await res.json();
+
+            if (!isActiveStudentContext(submitContext)) return;
 
             if (res.status === 401) {
               window.clearCurrentStudentSession();
@@ -5851,13 +5891,17 @@
         window.scrollTo({ top: 0, behavior: 'smooth' });
 
         // Ambil rincian hasil penilaian di latar belakang secara asinkron (dengan retry aman tanpa lempar balik ke soal)
-        checkResultStatusWithRetry(currentPengerjaanId, 0);
+        checkResultStatusWithRetry(submitContext.attemptId, 0, submitContext);
       } catch (err) {
+        if (!isActiveStudentContext(submitContext)) return;
         // RESCUE CHECK: Sebelum memunculkan alert gagal, cek apakah status ujian sebenarnya sudah submitted di server
-        if (currentPengerjaanId) {
+        if (submitContext.attemptId) {
           try {
-            const rescueRes = await fetch(`/api/siswa/sesi/${currentPengerjaanId}`);
+            const rescueRes = await fetch(`/api/siswa/sesi/${submitContext.attemptId}`, {
+              headers: { 'X-Student-Session-Token': submitContext.token }
+            });
             const rescueData = await rescueRes.json();
+            if (!isActiveStudentContext(submitContext)) return;
             if (rescueRes.status === 401) {
               window.clearCurrentStudentSession();
               const overlay = document.getElementById('submit-loading-overlay');
@@ -5886,7 +5930,7 @@
                 submittedTimeInfo.textContent = `Waktu Pengumpulan: ${new Date(submitTime).toLocaleString('id-ID')}`;
               }
               window.scrollTo({ top: 0, behavior: 'smooth' });
-              checkResultStatusWithRetry(currentPengerjaanId, 0);
+              checkResultStatusWithRetry(submitContext.attemptId, 0, submitContext);
               return;
             }
           } catch (rescueErr) {}
@@ -5917,6 +5961,7 @@
     async function resumeOrCheckSession(pengerjaanId) {
       const stepResuming = document.getElementById('step-resuming');
       const resumingRetryBox = document.getElementById('resuming-retry-box');
+      const resumeContext = captureStudentContext(pengerjaanId);
 
       if (stepResuming) {
         stepAuth.classList.add('hidden');
@@ -5929,6 +5974,8 @@
       try {
         const res = await fetch(`/api/siswa/sesi/${pengerjaanId}`);
         const result = await res.json();
+
+        if (!isActiveStudentContext(resumeContext)) return;
 
         if (res.status === 401) {
           window.clearCurrentStudentSession();
@@ -6021,8 +6068,10 @@
     });
 
     // Cek Status Hasil Nilai Siswa dengan Retry Aman (Tanpa Pernah Lempar Balik ke Lembar Soal & Tahan Gangguan Jaringan)
-    async function checkResultStatusWithRetry(pengerjaanId, attempt = 0) {
+    async function checkResultStatusWithRetry(pengerjaanId, attempt = 0, context = null) {
       if (!pengerjaanId) return;
+      const resultContext = context || captureStudentContext(pengerjaanId);
+      if (!isActiveStudentContext(resultContext)) return;
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 7500); // 7.5s network timeout guard
@@ -6031,6 +6080,8 @@
         const res = await fetch(`/api/siswa/hasil/${pengerjaanId}`, { signal: controller.signal });
         clearTimeout(timeoutId);
         const result = await res.json();
+
+        if (!isActiveStudentContext(resultContext)) return;
 
         if (res.status === 401) {
           window.clearCurrentStudentSession();
@@ -6053,12 +6104,13 @@
           }
           // Jika status di basis data cloud masih replikasi, coba lagi hingga 4 kali
           if (attempt < 4) {
-            setTimeout(() => checkResultStatusWithRetry(pengerjaanId, attempt + 1), 1500);
+            setTimeout(() => checkResultStatusWithRetry(pengerjaanId, attempt + 1, resultContext), 1500);
             return;
           }
         }
       } catch (e) {
         clearTimeout(timeoutId);
+        if (!isActiveStudentContext(resultContext)) return;
         console.warn('Pengecekan rincian hasil nilai (jaringan terganggu):', e.message);
 
         // Jika siswa sedang di layar antrean tunggu AI, jangan tinggalkan layar!
@@ -6081,18 +6133,18 @@
           if (autoScorePollTimer) clearTimeout(autoScorePollTimer);
           const nextDelay = Math.min(8000, 3200 + (attempt * 1200));
           autoScorePollTimer = setTimeout(() => {
-            checkResultStatusWithRetry(pengerjaanId, attempt + 1);
+            checkResultStatusWithRetry(pengerjaanId, attempt + 1, resultContext);
           }, nextDelay);
           return;
         }
 
         if (attempt < 3) {
-          setTimeout(() => checkResultStatusWithRetry(pengerjaanId, attempt + 1), 2500);
+          setTimeout(() => checkResultStatusWithRetry(pengerjaanId, attempt + 1, resultContext), 2500);
           return;
         }
       }
 
-      loadExamHistory(pengerjaanId);
+      if (isActiveStudentContext(resultContext)) loadExamHistory(pengerjaanId);
     }
 
     // Kompatibilitas fungsi pemanggilan lama
@@ -6765,6 +6817,7 @@
     // FR-Remedial: Mulai Sesi Remedial Mandiri Langsung
     async function startDirectRemedial() {
       const pid = currentPengerjaanId || readStudentSessionValue(studentAttemptKey);
+      const remedialContext = captureStudentContext(pid);
       if (!pid) {
         alert('ID pengerjaan tidak ditemukan.');
         return;
@@ -6794,6 +6847,7 @@
           body: JSON.stringify({ pengerjaan_id: pid, nama: curNama, kelas: curKelas })
         });
         const result = await res.json();
+        if (!isActiveStudentContext(remedialContext)) return;
         if (!res.ok || !result.success) {
           throw new Error(result.message || 'Gagal memulai sesi remedial.');
         }
@@ -6849,6 +6903,7 @@
       const nama = (inputStudentName?.value || window._currentStudentName || readStudentSessionValue('ulangan_nama') || '').trim();
       const kelas = (selectStudentClass?.value || window._currentStudentClass || readStudentSessionValue('ulangan_kelas') || '').trim();
       const sesiId = window._currentSesi ? window._currentSesi.id : null;
+      const retakeContext = captureStudentContext(currentPengerjaanId);
 
       if (!kode || !nama || !kelas) {
         setStudentPengerjaanId(null);
@@ -6877,6 +6932,8 @@
           })
         });
         const data = await res.json();
+
+        if (!isActiveStudentContext(retakeContext)) return;
 
         if (!res.ok || !data.success) {
           throw new Error(data.message || 'Gagal memulai ujian ulang.');
@@ -6910,6 +6967,7 @@
     // Muat Riwayat Nilai Ulangan Siswa (Urut Tanggal Descending)
     async function loadExamHistory(pengerjaanId) {
       if (!pengerjaanId) return;
+      const historyContext = captureStudentContext(pengerjaanId);
       const historyListEl = document.getElementById('exam-history-list');
       const badgeCountEl = document.getElementById('badge-history-count');
       if (!historyListEl) return;
@@ -6917,6 +6975,7 @@
       try {
         const res = await fetch(`/api/siswa/riwayat/${pengerjaanId}`);
         const result = await res.json();
+        if (!isActiveStudentContext(historyContext)) return;
         if (!res.ok || !result.success) return;
 
         const list = result.data || [];
@@ -7056,11 +7115,13 @@
         // ikut terhapus ketika komputer dipakai bersama.
         const attemptId = currentPengerjaanId || readStudentSessionValue(studentAttemptKey);
         if (attemptId) {
-          localStorage.removeItem(`ulangan_draft_${attemptId}`);
-          localStorage.removeItem(`ulangan_backup_${attemptId}`);
-          localStorage.removeItem(`ulangan_paste_${attemptId}`);
-          localStorage.removeItem(`ujian_draft_${attemptId}`);
-          localStorage.removeItem(`exam_answers_${attemptId}`);
+          for (const storage of [sessionStorage, localStorage]) {
+            storage.removeItem(`ulangan_draft_${attemptId}`);
+            storage.removeItem(`ulangan_backup_${attemptId}`);
+            storage.removeItem(`ulangan_paste_${attemptId}`);
+            storage.removeItem(`ujian_draft_${attemptId}`);
+            storage.removeItem(`exam_answers_${attemptId}`);
+          }
         }
       } catch (e) {}
       try {
@@ -7075,7 +7136,7 @@
         window.history.replaceState({}, document.title, window.location.pathname);
       } catch (e) {}
       setStudentPengerjaanId(null);
-      currentStudentSessionToken = null;
+      setStudentSessionToken(null);
       window._currentExamCode = null;
       window._currentStudentName = null;
       window._currentStudentClass = null;
@@ -7291,7 +7352,7 @@
       // Editor & Draft Restore
       const editor = document.getElementById('siswa-rgk-editor');
       const draftKey = `rangkuman_draft_${task.id}_${encodeURIComponent(nama)}_${encodeURIComponent(kelas)}`;
-      const savedDraft = localStorage.getItem(draftKey);
+      const savedDraft = sessionStorage.getItem(draftKey);
       if (editor) {
         editor.value = savedDraft || '';
         updateLiveWordCount(task);
@@ -7307,7 +7368,7 @@
           const cNama = currentRangkumanSession.nama;
           const cKelas = currentRangkumanSession.kelas;
           const curDraftKey = `rangkuman_draft_${curTask.id}_${encodeURIComponent(cNama)}_${encodeURIComponent(cKelas)}`;
-          localStorage.setItem(curDraftKey, editor.value);
+          sessionStorage.setItem(curDraftKey, editor.value);
           const autoSaveInd = document.getElementById('draft-autosave-indicator');
           if (autoSaveInd) {
             const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -7433,7 +7494,7 @@
           if (result.pengerjaan_id) {
             alert(result.message || 'Anda sudah pernah mengumpulkan tugas ini.');
             const curDraftKey = `rangkuman_draft_${task.id}_${encodeURIComponent(nama)}_${encodeURIComponent(kelas)}`;
-            localStorage.removeItem(curDraftKey);
+            sessionStorage.removeItem(curDraftKey);
             localStorage.removeItem('ulangan_rangkuman_session');
             localStorage.setItem('ulangan_rangkuman_pengerjaan_id', result.pengerjaan_id);
             localStorage.setItem('ulangan_rangkuman_kode', (task.kode_tugas || '').toUpperCase());
@@ -7447,7 +7508,7 @@
 
         // Berhasil submit
         const curDraftKey = `rangkuman_draft_${task.id}_${encodeURIComponent(nama)}_${encodeURIComponent(kelas)}`;
-        localStorage.removeItem(curDraftKey);
+        sessionStorage.removeItem(curDraftKey);
         localStorage.removeItem('ulangan_rangkuman_session');
         localStorage.setItem('ulangan_rangkuman_pengerjaan_id', result.pengerjaan_id);
         localStorage.setItem('ulangan_rangkuman_kode', (task.kode_tugas || '').toUpperCase());

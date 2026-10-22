@@ -1251,7 +1251,13 @@ const studentService = {
         WHERE j.pengerjaan_id = ? AND j.status_penilaian = 'menunggu'
       `).all(pengerjaanId);
 
-      if (pendingAnswers.length > 0) {
+      const remedialExamConfig = db.prepare('SELECT skor_langsung_ai FROM ulangan WHERE id = ?').get(pengerjaan.ulangan_id);
+      const remedialUsesAiQueue = Number(remedialExamConfig?.skor_langsung_ai) === 1 && pendingAnswers.length > 0;
+
+      // Saat AI aktif, biarkan jawaban tetap berstatus menunggu agar worker AI
+      // menilainya. Fallback langsung di sini akan mengunci skor 0 sebelum
+      // antrean sempat memproses remedial.
+      if (pendingAnswers.length > 0 && !remedialUsesAiQueue) {
         try {
           const geminiService = require('./geminiService');
           for (const pa of pendingAnswers) {
@@ -1275,16 +1281,20 @@ const studentService = {
         }
       }
 
-      // 2. Pulihkan daftar soal lengkap ulangan dan hitung ulang nilai total seluruh pengerjaan
-      try {
-        db.prepare('UPDATE pengerjaan SET soal_ids = COALESCE(original_soal_ids, soal_ids), is_in_remedial = 0 WHERE id = ?').run(pengerjaanId);
-        const reviewService = require('./reviewService');
-        remedialRecalc = reviewService.recalculatePengerjaanTotal(pengerjaanId);
-        if (remedialRecalc && remedialRecalc.nilai_final !== null) {
-          db.prepare('UPDATE pengerjaan SET nilai_final = ?, nilai_ai = ?, skor_pg = COALESCE(?, skor_pg), skor_koding = COALESCE(?, skor_koding), released_at = CURRENT_TIMESTAMP, is_in_remedial = 0 WHERE id = ?').run(remedialRecalc.nilai_final, remedialRecalc.nilai_ai, remedialRecalc.skor_pg, remedialRecalc.skor_koding, pengerjaanId);
+      // 2. Pulihkan daftar soal lengkap dan hitung ulang. Jika masih ada
+      // jawaban yang menunggu AI, worker yang akan merilis nilai setelah semua
+      // butir selesai sehingga skor parsial tidak pernah dipublikasikan.
+      if (!remedialUsesAiQueue) {
+        try {
+          db.prepare('UPDATE pengerjaan SET soal_ids = COALESCE(original_soal_ids, soal_ids), is_in_remedial = 0 WHERE id = ?').run(pengerjaanId);
+          const reviewService = require('./reviewService');
+          remedialRecalc = reviewService.recalculatePengerjaanTotal(pengerjaanId);
+          if (remedialRecalc && remedialRecalc.nilai_final !== null) {
+            db.prepare('UPDATE pengerjaan SET nilai_final = ?, nilai_ai = ?, skor_pg = COALESCE(?, skor_pg), skor_koding = COALESCE(?, skor_koding), released_at = CURRENT_TIMESTAMP, is_in_remedial = 0 WHERE id = ?').run(remedialRecalc.nilai_final, remedialRecalc.nilai_ai, remedialRecalc.skor_pg, remedialRecalc.skor_koding, pengerjaanId);
+          }
+        } catch (errRecalc) {
+          console.warn('⚠️ Recalculate remedial notice:', errRecalc.message);
         }
-      } catch (errRecalc) {
-        console.warn('⚠️ Recalculate remedial notice:', errRecalc.message);
       }
     }
 
@@ -2223,6 +2233,12 @@ const studentService = {
     if (!current) return [];
 
     const history = db.prepare(`
+      WITH current_identity AS (
+        SELECT LOWER(TRIM(pes.nama)) AS nama_key, LOWER(TRIM(pes.kelas)) AS kelas_key
+        FROM pengerjaan current_pengerjaan
+        JOIN peserta pes ON current_pengerjaan.peserta_id = pes.id
+        WHERE current_pengerjaan.id = ?
+      )
       SELECT 
         p.id as pengerjaan_id,
         p.ulangan_id,
@@ -2245,9 +2261,11 @@ const studentService = {
       JOIN peserta pes ON p.peserta_id = pes.id
       JOIN ulangan u ON p.ulangan_id = u.id
       JOIN guru g ON u.guru_id = g.id
-      WHERE p.peserta_id = ? AND p.status = 'submitted'
+      WHERE p.status = 'submitted'
+        AND LOWER(TRIM(pes.nama)) = (SELECT nama_key FROM current_identity)
+        AND LOWER(TRIM(pes.kelas)) = (SELECT kelas_key FROM current_identity)
       ORDER BY COALESCE(p.submitted_at, p.started_at) DESC, p.id DESC
-    `).all(current.peserta_id);
+    `).all(pengerjaanId);
 
     return history.map(item => {
       const isReleased = Boolean(item.released_at);

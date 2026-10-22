@@ -94,6 +94,24 @@ test('active student sessions are scoped to the browser tab instead of shared lo
   assert.doesNotMatch(html, /let currentStudentSessionToken = localStorage\.getItem\(studentSessionTokenKey\)/);
 });
 
+test('student async responses and drafts stay bound to the active tab session', () => {
+  assert.match(html, /studentSessionEpoch/);
+  assert.match(html, /isActiveStudentContext/);
+  assert.match(html, /sessionStorage\.getItem\(draftKey\)/);
+  assert.match(html, /sessionStorage\.setItem\(draftKey/);
+  assert.match(html, /sessionStorage\.getItem\(backupKey\)/);
+  assert.match(html, /sessionStorage\.setItem\(backupKey/);
+  assert.doesNotMatch(html, /localStorage\.getItem\(draftKey\)/);
+  assert.doesNotMatch(html, /localStorage\.setItem\(draftKey/);
+
+  const resultPolling = functionSource('async function checkResultStatusWithRetry', '// Kompatibilitas fungsi pemanggilan lama');
+  const resume = functionSource('async function resumeOrCheckSession', 'window.retryResumeSession');
+  const submit = functionSource('async function doSubmit', '// Resume sesi pengerjaan aktif siswa');
+  assert.match(resultPolling, /isActiveStudentContext/);
+  assert.match(resume, /isActiveStudentContext/);
+  assert.match(submit, /isActiveStudentContext/);
+});
+
 test('waiting-room tickets survive a refresh within the same browser tab', () => {
   assert.match(html, /studentQueueTicketKey/);
   assert.match(html, /sessionStorage\.setItem\(studentQueueTicketKey/);
@@ -106,9 +124,11 @@ test('student history is scoped to the verified participant record', () => {
     studentService.indexOf('getStudentExamHistory(pengerjaanId'),
     studentService.indexOf('// Mengambil sesi pengerjaan aktif siswa')
   );
-  assert.match(history, /p\.peserta_id\s*=\s*\?/);
-  assert.match(history, /\.all\(current\.peserta_id\)/);
-  assert.doesNotMatch(history, /LOWER\(pes\.nama\)\s*=\s*LOWER\(\?\)/);
+  assert.match(history, /verifyStudentSession\(pengerjaanId, studentSessionToken\)/);
+  assert.match(history, /current_identity/);
+  assert.match(history, /LOWER\(TRIM\(pes\.nama\)\)/);
+  assert.match(history, /LOWER\(TRIM\(pes\.kelas\)\)/);
+  assert.match(history, /\.all\(pengerjaanId\)/);
 });
 
 test('retake sends the current attempt proof back to the server', () => {
