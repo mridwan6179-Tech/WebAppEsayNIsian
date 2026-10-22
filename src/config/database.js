@@ -51,27 +51,10 @@ const tursoMode = resolveTursoMode({
 });
 
 if (tursoMode === 'remote') {
-  const LibsqlDatabase = require('libsql');
-  console.log('📡 Menghubungkan langsung ke Turso Cloud Database (remote libSQL)...');
+  const { createRemoteDatabase } = require('./remoteDatabase');
+  console.log('📡 Menghubungkan ke Turso Cloud Database melalui HTTP worker...');
 
-  function initTursoDb() {
-    try {
-      const inst = new LibsqlDatabase(tursoUrl, {
-        authToken: tursoToken
-      });
-      try {
-        inst.pragma('journal_mode = WAL');
-        inst.pragma('foreign_keys = ON');
-        inst.pragma('busy_timeout = 5000');
-      } catch (e) {}
-      return inst;
-    } catch (err) {
-      console.error('⚠️ Gagal koneksi remote Turso:', err.message);
-      throw err;
-    }
-  }
-
-  let currentDb = initTursoDb();
+  let currentDb = createRemoteDatabase({ url: tursoUrl, authToken: tursoToken });
 
   function isHranaStreamError(err) {
     if (!err) return false;
@@ -93,7 +76,7 @@ if (tursoMode === 'remote') {
   function reconnectTurso() {
     console.warn('🔄 Mendeteksi stream/koneksi Turso kedaluwarsa atau terputus (Hrana), menyambung ulang instance Libsql...');
     try {
-      currentDb = initTursoDb();
+      currentDb = createRemoteDatabase({ url: tursoUrl, authToken: tursoToken });
     } catch (e) {
       console.error('⚠️ Gagal menyambung ulang ke Turso:', e.message);
     }
