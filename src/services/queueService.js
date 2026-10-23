@@ -848,21 +848,67 @@ const queueService = {
 
         results.push({ jawaban_id: queueItem.jawaban_id, success: true, result });
       } catch (err) {
-        db.transaction(() => {
-          db.prepare(`
-            UPDATE antrean_review
-            SET status = 'gagal', error_message = ?
-            WHERE id = ?
-          `).run(String(err.message), queueItem.antrean_id);
+        // Review individual harus tetap selesai walau Gemini timeout/429. Gunakan
+        // evaluator offline yang sama dengan worker massal agar satu siswa tidak
+        // tertinggal dalam status gagal dan dapat dihitung nilainya.
+        try {
+          const fallback = geminiService.fallbackOfflineEvaluation(queueItem);
+          const maxBobot = Number(queueItem.bobot) || Number(queueItem.skor_maksimum) || 1;
+          const rawSkor = Number(fallback.skor_rekomendasi ?? 0);
+          const clampedScore = Math.max(0, Math.min(maxBobot, Math.round(rawSkor * 100) / 100));
+          const fallbackReason = `${fallback.alasan_ai || 'Penilaian otomatis cadangan.'} (Fallback offline: ${String(err.message)})`;
 
-          db.prepare(`
-            UPDATE jawaban
-            SET status_penilaian = 'gagal', last_error = ?
-            WHERE id = ?
-          `).run(String(err.message), queueItem.jawaban_id);
-        })();
+          db.transaction(() => {
+            db.prepare(`
+              UPDATE jawaban
+              SET status_penilaian = 'selesai',
+                  skor_rekomendasi = ?,
+                  skor_maksimum = ?,
+                  status_jawaban = ?,
+                  alasan_ai = ?,
+                  model_ai = 'fallback_offline',
+                  last_error = NULL,
+                  reviewed_at = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `).run(
+              clampedScore,
+              maxBobot,
+              fallback.status_jawaban || 'perlu_review',
+              fallbackReason,
+              queueItem.jawaban_id
+            );
 
-        results.push({ jawaban_id: queueItem.jawaban_id, success: false, error: String(err.message) });
+            db.prepare(`
+              UPDATE antrean_review
+              SET status = 'selesai', completed_at = CURRENT_TIMESTAMP,
+                  error_message = NULL
+              WHERE id = ?
+            `).run(queueItem.antrean_id);
+          })();
+
+          results.push({
+            jawaban_id: queueItem.jawaban_id,
+            success: true,
+            fallback: true,
+            result: { ...fallback, skor_rekomendasi: clampedScore, model_ai: 'fallback_offline', alasan_ai: fallbackReason }
+          });
+        } catch (fallbackError) {
+          db.transaction(() => {
+            db.prepare(`
+              UPDATE antrean_review
+              SET status = 'gagal', error_message = ?
+              WHERE id = ?
+            `).run(String(fallbackError.message || err.message), queueItem.antrean_id);
+
+            db.prepare(`
+              UPDATE jawaban
+              SET status_penilaian = 'gagal', last_error = ?
+              WHERE id = ?
+            `).run(String(fallbackError.message || err.message), queueItem.jawaban_id);
+          })();
+
+          results.push({ jawaban_id: queueItem.jawaban_id, success: false, error: String(fallbackError.message || err.message) });
+        }
       }
 
       if (i < pendingAnswers.length - 1) {

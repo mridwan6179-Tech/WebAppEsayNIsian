@@ -2284,7 +2284,12 @@ const studentService = {
 
   // Riwayat pengerjaan seluruh ulangan siswa urut tanggal terbaru ke lama (descending)
   getStudentExamHistory(pengerjaanId, studentSessionToken = null) {
-    if (studentSessionToken && !this.verifyStudentSession(pengerjaanId, studentSessionToken)) return null;
+    // Selalu ambil peserta dari attempt yang sudah diverifikasi. Nama + kelas
+    // adalah label tampilan dan tidak cukup untuk membedakan dua peserta.
+    const verifiedAttempt = studentSessionToken
+      ? this.verifyStudentSession(pengerjaanId, studentSessionToken)
+      : this.findPengerjaanWithSync(pengerjaanId);
+    if (studentSessionToken && !verifiedAttempt) return null;
     const current = db.prepare(`
       SELECT pes.id as peserta_id, pes.nama, pes.kelas
       FROM pengerjaan p 
@@ -2296,7 +2301,11 @@ const studentService = {
 
     const history = db.prepare(`
       WITH current_identity AS (
-        SELECT LOWER(TRIM(pes.nama)) AS nama_key, LOWER(TRIM(pes.kelas)) AS kelas_key
+        SELECT
+          current_pengerjaan.peserta_id AS current_peserta_id,
+          current_pengerjaan.ulangan_id AS current_ulangan_id,
+          LOWER(TRIM(pes.nama)) AS nama_key,
+          LOWER(TRIM(pes.kelas)) AS kelas_key
         FROM pengerjaan current_pengerjaan
         JOIN peserta pes ON current_pengerjaan.peserta_id = pes.id
         WHERE current_pengerjaan.id = ?
@@ -2324,8 +2333,14 @@ const studentService = {
       JOIN ulangan u ON p.ulangan_id = u.id
       JOIN guru g ON u.guru_id = g.id
       WHERE p.status = 'submitted'
-        AND LOWER(TRIM(pes.nama)) = (SELECT nama_key FROM current_identity)
-        AND LOWER(TRIM(pes.kelas)) = (SELECT kelas_key FROM current_identity)
+        AND (
+          p.peserta_id = (SELECT current_peserta_id FROM current_identity)
+          OR (
+            p.ulangan_id != (SELECT current_ulangan_id FROM current_identity)
+            AND LOWER(TRIM(pes.nama)) = (SELECT nama_key FROM current_identity)
+            AND LOWER(TRIM(pes.kelas)) = (SELECT kelas_key FROM current_identity)
+          )
+        )
       ORDER BY COALESCE(p.submitted_at, p.started_at) DESC, p.id DESC
     `).all(pengerjaanId);
 

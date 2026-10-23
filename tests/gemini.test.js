@@ -151,4 +151,36 @@ test('T-05: Integrasi Gemini AI Dinamis & Evaluasi Semantik (FR-14 - FR-19)', as
       geminiService.clearModelCooldowns();
     }
   });
+
+  await t.test('Kunci Gemini invalid tidak mencoba semua model dan langsung fallback', async () => {
+    const originalFetch = global.fetch;
+    const originalOrdered = geminiService.getOrderedCandidateModels;
+    let attempts = 0;
+    geminiService.getOrderedCandidateModels = async () => ['model-a', 'model-b', 'model-c'];
+    global.fetch = async () => {
+      attempts++;
+      return {
+        ok: false,
+        status: 403,
+        text: async () => 'API key not valid. Please pass a valid API key.'
+      };
+    };
+
+    try {
+      const result = await geminiService.gradeAnswer({
+        pertanyaan: 'Sebutkan ibu kota Indonesia.',
+        bobot: 10,
+        kunci_jawaban: 'Jakarta',
+        jawaban_siswa: 'Jakarta'
+      }, 'invalid-key');
+
+      assert.equal(attempts, 1, 'Kunci yang ditolak tidak boleh mencoba model berikutnya');
+      assert.equal(result.model_ai, 'offline-fallback');
+      assert.equal(result.skor_rekomendasi, 10);
+    } finally {
+      global.fetch = originalFetch;
+      geminiService.getOrderedCandidateModels = originalOrdered;
+      geminiService.clearModelCooldowns();
+    }
+  });
 });

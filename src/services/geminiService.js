@@ -789,6 +789,7 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
     for (const keyObj of availableKeys) {
       const activeKey = keyObj.key;
       const candidateList = await this.getOrderedCandidateModels(activeKey);
+      let keyAuthFailed = false;
 
       // Coba model secara sekuensial berurutan untuk key ini
       for (let i = 0; i < candidateList.length; i++) {
@@ -816,7 +817,9 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
 
           if (!response.ok) {
             const errBody = await response.text();
-            throw new Error(`Gemini API error (${response.status}) pada model ${model} (Key: ${keyObj.label}): ${errBody.substring(0, 80)}`);
+            const apiError = new Error(`Gemini API error (${response.status}) pada model ${model} (Key: ${keyObj.label}): ${errBody.substring(0, 80)}`);
+            apiError.status = response.status;
+            throw apiError;
           }
 
           const data = await response.json();
@@ -857,11 +860,22 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
 
         } catch (err) {
           lastError = err;
+          const errorText = String(err?.message || '').toLowerCase();
+          const isAuthFailure = err?.status === 401 || err?.status === 403
+            || errorText.includes('api key not valid')
+            || errorText.includes('unauthorized')
+            || errorText.includes('permission denied');
+          if (isAuthFailure) {
+            // Semua model akan ditolak oleh kunci yang sama. Hindari request
+            // berulang dan langsung pindah ke kunci cadangan berikutnya.
+            keyAuthFailed = true;
+            break;
+          }
           modelCooldownMap.set(model, Date.now() + 180000);
           continue;
         }
       }
-      console.warn(`[GEMINI-SERVICE] Kunci "${keyObj.label}" gagal untuk seluruh model. Mencoba kunci cadangan berikutnya...`);
+      console.warn(`[GEMINI-SERVICE] Kunci "${keyObj.label}" ${keyAuthFailed ? 'ditolak oleh API' : 'gagal untuk seluruh model'}. Mencoba kunci cadangan berikutnya...`);
     }
 
     // Jika seluruh model dalam urutan gagal dan terdapat rate limit 429

@@ -163,6 +163,33 @@ test('Deteksi Status Kehadiran Siswa (Aktif vs DC) & Review AI Perorangan', asyn
     );
   });
 
+  await t.test('6a. Review individual memakai fallback offline saat AI gagal', async () => {
+    const fallbackStudent = studentService.startExam(ulangan.kode_ujian, 'Siswa Fallback AI', '9A');
+    studentService.submitExam(fallbackStudent.pengerjaanId, [
+      { soal_id: soal1.id, jawaban_siswa: 'Jawaban fallback satu' },
+      { soal_id: soal2.id, jawaban_siswa: 'Jawaban fallback dua' }
+    ], 0, false, null, fallbackStudent.studentSessionToken);
+
+    const failedAi = await queueService.startReviewSingle(fallbackStudent.pengerjaanId, guru.id, async () => {
+      const error = new Error('Gemini timeout');
+      error.status = 503;
+      throw error;
+    }, 0);
+
+    assert.equal(failedAi.success, true);
+    assert.equal(failedAi.total_dinilai, 2);
+
+    const fallbackRows = db.prepare(`
+      SELECT status_penilaian, model_ai
+      FROM jawaban
+      WHERE pengerjaan_id = ?
+      ORDER BY id
+    `).all(fallbackStudent.pengerjaanId);
+    assert.equal(fallbackRows.length, 2);
+    assert.ok(fallbackRows.every(row => row.status_penilaian === 'selesai'));
+    assert.ok(fallbackRows.every(row => row.model_ai === 'fallback_offline'));
+  });
+
   await t.test('7. Proteksi Unique Index pada jawaban(pengerjaan_id, soal_id) mencegah duplikasi', () => {
     // Coba simpan draft berulang kali untuk soal yang sama
     const draftRes = studentService.saveDraft(s1.pengerjaanId, [

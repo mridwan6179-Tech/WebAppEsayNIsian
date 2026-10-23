@@ -150,3 +150,41 @@ test('browser binds protected requests to the student token lifecycle', () => {
   assert.match(html, /localStorage\.removeItem\(studentSessionTokenKey\)/);
 });
 
+test('student history stays scoped to participant id even when names and classes match', () => {
+  const guru = db.prepare('SELECT id FROM guru LIMIT 1').get();
+  const exam = examService.createUlangan(guru.id, {
+    judul: unique('Riwayat Identitas Sama'),
+    mata_pelajaran: 'Matematika',
+    tingkat_kelas: '8',
+    durasi_menit: 60
+  });
+  const soal = examService.createSoal(exam.id, {
+    nomor: 1,
+    jenis: 'isian',
+    pertanyaan: 'Berapakah 2 + 2?',
+    bobot: 100,
+    kunci_jawaban: '4'
+  });
+  examService.updateUlangan(exam.id, guru.id, { status: 'dibuka' });
+
+  try {
+    const tokenA = studentService.generateStudentSessionToken();
+    const tokenB = studentService.generateStudentSessionToken();
+    const siswaA = studentService.startExam(exam.kode_ujian, 'Siswa Sama', '8A', null, false, tokenA, true);
+    const siswaB = studentService.startExam(exam.kode_ujian, 'Siswa Sama', '8A', null, false, tokenB, true);
+
+    studentService.submitExam(siswaA.pengerjaanId, [{ soal_id: soal.id, jawaban_siswa: '4' }], 0, false, null, siswaA.studentSessionToken);
+    studentService.submitExam(siswaB.pengerjaanId, [{ soal_id: soal.id, jawaban_siswa: '3' }], 0, false, null, siswaB.studentSessionToken);
+
+    const historyA = studentService.getStudentExamHistory(siswaA.pengerjaanId, siswaA.studentSessionToken);
+    const historyB = studentService.getStudentExamHistory(siswaB.pengerjaanId, siswaB.studentSessionToken);
+
+    assert.ok(historyA.every(item => item.pengerjaanId !== siswaB.pengerjaanId));
+    assert.ok(historyB.every(item => item.pengerjaanId !== siswaA.pengerjaanId));
+    assert.ok(historyA.some(item => item.pengerjaanId === siswaA.pengerjaanId));
+    assert.ok(historyB.some(item => item.pengerjaanId === siswaB.pengerjaanId));
+  } finally {
+    db.prepare('DELETE FROM ulangan WHERE id = ?').run(exam.id);
+  }
+});
+
