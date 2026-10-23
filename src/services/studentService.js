@@ -864,6 +864,19 @@ const studentService = {
     return row || null;
   },
 
+  // Klaim pelepasan slot secara atomik. Ini tetap aman ketika retry submit
+  // masuk ke instance Vercel yang berbeda pada saat yang sama.
+  claimSubmitSlotRelease(pengerjaanId) {
+    if (!pengerjaanId) return false;
+    const result = db.prepare(`
+      UPDATE pengerjaan
+      SET submit_slot_released_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND status = 'submitted'
+        AND (submit_slot_released_at IS NULL OR submit_slot_released_at = '')
+    `).run(pengerjaanId);
+    return Number(result?.changes || 0) === 1;
+  },
+
   // Auto-Save Draft Jawaban Siswa (Sinkronisasi berkala dari HP/Klien ke Server)
   saveDraft(pengerjaanId, rawAnswers, pasteCount = null, pasteDetails = null, studentSessionToken = null) {
     if (!pengerjaanId) throw new Error('ID pengerjaan tidak valid');
@@ -1537,6 +1550,7 @@ const studentService = {
             is_in_remedial = 1,
             submitted_at = NULL,
             released_at = NULL,
+            submit_slot_released_at = NULL,
             last_active_at = ?
         WHERE id = ?
       `).run(remedialSoalIdsJson, originalSoalIdsJson, newRemedialKe, prevNilaiFinal, prevNilaiAi, prevSubmittedAt, prevReleasedAt, nowIso, nowIso, pengerjaan.id);

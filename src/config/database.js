@@ -702,6 +702,8 @@ function initDatabase() {
   // Klaim atomik untuk mencegah dua retry memproses attempt yang sama bersamaan.
   safeAddColumn('pengerjaan', 'submit_lock_token', 'TEXT DEFAULT NULL');
   safeAddColumn('pengerjaan', 'submit_started_at', 'DATETIME DEFAULT NULL');
+  // Klaim lintas-instance agar retry submit tidak membuka dua slot antrean.
+  safeAddColumn('pengerjaan', 'submit_slot_released_at', 'DATETIME DEFAULT NULL');
 
   // Migrasi: kolom PIN sekali pakai untuk ulangan
   safeAddColumn('ulangan', 'pin_aktif', 'INTEGER DEFAULT 0');

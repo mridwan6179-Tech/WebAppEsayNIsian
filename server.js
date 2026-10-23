@@ -54,6 +54,14 @@ const _apiCache = new Map();
 // Deduplicate retries in one Node instance. studentService also claims the
 // database row so concurrent Vercel instances are guarded as well.
 const inFlightStudentSubmits = new Map();
+// A completed attempt may be retried many times after the database commit.
+// Remember which attempt already released its local waiting-room slot so a
+// retry cannot advance more than one ticket on the same instance.
+function releaseSubmitSlotOnce(ulanganId, pengerjaanId) {
+  if (!ulanganId || !pengerjaanId) return;
+  if (!studentService.claimSubmitSlotRelease(pengerjaanId)) return;
+  waitingRoomService.releaseSlot(ulanganId);
+}
 
 function withCache(key, ttlMs, fn) {
   const hit = _apiCache.get(key);
@@ -471,6 +479,10 @@ app.post('/api/siswa/submit', async (req, res) => {
 
     // Jika pengerjaan ternyata sudah submitted (misal retry karena sinyal HP sempat putus), langsung kirim sukses
     if (pengerjaanBefore && pengerjaanBefore.status === 'submitted') {
+      // Retry setelah commit tetap harus membuka slot antrean jika request
+      // pertama terputus sebelum sempat memanggil releaseSlot(). Operasi ini
+      // aman dipanggil berulang karena hanya menandai tiket terdepan ready.
+      releaseSubmitSlotOnce(pengerjaanBefore.ulangan_id, pengerjaan_id);
       return res.json({
         success: true,
         message: 'Ulangan sudah pernah dikumpulkan sebelumnya',
@@ -514,7 +526,7 @@ app.post('/api/siswa/submit', async (req, res) => {
     // Hanya request yang membuat pekerjaan submit yang melepas slot; retry
     // bersamaan tidak boleh memajukan dua tiket antrean untuk satu siswa.
     if (ownsSubmitPromise && pengerjaanBefore?.ulangan_id) {
-      waitingRoomService.releaseSlot(pengerjaanBefore.ulangan_id);
+      releaseSubmitSlotOnce(pengerjaanBefore.ulangan_id, pengerjaan_id);
     }
 
     // Invalidate cache hasil & sesi seketika saat jawaban berhasil dikumpulkan

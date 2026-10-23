@@ -11,6 +11,7 @@ const browserSource = fs.readFileSync(path.join(repoRoot, 'public', 'index.html'
 const db = require('../src/config/database');
 const examService = require('../src/services/examService');
 const studentService = require('../src/services/studentService');
+const waitingRoomService = require('../src/services/waitingRoomService');
 const app = require('../server');
 const http = require('node:http');
 
@@ -38,11 +39,16 @@ test('database submit claim protects an attempt across server instances', () => 
   assert.match(studentSource, /submit_lock_token/);
   assert.match(studentSource, /status = 'mengerjakan'/);
   assert.match(studentSource, /SUBMIT_IN_PROGRESS/);
+  assert.match(studentSource, /claimSubmitSlotRelease/);
+  assert.match(studentSource, /submit_slot_released_at/);
 });
 
 test('late autosave cannot overwrite a payload while submit is claimed', () => {
   assert.match(studentSource, /pengerjaan\.submit_lock_token/);
   assert.match(studentSource, /submitInProgress/);
+  const remedialStart = studentSource.indexOf('startDirectRemedial(');
+  const remedialEnd = studentSource.indexOf('// Pembersihan Otomatis', remedialStart);
+  assert.match(studentSource.slice(remedialStart, remedialEnd), /submit_slot_released_at = NULL/);
 });
 
 test('refresh after a completed submit removes the persisted attempt handle', () => {
@@ -53,6 +59,68 @@ test('refresh after a completed submit removes the persisted attempt handle', ()
   assert.match(resumeSource, /forgetPersistedStudentAttempt\(\)/);
   assert.match(browserSource, /function forgetPersistedStudentAttempt\(\)[\s\S]*sessionStorage\.removeItem\(studentAttemptKey\)/);
   assert.match(browserSource, /function forgetPersistedStudentAttempt\(\)[\s\S]*sessionStorage\.removeItem\(studentSessionTokenKey\)/);
+});
+
+test('already-submitted retry releases the exam slot for queued students', async (t) => {
+  const guru = db.prepare('SELECT id FROM guru LIMIT 1').get();
+  const exam = examService.createUlangan(guru.id, {
+    judul: unique('Submit Slot Recovery'),
+    mata_pelajaran: 'Bahasa',
+    tingkat_kelas: '9A',
+    durasi_menit: 60
+  });
+  const soal = examService.createSoal(exam.id, {
+    nomor: 1,
+    jenis: 'isian',
+    pertanyaan: 'Jawaban?',
+    bobot: 100,
+    kunci_jawaban: 'ya'
+  });
+  examService.updateStatusUlangan(exam.id, 'dibuka');
+  const session = studentService.startExam(exam.kode_ujian, unique('Slot Recovery'), '9A');
+  studentService.submitExam(session.pengerjaanId, [{ soal_id: soal.id, jawaban_siswa: 'ya' }], 0, false, null, session.studentSessionToken);
+
+  const server = http.createServer(app);
+  await new Promise(resolve => server.listen(0, resolve));
+  t.after(() => {
+    server.close();
+    db.prepare('DELETE FROM ulangan WHERE id = ?').run(exam.id);
+  });
+
+  const originalReleaseSlot = waitingRoomService.releaseSlot;
+  const released = [];
+  waitingRoomService.releaseSlot = (ulanganId) => released.push(Number(ulanganId));
+  t.after(() => { waitingRoomService.releaseSlot = originalReleaseSlot; });
+
+  const response = await fetch(`http://localhost:${server.address().port}/api/siswa/submit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Student-Session-Token': session.studentSessionToken
+    },
+    body: JSON.stringify({
+      pengerjaan_id: session.pengerjaanId,
+      jawaban: [{ soal_id: soal.id, jawaban_siswa: 'ya' }]
+    })
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).alreadySubmitted, true);
+
+  const duplicateResponse = await fetch(`http://localhost:${server.address().port}/api/siswa/submit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Student-Session-Token': session.studentSessionToken
+    },
+    body: JSON.stringify({
+      pengerjaan_id: session.pengerjaanId,
+      jawaban: [{ soal_id: soal.id, jawaban_siswa: 'ya' }]
+    })
+  });
+  assert.equal(duplicateResponse.status, 200);
+  assert.equal((await duplicateResponse.json()).alreadySubmitted, true);
+  assert.deepEqual(released, [exam.id]);
 });
 
 test('10 peserta dapat submit ujian campuran 30 soal bersamaan tanpa tertukar', async (t) => {
