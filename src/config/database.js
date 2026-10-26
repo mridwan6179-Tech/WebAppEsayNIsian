@@ -68,6 +68,7 @@ if (tursoMode === 'remote') {
       msg.includes('broken pipe') ||
       msg.includes('ECONNRESET') ||
       msg.includes('ETIMEDOUT') ||
+      msg.includes('query database timeout') ||
       msg.includes('fetch failed') ||
       (msg.includes('status=404') && msg.includes('stream'))
     );

@@ -4,7 +4,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { createRemoteDatabase } = require('../src/config/remoteDatabase');
+const { createRemoteDatabase, QUERY_TIMEOUT_MS } = require('../src/config/remoteDatabase');
+
+test('remote query timeout dibatasi agar serverless tidak menggantung terlalu lama', () => {
+  assert.ok(QUERY_TIMEOUT_MS <= 10000, `Timeout query terlalu lama: ${QUERY_TIMEOUT_MS}ms`);
+});
 
 test('remote database mempertahankan API sinkron untuk query Turso', async (t) => {
   const filePath = path.join(os.tmpdir(), `remote-db-${process.pid}-${Date.now()}.sqlite`);

@@ -5210,7 +5210,18 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password, remember_me })
         });
-        const data = await res.json();
+        const responseType = (res.headers.get('content-type') || '').toLowerCase();
+        const responseText = await res.text();
+        let data = null;
+        if (responseType.includes('application/json')) {
+          try { data = JSON.parse(responseText); } catch (parseError) {
+            throw new Error('Respons server login tidak valid. Silakan coba lagi.');
+          }
+        } else {
+          throw new Error(res.status >= 500
+            ? 'Server login sedang bermasalah atau terhubung ulang. Silakan coba lagi.'
+            : 'Respons login tidak dikenali. Silakan muat ulang halaman.');
+        }
         if (!res.ok || !data.success) throw new Error(data.message || 'Login gagal');
 
         if (remember_me) {

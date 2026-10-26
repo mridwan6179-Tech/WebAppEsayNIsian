@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const http = require('http');
 const app = require('../server');
+const authService = require('../src/services/authService');
 
 test('T-07: Integrasi Penuh API & Header Google Sites (FR-22 - FR-23, NFR-09, NFR-13)', async (t) => {
   let server;
@@ -208,4 +209,31 @@ test('T-07: Integrasi Penuh API & Header Google Sites (FR-22 - FR-23, NFR-09, NF
     assert.strictEqual(data.data.jawaban.length, 1);
     assert.strictEqual(data.data.jawaban[0].catatan_guru, 'Jawaban tepat dan runtut.');
   });
+});
+
+test('API login mengembalikan JSON saat database/auth mengalami error', async (t) => {
+  const originalLogin = authService.login;
+  const server = http.createServer(app);
+  await new Promise(resolve => server.listen(0, resolve));
+  const baseUrl = `http://localhost:${server.address().port}`;
+  t.after(() => {
+    authService.login = originalLogin;
+    server.close();
+  });
+
+  authService.login = () => {
+    throw new Error('Query database timeout setelah 30 detik.');
+  };
+
+  const response = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'debug-invalid@example.invalid', password: 'invalid' })
+  });
+
+  assert.equal(response.status, 503);
+  assert.match(response.headers.get('content-type') || '', /application\/json/);
+  const data = await response.json();
+  assert.equal(data.success, false);
+  assert.equal(data.code, 'AUTH_UNAVAILABLE');
 });

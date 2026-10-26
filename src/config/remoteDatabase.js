@@ -2,7 +2,10 @@ const path = require('path');
 const { Worker } = require('worker_threads');
 
 const RESULT_BUFFER_BYTES = 8 * 1024 * 1024;
-const QUERY_TIMEOUT_MS = 30000;
+// Batasi waktu tunggu satu query agar serverless tidak menggantung lama saat
+// endpoint Turso sedang bermasalah. Database adapter akan dibuat ulang oleh
+// database.js setelah timeout terdeteksi sebagai error koneksi.
+const QUERY_TIMEOUT_MS = 8000;
 
 function createRemoteDatabase({ url, authToken }) {
   const worker = new Worker(path.join(__dirname, 'remoteDatabaseWorker.js'), {
@@ -26,7 +29,13 @@ function createRemoteDatabase({ url, authToken }) {
     const control = new Int32Array(sharedBuffer, 0, 2);
     worker.postMessage({ op, sql, args, sharedBuffer });
     const waitResult = Atomics.wait(control, 0, 0, QUERY_TIMEOUT_MS);
-    if (waitResult === 'timed-out') throw new Error('Query database timeout setelah 30 detik.');
+    if (waitResult === 'timed-out') {
+      // Worker yang masih menunggu jaringan tidak boleh menerima query baru;
+      // caller akan membuat instance pengganti melalui mekanisme reconnect.
+      try { worker.terminate(); } catch (e) {}
+      closed = true;
+      throw new Error(`Query database timeout setelah ${QUERY_TIMEOUT_MS / 1000} detik.`);
+    }
     const length = Atomics.load(control, 1);
     const payload = Buffer.from(new Uint8Array(sharedBuffer, 8, length)).toString('utf8');
     const result = JSON.parse(payload);
@@ -66,4 +75,4 @@ function createRemoteDatabase({ url, authToken }) {
   };
 }
 
-module.exports = { createRemoteDatabase };
+module.exports = { createRemoteDatabase, QUERY_TIMEOUT_MS };

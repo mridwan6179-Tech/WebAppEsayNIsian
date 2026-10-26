@@ -241,26 +241,39 @@ app.use((req, res, next) => {
 // ROUTE: Autentikasi Guru (FR-01)
 // ----------------------------------------------------
 app.post('/api/auth/login', rateLimit(10, 60000), (req, res) => {
-  const { email, password, remember_me } = req.body;
-  const isRemember = remember_me === true || remember_me === 'true' || remember_me === 1 || remember_me === '1';
-  const result = authService.login(email, password, isRemember);
+  try {
+    const { email, password, remember_me } = req.body || {};
+    const isRemember = remember_me === true || remember_me === 'true' || remember_me === 1 || remember_me === '1';
+    const result = authService.login(email, password, isRemember);
 
-  if (!result.success) {
-    return res.status(401).json(result);
+    if (!result.success) {
+      return res.status(401).json(result);
+    }
+
+    const isSecure = Boolean(req.secure || req.headers['x-forwarded-proto'] === 'https');
+    const maxAge = isRemember ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+
+    // Simpan token di HTTP-Only Cookie
+    res.cookie('auth_token', result.token, {
+      httpOnly: true,
+      maxAge,
+      sameSite: isSecure ? 'none' : 'lax',
+      secure: isSecure
+    });
+
+    res.json(result);
+  } catch (err) {
+    const message = String(err?.message || '');
+    const unavailable = /database|turso|query|timeout|connection|network|socket/i.test(message);
+    console.error('[AUTH LOGIN ERROR]', message);
+    res.status(unavailable ? 503 : 500).json({
+      success: false,
+      code: unavailable ? 'AUTH_UNAVAILABLE' : 'AUTH_ERROR',
+      message: unavailable
+        ? 'Layanan login sedang terhubung ulang ke database. Silakan coba lagi beberapa detik.'
+        : 'Login tidak dapat diproses saat ini. Silakan coba lagi.'
+    });
   }
-
-  const isSecure = Boolean(req.secure || req.headers['x-forwarded-proto'] === 'https');
-  const maxAge = isRemember ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
-
-  // Simpan token di HTTP-Only Cookie
-  res.cookie('auth_token', result.token, {
-    httpOnly: true,
-    maxAge,
-    sameSite: isSecure ? 'none' : 'lax',
-    secure: isSecure
-  });
-
-  res.json(result);
 });
 
 app.post('/api/auth/logout', (req, res) => {

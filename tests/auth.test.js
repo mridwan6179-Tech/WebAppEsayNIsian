@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
 const authService = require('../src/services/authService');
 require('dotenv').config();
 
@@ -38,4 +40,15 @@ test('T-01 FR-01: Autentikasi Guru', async (t) => {
     assert.strictEqual(authService.verifyToken(null), null);
     assert.strictEqual(authService.verifyToken('token-ngawur'), null);
   });
+});
+
+test('halaman login guru tidak menampilkan error parser JSON saat server mengirim HTML', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'guru.html'), 'utf8');
+  const start = html.indexOf("document.getElementById('form-login').addEventListener");
+  const end = html.indexOf('// Logout', start);
+  assert.ok(start >= 0 && end > start);
+  const loginHandler = html.slice(start, end);
+  assert.match(loginHandler, /content-type/i);
+  assert.match(loginHandler, /application\/json/i);
+  assert.doesNotMatch(loginHandler, /const data = await res\.json\(\);/);
 });
