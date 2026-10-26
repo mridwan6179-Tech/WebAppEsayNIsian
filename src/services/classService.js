@@ -19,14 +19,13 @@ const classService = {
   },
 
   getKelasByGuru(guruId) {
-    const isOwner = (Number(guruId) === 1 || Number(guruId) === 3);
     return db.prepare(`
       SELECT k.*, 
         (SELECT COUNT(DISTINCT uk.ulangan_id) FROM ulangan_kelas uk WHERE uk.kelas_id = k.id) as total_ulangan
       FROM kelas k 
-      WHERE ${isOwner ? 'k.guru_id IN (1, 3)' : 'k.guru_id = ?'}
+      WHERE k.guru_id = ?
       ORDER BY k.nama_kelas ASC
-    `).all(...(isOwner ? [] : [guruId]));
+    `).all(guruId);
   },
 
   deleteKelas(kelasId, guruId) {

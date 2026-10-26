@@ -36,12 +36,10 @@ function makeDeviceId(req) {
   return `dev_${Math.abs(hash).toString(36)}`;
 }
 
-// Otorisasi guru kompatibel akun multi-login (ID 1 & 3 saling terhubung)
+// Otorisasi guru selalu dibatasi pada pemilik ulangan yang tepat.
 function isGuruAuthorized(guruId, ulanganGuruId) {
   if (!guruId) return true;
-  if (Number(ulanganGuruId) === Number(guruId)) return true;
-  if ((Number(guruId) === 1 || Number(guruId) === 3) && (Number(ulanganGuruId) === 1 || Number(ulanganGuruId) === 3)) return true;
-  return false;
+  return Number(ulanganGuruId) === Number(guruId);
 }
 
 const pinService = {
