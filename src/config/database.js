@@ -11,9 +11,16 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
+function readEnvironmentValue(name) {
+  const value = String(process.env[name] || '').trim();
+  // Vercel Dashboard values must not include quotes, but strip them safely
+  // when a .env assignment was pasted directly into the field.
+  return value.replace(/^(?:"([\s\S]*)"|'([\s\S]*)')$/, (_, doubleQuoted, singleQuoted) => doubleQuoted ?? singleQuoted ?? '');
+}
+
 const isTest = process.env.NODE_ENV === 'test' || process.argv.some(arg => arg.includes('test'));
-const tursoUrl = isTest ? null : process.env.TURSO_DATABASE_URL;
-const tursoToken = isTest ? null : process.env.TURSO_AUTH_TOKEN;
+const tursoUrl = isTest ? null : readEnvironmentValue('TURSO_DATABASE_URL');
+const tursoToken = isTest ? null : readEnvironmentValue('TURSO_AUTH_TOKEN');
 const cloudDatabaseConfigured = Boolean(tursoUrl && tursoToken);
 const cloudSyncState = {
   status: cloudDatabaseConfigured ? 'pending' : 'disabled',
