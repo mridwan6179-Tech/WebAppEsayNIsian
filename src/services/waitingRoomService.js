@@ -1,326 +1,235 @@
+const crypto = require('crypto');
 const db = require('../config/database');
 const studentService = require('./studentService');
 
-// Kapasitas siswa yang bisa mengerjakan di dalam ruang ujian secara bersamaan (Bisa banyak / 200 siswa)
-const MAX_INSIDE_EXAM = parseInt(process.env.MAX_INSIDE_EXAM || '200', 10);
+// Maksimal 20 siswa mengerjakan satu ulangan secara bersamaan.
+const configuredCapacity = Number.parseInt(process.env.MAX_INSIDE_EXAM || '20', 10);
+const MAX_INSIDE_EXAM = Math.max(1, Math.min(20, Number.isFinite(configuredCapacity) ? configuredCapacity : 20));
+const MAX_BURST_ENTRY = Math.max(1, Number.parseInt(process.env.MAX_BURST_ENTRY || '20', 10));
+const MAX_BURST_SUBMIT = Math.max(1, Number.parseInt(process.env.MAX_BURST_SUBMIT || '20', 10));
 
-// Batas lonjakan serentak (Burst) pada Gerbang Masuk & Gerbang Submit (Maks 20 serentak)
-const MAX_BURST_ENTRY = parseInt(process.env.MAX_BURST_ENTRY || '20', 10);
-const MAX_BURST_SUBMIT = parseInt(process.env.MAX_BURST_SUBMIT || '20', 10);
-
-// Antrean ruang tunggu masuk (Entry Gate Queue)
-const waitingTickets = new Map();
 let activeEnteringCount = 0;
-
-// Antrean pengumpulan jawaban serentak (Submit Gate Mutex Queue)
 let activeSubmits = 0;
 const submitQueue = [];
 
-function processNextSubmit() {
-  if (activeSubmits >= MAX_BURST_SUBMIT || submitQueue.length === 0) {
-    return;
-  }
-  const task = submitQueue.shift();
-  activeSubmits++;
+const now = () => Date.now();
+const makeTicketId = () => `tkt_${now()}_${crypto.randomBytes(5).toString('hex')}`;
+const makeReservationId = () => `seat_${now()}_${crypto.randomBytes(5).toString('hex')}`;
 
-  Promise.resolve()
-    .then(() => task.fn())
-    .then(result => {
-      task.resolve(result);
-    })
-    .catch(err => {
-      task.reject(err);
-    })
-    .finally(() => {
-      activeSubmits = Math.max(0, activeSubmits - 1);
-      processNextSubmit();
-    });
+function toTicket(row) {
+  if (!row) return null;
+  return {
+    ticketId: row.ticket_id,
+    ulanganId: Number(row.ulangan_id),
+    kodeUjian: row.kode_ujian,
+    nama: row.nama,
+    kelas: row.kelas,
+    sesiId: row.sesi_id == null ? null : Number(row.sesi_id),
+    studentSessionToken: row.student_session_token,
+    ownershipPengerjaanId: row.ownership_pengerjaan_id || null,
+    ownershipStudentSessionToken: row.ownership_student_session_token || null,
+    isRetake: Boolean(row.is_retake),
+    status: row.status,
+    createdAt: Number(row.created_at),
+    lastPolledAt: Number(row.last_polled_at)
+  };
+}
+
+function getTicketRow(ticketId) {
+  return db.prepare('SELECT * FROM ruang_tunggu_ujian WHERE ticket_id = ?').get(ticketId);
+}
+
+function processNextSubmit() {
+  while (activeSubmits < MAX_BURST_SUBMIT && submitQueue.length > 0) {
+    const task = submitQueue.shift();
+    activeSubmits++;
+    Promise.resolve()
+      .then(() => task.fn())
+      .then(task.resolve, task.reject)
+      .finally(() => {
+        activeSubmits = Math.max(0, activeSubmits - 1);
+        processNextSubmit();
+      });
+  }
 }
 
 const waitingRoomService = {
-  // Ambil kapasitas maksimal di dalam pengerjaan
-  getMaxInside() {
-    return MAX_INSIDE_EXAM;
-  },
+  getMaxInside() { return MAX_INSIDE_EXAM; },
+  getMaxBurst() { return MAX_BURST_ENTRY; },
 
-  // Ambil batas serentak burst (Masuk & Submit)
-  getMaxBurst() {
-    return MAX_BURST_ENTRY;
-  },
-
-  // Hitung jumlah siswa yang saat ini sedang aktif mengerjakan (status = 'mengerjakan')
   getActiveStudentCount(ulanganId) {
     if (!ulanganId) return 0;
-    const row = db.prepare(`
-      SELECT COUNT(*) as c 
-      FROM pengerjaan 
-      WHERE ulangan_id = ? AND status = 'mengerjakan'
-    `).get(ulanganId);
-    return row ? row.c : 0;
+    const row = db.prepare(`SELECT COUNT(*) AS c FROM pengerjaan WHERE ulangan_id = ? AND status = 'mengerjakan'`).get(ulanganId);
+    return Number(row?.c || 0);
   },
 
-  // GERBANG 1: Masuk Ujian (Entry Gate)
-  // Memastikan siswa yang sedang mengerjakan di dalam bisa mencapai kapasitas penuh (200 siswa),
-  // namun jika ada lonjakan serentak > 20 siswa dalam detik yang sama, siswa diantrekan beberapa detik secara halus.
+  // Reservasi singkat menutup race antar request/instance: satu query atomik
+  // hanya berhasil bila jumlah pengerjaan aktif + reservasi yang belum kadaluarsa
+  // masih di bawah kapasitas. Reservasi dihapus saat startExam berhasil.
+  reserveSeat(ulanganId, studentSessionToken, maxCapacity = null) {
+    if (!ulanganId || !studentSessionToken) return { allowed: true, reserved: false };
+    const limit = Math.max(1, Math.min(20, Number(maxCapacity || this.getMaxInside())));
+    const current = now();
+    this.cleanExpiredSeatReservations(current);
+    const existing = db.prepare(`
+      SELECT reservation_id FROM ruang_tunggu_seat
+      WHERE ulangan_id = ? AND student_session_token = ? AND expires_at >= ?
+    `).get(ulanganId, studentSessionToken, current);
+    if (existing) return { allowed: true, reserved: true, reservationId: existing.reservation_id, existing: true };
+
+    const reservationId = makeReservationId();
+    const result = db.prepare(`
+      INSERT INTO ruang_tunggu_seat (reservation_id, ulangan_id, student_session_token, status, created_at, expires_at)
+      SELECT ?, ?, ?, 'reserved', ?, ?
+      WHERE (
+        (SELECT COUNT(*) FROM pengerjaan WHERE ulangan_id = ? AND status = 'mengerjakan')
+        + (SELECT COUNT(*) FROM ruang_tunggu_seat WHERE ulangan_id = ? AND status = 'reserved' AND expires_at >= ?)
+      ) < ?
+    `).run(reservationId, ulanganId, studentSessionToken, current, current + 30000, ulanganId, ulanganId, current, limit);
+    if (Number(result?.changes || 0) === 1) return { allowed: true, reserved: true, reservationId };
+    return { allowed: false, reserved: false };
+  },
+
+  activateSeat(studentSessionToken) {
+    if (!studentSessionToken) return;
+    db.prepare('DELETE FROM ruang_tunggu_seat WHERE student_session_token = ?').run(studentSessionToken);
+  },
+
+  releaseSeat(studentSessionToken) {
+    if (!studentSessionToken) return;
+    db.prepare('DELETE FROM ruang_tunggu_seat WHERE student_session_token = ?').run(studentSessionToken);
+  },
+
+  cleanExpiredSeatReservations(current = now()) {
+    db.prepare('DELETE FROM ruang_tunggu_seat WHERE expires_at < ?').run(current);
+  },
+
   checkEntry(kodeUjian, nama, kelas, customMax = null, sesiId = null, studentSessionToken = null, ownershipPengerjaanId = null, ownershipStudentSessionToken = null) {
-    const maxCapacity = customMax || this.getMaxInside();
-    const burstLimit = this.getMaxBurst();
-    const cleanKode = (kodeUjian || '').trim().toUpperCase();
-    const cleanNama = (nama || '').trim();
-    const cleanKelas = (kelas || '').trim();
+    this.cleanExpiredTickets();
+    const maxCapacity = Math.max(1, Math.min(20, Number(customMax || this.getMaxInside())));
+    const cleanKode = String(kodeUjian || '').trim().toUpperCase();
+    const cleanNama = String(nama || '').trim();
+    const cleanKelas = String(kelas || '').trim();
     const strictOwnership = Boolean(studentSessionToken || ownershipPengerjaanId || ownershipStudentSessionToken);
-
-    // 1. Validasi awal kode ujian
     const val = studentService.validateExamCode(cleanKode);
-    if (!val.valid) {
-      return { allowed: false, inQueue: false, error: val.message };
-    }
-
+    if (!val.valid) return { allowed: false, inQueue: false, error: val.message };
     const ulanganId = val.ulangan.id;
 
-    // Validasi ownership langsung berdasarkan attempt ID + token. Jangan
-    // bergantung pada pencarian peserta berdasarkan nama/kelas yang bisa duplikat.
     if (ownershipPengerjaanId && ownershipStudentSessionToken) {
       const ownedAttempt = db.prepare(`
-        SELECT p.id
-        FROM pengerjaan p
-        JOIN peserta pes ON pes.id = p.peserta_id
+        SELECT p.id FROM pengerjaan p JOIN peserta pes ON pes.id = p.peserta_id
         WHERE p.id = ? AND p.ulangan_id = ? AND p.student_session_token = ?
-          AND LOWER(TRIM(pes.nama)) = LOWER(?)
-          AND LOWER(TRIM(pes.kelas)) = LOWER(?)
+          AND LOWER(TRIM(pes.nama)) = LOWER(?) AND LOWER(TRIM(pes.kelas)) = LOWER(?)
       `).get(ownershipPengerjaanId, ulanganId, ownershipStudentSessionToken, cleanNama, cleanKelas);
-      if (ownedAttempt) {
-        return { allowed: true, inQueue: false, ulanganId };
-      }
+      if (ownedAttempt) return { allowed: true, inQueue: false, ulanganId };
       return { allowed: false, inQueue: false, error: 'Sesi siswa tidak valid atau identitas tidak cocok.' };
     }
 
-    // 2. Periksa apakah siswa sudah memiliki pengerjaan aktif atau submitted (Rejoin / Refresh)
-    const existingPeserta = db.prepare(`
-      SELECT id FROM peserta 
-      WHERE ulangan_id = ? AND LOWER(nama) = LOWER(?) AND LOWER(kelas) = LOWER(?)
-    `).get(ulanganId, cleanNama, cleanKelas);
-
+    const existingPeserta = db.prepare(`SELECT id FROM peserta WHERE ulangan_id = ? AND LOWER(nama) = LOWER(?) AND LOWER(kelas) = LOWER(?)`).get(ulanganId, cleanNama, cleanKelas);
     if (existingPeserta) {
-      const existingPengerjaan = ownershipPengerjaanId
-        ? db.prepare(`
-          SELECT id, status, student_session_token FROM pengerjaan
-          WHERE ulangan_id = ? AND peserta_id = ? AND id = ?
-        `).get(ulanganId, existingPeserta.id, ownershipPengerjaanId)
-        : db.prepare(`
-          SELECT id, status, student_session_token FROM pengerjaan
-          WHERE ulangan_id = ? AND peserta_id = ?
-          ORDER BY id DESC
-        `).get(ulanganId, existingPeserta.id);
-
-      // Hanya sesi yang dibuktikan dengan ID + token yang boleh melewati
-      // gerbang sebagai rejoin. Nama/kelas saja tidak cukup.
-      const ownsExisting = existingPengerjaan
-        && ownershipPengerjaanId
-        && Number(existingPengerjaan.id) === Number(ownershipPengerjaanId)
-        && ownershipStudentSessionToken
-        && existingPengerjaan.student_session_token === ownershipStudentSessionToken;
-      if (ownsExisting || !strictOwnership) {
-        return { allowed: true, inQueue: false, ulanganId };
-      }
+      const existing = db.prepare(`SELECT id, status, student_session_token FROM pengerjaan WHERE ulangan_id = ? AND peserta_id = ? ORDER BY id DESC LIMIT 1`).get(ulanganId, existingPeserta.id);
+      const ownsExisting = existing && ownershipPengerjaanId && Number(existing.id) === Number(ownershipPengerjaanId) && ownershipStudentSessionToken && existing.student_session_token === ownershipStudentSessionToken;
+      if (ownsExisting || !strictOwnership) return { allowed: true, inQueue: false, ulanganId };
     }
 
-    // 3. Hitung siswa yang sedang aktif mengerjakan di dalam ruang ujian
     const activeCount = this.getActiveStudentCount(ulanganId);
-
-    // Jika ruang ujian sudah penuh total (misal 200 siswa)
     if (activeCount >= maxCapacity) {
       return this.createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, 'Ruang ujian sedang penuh', sesiId, studentSessionToken, ownershipPengerjaanId, ownershipStudentSessionToken);
     }
-
-    // 4. Cek apakah terjadi lonjakan serentak masuk (Burst Entry Gate > 20)
-    // Jika antrean tiket sedang ada siswa yang mengantre, siswa baru harus antre di belakangnya
-    const waitingForThisExam = this.getWaitingListForExam(ulanganId);
-    if (waitingForThisExam.length > 0 || activeEnteringCount >= burstLimit) {
+    if (this.getWaitingListForExam(ulanganId).length > 0 || activeEnteringCount >= MAX_BURST_ENTRY) {
       return this.createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, 'Sistem sedang mengatur antrean gerbang masuk', sesiId, studentSessionToken, ownershipPengerjaanId, ownershipStudentSessionToken);
     }
 
-    // Lolos masuk ke lembar ujian
-    activeEnteringCount++;
-    setTimeout(() => {
-      if (activeEnteringCount > 0) activeEnteringCount--;
-    }, 1500);
+    if (studentSessionToken) {
+      const reservation = this.reserveSeat(ulanganId, studentSessionToken, maxCapacity);
+      if (!reservation.allowed) {
+        return this.createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, 'Ruang ujian baru saja penuh', sesiId, studentSessionToken, ownershipPengerjaanId, ownershipStudentSessionToken);
+      }
+    }
 
+    activeEnteringCount++;
+    setTimeout(() => { activeEnteringCount = Math.max(0, activeEnteringCount - 1); }, 1500);
     return { allowed: true, inQueue: false, ulanganId, activeCount, maxLimit: maxCapacity };
   },
 
   getWaitingListForExam(ulanganId) {
-    const list = [];
-    for (const t of waitingTickets.values()) {
-      if (t.ulanganId === ulanganId && t.status !== 'used') {
-        list.push(t);
-      }
-    }
-    list.sort((a, b) => a.createdAt - b.createdAt);
-    return list;
+    return db.prepare(`SELECT * FROM ruang_tunggu_ujian WHERE ulangan_id = ? AND status IN ('waiting', 'ready') ORDER BY created_at ASC, ticket_id ASC`).all(ulanganId).map(toTicket);
   },
 
   createOrGetWaitingTicket(ulanganId, cleanKode, cleanNama, cleanKelas, activeCount, maxCapacity, reason, sesiId = null, studentSessionToken = null, ownershipPengerjaanId = null, ownershipStudentSessionToken = null) {
-    for (const [tId, t] of waitingTickets.entries()) {
-      if (
-        t.ulanganId === ulanganId &&
-        t.nama.toLowerCase() === cleanNama.toLowerCase() &&
-        t.kelas.toLowerCase() === cleanKelas.toLowerCase() &&
-        t.studentSessionToken === studentSessionToken &&
-        t.ownershipPengerjaanId === ownershipPengerjaanId &&
-        t.ownershipStudentSessionToken === ownershipStudentSessionToken
-      ) {
-        const pos = this.getQueuePosition(tId, ulanganId);
-        return {
-          allowed: false,
-          inQueue: true,
-          ticketId: tId,
-          position: pos.position,
-          totalWaiting: pos.totalWaiting,
-          activeCount,
-          maxLimit: maxCapacity,
-          message: `${reason} (${activeCount}/${maxCapacity} siswa). Anda berada di antrean nomor #${pos.position}.`
-        };
+    const token = String(studentSessionToken || `queue_${crypto.randomBytes(16).toString('hex')}`);
+    let row = db.prepare(`SELECT * FROM ruang_tunggu_ujian WHERE ulangan_id = ? AND student_session_token = ? AND status IN ('waiting', 'ready') ORDER BY created_at ASC LIMIT 1`).get(ulanganId, token);
+    if (!row) {
+      const createdAt = now();
+      const ticketId = makeTicketId();
+      try {
+        db.prepare(`
+          INSERT INTO ruang_tunggu_ujian
+            (ticket_id, ulangan_id, kode_ujian, nama, kelas, sesi_id, student_session_token, ownership_pengerjaan_id, ownership_student_session_token, is_retake, status, created_at, last_polled_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'waiting', ?, ?)
+        `).run(ticketId, ulanganId, cleanKode, cleanNama, cleanKelas, sesiId || null, token, ownershipPengerjaanId || null, ownershipStudentSessionToken || null, createdAt, createdAt);
+        row = getTicketRow(ticketId);
+      } catch (err) {
+        row = db.prepare(`SELECT * FROM ruang_tunggu_ujian WHERE ulangan_id = ? AND student_session_token = ? AND status IN ('waiting', 'ready') ORDER BY created_at ASC LIMIT 1`).get(ulanganId, token);
+        if (!row) throw err;
       }
     }
-
-    const ticketId = 'tkt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-    const newTicket = {
-      ticketId,
-      ulanganId,
-      kodeUjian: cleanKode,
-      nama: cleanNama,
-      kelas: cleanKelas,
-      sesiId: sesiId || null,
-      studentSessionToken: studentSessionToken || null,
-      ownershipPengerjaanId: ownershipPengerjaanId || null,
-      ownershipStudentSessionToken: ownershipStudentSessionToken || null,
-      status: 'waiting',
-      createdAt: Date.now(),
-      lastPolledAt: Date.now()
-    };
-
-    waitingTickets.set(ticketId, newTicket);
-    const pos = this.getQueuePosition(ticketId, ulanganId);
-
-    return {
-      allowed: false,
-      inQueue: true,
-      ticketId,
-      position: pos.position,
-      totalWaiting: pos.totalWaiting,
-      activeCount,
-      maxLimit: maxCapacity,
-      message: `${reason} (${activeCount}/${maxCapacity} siswa). Anda berada di antrean nomor #${pos.position}.`
-    };
+    const ticket = toTicket(row);
+    const pos = this.getQueuePosition(ticket.ticketId, ulanganId);
+    return { allowed: false, inQueue: true, ticketId: ticket.ticketId, position: pos.position, totalWaiting: pos.totalWaiting, activeCount, maxLimit: maxCapacity, studentSessionToken: token, message: `${reason} (${activeCount}/${maxCapacity} siswa). Anda berada di antrean nomor #${pos.position}.` };
   },
 
   getQueuePosition(ticketId, ulanganId) {
     const list = this.getWaitingListForExam(ulanganId);
-    const index = list.findIndex(t => t.ticketId === ticketId);
-    return {
-      position: index >= 0 ? index + 1 : 1,
-      totalWaiting: list.length
-    };
+    const index = list.findIndex(ticket => ticket.ticketId === ticketId);
+    return { position: index >= 0 ? index + 1 : 1, totalWaiting: list.length };
   },
 
   ownsTicket(ticketId, studentSessionToken) {
-    const ticket = waitingTickets.get(ticketId);
-    return Boolean(ticket && studentSessionToken && ticket.studentSessionToken === studentSessionToken);
+    if (!ticketId || !studentSessionToken) return false;
+    return Boolean(db.prepare(`SELECT 1 FROM ruang_tunggu_ujian WHERE ticket_id = ? AND student_session_token = ? AND status IN ('waiting', 'ready')`).get(ticketId, studentSessionToken));
   },
 
   getTicketStatus(ticketId, customMax = null) {
-    const maxLimit = customMax || this.getMaxInside();
-    const ticket = waitingTickets.get(ticketId);
-    if (!ticket) {
-      return { valid: false, message: 'Tiket antrean tidak ditemukan atau sudah kadaluarsa' };
-    }
-
-    ticket.lastPolledAt = Date.now();
-
-    if (ticket.status === 'ready') {
-      return {
-        valid: true,
-        status: 'ready',
-        ticket
-      };
-    }
-
-    const activeCount = this.getActiveStudentCount(ticket.ulanganId);
-    if (activeCount < maxLimit && activeEnteringCount < this.getMaxBurst()) {
-      const list = this.getWaitingListForExam(ticket.ulanganId);
-      if (list.length > 0 && list[0].ticketId === ticketId) {
-        ticket.status = 'ready';
-        return {
-          valid: true,
-          status: 'ready',
-          ticket
-        };
+    this.cleanExpiredTickets();
+    const row = getTicketRow(ticketId);
+    if (!row) return { valid: false, message: 'Tiket antrean tidak ditemukan atau sudah kadaluarsa' };
+    const maxLimit = Math.max(1, Math.min(20, Number(customMax || this.getMaxInside())));
+    const polledAt = now();
+    db.prepare('UPDATE ruang_tunggu_ujian SET last_polled_at = ? WHERE ticket_id = ?').run(polledAt, ticketId);
+    if (row.status === 'ready') return { valid: true, status: 'ready', ticket: toTicket({ ...row, last_polled_at: polledAt }), maxLimit };
+    if (row.status === 'used') return { valid: false, message: 'Tiket antrean sudah digunakan' };
+    const activeCount = this.getActiveStudentCount(row.ulangan_id);
+    if (activeCount < maxLimit && activeEnteringCount < MAX_BURST_ENTRY) {
+      const list = this.getWaitingListForExam(row.ulangan_id);
+      if (list[0]?.ticketId === ticketId) {
+        db.prepare("UPDATE ruang_tunggu_ujian SET status = 'ready', last_polled_at = ? WHERE ticket_id = ? AND status = 'waiting'").run(polledAt, ticketId);
+        return { valid: true, status: 'ready', ticket: toTicket(getTicketRow(ticketId)), maxLimit };
       }
     }
-
-    const pos = this.getQueuePosition(ticketId, ticket.ulanganId);
-    return {
-      valid: true,
-      status: 'waiting',
-      position: pos.position,
-      totalWaiting: pos.totalWaiting,
-      activeCount,
-      maxLimit
-    };
+    const pos = this.getQueuePosition(ticketId, row.ulangan_id);
+    return { valid: true, status: 'waiting', position: pos.position, totalWaiting: pos.totalWaiting, activeCount, maxLimit };
   },
 
   consumeTicket(ticketId) {
-    const ticket = waitingTickets.get(ticketId);
-    if (ticket) {
-      ticket.status = 'used';
-      waitingTickets.delete(ticketId);
-    }
+    db.prepare("UPDATE ruang_tunggu_ujian SET status = 'used', last_polled_at = ? WHERE ticket_id = ? AND status IN ('waiting', 'ready')").run(now(), ticketId);
   },
 
   releaseSlot(ulanganId) {
     if (!ulanganId) return;
-    const list = this.getWaitingListForExam(Number(ulanganId));
-    if (list.length > 0) {
-      list[0].status = 'ready';
-    }
+    const first = db.prepare(`SELECT ticket_id FROM ruang_tunggu_ujian WHERE ulangan_id = ? AND status = 'waiting' ORDER BY created_at ASC, ticket_id ASC LIMIT 1`).get(Number(ulanganId));
+    if (first) db.prepare("UPDATE ruang_tunggu_ujian SET status = 'ready', last_polled_at = ? WHERE ticket_id = ? AND status = 'waiting'").run(now(), first.ticket_id);
   },
 
-  // GERBANG 2: Pengumpulan Jawaban Serentak (Submit Queue Gate)
-  // Menjaga agar saat puluhan siswa submit serentak, proses penulisan ke database
-  // diproses dalam antrean cepat (maks 20 proses paralel) sehingga SQLite tidak terkunci.
-  // Task yang sudah diterima tidak boleh dibatalkan oleh timeout lokal: request HTTP
-  // dapat habis waktunya, tetapi pekerjaan submit harus tetap menyelesaikan commit.
   queueSubmit(submitFn) {
-    return new Promise((resolve, reject) => {
-      submitQueue.push({
-        fn: submitFn,
-        resolve,
-        reject
-      });
-      processNextSubmit();
-    });
+    return new Promise((resolve, reject) => { submitQueue.push({ fn: submitFn, resolve, reject }); processNextSubmit(); });
   },
-
-  getSubmitQueueLength() {
-    return submitQueue.length;
-  },
-
-  getActiveSubmitsCount() {
-    return activeSubmits;
-  },
-
-  cleanExpiredTickets() {
-    const now = Date.now();
-    for (const [id, t] of waitingTickets.entries()) {
-      if (now - t.lastPolledAt > 5 * 60 * 1000) {
-        waitingTickets.delete(id);
-      }
-    }
-  },
-
+  getSubmitQueueLength() { return submitQueue.length; },
+  getActiveSubmitsCount() { return activeSubmits; },
+  cleanExpiredTickets() { db.prepare("DELETE FROM ruang_tunggu_ujian WHERE status IN ('waiting', 'ready') AND last_polled_at < ?").run(now() - 5 * 60 * 1000); },
   _reset() {
-    waitingTickets.clear();
+    try { db.prepare('DELETE FROM ruang_tunggu_ujian').run(); } catch (_) {}
+    try { db.prepare('DELETE FROM ruang_tunggu_seat').run(); } catch (_) {}
     activeEnteringCount = 0;
     activeSubmits = 0;
     submitQueue.length = 0;

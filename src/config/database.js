@@ -23,7 +23,11 @@ const cloudSyncState = {
   error_detail: null
 };
 
-function resolveTursoMode({ isVercel: runningOnVercel, hasUrl, hasToken, useRemoteHttp = false }) {
+function resolveTursoMode({ isVercel: runningOnVercel, hasUrl, hasToken, useRemoteHttp = false, requestedMode = '' }) {
+  const mode = String(requestedMode || '').trim().toLowerCase();
+  if (mode === 'sqlite' || mode === 'local') return 'sqlite';
+  if (mode === 'embedded') return hasUrl && hasToken ? 'embedded' : 'sqlite';
+  if (mode === 'remote' || mode === 'http') return hasUrl && hasToken ? 'remote' : 'sqlite';
   if (!hasUrl || !hasToken) return 'sqlite';
   // Vercel tidak selalu membawa binary native libsql ke function bundle.
   // Gunakan adapter HTTP tanpa native dependency di serverless; embedded hanya
@@ -51,7 +55,8 @@ const tursoMode = resolveTursoMode({
   isVercel,
   hasUrl: Boolean(tursoUrl),
   hasToken: Boolean(tursoToken),
-  useRemoteHttp: /^(1|true|yes)$/i.test(String(process.env.TURSO_USE_REMOTE_HTTP || ''))
+  useRemoteHttp: /^(1|true|yes)$/i.test(String(process.env.TURSO_USE_REMOTE_HTTP || '')),
+  requestedMode: process.env.DATABASE_MODE || process.env.DB_MODE || ''
 });
 
 if (tursoMode === 'remote') {
@@ -302,7 +307,7 @@ db.syncCloud = function(force = false) {
 
 db.getRuntimeInfo = function() {
   return {
-    mode: cloudDatabaseConfigured ? 'turso' : 'sqlite',
+    mode: tursoMode === 'sqlite' ? 'sqlite' : 'turso',
     connection: tursoMode,
     cloud_configured: cloudDatabaseConfigured,
     sync_status: cloudSyncState.status,
@@ -564,6 +569,51 @@ function initDatabase() {
       FOREIGN KEY (guru_id) REFERENCES guru(id) ON DELETE CASCADE
     );
   `);
+  }
+
+  // Antrean ruang tunggu ujian harus persisten karena Vercel dapat menjalankan
+  // request pada instance berbeda. Token dan posisi antrean tidak boleh hanya
+  // hidup di memory proses yang bisa hilang setelah cold start.
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ruang_tunggu_ujian (
+        ticket_id TEXT PRIMARY KEY,
+        ulangan_id INTEGER NOT NULL,
+        kode_ujian TEXT NOT NULL,
+        nama TEXT NOT NULL,
+        kelas TEXT NOT NULL,
+        sesi_id INTEGER DEFAULT NULL,
+        student_session_token TEXT NOT NULL,
+        ownership_pengerjaan_id INTEGER DEFAULT NULL,
+        ownership_student_session_token TEXT DEFAULT NULL,
+        is_retake INTEGER DEFAULT 0,
+        status TEXT CHECK(status IN ('waiting', 'ready', 'used')) NOT NULL DEFAULT 'waiting',
+        created_at INTEGER NOT NULL,
+        last_polled_at INTEGER NOT NULL,
+        FOREIGN KEY (ulangan_id) REFERENCES ulangan(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_ruang_tunggu_ulangan_status
+        ON ruang_tunggu_ujian(ulangan_id, status, created_at, ticket_id);
+      CREATE INDEX IF NOT EXISTS idx_ruang_tunggu_poll
+        ON ruang_tunggu_ujian(status, last_polled_at);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_ruang_tunggu_active_token
+        ON ruang_tunggu_ujian(ulangan_id, student_session_token)
+        WHERE status IN ('waiting', 'ready');
+      CREATE TABLE IF NOT EXISTS ruang_tunggu_seat (
+        reservation_id TEXT PRIMARY KEY,
+        ulangan_id INTEGER NOT NULL,
+        student_session_token TEXT NOT NULL,
+        status TEXT CHECK(status IN ('reserved')) NOT NULL DEFAULT 'reserved',
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        UNIQUE (ulangan_id, student_session_token),
+        FOREIGN KEY (ulangan_id) REFERENCES ulangan(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_ruang_tunggu_seat_capacity
+        ON ruang_tunggu_seat(ulangan_id, status, expires_at);
+    `);
+  } catch (e) {
+    console.warn('⚠️ Notice migration antrean ruang tunggu:', e.message);
   }
 
   // Tabel Fitur Baru: Tugas Rangkuman Berbantuan AI

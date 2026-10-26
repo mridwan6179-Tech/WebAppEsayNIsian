@@ -308,7 +308,8 @@ const studentService = {
     requestedStudentSessionToken = null,
     requireExistingSessionToken = false,
     existingPengerjaanId = null,
-    existingStudentSessionToken = null
+    existingStudentSessionToken = null,
+    allowQueuedNewEntry = false
   ) {
     const val = this.validateExamCode(kodeUjian);
     if (!val.valid) {
@@ -376,7 +377,7 @@ const studentService = {
     // Bukti sesi hanya boleh dipakai untuk attempt yang sama dan peserta yang sama.
     // Token dari URL/kode ujian tidak pernah dianggap sebagai bukti kepemilikan.
     let provedPengerjaan = null;
-    if (existingPengerjaanId || existingStudentSessionToken) {
+    if ((existingPengerjaanId || existingStudentSessionToken) && !allowQueuedNewEntry) {
       if (existingPengerjaanId && !existingStudentSessionToken) {
         const err = new Error('Bukti sesi siswa tidak lengkap. Silakan masuk kembali.');
         err.code = 'INVALID_STUDENT_SESSION';
@@ -755,6 +756,11 @@ const studentService = {
           VALUES (?, ?, 'mengerjakan', ?, ?, ?, ?, ?, ?, ?)
         `).run(ulanganId, peserta.id, soalIdsJson, nowIso, nowIso, sesiIdToSave, namaSesiToSave, currentAttemptKe, studentSessionToken);
         pengerjaan = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(info.lastInsertRowid);
+        // Jika attempt berasal dari ruang tunggu, reservasinya sudah memenuhi
+        // slot; hapus klaim sementara setelah row pengerjaan benar-benar ada.
+        try {
+          db.prepare('DELETE FROM ruang_tunggu_seat WHERE student_session_token = ?').run(studentSessionToken);
+        } catch (_) {}
         // Segera dorong pengerjaan baru ke Turso Cloud agar instance Vercel lain dapat langsung menemukannya
         if (typeof db.sync === 'function') {
           try { db.sync(); } catch (syncErr) {}

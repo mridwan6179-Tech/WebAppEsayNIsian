@@ -112,11 +112,13 @@ test('=== PENGUJIAN SISTEM ANTREAN RUANG TUNGGU UJIAN (MAX 20 SISWA BERSAMAAN) =
     assert.ok(started4.pengerjaanId);
   });
 
-  await t.test('5. Kapasitas burst serentak terpasang pada 20 siswa & kapasitas di dalam mencapai 200 siswa', () => {
+  await t.test('5. Kapasitas ruang ujian dibatasi 20 siswa dan tiket tersimpan di database', () => {
     const maxBurst = waitingRoomService.getMaxBurst();
     const maxInside = waitingRoomService.getMaxInside();
     assert.strictEqual(maxBurst, 20);
-    assert.strictEqual(maxInside, 200);
+    assert.strictEqual(maxInside, 20);
+    const queueTable = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'ruang_tunggu_ujian'").get();
+    assert.ok(queueTable, 'Antrean ruang tunggu harus tersimpan di database agar konsisten antar instance Vercel');
   });
 
   await t.test('6. Gerbang Submit (queueSubmit) memproses 25 pengerjaan serentak secara paralel tanpa error database', async () => {
@@ -134,6 +136,26 @@ test('=== PENGUJIAN SISTEM ANTREAN RUANG TUNGGU UJIAN (MAX 20 SISWA BERSAMAAN) =
     results.forEach((r, idx) => {
       assert.strictEqual(r.success, true);
     });
+  });
+
+  await t.test('7. Tiket siswa baru dapat dikonsumsi menjadi attempt baru dengan token tiket', () => {
+    const queuedToken = `queued-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const queued = studentService.startExam(
+      kodeUjian,
+      'Siswa Baru Dari Antrean',
+      '10 MIPA 1',
+      null,
+      false,
+      queuedToken,
+      true,
+      null,
+      null,
+      true
+    );
+    assert.ok(queued.pengerjaanId);
+    assert.equal(queued.studentSessionToken, queuedToken);
+    db.prepare('DELETE FROM pengerjaan WHERE id = ?').run(queued.pengerjaanId);
+    db.prepare('DELETE FROM peserta WHERE nama = ?').run('Siswa Baru Dari Antrean');
   });
 
   // Cleanup

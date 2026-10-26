@@ -452,12 +452,28 @@ app.get('/api/siswa/antrean/:ticketId', (req, res) => {
 
     if (status.status === 'ready') {
       const { ticket } = status;
+      const seat = waitingRoomService.reserveSeat(ticket.ulanganId, ticket.studentSessionToken, status.maxLimit);
+      if (!seat.allowed) {
+        return res.json({
+          success: true,
+          status: 'waiting',
+          position: status.position || 1,
+          totalWaiting: status.totalWaiting || 1,
+          activeCount: waitingRoomService.getActiveStudentCount(ticket.ulanganId),
+          maxLimit: status.maxLimit
+        });
+      }
       // Giliran tiba: mulai ujian dan konsumsi tiket
       let examData;
-      if (ticket.ownershipPengerjaanId || ticket.ownershipStudentSessionToken) {
-        examData = studentService.startExam(ticket.kodeUjian, ticket.nama, ticket.kelas, ticket.sesiId, Boolean(ticket.isRetake), ticket.studentSessionToken || null, true, ticket.ownershipPengerjaanId || null, ticket.ownershipStudentSessionToken || null);
-      } else {
-        examData = studentService.startExam(ticket.kodeUjian, ticket.nama, ticket.kelas, ticket.sesiId, Boolean(ticket.isRetake), ticket.studentSessionToken || null, true);
+      try {
+        if (ticket.ownershipPengerjaanId || ticket.ownershipStudentSessionToken) {
+          examData = studentService.startExam(ticket.kodeUjian, ticket.nama, ticket.kelas, ticket.sesiId, Boolean(ticket.isRetake), ticket.studentSessionToken || null, true, ticket.ownershipPengerjaanId || null, ticket.ownershipStudentSessionToken || null);
+        } else {
+          examData = studentService.startExam(ticket.kodeUjian, ticket.nama, ticket.kelas, ticket.sesiId, Boolean(ticket.isRetake), ticket.studentSessionToken || null, true, null, null, true);
+        }
+      } catch (startErr) {
+        waitingRoomService.releaseSeat(ticket.studentSessionToken);
+        throw startErr;
       }
       waitingRoomService.consumeTicket(req.params.ticketId);
       return res.json({
