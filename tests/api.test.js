@@ -237,3 +237,30 @@ test('API login mengembalikan JSON saat database/auth mengalami error', async (t
   assert.equal(data.success, false);
   assert.equal(data.code, 'AUTH_UNAVAILABLE');
 });
+
+test('API login menjelaskan ketika Turso memblokir operasi baca', async (t) => {
+  const originalLogin = authService.login;
+  const server = http.createServer(app);
+  await new Promise(resolve => server.listen(0, resolve));
+  const baseUrl = `http://localhost:${server.address().port}`;
+  t.after(() => {
+    authService.login = originalLogin;
+    server.close();
+  });
+
+  authService.login = () => {
+    throw new Error('BLOCKED: Operation was blocked: SQL read operations are forbidden (reads are blocked, do you need to upgrade your plan?)');
+  };
+
+  const response = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'debug-invalid@example.invalid', password: 'invalid' })
+  });
+
+  assert.equal(response.status, 503);
+  const data = await response.json();
+  assert.equal(data.success, false);
+  assert.equal(data.code, 'AUTH_DB_READ_BLOCKED');
+  assert.match(data.message, /Turso|operasi baca/i);
+});

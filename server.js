@@ -267,14 +267,17 @@ app.post('/api/auth/login', rateLimit(10, 60000), (req, res) => {
     // Semua exception dari authService berasal dari dependency database/session
     // atau konfigurasi server. Jangan biarkan Vercel menggantinya dengan HTML
     // error page yang kemudian gagal diparse browser sebagai JSON.
+    const readBlocked = /reads? are blocked|sql read operations are forbidden|operation was blocked/i.test(message);
     const unavailable = true;
     console.error('[AUTH LOGIN ERROR]', message);
     res.status(unavailable ? 503 : 500).json({
       success: false,
-      code: unavailable ? 'AUTH_UNAVAILABLE' : 'AUTH_ERROR',
-      message: unavailable
-        ? 'Layanan login sedang terhubung ulang ke database. Silakan coba lagi beberapa detik.'
-        : 'Login tidak dapat diproses saat ini. Silakan coba lagi.'
+      code: readBlocked ? 'AUTH_DB_READ_BLOCKED' : (unavailable ? 'AUTH_UNAVAILABLE' : 'AUTH_ERROR'),
+      message: readBlocked
+        ? 'Database Turso sedang memblokir operasi baca. Aktifkan kembali akses baca/kuota database di Turso, lalu coba login lagi.'
+        : (unavailable
+          ? 'Layanan login sedang terhubung ulang ke database. Silakan coba lagi beberapa detik.'
+          : 'Login tidak dapat diproses saat ini. Silakan coba lagi.')
     });
   }
 });
