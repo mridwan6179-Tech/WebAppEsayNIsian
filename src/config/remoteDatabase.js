@@ -7,9 +7,17 @@ const RESULT_BUFFER_BYTES = 8 * 1024 * 1024;
 // database.js setelah timeout terdeteksi sebagai error koneksi.
 const QUERY_TIMEOUT_MS = 8000;
 
+function normalizeHttpUrl(url) {
+  const value = String(url || '').trim();
+  if (value.toLowerCase().startsWith('libsql://')) {
+    return `https://${value.slice('libsql://'.length)}`;
+  }
+  return value;
+}
+
 function createRemoteDatabase({ url, authToken }) {
   const worker = new Worker(path.join(__dirname, 'remoteDatabaseWorker.js'), {
-    workerData: { url, authToken: authToken || '' }
+    workerData: { url: normalizeHttpUrl(url), authToken: authToken || '' }
   });
   let closed = false;
   let workerFailure = null;
@@ -75,4 +83,4 @@ function createRemoteDatabase({ url, authToken }) {
   };
 }
 
-module.exports = { createRemoteDatabase, QUERY_TIMEOUT_MS };
+module.exports = { createRemoteDatabase, QUERY_TIMEOUT_MS, normalizeHttpUrl };

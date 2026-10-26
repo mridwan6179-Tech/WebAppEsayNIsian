@@ -4,7 +4,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { createRemoteDatabase, QUERY_TIMEOUT_MS } = require('../src/config/remoteDatabase');
+const { createRemoteDatabase, QUERY_TIMEOUT_MS, normalizeHttpUrl } = require('../src/config/remoteDatabase');
+
+test('remote adapter mengubah URL libsql menjadi endpoint HTTPS HTTP', () => {
+  assert.equal(normalizeHttpUrl('libsql://demo.turso.io'), 'https://demo.turso.io');
+  assert.equal(normalizeHttpUrl('https://demo.turso.io'), 'https://demo.turso.io');
+});
 
 test('remote query timeout dibatasi agar serverless tidak menggantung terlalu lama', () => {
   assert.ok(QUERY_TIMEOUT_MS <= 10000, `Timeout query terlalu lama: ${QUERY_TIMEOUT_MS}ms`);
