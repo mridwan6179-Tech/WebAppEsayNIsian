@@ -23,9 +23,12 @@ const cloudSyncState = {
   error_detail: null
 };
 
-function resolveTursoMode({ isVercel: runningOnVercel, hasUrl, hasToken }) {
+function resolveTursoMode({ isVercel: runningOnVercel, hasUrl, hasToken, useRemoteHttp = false }) {
   if (!hasUrl || !hasToken) return 'sqlite';
-  return runningOnVercel ? 'remote' : 'embedded';
+  // Embedded replica tetap menjadi jalur default di Vercel. Jalur HTTP direct
+  // dapat diaktifkan sengaja untuk deployment yang memang mengizinkannya;
+  // beberapa akun Turso memblokir SQL read direct meski sync replica aktif.
+  return useRemoteHttp ? 'remote' : 'embedded';
 }
 
 function classifySyncError(err) {
@@ -47,7 +50,8 @@ let dbPath;
 const tursoMode = resolveTursoMode({
   isVercel,
   hasUrl: Boolean(tursoUrl),
-  hasToken: Boolean(tursoToken)
+  hasToken: Boolean(tursoToken),
+  useRemoteHttp: /^(1|true|yes)$/i.test(String(process.env.TURSO_USE_REMOTE_HTTP || ''))
 });
 
 if (tursoMode === 'remote') {
