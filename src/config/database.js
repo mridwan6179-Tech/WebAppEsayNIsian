@@ -19,8 +19,8 @@ function readEnvironmentValue(name) {
 }
 
 const isTest = process.env.NODE_ENV === 'test' || process.argv.some(arg => arg.includes('test'));
-const tursoUrl = isTest ? null : readEnvironmentValue('TURSO_DATABASE_URL');
-const tursoToken = isTest ? null : readEnvironmentValue('TURSO_AUTH_TOKEN');
+const tursoUrl = isTest ? null : readEnvironmentValue('NAS_SQL_URL') || readEnvironmentValue('TURSO_DATABASE_URL');
+const tursoToken = isTest ? null : readEnvironmentValue('NAS_SQL_TOKEN') || readEnvironmentValue('TURSO_AUTH_TOKEN');
 const cloudDatabaseConfigured = Boolean(tursoUrl && tursoToken);
 const cloudSyncState = {
   status: cloudDatabaseConfigured ? 'pending' : 'disabled',
@@ -68,7 +68,7 @@ const tursoMode = resolveTursoMode({
 
 if (tursoMode === 'remote') {
   const { createRemoteDatabase } = require('./remoteDatabase');
-  console.log('📡 Menghubungkan ke Turso Cloud Database melalui HTTP worker...');
+  console.log('📡 Menghubungkan ke NAS SQLite melalui endpoint LibSQL/Cloudflare Tunnel...');
 
   let currentDb = createRemoteDatabase({ url: tursoUrl, authToken: tursoToken });
 

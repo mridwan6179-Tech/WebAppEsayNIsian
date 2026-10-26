@@ -12,6 +12,9 @@ function normalizeHttpUrl(url) {
   if (value.toLowerCase().startsWith('libsql://')) {
     return `https://${value.slice('libsql://'.length)}`;
   }
+  if (!/^https?:\/\//i.test(value)) {
+    return `https://${value}`;
+  }
   return value;
 }
 
