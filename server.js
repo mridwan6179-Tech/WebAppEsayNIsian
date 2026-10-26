@@ -264,7 +264,10 @@ app.post('/api/auth/login', rateLimit(10, 60000), (req, res) => {
     res.json(result);
   } catch (err) {
     const message = String(err?.message || '');
-    const unavailable = /database|turso|query|timeout|connection|network|socket/i.test(message);
+    // Semua exception dari authService berasal dari dependency database/session
+    // atau konfigurasi server. Jangan biarkan Vercel menggantinya dengan HTML
+    // error page yang kemudian gagal diparse browser sebagai JSON.
+    const unavailable = true;
     console.error('[AUTH LOGIN ERROR]', message);
     res.status(unavailable ? 503 : 500).json({
       success: false,
