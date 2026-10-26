@@ -25,10 +25,10 @@ const cloudSyncState = {
 
 function resolveTursoMode({ isVercel: runningOnVercel, hasUrl, hasToken, useRemoteHttp = false }) {
   if (!hasUrl || !hasToken) return 'sqlite';
-  // Embedded replica tetap menjadi jalur default di Vercel. Jalur HTTP direct
-  // dapat diaktifkan sengaja untuk deployment yang memang mengizinkannya;
-  // beberapa akun Turso memblokir SQL read direct meski sync replica aktif.
-  return useRemoteHttp ? 'remote' : 'embedded';
+  // Vercel tidak selalu membawa binary native libsql ke function bundle.
+  // Gunakan adapter HTTP tanpa native dependency di serverless; embedded hanya
+  // dipilih eksplisit untuk runtime yang memang menyediakan binary libsql.
+  return (runningOnVercel || useRemoteHttp) ? 'remote' : 'embedded';
 }
 
 function classifySyncError(err) {
