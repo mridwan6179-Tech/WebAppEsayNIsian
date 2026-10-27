@@ -2,13 +2,16 @@ const crypto = require('crypto');
 const db = require('../config/database');
 const studentService = require('./studentService');
 
-// Maksimal 100 siswa mengerjakan satu ulangan secara bersamaan.
+// Maksimal 250 siswa mengerjakan satu ulangan secara bersamaan.
 // Batas burst masuk dan submit tetap terpisah agar database tidak menerima
 // lonjakan operasi tulis sekaligus.
-const configuredCapacity = Number.parseInt(process.env.MAX_INSIDE_EXAM || '100', 10);
-const MAX_INSIDE_EXAM = Math.max(1, Math.min(100, Number.isFinite(configuredCapacity) ? configuredCapacity : 100));
+const configuredCapacity = Number.parseInt(process.env.MAX_INSIDE_EXAM || '250', 10);
+const MAX_INSIDE_EXAM = Math.max(1, Math.min(250, Number.isFinite(configuredCapacity) ? configuredCapacity : 250));
 const MAX_BURST_ENTRY = Math.max(1, Number.parseInt(process.env.MAX_BURST_ENTRY || '20', 10));
 const MAX_BURST_SUBMIT = Math.max(1, Number.parseInt(process.env.MAX_BURST_SUBMIT || '20', 10));
+const configuredGlobalSubmitLimit = Number.parseInt(process.env.MAX_GLOBAL_SUBMITS || '4', 10);
+const MAX_GLOBAL_SUBMITS = Math.max(1, Math.min(20, Number.isFinite(configuredGlobalSubmitLimit) ? configuredGlobalSubmitLimit : 4));
+const GLOBAL_SUBMIT_LEASE_MS = 90000;
 
 let activeEnteringCount = 0;
 let activeSubmits = 0;
@@ -17,6 +20,7 @@ const submitQueue = [];
 const now = () => Date.now();
 const makeTicketId = () => `tkt_${now()}_${crypto.randomBytes(5).toString('hex')}`;
 const makeReservationId = () => `seat_${now()}_${crypto.randomBytes(5).toString('hex')}`;
+const makeSubmitLeaseId = () => `submit_${now()}_${crypto.randomBytes(8).toString('hex')}`;
 
 function toTicket(row) {
   if (!row) return null;
@@ -70,7 +74,7 @@ const waitingRoomService = {
   // masih di bawah kapasitas. Reservasi dihapus saat startExam berhasil.
   reserveSeat(ulanganId, studentSessionToken, maxCapacity = null) {
     if (!ulanganId || !studentSessionToken) return { allowed: true, reserved: false };
-    const limit = Math.max(1, Math.min(100, Number(maxCapacity || this.getMaxInside())));
+    const limit = Math.max(1, Math.min(250, Number(maxCapacity || this.getMaxInside())));
     const current = now();
     this.cleanExpiredSeatReservations(current);
     const existing = db.prepare(`
@@ -108,7 +112,7 @@ const waitingRoomService = {
 
   checkEntry(kodeUjian, nama, kelas, customMax = null, sesiId = null, studentSessionToken = null, ownershipPengerjaanId = null, ownershipStudentSessionToken = null) {
     this.cleanExpiredTickets();
-    const maxCapacity = Math.max(1, Math.min(100, Number(customMax || this.getMaxInside())));
+    const maxCapacity = Math.max(1, Math.min(250, Number(customMax || this.getMaxInside())));
     const cleanKode = String(kodeUjian || '').trim().toUpperCase();
     const cleanNama = String(nama || '').trim();
     const cleanKelas = String(kelas || '').trim();
@@ -196,7 +200,7 @@ const waitingRoomService = {
     this.cleanExpiredTickets();
     const row = getTicketRow(ticketId);
     if (!row) return { valid: false, message: 'Tiket antrean tidak ditemukan atau sudah kadaluarsa' };
-    const maxLimit = Math.max(1, Math.min(100, Number(customMax || this.getMaxInside())));
+    const maxLimit = Math.max(1, Math.min(250, Number(customMax || this.getMaxInside())));
     const polledAt = now();
     db.prepare('UPDATE ruang_tunggu_ujian SET last_polled_at = ? WHERE ticket_id = ?').run(polledAt, ticketId);
     if (row.status === 'ready') return { valid: true, status: 'ready', ticket: toTicket({ ...row, last_polled_at: polledAt }), maxLimit };
@@ -228,10 +232,53 @@ const waitingRoomService = {
   },
   getSubmitQueueLength() { return submitQueue.length; },
   getActiveSubmitsCount() { return activeSubmits; },
+  getGlobalSubmitGateLimit() { return MAX_GLOBAL_SUBMITS; },
+  cleanExpiredSubmitLeases(current = now()) {
+    try { db.prepare('DELETE FROM antrean_submit_global WHERE expires_at < ?').run(current); } catch (_) {}
+  },
+  getGlobalSubmitGateActiveCount() {
+    this.cleanExpiredSubmitLeases();
+    try {
+      const row = db.prepare('SELECT COUNT(*) AS c FROM antrean_submit_global WHERE expires_at >= ?').get(now());
+      return Number(row?.c || 0);
+    } catch (_) {
+      return 0;
+    }
+  },
+  async acquireSubmitGate(options = {}) {
+    const timeoutMs = Math.max(25, Number(options.timeoutMs || 55000));
+    const pollMs = Math.max(25, Number(options.pollMs || 250));
+    const startedAt = now();
+    const ownerToken = String(options.ownerToken || crypto.randomBytes(16).toString('hex'));
+    while (now() - startedAt <= timeoutMs) {
+      this.cleanExpiredSubmitLeases();
+      const leaseId = makeSubmitLeaseId();
+      const current = now();
+      try {
+        const result = db.prepare(`
+          INSERT INTO antrean_submit_global (lease_id, owner_token, created_at, expires_at)
+          SELECT ?, ?, ?, ?
+          WHERE (SELECT COUNT(*) FROM antrean_submit_global WHERE expires_at >= ?) < ?
+        `).run(leaseId, ownerToken, current, current + GLOBAL_SUBMIT_LEASE_MS, current, MAX_GLOBAL_SUBMITS);
+        if (Number(result?.changes || 0) === 1) return { leaseId, ownerToken, expiresAt: current + GLOBAL_SUBMIT_LEASE_MS };
+      } catch (err) {
+        if (!String(err?.message || '').toLowerCase().includes('no such table')) throw err;
+      }
+      await new Promise(resolve => setTimeout(resolve, pollMs));
+    }
+    const error = new Error('Antrean pengumpulan sedang penuh. Jawaban belum hilang; silakan coba lagi sebentar.');
+    error.code = 'SUBMIT_QUEUE_TIMEOUT';
+    throw error;
+  },
+  releaseSubmitGate(leaseId) {
+    if (!leaseId) return;
+    try { db.prepare('DELETE FROM antrean_submit_global WHERE lease_id = ?').run(leaseId); } catch (_) {}
+  },
   cleanExpiredTickets() { db.prepare("DELETE FROM ruang_tunggu_ujian WHERE status IN ('waiting', 'ready') AND last_polled_at < ?").run(now() - 5 * 60 * 1000); },
   _reset() {
     try { db.prepare('DELETE FROM ruang_tunggu_ujian').run(); } catch (_) {}
     try { db.prepare('DELETE FROM ruang_tunggu_seat').run(); } catch (_) {}
+    try { db.prepare('DELETE FROM antrean_submit_global').run(); } catch (_) {}
     activeEnteringCount = 0;
     activeSubmits = 0;
     submitQueue.length = 0;

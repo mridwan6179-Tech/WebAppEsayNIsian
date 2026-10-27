@@ -618,6 +618,14 @@ function initDatabase() {
       );
       CREATE INDEX IF NOT EXISTS idx_ruang_tunggu_seat_capacity
         ON ruang_tunggu_seat(ulangan_id, status, expires_at);
+      CREATE TABLE IF NOT EXISTS antrean_submit_global (
+        lease_id TEXT PRIMARY KEY,
+        owner_token TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_antrean_submit_global_expiry
+        ON antrean_submit_global(expires_at);
     `);
   } catch (e) {
     console.warn('⚠️ Notice migration antrean ruang tunggu:', e.message);

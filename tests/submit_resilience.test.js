@@ -35,6 +35,12 @@ test('submit queue keeps accepted work alive until it completes', () => {
   assert.doesNotMatch(submitQueueSource, /setTimeout\(\(\) => \{/);
 });
 
+test('submit overload returns a retryable queue status instead of crashing the app', () => {
+  assert.match(serverSource, /submit_queued:\s*true/);
+  assert.match(serverSource, /retry_after_ms:\s*2000/);
+  assert.match(browserSource, /retryableSubmitStatuses = new Set\(\[408, 425, 429, 500, 502, 503, 504\]\)/);
+});
+
 test('database submit claim protects an attempt across server instances', () => {
   assert.match(studentSource, /submit_lock_token/);
   assert.match(studentSource, /status = 'mengerjakan'/);

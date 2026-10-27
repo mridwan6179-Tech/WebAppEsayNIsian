@@ -532,9 +532,14 @@ app.post('/api/siswa/submit', async (req, res) => {
     let submitPromise = inFlightStudentSubmits.get(submitKey);
     const ownsSubmitPromise = !submitPromise;
     if (!submitPromise) {
-      submitPromise = waitingRoomService.queueSubmit(async () => (
-        studentService.submitExam(pengerjaan_id, jawaban, paste_count, Boolean(is_auto_submit), paste_details, studentSessionToken)
-      ));
+      submitPromise = waitingRoomService.queueSubmit(async () => {
+        const lease = await waitingRoomService.acquireSubmitGate();
+        try {
+          return studentService.submitExam(pengerjaan_id, jawaban, paste_count, Boolean(is_auto_submit), paste_details, studentSessionToken);
+        } finally {
+          waitingRoomService.releaseSubmitGate(lease.leaseId);
+        }
+      });
       inFlightStudentSubmits.set(submitKey, submitPromise);
       submitPromise.finally(() => {
         if (inFlightStudentSubmits.get(submitKey) === submitPromise) {
@@ -553,6 +558,14 @@ app.post('/api/siswa/submit', async (req, res) => {
           submit_in_progress: true,
           message: submitErr.message,
           retry_after_ms: 1500
+        });
+      }
+      if (submitErr.code === 'SUBMIT_QUEUE_TIMEOUT') {
+        return res.status(429).json({
+          success: false,
+          submit_queued: true,
+          message: submitErr.message,
+          retry_after_ms: 2000
         });
       }
       throw submitErr;
