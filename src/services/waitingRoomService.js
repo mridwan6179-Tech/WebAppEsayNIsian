@@ -2,9 +2,11 @@ const crypto = require('crypto');
 const db = require('../config/database');
 const studentService = require('./studentService');
 
-// Maksimal 20 siswa mengerjakan satu ulangan secara bersamaan.
-const configuredCapacity = Number.parseInt(process.env.MAX_INSIDE_EXAM || '20', 10);
-const MAX_INSIDE_EXAM = Math.max(1, Math.min(20, Number.isFinite(configuredCapacity) ? configuredCapacity : 20));
+// Maksimal 100 siswa mengerjakan satu ulangan secara bersamaan.
+// Batas burst masuk dan submit tetap terpisah agar database tidak menerima
+// lonjakan operasi tulis sekaligus.
+const configuredCapacity = Number.parseInt(process.env.MAX_INSIDE_EXAM || '100', 10);
+const MAX_INSIDE_EXAM = Math.max(1, Math.min(100, Number.isFinite(configuredCapacity) ? configuredCapacity : 100));
 const MAX_BURST_ENTRY = Math.max(1, Number.parseInt(process.env.MAX_BURST_ENTRY || '20', 10));
 const MAX_BURST_SUBMIT = Math.max(1, Number.parseInt(process.env.MAX_BURST_SUBMIT || '20', 10));
 
@@ -68,7 +70,7 @@ const waitingRoomService = {
   // masih di bawah kapasitas. Reservasi dihapus saat startExam berhasil.
   reserveSeat(ulanganId, studentSessionToken, maxCapacity = null) {
     if (!ulanganId || !studentSessionToken) return { allowed: true, reserved: false };
-    const limit = Math.max(1, Math.min(20, Number(maxCapacity || this.getMaxInside())));
+    const limit = Math.max(1, Math.min(100, Number(maxCapacity || this.getMaxInside())));
     const current = now();
     this.cleanExpiredSeatReservations(current);
     const existing = db.prepare(`
@@ -106,7 +108,7 @@ const waitingRoomService = {
 
   checkEntry(kodeUjian, nama, kelas, customMax = null, sesiId = null, studentSessionToken = null, ownershipPengerjaanId = null, ownershipStudentSessionToken = null) {
     this.cleanExpiredTickets();
-    const maxCapacity = Math.max(1, Math.min(20, Number(customMax || this.getMaxInside())));
+    const maxCapacity = Math.max(1, Math.min(100, Number(customMax || this.getMaxInside())));
     const cleanKode = String(kodeUjian || '').trim().toUpperCase();
     const cleanNama = String(nama || '').trim();
     const cleanKelas = String(kelas || '').trim();
@@ -194,7 +196,7 @@ const waitingRoomService = {
     this.cleanExpiredTickets();
     const row = getTicketRow(ticketId);
     if (!row) return { valid: false, message: 'Tiket antrean tidak ditemukan atau sudah kadaluarsa' };
-    const maxLimit = Math.max(1, Math.min(20, Number(customMax || this.getMaxInside())));
+    const maxLimit = Math.max(1, Math.min(100, Number(customMax || this.getMaxInside())));
     const polledAt = now();
     db.prepare('UPDATE ruang_tunggu_ujian SET last_polled_at = ? WHERE ticket_id = ?').run(polledAt, ticketId);
     if (row.status === 'ready') return { valid: true, status: 'ready', ticket: toTicket({ ...row, last_polled_at: polledAt }), maxLimit };

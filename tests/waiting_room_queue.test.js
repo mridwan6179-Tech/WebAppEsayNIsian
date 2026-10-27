@@ -5,7 +5,7 @@ const examService = require('../src/services/examService');
 const studentService = require('../src/services/studentService');
 const waitingRoomService = require('../src/services/waitingRoomService');
 
-test('=== PENGUJIAN SISTEM ANTREAN RUANG TUNGGU UJIAN (MAX 20 SISWA BERSAMAAN) ===', async (t) => {
+test('=== PENGUJIAN SISTEM ANTREAN RUANG TUNGGU UJIAN (MAX 100 SISWA BERSAMAAN) ===', async (t) => {
   // Setup data pengujian
   const teacherEmail = 'guru_queue@sekolah.id';
   let guru = db.prepare('SELECT id FROM guru WHERE email = ?').get(teacherEmail);
@@ -112,11 +112,11 @@ test('=== PENGUJIAN SISTEM ANTREAN RUANG TUNGGU UJIAN (MAX 20 SISWA BERSAMAAN) =
     assert.ok(started4.pengerjaanId);
   });
 
-  await t.test('5. Kapasitas ruang ujian dibatasi 20 siswa dan tiket tersimpan di database', () => {
+  await t.test('5. Kapasitas ruang ujian dibatasi 100 siswa dan tiket tersimpan di database', () => {
     const maxBurst = waitingRoomService.getMaxBurst();
     const maxInside = waitingRoomService.getMaxInside();
     assert.strictEqual(maxBurst, 20);
-    assert.strictEqual(maxInside, 20);
+    assert.strictEqual(maxInside, 100);
     const queueTable = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'ruang_tunggu_ujian'").get();
     assert.ok(queueTable, 'Antrean ruang tunggu harus tersimpan di database agar konsisten antar instance Vercel');
   });

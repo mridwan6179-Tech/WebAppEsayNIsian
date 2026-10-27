@@ -55,7 +55,7 @@ Sistem evaluasi dan koreksi ulangan esai & isian otomatis berbasis AI (Google Ge
 - **NAS/PC lokal**: set `DATABASE_MODE=sqlite`. Aplikasi memakai `data/database.sqlite`, WAL, dan menunggu file database siap sebelum request ujian diproses.
 - **Vercel/Turso**: set `TURSO_DATABASE_URL` dan `TURSO_AUTH_TOKEN` pada Environment Variables Vercel, lalu biarkan `DATABASE_MODE` kosong atau set `DATABASE_MODE=remote`.
 - Jangan menaruh token Turso di source code, SQL dump, atau GitHub.
-- Ruang ujian dibatasi maksimal **20 siswa aktif per ulangan**. Peserta berikutnya menerima tiket antrean yang tersimpan di database, nomor posisi, jumlah antrean, dan akan dipanggil FIFO saat slot terbuka.
+- Ruang ujian dibatasi maksimal **100 siswa aktif per ulangan**. Peserta berikutnya menerima tiket antrean yang tersimpan di database, nomor posisi, jumlah antrean, dan akan dipanggil FIFO saat slot terbuka.
 
 ## 🧪 Menjalankan Pengujian
 ```bash
