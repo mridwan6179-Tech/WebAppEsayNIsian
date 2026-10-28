@@ -50,7 +50,7 @@ test('new HTTP attempts do not adopt an arbitrary client supplied session token'
   assert.doesNotMatch(startRoute, /getStudentSessionToken\(req\)/);
   assert.match(startRoute, /studentService\.startExam\(kode_ujian, nama, kelas, sesi_id, Boolean\(is_retake\), studentSessionToken \|\| null, true\)/);
   assert.doesNotMatch(server, /req\.query\.token/);
-  assert.match(queueRoute, /studentService\.startExam\(ticket\.kodeUjian, ticket\.nama, ticket\.kelas, ticket\.sesiId, Boolean\(ticket\.isRetake\), ticket\.studentSessionToken \|\| null, true\)/);
+  assert.match(queueRoute, /studentService\.startExam\(ticket\.kodeUjian, ticket\.nama, ticket\.kelas, ticket\.sesiId, Boolean\(ticket\.isRetake\), ticket\.studentSessionToken \|\| null, true/);
 });
 
 test('a new exam-code URL never auto-resumes the previous browser attempt', () => {

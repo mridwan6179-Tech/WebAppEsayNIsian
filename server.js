@@ -438,6 +438,19 @@ app.post('/api/siswa/mulai', rateLimit(10, 60000), (req, res) => {
   }
 });
 
+// Pemulihan sesi setelah DC / browser tertutup. Token pemulihan hanya berlaku
+// untuk attempt aktif yang sama, identitas yang sama, dan toleransi DC < 1 jam.
+app.post('/api/siswa/pulihkan', rateLimit(10, 60000), (req, res) => {
+  try {
+    const { kode_ujian, nama, kelas, recovery_token, sesi_id } = req.body || {};
+    const result = studentService.recoverStudentSession(kode_ujian, nama, kelas, recovery_token, sesi_id);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    const status = err.code === 'INVALID_STUDENT_RECOVERY_TOKEN' ? 401 : 400;
+    res.status(status).json({ success: false, message: err.message });
+  }
+});
+
 // Polling status antrean ruang tunggu siswa
 app.get('/api/siswa/antrean/:ticketId', (req, res) => {
   try {

@@ -7,6 +7,18 @@ function createStudentSessionToken() {
   return crypto.randomBytes(32).toString('base64url');
 }
 
+function createStudentRecoveryToken() {
+  return `REC-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
+}
+
+function parseStoredDate(value) {
+  if (!value) return null;
+  const raw = String(value);
+  const normalized = raw.includes('T') ? raw : `${raw.replace(' ', 'T')}Z`;
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function tokensMatch(expected, received) {
   if (!expected || !received || typeof received !== 'string') return false;
   const expectedBuffer = Buffer.from(String(expected));
@@ -34,6 +46,7 @@ function maskStudentName(name) {
 
 const studentService = {
   generateStudentSessionToken: createStudentSessionToken,
+  generateStudentRecoveryToken: createStudentRecoveryToken,
 
   // Pastikan attempt memiliki token pemilik sebelum dikirim ke browser.
   ensureStudentSessionToken(pengerjaan) {
@@ -47,6 +60,9 @@ const studentService = {
         SET student_session_token = ?
         WHERE id = ? AND (student_session_token IS NULL OR student_session_token = '')
       `).run(token, pengerjaan.id);
+      if (typeof db.sync === 'function') {
+        try { db.sync(); } catch (_) {}
+      }
     } catch (e) {
       // Another instance may have won the race to assign the token.
     }
@@ -61,6 +77,104 @@ const studentService = {
     if (!pengerjaan) return null;
     const secured = this.ensureStudentSessionToken(pengerjaan);
     return tokensMatch(secured.student_session_token, studentSessionToken) ? secured : null;
+  },
+
+  ensureStudentRecoveryToken(pengerjaan) {
+    if (!pengerjaan || !pengerjaan.id) return pengerjaan;
+    if (pengerjaan.student_recovery_token) return pengerjaan;
+
+    let token = createStudentRecoveryToken();
+    try {
+      const existing = db.prepare('SELECT id FROM pengerjaan WHERE student_recovery_token = ?').get(token);
+      if (existing) token = createStudentRecoveryToken();
+      db.prepare(`
+        UPDATE pengerjaan
+        SET student_recovery_token = ?, student_recovery_issued_at = COALESCE(student_recovery_issued_at, CURRENT_TIMESTAMP)
+        WHERE id = ? AND (student_recovery_token IS NULL OR student_recovery_token = '')
+      `).run(token, pengerjaan.id);
+    } catch (e) {
+      // Instance lain mungkin sudah mengisi token. Ambil ulang row di bawah.
+    }
+    const refreshed = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(pengerjaan.id);
+    return refreshed || { ...pengerjaan, student_recovery_token: token };
+  },
+
+  verifyStudentRecoveryToken(pengerjaanId, recoveryToken, nama = null, kelas = null) {
+    if (!pengerjaanId || !recoveryToken) return false;
+    const pengerjaan = this.findPengerjaanWithSync(pengerjaanId);
+    if (!pengerjaan || pengerjaan.status !== 'mengerjakan') return false;
+    const secured = this.ensureStudentRecoveryToken(pengerjaan);
+    if (!tokensMatch(secured.student_recovery_token, String(recoveryToken).trim().toUpperCase())) return false;
+
+    const lastActive = parseStoredDate(secured.disconnected_at || secured.last_active_at || secured.started_at);
+    if (!lastActive || (Date.now() - lastActive.getTime()) > 60 * 60 * 1000) return false;
+    const peserta = db.prepare('SELECT nama, kelas FROM peserta WHERE id = ?').get(secured.peserta_id);
+    if (!peserta) return false;
+    if (nama && String(peserta.nama || '').trim().toLowerCase() !== String(nama).trim().toLowerCase()) return false;
+    if (kelas && String(peserta.kelas || '').trim().toLowerCase() !== String(kelas).trim().toLowerCase()) return false;
+    return true;
+  },
+
+  recoverStudentSession(kodeUjian, nama, kelas, recoveryToken, sesiId = null) {
+    const val = this.validateExamCode(kodeUjian);
+    if (!val.valid) throw new Error(val.message);
+    const cleanNama = String(nama || '').trim();
+    const cleanKelas = String(kelas || '').trim();
+    const token = String(recoveryToken || '').trim().toUpperCase();
+    if (!cleanNama || !cleanKelas || !token) throw new Error('Kode ulangan, nama, kelas, dan token pemulihan wajib diisi');
+
+    const recoveryQuery = db.prepare(`
+      SELECT p.id, p.ulangan_id, p.peserta_id, p.status, p.student_session_token, p.student_recovery_token,
+             pes.nama, pes.kelas, pes.id AS peserta_row_id, p.sesi_id
+      FROM pengerjaan p
+      JOIN peserta pes ON pes.id = p.peserta_id
+      WHERE p.student_recovery_token = ?
+    `);
+    let row = recoveryQuery.get(token);
+    if (!row && typeof db.sync === 'function') {
+      const delays = [150, 300, 500, 800, 1200];
+      for (let attempt = 0; attempt < delays.length && !row; attempt++) {
+        try { db.sync(); } catch (_) {}
+        row = recoveryQuery.get(token);
+        if (!row && attempt < delays.length - 1) {
+          const waitTill = Date.now() + delays[attempt];
+          while (Date.now() < waitTill) {}
+        }
+      }
+    }
+    if (!row || Number(row.ulangan_id) !== Number(val.ulangan.id)
+      || row.nama.trim().toLowerCase() !== cleanNama.toLowerCase()
+      || row.kelas.trim().toLowerCase() !== cleanKelas.toLowerCase()
+      || !this.verifyStudentRecoveryToken(row.id, token, cleanNama, cleanKelas)) {
+      const err = new Error('Token pemulihan tidak valid, sudah kedaluwarsa, atau identitas tidak cocok.');
+      err.code = 'INVALID_STUDENT_RECOVERY_TOKEN';
+      throw err;
+    }
+
+    const nextSessionToken = createStudentSessionToken();
+    const securedRow = this.ensureStudentSessionToken(row);
+    const rotated = db.prepare(`
+      UPDATE pengerjaan
+      SET student_session_token = ?, last_active_at = CURRENT_TIMESTAMP, disconnected_at = NULL
+      WHERE id = ? AND status = 'mengerjakan' AND student_session_token = ?
+    `).run(nextSessionToken, row.id, securedRow.student_session_token);
+    if (Number(rotated?.changes || 0) !== 1) {
+      const err = new Error('Sesi baru saja dipulihkan di perangkat lain. Gunakan token pemulihan sekali lagi.');
+      err.code = 'INVALID_STUDENT_RECOVERY_TOKEN';
+      throw err;
+    }
+
+    return this.startExam(
+      kodeUjian,
+      cleanNama,
+      cleanKelas,
+      sesiId || row.sesi_id || null,
+      false,
+      nextSessionToken,
+      true,
+      row.id,
+      nextSessionToken
+    );
   },
 
   // FR-06: Validasi Kode Ulangan
@@ -443,7 +557,10 @@ const studentService = {
     } else if (!requireExistingSessionToken) {
       pengerjaan = db.prepare("SELECT * FROM pengerjaan WHERE ulangan_id = ? AND peserta_id = ? AND status = 'mengerjakan' ORDER BY attempt_ke DESC, id DESC").get(ulanganId, peserta.id);
     }
-    if (pengerjaan) pengerjaan = this.ensureStudentSessionToken(pengerjaan);
+    if (pengerjaan) {
+      pengerjaan = this.ensureStudentSessionToken(pengerjaan);
+      pengerjaan = this.ensureStudentRecoveryToken(pengerjaan);
+    }
 
     // Ambil seluruh riwayat pengerjaan yang sudah submitted
     const submittedAttempts = db.prepare("SELECT * FROM pengerjaan WHERE ulangan_id = ? AND peserta_id = ? AND status = 'submitted' ORDER BY attempt_ke DESC, id DESC").all(ulanganId, peserta.id);
@@ -473,6 +590,7 @@ const studentService = {
           alreadySubmitted: true,
           pengerjaanId: securedLatest.id,
           studentSessionToken: securedLatest.student_session_token,
+          studentRecoveryToken: this.ensureStudentRecoveryToken(securedLatest).student_recovery_token,
           submittedAt: securedLatest.submitted_at,
           releasedAt: securedLatest.released_at,
           nilaiFinal: securedLatest.nilai_final,
@@ -494,7 +612,10 @@ const studentService = {
     // Deteksi jika pengerjaan sebelumnya pada komputer ini sudah kadaluarsa (waktu habis)
     if (pengerjaan && pengerjaan.status === 'mengerjakan') {
       let isExpired = false;
-      if (val.ulangan.durasi_menit) {
+      if (pengerjaan.remedial_deadline_at) {
+        const remedialDeadline = parseStoredDate(pengerjaan.remedial_deadline_at);
+        if (remedialDeadline && new Date() > remedialDeadline) isExpired = true;
+      } else if (val.ulangan.durasi_menit) {
         const startedAtStr = pengerjaan.started_at
           ? (pengerjaan.started_at.includes('T') ? pengerjaan.started_at : pengerjaan.started_at.replace(' ', 'T') + 'Z')
           : new Date().toISOString();
@@ -544,7 +665,7 @@ const studentService = {
     // Jika siswa masuk kembali setelah sempat terputus / DC,
     // perbarui last_active_at ke waktu saat ini agar batas toleransi DC di-reset kembali ke 1 jam penuh
     if (pengerjaan && pengerjaan.status === 'mengerjakan') {
-      db.prepare('UPDATE pengerjaan SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?').run(pengerjaan.id);
+      db.prepare('UPDATE pengerjaan SET last_active_at = CURRENT_TIMESTAMP, disconnected_at = NULL WHERE id = ?').run(pengerjaan.id);
       pengerjaan.last_active_at = new Date().toISOString();
     }
 
@@ -751,10 +872,11 @@ const studentService = {
         if (db.prepare('SELECT id FROM pengerjaan WHERE student_session_token = ?').get(studentSessionToken)) {
           studentSessionToken = createStudentSessionToken();
         }
+        const studentRecoveryToken = createStudentRecoveryToken();
         const info = db.prepare(`
-          INSERT INTO pengerjaan (ulangan_id, peserta_id, status, soal_ids, started_at, last_active_at, sesi_id, nama_sesi, attempt_ke, student_session_token)
-          VALUES (?, ?, 'mengerjakan', ?, ?, ?, ?, ?, ?, ?)
-        `).run(ulanganId, peserta.id, soalIdsJson, nowIso, nowIso, sesiIdToSave, namaSesiToSave, currentAttemptKe, studentSessionToken);
+          INSERT INTO pengerjaan (ulangan_id, peserta_id, status, soal_ids, started_at, last_active_at, sesi_id, nama_sesi, attempt_ke, student_session_token, student_recovery_token, student_recovery_issued_at)
+          VALUES (?, ?, 'mengerjakan', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(ulanganId, peserta.id, soalIdsJson, nowIso, nowIso, sesiIdToSave, namaSesiToSave, currentAttemptKe, studentSessionToken, studentRecoveryToken, nowIso);
         pengerjaan = db.prepare('SELECT * FROM pengerjaan WHERE id = ?').get(info.lastInsertRowid);
         // Jika attempt berasal dari ruang tunggu, reservasinya sudah memenuhi
         // slot; hapus klaim sementara setelah row pengerjaan benar-benar ada.
@@ -767,6 +889,7 @@ const studentService = {
         }
       } else {
         pengerjaan = this.ensureStudentSessionToken(pengerjaan);
+        pengerjaan = this.ensureStudentRecoveryToken(pengerjaan);
         db.prepare(`
           UPDATE pengerjaan 
           SET soal_ids = ?, last_active_at = CURRENT_TIMESTAMP, 
@@ -806,7 +929,9 @@ const studentService = {
       : new Date().toISOString();
     const startedAt = new Date(startedAtStr);
 
-    if (val.ulangan.durasi_menit) {
+    if (pengerjaan?.remedial_deadline_at) {
+      deadlineAt = parseStoredDate(pengerjaan.remedial_deadline_at);
+    } else if (val.ulangan.durasi_menit) {
       const durationDeadline = new Date(startedAt.getTime() + val.ulangan.durasi_menit * 60 * 1000);
       deadlineAt = durationDeadline;
     }
@@ -829,6 +954,7 @@ const studentService = {
       alreadySubmitted: false,
       pengerjaanId: pengerjaan.id,
       studentSessionToken: pengerjaan.student_session_token,
+      studentRecoveryToken: this.ensureStudentRecoveryToken(pengerjaan).student_recovery_token,
       peserta: { id: peserta.id, nama: cleanNama, kelas: cleanKelas },
       sesi: activeSesi || null,
       ulangan: val.ulangan,
@@ -1000,6 +1126,14 @@ const studentService = {
         alreadySubmitted: true,
         submitted_at: pengerjaan.submitted_at
       };
+    }
+
+    // Server-side guard: remedial hanya berjalan 10 menit sejak dimulai.
+    // Jika request terlambat karena jaringan, tetap proses draft terakhir sebagai
+    // auto-submit agar jawaban yang sudah tersimpan tidak hilang.
+    if (pengerjaan.remedial_deadline_at) {
+      const remedialDeadline = parseStoredDate(pengerjaan.remedial_deadline_at);
+      if (remedialDeadline && Date.now() > remedialDeadline.getTime()) isAutoSubmit = true;
     }
 
     // Ambil daftar soal yang sah untuk pengerjaan siswa ini (mencegah duplikasi kuota soal)
@@ -1532,6 +1666,7 @@ const studentService = {
     const remedialSoalIdsJson = JSON.stringify(wrongSoalIds);
     const newRemedialKe = Number(pengerjaan.remedial_ke || 0) + 1;
     const nowIso = new Date().toISOString();
+    const remedialDeadlineIso = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     // Backup nilai & status awal sebelum remedial untuk proteksi jika remedial tidak terkirim / terputus
     const prevNilaiFinal = (pengerjaan.nilai_final !== null && pengerjaan.nilai_final !== undefined)
@@ -1553,13 +1688,14 @@ const studentService = {
             pre_remedial_submitted_at = COALESCE(pre_remedial_submitted_at, ?),
             pre_remedial_released_at = COALESCE(pre_remedial_released_at, ?),
             remedial_started_at = ?,
+            remedial_deadline_at = ?,
             is_in_remedial = 1,
             submitted_at = NULL,
             released_at = NULL,
             submit_slot_released_at = NULL,
             last_active_at = ?
         WHERE id = ?
-      `).run(remedialSoalIdsJson, originalSoalIdsJson, newRemedialKe, prevNilaiFinal, prevNilaiAi, prevSubmittedAt, prevReleasedAt, nowIso, nowIso, pengerjaan.id);
+      `).run(remedialSoalIdsJson, originalSoalIdsJson, newRemedialKe, prevNilaiFinal, prevNilaiAi, prevSubmittedAt, prevReleasedAt, nowIso, remedialDeadlineIso, nowIso, pengerjaan.id);
 
       // Backup & reset jawaban butir yang salah agar bersih untuk dikerjakan ulang,
       // sekaligus mencadangkan jawaban asli jika remedial dibatalkan/ditinggalkan
@@ -1631,6 +1767,7 @@ const studentService = {
       remedial_ke: newRemedialKe,
       pengerjaanId: pengerjaan.id,
       studentSessionToken: pengerjaan.student_session_token,
+      studentRecoveryToken: this.ensureStudentRecoveryToken(pengerjaan).student_recovery_token,
       peserta: {
         id: peserta.id,
         nama: peserta.nama,
@@ -1647,7 +1784,7 @@ const studentService = {
         tipe_ujian: ulangan.tipe_ujian,
         remedial_langsung: ulangan.remedial_langsung
       },
-      deadline_at: null,
+      deadline_at: remedialDeadlineIso,
       server_time: new Date().toISOString(),
       soal: displaySoalList
     };
@@ -1668,6 +1805,7 @@ const studentService = {
           p.remedial_ke,
           p.is_in_remedial,
           p.remedial_started_at,
+          p.remedial_deadline_at,
           p.pre_remedial_nilai_final,
           p.pre_remedial_nilai_ai,
           p.pre_remedial_submitted_at,
@@ -1680,7 +1818,7 @@ const studentService = {
           pes.kelas as kelas_siswa,
           COUNT(j.id) as count_jawaban,
           SUM(CASE WHEN j.jawaban_siswa IS NOT NULL AND TRIM(j.jawaban_siswa) != '' THEN 1 ELSE 0 END) as total_terisi,
-          CAST(ROUND((julianday('now') - julianday(COALESCE(p.last_active_at, p.remedial_started_at, p.started_at))) * 86400) AS INTEGER) as detik_inaktif,
+          CAST(ROUND((julianday('now') - julianday(COALESCE(p.disconnected_at, p.last_active_at, p.remedial_started_at, p.started_at))) * 86400) AS INTEGER) as detik_inaktif,
           CAST(ROUND((julianday('now') - julianday(COALESCE(p.remedial_started_at, p.started_at))) * 1440) AS INTEGER) as menit_berjalan
         FROM pengerjaan p
         JOIN ulangan u ON p.ulangan_id = u.id
@@ -1719,7 +1857,12 @@ const studentService = {
         // Sesi DC > 1 jam: inaktif terus-menerus tanpa jeda >= 3600 detik (1 jam) dan sesi sudah berjalan minimal 60 menit
         const isDcOver1Hour = (detikInaktif >= 3600 && menitBerjalan >= 60);
         // Melewati durasi pengerjaan ulangan
-        const isPastDuration = (durasiMenit > 0 && menitBerjalan > durasiMenit);
+        // Remedial memiliki jatah mandiri 10 menit; durasi ulangan utama
+        // tidak boleh memotong sesi remedial lebih cepat.
+        const isPastDuration = (!isRemedialSession && durasiMenit > 0 && menitBerjalan > durasiMenit);
+
+        const remedialDeadline = parseStoredDate(row.remedial_deadline_at);
+        const isPastRemedialDeadline = Boolean(isRemedialSession && remedialDeadline && Date.now() > remedialDeadline.getTime());
 
         // Melewati batas tanggal selesai ulangan jika ada
         let isPastEndDate = false;
@@ -1735,7 +1878,7 @@ const studentService = {
           continue;
         }
 
-        const isTimeExpired = isDcOver1Hour || isPastDuration || isPastEndDate;
+        const isTimeExpired = isDcOver1Hour || isPastDuration || isPastRemedialDeadline || isPastEndDate;
 
         if (isTimeExpired) {
           const nowIso = new Date().toISOString();
@@ -2113,7 +2256,17 @@ const studentService = {
 
     const isReleased = Boolean(pengerjaan.released_at);
     const examKkm = pengerjaan.kkm || 75;
-    const finalScore = isReleased ? (pengerjaan.nilai_final !== null ? pengerjaan.nilai_final : pengerjaan.nilai_ai) : null;
+    let finalScore = isReleased ? (pengerjaan.nilai_final !== null ? pengerjaan.nilai_final : pengerjaan.nilai_ai) : null;
+    if (isReleased && (pengerjaan.kebijakan_nilai || 'tertinggi') === 'tertinggi') {
+      const bestReleased = db.prepare(`
+        SELECT MAX(COALESCE(nilai_final, nilai_ai, 0)) AS score
+        FROM pengerjaan
+        WHERE ulangan_id = ? AND peserta_id = ? AND status = 'submitted' AND released_at IS NOT NULL
+      `).get(pengerjaan.ulangan_id, pengerjaan.peserta_id);
+      if (bestReleased && bestReleased.score !== null && bestReleased.score !== undefined) {
+        finalScore = Number(bestReleased.score);
+      }
+    }
     const isRemedialLangsungActive = Boolean(Number(pengerjaan.remedial_langsung || 0) === 1);
 
     // Hitung status nilai saat ini untuk evaluasi hak remedial langsung
@@ -2160,56 +2313,56 @@ const studentService = {
         `).all(pengerjaanId);
       }
 
-      // Ambil seluruh rekap nilai peserta yang sudah dirilis pada ulangan ini untuk tabel leaderboard
-      // PENTING: Siswa hanya dapat melihat nilai teman satu kelas (kawan sekelas)
+      // Ambil satu hasil resmi per peserta. Tanpa deduplikasi, percobaan awal
+      // dan remedial/ujian ulang muncul sebagai dua baris sehingga ranking
+      // kelas bergeser dan nilai siswa terlihat tidak akurat.
       const studentClass = (pengerjaan.kelas || '').trim();
-      let rawRekap = [];
-      if (studentClass) {
-        rawRekap = db.prepare(`
-          SELECT 
-            pes.id as peserta_id,
-            pes.nama as nama_siswa,
-            pes.kelas as kelas_siswa,
-            p2.id as pengerjaan_id,
+      const rankingPolicy = pengerjaan.kebijakan_nilai || 'tertinggi';
+      const attemptOrder = rankingPolicy === 'terakhir'
+        ? 'submitted_at DESC, pengerjaan_id DESC'
+        : 'score DESC, submitted_at DESC, pengerjaan_id DESC';
+      const rawRekap = db.prepare(`
+        WITH released_attempts AS (
+          SELECT
+            pes.id AS peserta_id,
+            pes.nama AS nama_siswa,
+            pes.kelas AS kelas_siswa,
+            p2.id AS pengerjaan_id,
             p2.nilai_final,
             p2.nilai_ai,
-            p2.auto_submitted
+            p2.auto_submitted,
+            p2.submitted_at,
+            COALESCE(p2.nilai_final, p2.nilai_ai, 0) AS score
           FROM pengerjaan p2
           JOIN peserta pes ON p2.peserta_id = pes.id
-          WHERE p2.ulangan_id = ? 
-            AND LOWER(TRIM(pes.kelas)) = LOWER(TRIM(?))
-            AND p2.status = 'submitted' 
+          WHERE p2.ulangan_id = ?
+            AND p2.status = 'submitted'
             AND p2.released_at IS NOT NULL
-          ORDER BY COALESCE(p2.nilai_final, p2.nilai_ai, 0) DESC, pes.nama ASC
-        `).all(pengerjaan.ulangan_id, studentClass);
-      } else {
-        rawRekap = db.prepare(`
-          SELECT 
-            pes.id as peserta_id,
-            pes.nama as nama_siswa,
-            pes.kelas as kelas_siswa,
-            p2.id as pengerjaan_id,
-            p2.nilai_final,
-            p2.nilai_ai,
-            p2.auto_submitted
-          FROM pengerjaan p2
-          JOIN peserta pes ON p2.peserta_id = pes.id
-          WHERE p2.ulangan_id = ? 
-            AND p2.status = 'submitted' 
-            AND p2.released_at IS NOT NULL
-          ORDER BY COALESCE(p2.nilai_final, p2.nilai_ai, 0) DESC, pes.nama ASC
-        `).all(pengerjaan.ulangan_id);
-      }
+            AND (? = '' OR LOWER(TRIM(pes.kelas)) = LOWER(TRIM(?)))
+        ), selected_attempts AS (
+          SELECT released_attempts.*,
+                 ROW_NUMBER() OVER (
+                   PARTITION BY peserta_id
+                   ORDER BY ${attemptOrder}
+                 ) AS attempt_rank
+          FROM released_attempts
+        )
+        SELECT peserta_id, nama_siswa, kelas_siswa, pengerjaan_id,
+               nilai_final, nilai_ai, auto_submitted, submitted_at, score
+        FROM selected_attempts
+        WHERE attempt_rank = 1
+        ORDER BY score DESC, nama_siswa ASC, peserta_id ASC
+      `).all(pengerjaan.ulangan_id, studentClass, studentClass);
 
       rekapNilaiKelas = rawRekap.map((r, idx) => {
-        const score = r.nilai_final !== null ? r.nilai_final : (r.nilai_ai !== null ? r.nilai_ai : 0);
+        const score = Number(r.score ?? (r.nilai_final !== null ? r.nilai_final : (r.nilai_ai !== null ? r.nilai_ai : 0)));
         return {
           ranking: idx + 1,
           pesertaId: r.peserta_id,
           nama: r.nama_siswa,
           kelas: r.kelas_siswa,
           nilai: score,
-          isCurrentStudent: r.pengerjaan_id === pengerjaan.id,
+          isCurrentStudent: Number(r.peserta_id) === Number(pengerjaan.peserta_id),
           isTuntas: score >= examKkm,
           autoSubmitted: Boolean(r.auto_submitted)
         };
@@ -2420,10 +2573,12 @@ const studentService = {
     if (!pengerjaan) return null;
 
     if (pengerjaan.status === 'submitted') {
+      const securedSubmitted = this.ensureStudentRecoveryToken(pengerjaan);
       return {
         alreadySubmitted: true,
         pengerjaanId: pengerjaan.id,
-        studentSessionToken: pengerjaan.student_session_token,
+        studentSessionToken: securedSubmitted.student_session_token,
+        studentRecoveryToken: securedSubmitted.student_recovery_token,
         submittedAt: pengerjaan.submitted_at,
         releasedAt: pengerjaan.released_at,
         nilaiFinal: pengerjaan.nilai_final,
@@ -2438,7 +2593,9 @@ const studentService = {
       : new Date().toISOString();
     const startedAt = new Date(startedAtStr);
 
-    if (pengerjaan.durasi_menit) {
+    if (pengerjaan.remedial_deadline_at) {
+      deadlineAt = parseStoredDate(pengerjaan.remedial_deadline_at);
+    } else if (pengerjaan.durasi_menit) {
       const durationDeadline = new Date(startedAt.getTime() + pengerjaan.durasi_menit * 60 * 1000);
       deadlineAt = durationDeadline;
     }
@@ -2530,6 +2687,7 @@ const studentService = {
       timeExpired: isTimeExpired,
       pengerjaanId: pengerjaan.id,
       studentSessionToken: pengerjaan.student_session_token,
+      studentRecoveryToken: this.ensureStudentRecoveryToken(pengerjaan).student_recovery_token,
       peserta: {
         id: pengerjaan.peserta_id,
         nama: pengerjaan.nama_peserta,
@@ -2574,11 +2732,11 @@ const studentService = {
 
     if (status === 'offline') {
       // Disconnect eksplisit (misal user tutup tab / browser pagehide)
-      db.prepare(`UPDATE pengerjaan SET last_active_at = '2000-01-01 00:00:00' WHERE id = ?`).run(pengerjaanId);
+      db.prepare(`UPDATE pengerjaan SET last_active_at = '2000-01-01 00:00:00', disconnected_at = CURRENT_TIMESTAMP WHERE id = ?`).run(pengerjaanId);
       return { success: true, status: 'offline' };
     }
 
-    db.prepare('UPDATE pengerjaan SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?').run(pengerjaanId);
+    db.prepare('UPDATE pengerjaan SET last_active_at = CURRENT_TIMESTAMP, disconnected_at = NULL WHERE id = ?').run(pengerjaanId);
     return { success: true, status: 'active' };
   },
 

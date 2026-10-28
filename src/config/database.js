@@ -769,6 +769,13 @@ function initDatabase() {
   safeAddColumn('pengerjaan', 'last_active_at', 'DATETIME');
   // Token acak yang mengikat browser ke pemilik satu percobaan ujian.
   safeAddColumn('pengerjaan', 'student_session_token', 'TEXT DEFAULT NULL');
+  // Token pemulihan manual untuk siswa yang kehilangan tab/browser karena DC.
+  // Token ini tetap terikat ke satu attempt dan identitas peserta.
+  safeAddColumn('pengerjaan', 'student_recovery_token', 'TEXT DEFAULT NULL');
+  safeAddColumn('pengerjaan', 'student_recovery_issued_at', 'DATETIME DEFAULT NULL');
+  // Deadline remedial pendek harus persisten agar refresh/DC tidak mengulang waktu.
+  safeAddColumn('pengerjaan', 'remedial_deadline_at', 'DATETIME DEFAULT NULL');
+  safeAddColumn('pengerjaan', 'disconnected_at', 'DATETIME DEFAULT NULL');
   // Klaim atomik untuk mencegah dua retry memproses attempt yang sama bersamaan.
   safeAddColumn('pengerjaan', 'submit_lock_token', 'TEXT DEFAULT NULL');
   safeAddColumn('pengerjaan', 'submit_started_at', 'DATETIME DEFAULT NULL');
@@ -802,6 +809,10 @@ function initDatabase() {
   safeAddColumn('ulangan', 'kebijakan_nilai', "TEXT DEFAULT 'tertinggi'");
   safeAddColumn('pengerjaan', 'attempt_ke', 'INTEGER DEFAULT 1');
   safeAddColumn('pengerjaan', 'nilai_terbaik', 'REAL DEFAULT NULL');
+
+  try {
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_pengerjaan_recovery_token ON pengerjaan(student_recovery_token) WHERE student_recovery_token IS NOT NULL AND student_recovery_token != '';");
+  } catch (e) {}
 
   if (!existingObjects.has('idx_jawaban_pengerjaan_soal')) {
     try {
