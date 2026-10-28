@@ -239,13 +239,18 @@
           </select>
         </div>
 
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Token Pemulihan Sesi (jika terputus)</label>
-          <input type="text" id="input-recovery-token" maxlength="32" placeholder="Contoh: REC-1A2B3C4D5E"
-            class="w-full px-4 py-2.5 rounded-xl border border-indigo-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition text-sm font-mono uppercase tracking-wider"
-            autocomplete="off" autocapitalize="characters" spellcheck="false">
-          <p class="mt-1.5 text-[11px] text-slate-500 leading-relaxed">Isi hanya jika tab/browser keluar atau perangkat terputus. Token ini harus dipakai bersama kode ulangan, nama, dan kelas yang sama.</p>
-        </div>
+        <details id="recovery-token-panel" class="rounded-xl border border-indigo-200 bg-indigo-50/60 text-left">
+          <summary class="cursor-pointer select-none px-3.5 py-2.5 text-xs font-semibold text-indigo-900 hover:bg-indigo-100/70 rounded-xl">
+            🔐 Punya kode pemulihan sesi?
+          </summary>
+          <div class="px-3.5 pb-3">
+            <label class="block text-[11px] font-semibold text-indigo-900 uppercase tracking-wider mb-1.5">Kode Pemulihan Sesi</label>
+            <input type="text" id="input-recovery-token" maxlength="32" placeholder="Contoh: REC-1A2B3C4D5E"
+              class="w-full px-4 py-2.5 rounded-xl border border-indigo-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition text-sm font-mono uppercase tracking-wider bg-white"
+              autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <p class="mt-1.5 text-[11px] text-slate-500 leading-relaxed">Buka bagian ini hanya jika tab/browser keluar atau perangkat terputus. Kode dipakai bersama kode ulangan, nama, dan kelas yang sama.</p>
+          </div>
+        </details>
 
         <!-- Field Token / PIN Siswa Sekali Pakai (hanya tampil jika ujian menggunakan sistem PIN/Token peserta) -->
         <div id="pin-input-container" class="hidden">
