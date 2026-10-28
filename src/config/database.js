@@ -67,27 +67,13 @@ const tursoMode = resolveTursoMode({
 });
 
 if (tursoMode === 'remote') {
-  const { createRemoteDatabase } = require('./remoteDatabase');
+  const { createRemoteDatabase, isRemoteConnectionError } = require('./remoteDatabase');
   console.log('📡 Menghubungkan ke NAS SQLite melalui endpoint LibSQL/Cloudflare Tunnel...');
 
   let currentDb = createRemoteDatabase({ url: tursoUrl, authToken: tursoToken });
 
   function isHranaStreamError(err) {
-    if (!err) return false;
-    const msg = String(err.message || err);
-    return (
-      msg.includes('stream not found') ||
-      msg.includes('Hrana') ||
-      msg.includes('connection closed') ||
-      msg.includes('connection reset') ||
-      msg.includes('socket hang up') ||
-      msg.includes('broken pipe') ||
-      msg.includes('ECONNRESET') ||
-      msg.includes('ETIMEDOUT') ||
-      msg.includes('query database timeout') ||
-      msg.includes('fetch failed') ||
-      (msg.includes('status=404') && msg.includes('stream'))
-    );
+    return isRemoteConnectionError(err);
   }
 
   function reconnectTurso() {

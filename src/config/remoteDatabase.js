@@ -2,15 +2,17 @@ const path = require('path');
 const { Worker } = require('worker_threads');
 
 const RESULT_BUFFER_BYTES = 8 * 1024 * 1024;
-// Batasi waktu tunggu satu query agar serverless tidak menggantung lama saat
-// endpoint Turso sedang bermasalah. Database adapter akan dibuat ulang oleh
-// database.js setelah timeout terdeteksi sebagai error koneksi.
-const QUERY_TIMEOUT_MS = 8000;
+// Batasi waktu tunggu satu query (10 detik) agar serverless cukup longgar
+// saat endpoint LibSQL STB/Tunnel mengalami lonjakan request.
+const QUERY_TIMEOUT_MS = 10000;
 
 function normalizeHttpUrl(url) {
   const value = String(url || '').trim();
   if (value.toLowerCase().startsWith('libsql://')) {
     return `https://${value.slice('libsql://'.length)}`;
+  }
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value)) {
+    return value;
   }
   if (!/^https?:\/\//i.test(value)) {
     return `https://${value}`;
@@ -18,34 +20,69 @@ function normalizeHttpUrl(url) {
   return value;
 }
 
+function isRemoteConnectionError(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  return (
+    message.includes('koneksi database sudah ditutup') ||
+    message.includes('database sudah ditutup') ||
+    message.includes('ditutup') ||
+    message.includes('query database timeout') ||
+    message.includes('timeout') ||
+    message.includes('stream not found') ||
+    message.includes('hrana') ||
+    message.includes('connection closed') ||
+    message.includes('connection reset') ||
+    message.includes('socket hang up') ||
+    message.includes('broken pipe') ||
+    message.includes('econnreset') ||
+    message.includes('etimedout') ||
+    message.includes('fetch failed') ||
+    (message.includes('status=404') && message.includes('stream')) ||
+    message.includes('worker database berhenti') ||
+    message.includes('worker')
+  );
+}
+
 function createRemoteDatabase({ url, authToken }) {
-  const worker = new Worker(path.join(__dirname, 'remoteDatabaseWorker.js'), {
-    workerData: { url: normalizeHttpUrl(url), authToken: authToken || '' }
-  });
-  let closed = false;
+  let worker = null;
+  let explicitlyClosed = false;
   let workerFailure = null;
-  worker.on('error', (error) => {
-    workerFailure = error;
-  });
-  worker.on('exit', (code) => {
-    if (code !== 0 && !closed && !workerFailure) {
-      workerFailure = new Error(`Worker database berhenti dengan kode ${code}.`);
+
+  function initWorker() {
+    if (worker) {
+      try { worker.terminate(); } catch (e) {}
     }
-  });
+    worker = new Worker(path.join(__dirname, 'remoteDatabaseWorker.js'), {
+      workerData: { url: normalizeHttpUrl(url), authToken: authToken || '' }
+    });
+    workerFailure = null;
+    worker.on('error', (error) => {
+      workerFailure = error;
+    });
+    worker.on('exit', (code) => {
+      if (code !== 0 && !explicitlyClosed && !workerFailure) {
+        workerFailure = new Error(`Worker database berhenti dengan kode ${code}.`);
+      }
+    });
+  }
+
+  initWorker();
 
   function execute(op, sql, args) {
-    if (closed) throw new Error('Koneksi database sudah ditutup.');
-    if (workerFailure) throw workerFailure;
+    if (explicitlyClosed) throw new Error('Koneksi database sudah ditutup.');
+    if (workerFailure || !worker) {
+      // Auto-recover / re-spawn worker on next query attempt
+      initWorker();
+    }
     const sharedBuffer = new SharedArrayBuffer(8 + RESULT_BUFFER_BYTES);
     const control = new Int32Array(sharedBuffer, 0, 2);
     worker.postMessage({ op, sql, args, sharedBuffer });
     const waitResult = Atomics.wait(control, 0, 0, QUERY_TIMEOUT_MS);
     if (waitResult === 'timed-out') {
-      // Worker yang masih menunggu jaringan tidak boleh menerima query baru;
-      // caller akan membuat instance pengganti melalui mekanisme reconnect.
       try { worker.terminate(); } catch (e) {}
-      closed = true;
-      throw new Error(`Query database timeout setelah ${QUERY_TIMEOUT_MS / 1000} detik.`);
+      worker = null;
+      workerFailure = new Error(`Query database timeout setelah ${QUERY_TIMEOUT_MS / 1000} detik.`);
+      throw workerFailure;
     }
     const length = Atomics.load(control, 1);
     const payload = Buffer.from(new Uint8Array(sharedBuffer, 8, length)).toString('utf8');
@@ -65,9 +102,6 @@ function createRemoteDatabase({ url, authToken }) {
   return {
     prepare: statement,
     exec(sql) { return execute('exec', sql, []); },
-    // PRAGMA is local connection tuning and is not supported by every Turso
-    // HTTP endpoint. The main adapter calls it during startup, so treat it as
-    // a harmless no-op for the remote connection.
     pragma() { return null; },
     sync() { return true; },
     transaction(fn) {
@@ -79,11 +113,19 @@ function createRemoteDatabase({ url, authToken }) {
       return wrapped;
     },
     close() {
-      if (closed) return;
-      closed = true;
-      return worker.terminate();
+      if (explicitlyClosed) return;
+      explicitlyClosed = true;
+      if (worker) {
+        try { worker.terminate(); } catch (e) {}
+        worker = null;
+      }
     }
   };
 }
 
-module.exports = { createRemoteDatabase, QUERY_TIMEOUT_MS, normalizeHttpUrl };
+module.exports = {
+  createRemoteDatabase,
+  QUERY_TIMEOUT_MS,
+  normalizeHttpUrl,
+  isRemoteConnectionError
+};
