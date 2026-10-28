@@ -1741,6 +1741,29 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
     return lines.join('\n');
   },
 
+  formatRemedialSessionWhatsApp({ ulangan, session, classes = [], candidates = [], link = '' }) {
+    const names = candidates.slice(0, 20).map(item => `${item.nama_siswa} (${item.kelas_siswa})`).join(', ');
+    const lines = [
+      '📢 *ULANGAN ULANG / REMEDIAL*',
+      '',
+      `*Mata Pelajaran:* ${ulangan.mata_pelajaran || '-'}`,
+      `*Judul Ulangan:* ${ulangan.judul || '-'}`,
+      `*Kelas:* ${classes.join(', ') || '-'}`,
+      `*KKM:* ${ulangan.kkm || 75}`,
+      `*Token Sesi:* *${session.kode_sesi}*`,
+      '',
+      '*Peserta yang perlu mengulang:*',
+      names || '-',
+      '',
+      '*Tautan Remedial:*',
+      link,
+      '',
+      'Buka tautan, isi nama dan kelas yang sama seperti ulangan sebelumnya, lalu masukkan token sesi jika diminta.',
+      'Siswa yang sudah mencapai KKM tidak perlu mengulang dan akan ditolak oleh sistem.'
+    ];
+    return lines.join('\n');
+  },
+
   // Generator sebaran WhatsApp menggunakan AI jika API key tersedia (To the point, profesional, tanpa basa-basi)
   async generateWhatsAppBroadcast(ulangan, baseUrl = '') {
     const defaultText = this.formatDefaultWhatsAppBroadcast(ulangan, baseUrl);

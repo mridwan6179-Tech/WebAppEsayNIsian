@@ -908,6 +908,24 @@ app.get('/api/guru/ulangan/:id/laporan', requireGuru, (req, res) => {
   }
 });
 
+// Buat satu sesi remedial dari daftar siswa yang belum tuntas pada laporan.
+// Jalur ini hanya memakai tabel sesi yang sudah ada; tidak mengubah auth atau schema database.
+app.post('/api/guru/ulangan/:id/remedial-session', requireGuru, (req, res) => {
+  try {
+    const rawClasses = Array.isArray(req.body?.classes) ? req.body.classes : [];
+    const host = req.get('host') || 'localhost:3000';
+    const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+    const baseUrl = `${proto}://${host}`;
+    const result = reviewService.createRemedialSession(req.params.id, req.guru.guruId, {
+      classes: rawClasses,
+      baseUrl
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 // Manajemen Multi-Sesi Ujian (Beda Kelas, Tanggal, Jam, dan Token)
 app.get('/api/guru/ulangan/:id/sesi', requireGuru, (req, res) => {
   try {

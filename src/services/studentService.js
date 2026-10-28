@@ -213,8 +213,9 @@ const studentService = {
       return { valid: false, message: 'Kode ulangan tidak ditemukan' };
     }
 
+    const isRemedialSesi = Boolean(sesiActive && /^remedial\b/i.test(String(sesiActive.nama_sesi || '')) && sesiActive.status === 'aktif');
     if (ulangan.status !== 'dibuka') {
-      if (!sesiActive || ulangan.status === 'selesai') {
+      if (!sesiActive || (ulangan.status === 'selesai' && !isRemedialSesi)) {
         let msg = 'Ulangan ini belum dibuka oleh guru';
         if (ulangan.status === 'ditutup' || ulangan.status === 'selesai') {
           msg = 'Ulangan ini sudah ditutup dan tidak menerima pengerjaan baru';
@@ -450,10 +451,39 @@ const studentService = {
       } catch (e) {}
     }
 
+    const isRemedialSession = Boolean(activeSesi && /^remedial\b/i.test(String(activeSesi.nama_sesi || '')));
+    const allowRetakeFlow = Boolean(isRetake || isRemedialSession);
+
     if (activeSesi && activeSesi.kelas && activeSesi.kelas.trim()) {
       const allowedClasses = activeSesi.kelas.split(/[,;/]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
       if (allowedClasses.length > 0 && !allowedClasses.includes(cleanKelas.toLowerCase())) {
         throw new Error(`Sesi "${activeSesi.nama_sesi}" khusus untuk kelas ${activeSesi.kelas}. Kelas "${cleanKelas}" tidak diizinkan masuk ke sesi ini.`);
+      }
+    }
+
+    // Sesi remedial yang dibuat dari laporan hanya boleh dipakai oleh siswa
+    // yang nilai terbaiknya masih di bawah KKM. Nama + kelas dicocokkan tanpa
+    // membedakan huruf besar/kecil agar data duplikat tetap aman.
+    if (activeSesi && /^remedial\b/i.test(String(activeSesi.nama_sesi || ''))) {
+      const previousAttempts = db.prepare(`
+        SELECT p.nilai_final, p.nilai_ai
+        FROM pengerjaan p
+        JOIN peserta pes ON pes.id = p.peserta_id
+        WHERE p.ulangan_id = ? AND p.status = 'submitted'
+          AND LOWER(TRIM(pes.nama)) = LOWER(TRIM(?))
+          AND LOWER(TRIM(pes.kelas)) = LOWER(TRIM(?))
+      `).all(ulanganId, cleanNama, cleanKelas);
+      const scores = previousAttempts
+        .map(row => row.nilai_final ?? row.nilai_ai)
+        .filter(value => value !== null && value !== undefined && Number.isFinite(Number(value)))
+        .map(Number);
+      const highestPreviousScore = scores.length > 0 ? Math.max(...scores) : null;
+      const remedialKkm = Number(val.ulangan.kkm || 75);
+      if (highestPreviousScore === null) {
+        throw new Error('Data nilai sebelumnya tidak ditemukan. Sesi remedial hanya untuk peserta dari laporan ulangan ini.');
+      }
+      if (highestPreviousScore >= remedialKkm) {
+        throw new Error(`Nilai Anda sudah tuntas (${highestPreviousScore} >= KKM ${remedialKkm}), tidak perlu mengulang.`);
       }
     }
 
@@ -548,7 +578,7 @@ const studentService = {
     // attempt yang dibuktikan oleh token; login baru selalu membuat attempt baru.
     let pengerjaan = null;
     if (provedPengerjaan) {
-      if (provedPengerjaan.status === 'mengerjakan' && isRetake) {
+      if (provedPengerjaan.status === 'mengerjakan' && allowRetakeFlow) {
         const err = new Error('Sesi ujian sebelumnya masih aktif. Selesaikan atau kumpulkan dahulu sebelum mengulang.');
         err.code = 'INVALID_STUDENT_SESSION';
         throw err;
@@ -565,6 +595,9 @@ const studentService = {
     // Ambil seluruh riwayat pengerjaan yang sudah submitted
     const submittedAttempts = db.prepare("SELECT * FROM pengerjaan WHERE ulangan_id = ? AND peserta_id = ? AND status = 'submitted' ORDER BY attempt_ke DESC, id DESC").all(ulanganId, peserta.id);
     const countSubmitted = submittedAttempts.length;
+    const remedialSubmittedCount = isRemedialSession && activeSesi
+      ? submittedAttempts.filter(attempt => Number(attempt.sesi_id) === Number(activeSesi.id)).length
+      : 0;
 
     const maxAttempts = (val.ulangan.maksimal_percobaan !== undefined && val.ulangan.maksimal_percobaan !== null) ? Number(val.ulangan.maksimal_percobaan) : 1;
     const kebijakanNilai = val.ulangan.kebijakan_nilai || 'tertinggi';
@@ -583,9 +616,14 @@ const studentService = {
     if (!pengerjaan && countSubmitted > 0) {
       const latestSubmitted = submittedAttempts[0];
       const securedLatest = this.ensureStudentSessionToken(latestSubmitted);
-      const maxReached = (maxAttempts > 0 && countSubmitted >= maxAttempts);
+      // Sesi remedial adalah sesi baru yang dibuat guru untuk siswa yang
+      // belum tuntas. Batas percobaan ulangan utama tidak boleh memblokir
+      // masuk ke sesi remedial tersebut.
+      const maxReached = isRemedialSession
+        ? (maxAttempts > 0 && remedialSubmittedCount >= maxAttempts)
+        : (maxAttempts > 0 && countSubmitted >= maxAttempts);
 
-      if (maxReached || !isRetake) {
+      if (maxReached || !allowRetakeFlow) {
         return {
           alreadySubmitted: true,
           pengerjaanId: securedLatest.id,
@@ -637,8 +675,13 @@ const studentService = {
         } catch (eExp) {}
         const refreshedSubmitted = db.prepare("SELECT * FROM pengerjaan WHERE ulangan_id = ? AND peserta_id = ? AND status = 'submitted' ORDER BY attempt_ke DESC, id DESC").all(ulanganId, peserta.id).map(row => this.ensureStudentSessionToken(row));
         const refreshedCount = refreshedSubmitted.length;
-        const maxReached = (maxAttempts > 0 && refreshedCount >= maxAttempts);
-        if (maxReached || !isRetake) {
+        const refreshedRemedialCount = isRemedialSession && activeSesi
+          ? refreshedSubmitted.filter(attempt => Number(attempt.sesi_id) === Number(activeSesi.id)).length
+          : 0;
+        const maxReached = isRemedialSession
+          ? (maxAttempts > 0 && refreshedRemedialCount >= maxAttempts)
+          : (maxAttempts > 0 && refreshedCount >= maxAttempts);
+        if (maxReached || !allowRetakeFlow) {
           const latest = refreshedSubmitted[0];
           return {
             alreadySubmitted: true,
@@ -936,7 +979,7 @@ const studentService = {
       deadlineAt = durationDeadline;
     }
 
-    if (val.ulangan.tanggal_selesai) {
+    if (val.ulangan.tanggal_selesai && !isRemedialSession) {
       const closeDeadline = new Date(val.ulangan.tanggal_selesai);
       if (!deadlineAt || closeDeadline < deadlineAt) {
         deadlineAt = closeDeadline;

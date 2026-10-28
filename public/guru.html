@@ -10984,8 +10984,9 @@
         rowsHtml = `<tr><td colspan="8" class="p-4 text-center text-slate-400 italic">Belum ada data siswa untuk filter yang dipilih</td></tr>`;
       } else {
         peserta.forEach((p, idx) => {
-          const finalScore = p.nilai_final !== null ? p.nilai_final : (p.nilai_ai !== null ? p.nilai_ai : '-');
-          const isTuntas = typeof finalScore === 'number' ? finalScore >= examKkm : false;
+          const rawFinalScore = p.nilai_laporan ?? (p.nilai_final !== null ? p.nilai_final : p.nilai_ai);
+          const finalScore = rawFinalScore === null || rawFinalScore === undefined || rawFinalScore === '' ? '-' : Number(rawFinalScore);
+          const isTuntas = finalScore !== '-' && Number.isFinite(finalScore) && finalScore >= examKkm;
           const statusText = p.status === 'submitted' 
             ? (p.auto_submitted ? 'Auto-submit (Waktu Habis)' : 'Selesai (Manual)')
             : 'Belum Kumpul';
@@ -11003,7 +11004,7 @@
               <td class="py-2.5 px-3 text-center font-mono font-medium text-slate-600">${p.nilai_ai !== null ? p.nilai_ai : '-'}</td>
               <td class="py-2.5 px-3 text-center font-mono font-bold text-slate-900">${finalScore}</td>
               <td class="py-2.5 px-3 text-center font-semibold text-[11px] ${isTuntas ? 'text-emerald-700' : 'text-amber-700'}">
-                ${typeof finalScore === 'number' ? (isTuntas ? `Tuntas (>=${examKkm})` : `Belum Tuntas (<${examKkm})`) : '-'}
+                ${finalScore !== '-' && Number.isFinite(finalScore) ? (isTuntas ? `Tuntas (>=${examKkm})` : `Belum Tuntas (<${examKkm})`) : '-'}
               </td>
             </tr>
           `;
@@ -11066,9 +11067,12 @@
             </span>
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
               ${laporan.available_sesi.map(sRow => {
-                const stat = laporan.statistik_sesi ? laporan.statistik_sesi[sRow.nama_sesi] : null;
+                const stat = laporan.statistik_sesi?.find(item =>
+                  (item.sesi_id !== null && String(item.sesi_id) === String(sRow.id))
+                  || item.nama_sesi === sRow.nama_sesi
+                ) || null;
                 const total = stat ? stat.total_peserta : 0;
-                const sub = stat ? stat.total_submitted : 0;
+                const sub = stat ? stat.submitted_count : 0;
                 const avg = stat ? stat.rata_rata : 0;
                 const tuntas = stat ? stat.tuntas_count : 0;
                 return `
@@ -11089,6 +11093,35 @@
             </div>
           </div>
         ` : ''}
+
+        <!-- Alur remedial dari laporan nilai -->
+        <div class="no-print space-y-2.5 bg-amber-50/80 p-3.5 rounded-xl border border-amber-200 text-left">
+          <div class="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p class="text-xs font-bold text-amber-950">🔁 Buat sesi ulangan ulang otomatis</p>
+              <p class="text-[11px] text-amber-900 mt-1">Siswa di bawah KKM akan dimasukkan ke satu sesi baru. Jika nama dan kelas muncul lebih dari sekali, sistem memakai nilai tertinggi.</p>
+            </div>
+            <span class="text-[11px] font-bold text-amber-800 bg-amber-100 border border-amber-200 rounded-full px-2 py-1">${s.belum_tuntas_count || 0} belum tuntas</span>
+          </div>
+          ${(() => {
+            const remedialClasses = Array.from(new Set((peserta || [])
+              .filter(p => p.eligible_remedial === true)
+              .map(p => p.kelas_siswa).filter(Boolean)));
+            if (remedialClasses.length === 0) {
+              return '<p class="text-[11px] text-emerald-700 font-semibold">Semua siswa yang sudah mengumpulkan telah mencapai KKM.</p>';
+            }
+            return `<div class="flex flex-wrap gap-2">${remedialClasses.map((kelas, idx) => `
+              <label class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 bg-white border border-amber-200 rounded-lg px-2 py-1.5 cursor-pointer">
+                <input type="checkbox" class="remedial-class-choice rounded border-amber-300 text-amber-600 focus:ring-amber-500" value="${escapeHtml(kelas)}" checked>
+                <span>${escapeHtml(kelas)}</span>
+              </label>`).join('')}</div>
+            <div class="flex flex-wrap items-center gap-2 pt-1">
+              <button type="button" onclick="createRemedialSessionFromReport()" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold shadow-sm cursor-pointer">Buat Link Ulangan Ulang</button>
+              <span class="text-[10px] text-amber-800">Token sesi dibuat otomatis 3 karakter.</span>
+            </div>`;
+          })()}
+          <div id="remedial-session-result" class="hidden"></div>
+        </div>
 
         <!-- Tabel Rekap Nilai -->
         <div class="overflow-x-auto">
@@ -11125,6 +11158,60 @@
           </div>
         </div>
       `;
+    }
+
+    async function createRemedialSessionFromReport() {
+      if (!activeUlanganId) return;
+      const classes = Array.from(document.querySelectorAll('.remedial-class-choice:checked')).map(el => el.value).filter(Boolean);
+      if (classes.length === 0) {
+        alert('Pilih minimal satu kelas yang belum tuntas.');
+        return;
+      }
+      const resultEl = document.getElementById('remedial-session-result');
+      if (resultEl) {
+        resultEl.classList.remove('hidden');
+        resultEl.innerHTML = '<p class="text-[11px] text-amber-800">Membuat sesi remedial...</p>';
+      }
+      try {
+        const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/remedial-session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ classes })
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success || !json.data) throw new Error(json.message || 'Gagal membuat sesi remedial');
+        const data = json.data;
+        if (resultEl) {
+          resultEl.innerHTML = `
+            <div class="mt-1.5 p-2.5 bg-white rounded-lg border border-emerald-200 space-y-2">
+              <p class="text-[11px] font-bold text-emerald-800">✅ Sesi remedial siap dibagikan</p>
+              <div class="flex flex-wrap gap-2 text-[11px]">
+                <span class="px-2 py-1 rounded bg-indigo-50 border border-indigo-200 text-indigo-900">Token: <strong class="font-mono tracking-widest">${escapeHtml(data.session.kode_sesi)}</strong></span>
+                <a href="${escapeHtml(data.link)}" target="_blank" rel="noopener" class="px-2 py-1 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 underline break-all">${escapeHtml(data.link)}</a>
+              </div>
+              <textarea id="remedial-whatsapp-text" readonly class="w-full min-h-32 text-[11px] p-2 rounded-lg border border-slate-200 bg-slate-50">${escapeHtml(data.whatsapp_text || '')}</textarea>
+              <div class="flex flex-wrap gap-2">
+                <button type="button" onclick="copyRemedialWhatsAppText()" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer">📋 Salin Sebaran WhatsApp</button>
+                <button type="button" onclick="copyRemedialLink('${escapeHtml(data.link)}')" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold cursor-pointer">🔗 Salin Link</button>
+              </div>
+            </div>`;
+        }
+      } catch (err) {
+        if (resultEl) resultEl.innerHTML = `<p class="text-[11px] text-rose-700">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    async function copyRemedialWhatsAppText() {
+      const text = document.getElementById('remedial-whatsapp-text')?.value || '';
+      if (!text) return;
+      await navigator.clipboard.writeText(text);
+      alert('Teks sebaran remedial berhasil disalin. Tempel ke WhatsApp kelas.');
+    }
+
+    async function copyRemedialLink(link) {
+      if (!link) return;
+      await navigator.clipboard.writeText(link);
+      alert('Tautan sesi remedial berhasil disalin.');
     }
 
     // =========================================================================

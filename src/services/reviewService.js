@@ -5,6 +5,66 @@ const studentService = require('./studentService');
 // Throttle pembersihan sesi kedaluwarsa agar tidak membebani database pada setiap request polling guru
 const lastCleanAbandonedMap = new Map();
 
+function normalizedStudentKey(name, kelas) {
+  return `${String(name || '').trim().toLocaleLowerCase('id-ID')}::${String(kelas || '').trim().toLocaleLowerCase('id-ID')}`;
+}
+
+function scoreOfAttempt(row) {
+  const value = row?.nilai_final ?? row?.nilai_ai;
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function mergeDuplicateStudentRows(rows) {
+  const merged = new Map();
+  for (const row of rows) {
+    const key = normalizedStudentKey(row.nama_siswa, row.kelas_siswa);
+    const score = scoreOfAttempt(row);
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, {
+        ...row,
+        nilai_terbaik: row.nilai_terbaik ?? score,
+        nilai_laporan: score,
+        duplicate_name_count: 1
+      });
+      continue;
+    }
+
+    const existingScore = scoreOfAttempt(existing);
+    const shouldReplace = (score !== null && (existingScore === null || score > existingScore))
+      || (score !== null && existingScore === score && Number(row.pengerjaan_id) > Number(existing.pengerjaan_id));
+    if (shouldReplace) {
+      const replacement = {
+        ...row,
+        total_attempts: Number(existing.total_attempts || 0) + Number(row.total_attempts || 0),
+        submitted_attempts: Number(existing.submitted_attempts || 0) + Number(row.submitted_attempts || 0),
+        duplicate_name_count: Number(existing.duplicate_name_count || 1) + 1,
+        nilai_terbaik: Math.max(existing.nilai_terbaik ?? -Infinity, row.nilai_terbaik ?? score ?? -Infinity),
+        nilai_laporan: score
+      };
+      merged.set(key, replacement);
+    } else {
+      existing.total_attempts = Number(existing.total_attempts || 0) + Number(row.total_attempts || 0);
+      existing.submitted_attempts = Number(existing.submitted_attempts || 0) + Number(row.submitted_attempts || 0);
+      existing.duplicate_name_count = Number(existing.duplicate_name_count || 1) + 1;
+      if (row.nilai_terbaik !== null && row.nilai_terbaik !== undefined) {
+        existing.nilai_terbaik = Math.max(existing.nilai_terbaik ?? -Infinity, row.nilai_terbaik);
+      }
+      if (score !== null) existing.nilai_laporan = Math.max(existing.nilai_laporan ?? -Infinity, score);
+    }
+  }
+  return Array.from(merged.values());
+}
+
+function generateShortSessionToken() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let token = '';
+  for (let i = 0; i < 3; i++) token += chars.charAt(Math.floor(Math.random() * chars.length));
+  return token;
+}
+
 const reviewService = {
   // Ambil daftar seluruh siswa/pengerjaan pada suatu ulangan
   getPengerjaanListByUlangan(ulanganId, guruId) {
@@ -924,6 +984,25 @@ const reviewService = {
       });
     });
 
+    // Nama + kelas ganda bisa muncul sebagai beberapa peserta akibat percobaan
+    // lama/import. Untuk laporan dan remedial gunakan satu baris dengan nilai
+    // tertinggi agar identitas siswa tidak dihitung ganda.
+    const deduplicatedPesertaList = mergeDuplicateStudentRows(effectivePesertaList);
+    effectivePesertaList.length = 0;
+    effectivePesertaList.push(...deduplicatedPesertaList);
+
+    for (const row of effectivePesertaList) {
+      const effectiveScore = row.nilai_laporan ?? scoreOfAttempt(row);
+      row.nilai_terbaik = effectiveScore;
+      row.is_tuntas = row.status === 'submitted' && effectiveScore !== null
+        ? Number(effectiveScore) >= Number(ulangan.kkm || 75)
+        : false;
+      row.status_ketuntasan = effectiveScore === null
+        ? 'belum_dinilai'
+        : (row.is_tuntas ? 'tuntas' : 'belum_tuntas');
+      row.eligible_remedial = row.status === 'submitted' && effectiveScore !== null && !row.is_tuntas;
+    }
+
     // Urutkan kembali berdasarkan kelas dan nama siswa
     effectivePesertaList.sort((a, b) => {
       const classComp = (a.kelas_siswa || '').localeCompare(b.kelas_siswa || '', 'id', { sensitivity: 'base' });
@@ -934,11 +1013,13 @@ const reviewService = {
     // Hitung statistik berdasarkan peserta unik
     let totalPeserta = effectivePesertaList.length;
     let submittedCount = 0;
+    let scoredSubmittedCount = 0;
     let totalScore = 0;
     let highestScore = null;
     let lowestScore = null;
     const examKkm = ulangan.kkm || 75;
     let tuntasCount = 0;
+    let belumTuntasCount = 0;
 
     // Perhitungan statistik tersegmentasi per sesi
     const sesiStatsMap = new Map();
@@ -953,6 +1034,7 @@ const reviewService = {
           kode_sesi: st.kode_sesi || '-',
           total_peserta: 0,
           submitted_count: 0,
+          scored_count: 0,
           total_score: 0,
           tuntas_count: 0
         });
@@ -964,8 +1046,10 @@ const reviewService = {
         submittedCount++;
         sItem.submitted_count++;
 
-        const finalScore = st.nilai_final !== null ? st.nilai_final : (st.nilai_ai !== null ? st.nilai_ai : null);
+        const finalScore = st.nilai_laporan ?? scoreOfAttempt(st);
         if (finalScore !== null) {
+          scoredSubmittedCount++;
+          sItem.scored_count++;
           totalScore += finalScore;
           sItem.total_score += finalScore;
 
@@ -974,6 +1058,8 @@ const reviewService = {
           if (finalScore >= examKkm) {
             tuntasCount++;
             sItem.tuntas_count++;
+          } else {
+            belumTuntasCount++;
           }
         }
       }
@@ -982,7 +1068,7 @@ const reviewService = {
     const averageScore = submittedCount > 0 ? Number((totalScore / submittedCount).toFixed(1)) : 0;
     const statistikSesi = Array.from(sesiStatsMap.values()).map(s => ({
       ...s,
-      rata_rata: s.submitted_count > 0 ? Number((s.total_score / s.submitted_count).toFixed(1)) : 0
+      rata_rata: s.scored_count > 0 ? Number((s.total_score / s.scored_count).toFixed(1)) : 0
     }));
 
     return {
@@ -1011,15 +1097,99 @@ const reviewService = {
       statistik: {
         total_peserta: totalPeserta,
         total_submitted: submittedCount,
-        rata_rata: averageScore,
+        rata_rata: scoredSubmittedCount > 0 ? Number((totalScore / scoredSubmittedCount).toFixed(1)) : 0,
         nilai_tertinggi: highestScore !== null ? highestScore : 0,
         nilai_terendah: lowestScore !== null ? lowestScore : 0,
         kkm: examKkm,
         tuntas_count: tuntasCount,
-        belum_tuntas_count: Math.max(0, submittedCount - tuntasCount)
+        belum_tuntas_count: belumTuntasCount
       },
       statistik_sesi: statistikSesi,
       peserta: effectivePesertaList
+    };
+  },
+
+  getRemedialCandidates(ulanganId, guruId, classes = null) {
+    const laporan = this.getLaporanNilai(ulanganId, guruId);
+    const selectedClasses = Array.isArray(classes)
+      ? new Set(classes.map(item => String(item || '').trim().toLocaleLowerCase('id-ID')).filter(Boolean))
+      : null;
+    const rows = laporan.peserta.filter(row => {
+      if (row.status !== 'submitted') return false;
+      if (selectedClasses && selectedClasses.size > 0 && !selectedClasses.has(String(row.kelas_siswa || '').trim().toLocaleLowerCase('id-ID'))) return false;
+      const score = row.nilai_laporan ?? scoreOfAttempt(row);
+      return score !== null;
+    }).map(row => ({
+      ...row,
+      nilai_tertinggi: row.nilai_terbaik ?? scoreOfAttempt(row),
+      isTuntas: Number(row.nilai_laporan ?? scoreOfAttempt(row)) >= Number(laporan.ulangan.kkm || 75)
+    }));
+
+    return {
+      ulangan: laporan.ulangan,
+      selected_classes: selectedClasses ? Array.from(selectedClasses) : [],
+      candidates: rows.filter(row => !row.isTuntas),
+      tuntas: rows.filter(row => row.isTuntas),
+      total: rows.length
+    };
+  },
+
+  createRemedialSession(ulanganId, guruId, options = {}) {
+    const requestedClasses = Array.isArray(options.classes)
+      ? options.classes.map(item => String(item || '').trim()).filter(Boolean)
+      : [];
+    const candidates = this.getRemedialCandidates(ulanganId, guruId, requestedClasses.length ? requestedClasses : null);
+    if (candidates.candidates.length === 0) {
+      throw new Error('Tidak ada siswa yang belum tuntas pada kelas yang dipilih.');
+    }
+
+    const classes = Array.from(new Set(candidates.candidates.map(row => row.kelas_siswa).filter(Boolean)));
+    const normalizedClasses = classes.map(item => item.toLocaleLowerCase('id-ID')).sort().join(',');
+    const existing = db.prepare(`
+      SELECT id
+      FROM ulangan_sesi
+      WHERE ulangan_id = ? AND LOWER(nama_sesi) LIKE 'remedial%'
+        AND REPLACE(LOWER(COALESCE(kelas, '')), ', ', ',') = ? AND status = 'aktif'
+      ORDER BY id DESC LIMIT 1
+    `).get(ulanganId, normalizedClasses);
+
+    let session;
+    if (existing) {
+      session = examService.getSesiById(existing.id, guruId);
+    } else {
+      let token = generateShortSessionToken();
+      while (db.prepare('SELECT id FROM ulangan_sesi WHERE kode_sesi = ?').get(token)
+        || db.prepare('SELECT id FROM ulangan WHERE kode_ujian = ?').get(token)) {
+        token = generateShortSessionToken();
+      }
+      session = examService.createSesi(ulanganId, guruId, {
+        nama_sesi: `Remedial - ${classes.join(', ')}`,
+        kode_sesi: token,
+        kelas: classes.join(', '),
+        waktu_mulai: null,
+        waktu_selesai: null,
+        kuota_peserta: null,
+        status: 'aktif'
+      });
+    }
+
+    const baseUrl = String(options.baseUrl || '').replace(/\/+$/, '');
+    const link = `${baseUrl}/?kode=${encodeURIComponent(session.kode_sesi)}`;
+    const geminiService = require('./geminiService');
+    const whatsappText = geminiService.formatRemedialSessionWhatsApp({
+      ulangan: candidates.ulangan,
+      session,
+      classes,
+      candidates: candidates.candidates,
+      link
+    });
+
+    return {
+      session,
+      link,
+      candidates: candidates.candidates,
+      tuntas: candidates.tuntas,
+      whatsapp_text: whatsappText
     };
   },
 
