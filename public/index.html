@@ -5747,12 +5747,26 @@
       }
     });
 
+    function resetSubmitUi() {
+      const overlay = document.getElementById('submit-loading-overlay');
+      if (overlay) overlay.classList.add('hidden');
+      const btn = document.getElementById('btn-submit');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Kumpulkan Jawaban';
+      }
+      isSubmitting = false;
+    }
+
     async function doSubmit(isAutoSubmit = false) {
       if (isSubmitting && !isAutoSubmit) return;
       isSubmitting = true;
       const submitContext = captureStudentContext(currentPengerjaanId);
       if (!isActiveStudentContext(submitContext)) {
-        isSubmitting = false;
+        // Auto-submit dapat membuka overlay sebelum doSubmit dipanggil.
+        // Jika sesi sudah berganti, selalu pulihkan seluruh UI agar spinner
+        // lama tidak mengunci layar siswa berikutnya.
+        resetSubmitUi();
         return;
       }
 
@@ -5869,10 +5883,18 @@
                 is_auto_submit: isAutoSubmit
               })
             });
-            clearTimeout(timeoutId);
             data = await res.json();
+            // Pertahankan timeout sampai body JSON selesai dibaca. Pada koneksi
+            // setengah terbuka, fetch dapat sudah menerima header tetapi body
+            // tidak pernah selesai sehingga spinner sebelumnya menggantung.
+            clearTimeout(timeoutId);
 
-            if (!isActiveStudentContext(submitContext)) return;
+            // Respons sesi lama tidak boleh meninggalkan overlay menggantung
+            // atau mengunci tombol jika tab sudah berpindah ke siswa lain.
+            if (!isActiveStudentContext(submitContext)) {
+              resetSubmitUi();
+              return;
+            }
 
             if (res.status === 401) {
               window.clearCurrentStudentSession();
@@ -5943,15 +5965,25 @@
         // Ambil rincian hasil penilaian di latar belakang secara asinkron (dengan retry aman tanpa lempar balik ke soal)
         checkResultStatusWithRetry(submitContext.attemptId, 0, submitContext);
       } catch (err) {
-        if (!isActiveStudentContext(submitContext)) return;
+        if (!isActiveStudentContext(submitContext)) {
+          resetSubmitUi();
+          return;
+        }
         // RESCUE CHECK: Sebelum memunculkan alert gagal, cek apakah status ujian sebenarnya sudah submitted di server
         if (submitContext.attemptId) {
+          const rescueController = new AbortController();
+          const rescueTimeoutId = setTimeout(() => rescueController.abort(), 10000);
           try {
             const rescueRes = await fetch(`/api/siswa/sesi/${submitContext.attemptId}`, {
-              headers: { 'X-Student-Session-Token': submitContext.token }
+              headers: { 'X-Student-Session-Token': submitContext.token },
+              signal: rescueController.signal
             });
             const rescueData = await rescueRes.json();
-            if (!isActiveStudentContext(submitContext)) return;
+            clearTimeout(rescueTimeoutId);
+            if (!isActiveStudentContext(submitContext)) {
+              resetSubmitUi();
+              return;
+            }
             if (rescueRes.status === 401) {
               window.clearCurrentStudentSession();
               const overlay = document.getElementById('submit-loading-overlay');
@@ -5983,7 +6015,9 @@
               checkResultStatusWithRetry(submitContext.attemptId, 0, submitContext);
               return;
             }
-          } catch (rescueErr) {}
+          } catch (rescueErr) {
+            clearTimeout(rescueTimeoutId);
+          }
         }
 
         const overlay = document.getElementById('submit-loading-overlay');
@@ -6131,8 +6165,11 @@
 
       try {
         const res = await fetch(`/api/siswa/hasil/${pengerjaanId}`, { signal: controller.signal });
-        clearTimeout(timeoutId);
         const result = await res.json();
+        // Pertahankan batas waktu sampai body hasil selesai dibaca agar kartu
+        // antrean AI tidak berhenti pada status berputar saat respons setengah
+        // terbuka hanya mengirim header.
+        clearTimeout(timeoutId);
 
         if (!isActiveStudentContext(resultContext)) return;
 
@@ -6888,30 +6925,47 @@
 
       const btn = document.getElementById('btn-start-direct-remedial');
       const originalText = btn ? btn.innerHTML : '';
+      const restoreRemedialButton = () => {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = originalText || '<span>🔄 Mulai Remedial Langsung Sekarang</span>';
+        }
+      };
       if (btn) {
         btn.disabled = true;
         btn.innerHTML = '<span class="animate-spin inline-block">⏳</span><span>Mempersiapkan Lembar Remedial...</span>';
       }
 
+      let remedialTimeoutId = null;
       try {
+        const controller = new AbortController();
+        remedialTimeoutId = setTimeout(() => controller.abort(), 30000);
         const res = await fetch('/api/siswa/remedial/mulai', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
           body: JSON.stringify({ pengerjaan_id: pid, nama: curNama, kelas: curKelas })
         });
         const result = await res.json();
-        if (!isActiveStudentContext(remedialContext)) return;
+        clearTimeout(remedialTimeoutId);
+        remedialTimeoutId = null;
+        if (!isActiveStudentContext(remedialContext)) {
+          restoreRemedialButton();
+          return;
+        }
         if (!res.ok || !result.success) {
           throw new Error(result.message || 'Gagal memulai sesi remedial.');
         }
 
         // Bersihkan draft jawaban lokal browser agar lembar soal remedial bersih (tanpa bekas cache)
         try {
-          localStorage.removeItem(`ulangan_draft_${pid}`);
-          localStorage.removeItem(`ulangan_backup_${pid}`);
-          localStorage.removeItem(`ulangan_paste_${pid}`);
-          localStorage.removeItem(`ujian_draft_${pid}`);
-          localStorage.removeItem(`exam_answers_${pid}`);
+          for (const storage of [sessionStorage, localStorage]) {
+            storage.removeItem(`ulangan_draft_${pid}`);
+            storage.removeItem(`ulangan_backup_${pid}`);
+            storage.removeItem(`ulangan_paste_${pid}`);
+            storage.removeItem(`ujian_draft_${pid}`);
+            storage.removeItem(`exam_answers_${pid}`);
+          }
         } catch (e) {}
 
         // Tampilkan lembar ujian untuk butir-butir remedial
@@ -6940,11 +6994,12 @@
 
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } catch (err) {
-        alert(err.message || 'Terjadi kesalahan saat memulai remedial.');
-        if (btn) {
-          btn.disabled = false;
-          btn.innerHTML = originalText || '<span>🔄 Mulai Remedial Langsung Sekarang</span>';
-        }
+        if (remedialTimeoutId) clearTimeout(remedialTimeoutId);
+        const message = err.name === 'AbortError'
+          ? 'Server terlalu lama merespons saat menyiapkan remedial. Silakan coba lagi; sesi dan jawaban sebelumnya tetap tersimpan.'
+          : (err.message || 'Terjadi kesalahan saat memulai remedial.');
+        alert(message);
+        restoreRemedialButton();
       }
     }
 

@@ -136,3 +136,39 @@ test('retake sends the current attempt proof back to the server', () => {
   assert.match(retake, /pengerjaan_id:\s*currentPengerjaanId/);
   assert.match(retake, /student_session_token:\s*getStudentSessionToken\(\)/);
 });
+
+test('remedial submit clears its loading state when the tab context changes mid-request', () => {
+  const submit = functionSource('async function doSubmit', '// Resume sesi pengerjaan aktif siswa');
+  assert.match(submit, /if \(!isActiveStudentContext\(submitContext\)\) \{[\s\S]*?resetSubmitUi\(\);[\s\S]*?return;/);
+});
+
+test('auto-submit clears a pre-existing loading state when its session context is stale', () => {
+  const submit = functionSource('async function doSubmit', '// Resume sesi pengerjaan aktif siswa');
+  assert.match(submit, /const submitContext = captureStudentContext\(currentPengerjaanId\);\s*if \(!isActiveStudentContext\(submitContext\)\) \{[\s\S]*?resetSubmitUi\(\);\s*return;/);
+});
+
+test('submit timeout remains active while the response body is being decoded', () => {
+  const submit = functionSource('async function doSubmit', '// Resume sesi pengerjaan aktif siswa');
+  assert.match(submit, /data = await res\.json\(\);[\s\S]*?clearTimeout\(timeoutId\);/);
+  assert.doesNotMatch(submit, /clearTimeout\(timeoutId\);\s*data = await res\.json\(\);/);
+});
+
+test('starting remedial has a bounded request so its button cannot spin forever', () => {
+  const remedial = functionSource('async function startDirectRemedial', "\n    document.getElementById('btn-start-direct-remedial')?.addEventListener");
+  assert.match(remedial, /new AbortController\(\)/);
+  assert.match(remedial, /setTimeout\(\(\) => controller\.abort\(\),/);
+  assert.match(remedial, /signal: controller\.signal/);
+  assert.match(remedial, /clearTimeout\(remedialTimeoutId\)/);
+});
+
+test('result polling timeout remains active while the result body is being decoded', () => {
+  const polling = functionSource('async function checkResultStatusWithRetry', '// Kompatibilitas fungsi pemanggilan lama');
+  assert.match(polling, /const result = await res\.json\(\);[\s\S]*?clearTimeout\(timeoutId\);/);
+  assert.doesNotMatch(polling, /clearTimeout\(timeoutId\);\s*const result = await res\.json\(\);/);
+});
+
+test('starting remedial clears drafts from both browser storage scopes', () => {
+  const remedial = functionSource('async function startDirectRemedial', "\n    document.getElementById('btn-start-direct-remedial')?.addEventListener");
+  assert.match(remedial, /for \(const storage of \[sessionStorage, localStorage\]\)/);
+  assert.match(remedial, /storage\.removeItem\(`ulangan_draft_\$\{pid\}`\)/);
+});
