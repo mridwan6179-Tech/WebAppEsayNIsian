@@ -33,7 +33,7 @@ test('remedial mengelompokkan nama dan kelas ganda dengan nilai tertinggi', () =
   assert.equal(result.tuntas.find(item => item.nama_siswa === 'Andi Saputra').nilai_tertinggi, 85);
 });
 
-test('remedial membuat satu sesi bertoken tiga karakter dan menolak siswa tuntas', () => {
+test('remedial membuat satu sesi bertoken tiga karakter dan memakai daftar nama sebagai acuan', () => {
   const guru = db.prepare('SELECT id FROM guru LIMIT 1').get();
   const exam = examService.createUlangan(guru.id, {
     judul: `Remedial link ${Date.now()}`,
@@ -76,10 +76,8 @@ test('remedial membuat satu sesi bertoken tiga karakter dan menolak siswa tuntas
   examService.updateUlangan(exam.id, guru.id, { status: 'selesai' });
   assert.equal(studentService.validateExamCode(created.session.kode_sesi).valid, true);
 
-  assert.throws(
-    () => studentService.startExam(created.session.kode_sesi, 'Tuntas Siswa', '8A'),
-    /tuntas|KKM|tidak perlu mengulang/i
-  );
+  const tuntasStarted = studentService.startExam(created.session.kode_sesi, 'Tuntas Siswa', '8A');
+  assert.ok(tuntasStarted.pengerjaanId);
   const resumed = studentService.startExam(created.session.kode_sesi, 'Remedial Siswa', '8A');
   assert.ok(resumed.pengerjaanId);
 

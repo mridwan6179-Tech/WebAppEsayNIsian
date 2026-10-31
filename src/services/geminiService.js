@@ -1765,9 +1765,7 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
       link,
       '',
       'Buka tautan, isi nama dan kelas yang sama seperti ulangan sebelumnya, lalu masukkan token sesi jika diminta.',
-      allowlistedTuntas
-        ? 'Hanya nama yang tercantum pada daftar sesi ini yang dapat masuk; siswa lain akan ditolak otomatis.'
-        : 'Siswa yang sudah mencapai KKM tidak perlu mengulang dan akan ditolak oleh sistem.'
+      'Daftar nama pada pesan ini hanya acuan. Siswa tetap mengisi nama dan kelas sendiri; siswa yang belum mengikuti ulangan utama dapat ikut selama kelas dan jadwal sesuai.'
     ];
     return lines.join('\n');
   },

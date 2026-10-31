@@ -75,7 +75,7 @@ test('sesi remedial menyimpan jumlah dan persentase tipe soal lalu menerapkannya
   }
 });
 
-test('siswa tuntas hanya dapat masuk jika dipilih dalam daftar remedial', () => {
+test('daftar nama remedial dapat dipakai sebagai acuan peserta pilihan guru', () => {
   const guru = db.prepare('SELECT id FROM guru LIMIT 1').get();
   const exam = examService.createUlangan(guru.id, {
     judul: `Remedial allowlist ${Date.now()}`,
@@ -105,12 +105,42 @@ test('siswa tuntas hanya dapat masuk jika dipilih dalam daftar remedial', () => 
     });
 
     assert.deepEqual(created.candidates.map(row => row.peserta_id), [tuntasId]);
-    assert.throws(
-      () => studentService.startExam(created.session.kode_sesi, 'Siswa Rendah', '8A'),
-      /tidak terdaftar|tidak ditemukan|remedial|laporan/i
-    );
     const started = studentService.startExam(created.session.kode_sesi, 'Siswa Tuntas', '8A');
     assert.ok(started.pengerjaanId);
+  } finally {
+    db.prepare('DELETE FROM ulangan WHERE id = ?').run(exam.id);
+  }
+});
+
+test('daftar nama remedial hanya menjadi acuan dan siswa yang belum ikut ulangan tetap dapat masuk', () => {
+  const guru = db.prepare('SELECT id FROM guru LIMIT 1').get();
+  const exam = examService.createUlangan(guru.id, {
+    judul: `Remedial reference only ${Date.now()}`,
+    mata_pelajaran: 'Bahasa Indonesia',
+    tingkat_kelas: '9A',
+    kkm: 75,
+    maksimal_percobaan: 1
+  });
+  addQuestion(exam.id, 1, 'pilihan_ganda');
+  const knownId = db.prepare('INSERT INTO peserta (ulangan_id, nama, kelas) VALUES (?, ?, ?)')
+    .run(exam.id, 'Siswa Referensi', '9A').lastInsertRowid;
+  db.prepare(`
+    INSERT INTO pengerjaan (ulangan_id, peserta_id, status, started_at, submitted_at, nilai_final, nilai_ai, attempt_ke)
+    VALUES (?, ?, 'submitted', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 40, 40, 1)
+  `).run(exam.id, knownId);
+
+  try {
+    examService.updateUlangan(exam.id, guru.id, { status: 'dibuka' });
+    const created = reviewService.createRemedialSession(exam.id, guru.id, {
+      classes: ['9A'],
+      student_ids: [knownId],
+      baseUrl: 'https://contoh.test'
+    });
+
+    const started = studentService.startExam(created.session.kode_sesi, 'Siswa Belum Ikut', '9A');
+    assert.ok(started.pengerjaanId);
+    assert.equal(started.peserta.nama, 'Siswa Belum Ikut');
+    assert.match(created.whatsapp_text, /acuan|belum mengikuti|belum ikut/i);
   } finally {
     db.prepare('DELETE FROM ulangan WHERE id = ?').run(exam.id);
   }

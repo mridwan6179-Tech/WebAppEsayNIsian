@@ -46,7 +46,7 @@
 **Files:** `server.js`, `src/services/reviewService.js`, `src/services/studentService.js`, `public/guru.html`, `tests/remedial_question_config.test.js`
 
 - Pass the new options through the endpoint.
-- Enforce the saved allowlist for remedial sessions before creating/reusing a participant.
+- Treat saved student IDs as broadcast/reference data only; enforce class and schedule while allowing a new participant identity to be created.
 - Add controls for question count, ratios, schedule, and optional student selection to the report card; include the effective configuration in the generated WhatsApp text/result.
 
 ### Task 4: Verification

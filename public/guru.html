@@ -11144,7 +11144,7 @@
             </div>
             <div class="mt-2 p-2 bg-white/70 rounded-lg border border-amber-200">
               <p class="text-[11px] font-bold text-slate-700">Siswa tertentu (opsional)</p>
-              <p class="text-[10px] text-slate-500 mb-1">Jika ada yang dicentang, hanya nama yang dicentang yang boleh memakai link ini. Jika kosong, semua siswa di bawah KKM pada kelas terpilih yang wajib mengulang.</p>
+              <p class="text-[10px] text-slate-500 mb-1">Nama yang dicentang hanya menjadi acuan daftar dan sebaran. Siswa tetap mengisi nama dan kelasnya sendiri; siswa yang belum mengikuti ulangan utama juga dapat masuk selama kelas dan jadwalnya sesuai.</p>
               <div class="max-h-28 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1">
                 ${(peserta || []).filter(p => p.status === 'submitted' && p.peserta_id).map(p => {
                   const score = p.nilai_laporan ?? p.nilai_final ?? p.nilai_ai;

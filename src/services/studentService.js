@@ -457,7 +457,6 @@ const studentService = {
 
     const isRemedialSession = Boolean(activeSesi && /^remedial\b/i.test(String(activeSesi.nama_sesi || '')));
     const allowRetakeFlow = Boolean(isRetake || isRemedialSession);
-    let remedialAllowedParticipantId = null;
 
     if (activeSesi && activeSesi.kelas && activeSesi.kelas.trim()) {
       const allowedClasses = activeSesi.kelas.split(/[,;/]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
@@ -466,50 +465,9 @@ const studentService = {
       }
     }
 
-    // Sesi remedial yang dibuat dari laporan hanya boleh dipakai oleh siswa
-    // yang nilai terbaiknya masih di bawah KKM. Nama + kelas dicocokkan tanpa
-    // membedakan huruf besar/kecil agar data duplikat tetap aman.
-    if (activeSesi && /^remedial\b/i.test(String(activeSesi.nama_sesi || ''))) {
-      let remedialStudentIds = [];
-      try {
-        remedialStudentIds = activeSesi.remedial_student_ids ? JSON.parse(activeSesi.remedial_student_ids).map(Number) : [];
-      } catch (e) { remedialStudentIds = []; }
-      let matchedRemedialStudent = false;
-      if (remedialStudentIds.length > 0) {
-        const matchingRows = db.prepare(`
-          SELECT id FROM peserta WHERE ulangan_id = ?
-            AND LOWER(TRIM(nama)) = LOWER(TRIM(?))
-            AND LOWER(TRIM(kelas)) = LOWER(TRIM(?))
-        `).all(ulanganId, cleanNama, cleanKelas);
-        const matchedRow = matchingRows.find(row => remedialStudentIds.includes(Number(row.id)));
-        matchedRemedialStudent = Boolean(matchedRow);
-        remedialAllowedParticipantId = matchedRow ? Number(matchedRow.id) : null;
-      }
-      const previousAttempts = db.prepare(`
-        SELECT p.nilai_final, p.nilai_ai
-        FROM pengerjaan p
-        JOIN peserta pes ON pes.id = p.peserta_id
-        WHERE p.ulangan_id = ? AND p.status = 'submitted'
-          AND LOWER(TRIM(pes.nama)) = LOWER(TRIM(?))
-          AND LOWER(TRIM(pes.kelas)) = LOWER(TRIM(?))
-      `).all(ulanganId, cleanNama, cleanKelas);
-      const scores = previousAttempts
-        .map(row => row.nilai_final ?? row.nilai_ai)
-        .filter(value => value !== null && value !== undefined && Number.isFinite(Number(value)))
-        .map(Number);
-      const highestPreviousScore = scores.length > 0 ? Math.max(...scores) : null;
-      const remedialKkm = Number(val.ulangan.kkm || 75);
-      if (highestPreviousScore === null) {
-        throw new Error('Data nilai sebelumnya tidak ditemukan. Sesi remedial hanya untuk peserta dari laporan ulangan ini.');
-      }
-      if (highestPreviousScore >= remedialKkm && !matchedRemedialStudent) {
-        throw new Error(`Nilai Anda sudah tuntas (${highestPreviousScore} >= KKM ${remedialKkm}), tidak perlu mengulang.`);
-      }
-      if (remedialStudentIds.length > 0 && !matchedRemedialStudent) {
-        throw new Error('Siswa ini tidak terdaftar pada link ulangan ulang yang dipilih guru.');
-      }
-    }
-
+    // Daftar nama pada sesi remedial hanya acuan untuk guru/sebaran.
+    // Siswa tetap mengetik identitasnya sendiri; selama kelas dan jadwal valid,
+    // siswa yang belum mengikuti ulangan utama juga boleh dibuatkan peserta baru.
     // Cek batas token ujian & kewajiban PIN HANYA jika sistem PIN / token aktif
     if (Number(val.ulangan.pin_aktif) === 1) {
       try {
@@ -586,8 +544,6 @@ const studentService = {
     let peserta;
     if (provedPengerjaan) {
       peserta = db.prepare('SELECT id, ulangan_id, nama, kelas FROM peserta WHERE id = ?').get(provedPengerjaan.peserta_id);
-    } else if (isRemedialSession && remedialAllowedParticipantId) {
-      peserta = db.prepare('SELECT id, ulangan_id, nama, kelas FROM peserta WHERE id = ? AND ulangan_id = ?').get(remedialAllowedParticipantId, ulanganId);
     } else if (!requireExistingSessionToken) {
       // Pemanggilan service internal lama boleh melakukan rejoin berdasarkan
       // identitas. Endpoint HTTP siswa selalu memakai strict mode.
