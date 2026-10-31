@@ -11144,7 +11144,7 @@
             </div>
             <div class="mt-2 p-2 bg-white/70 rounded-lg border border-amber-200">
               <p class="text-[11px] font-bold text-slate-700">Siswa yang tidak perlu mengulang (opsional)</p>
-              <p class="text-[10px] text-slate-500 mb-1">Nama yang dicentang akan dikecualikan dari link remedial. Siswa lain dari kelas terpilih tetap boleh masuk, termasuk siswa yang belum mengikuti ulangan utama.</p>
+              <p class="text-[10px] text-slate-500 mb-1">Semua peserta dengan nilai terbaik minimal KKM otomatis dikecualikan. Nama yang dicentang juga dikecualikan dari link remedial. Siswa lain dari kelas terpilih tetap boleh masuk, termasuk siswa yang belum mengikuti ulangan utama.</p>
               <div class="max-h-28 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1">
                 ${(peserta || []).filter(p => p.status === 'submitted' && p.peserta_id).map(p => {
                   const score = p.nilai_laporan ?? p.nilai_final ?? p.nilai_ai;

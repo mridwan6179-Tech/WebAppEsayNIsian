@@ -76,8 +76,10 @@ test('remedial membuat satu sesi bertoken tiga karakter dan menyimpan daftar pen
   examService.updateUlangan(exam.id, guru.id, { status: 'selesai' });
   assert.equal(studentService.validateExamCode(created.session.kode_sesi).valid, true);
 
-  const tuntasStarted = studentService.startExam(created.session.kode_sesi, 'Tuntas Siswa', '8A');
-  assert.ok(tuntasStarted.pengerjaanId);
+  assert.throws(
+    () => studentService.startExam(created.session.kode_sesi, 'Tuntas Siswa', '8A'),
+    /tidak perlu mengulang/i
+  );
   const resumed = studentService.startExam(created.session.kode_sesi, 'Remedial Siswa', '8A');
   assert.ok(resumed.pengerjaanId);
 

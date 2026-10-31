@@ -1158,7 +1158,7 @@ const reviewService = {
     }));
 
     const selectedStudentSet = new Set(selectedStudentIds);
-    const excluded = rows.filter(row => selectedStudentSet.has(Number(row.peserta_id)));
+    const excluded = rows.filter(row => row.isTuntas || selectedStudentSet.has(Number(row.peserta_id)));
     return {
       ulangan: laporan.ulangan,
       selected_classes: selectedClasses ? Array.from(selectedClasses) : [],
@@ -1195,7 +1195,10 @@ const reviewService = {
     if (classes.length === 0) String(candidateReport.ulangan.tingkat_kelas || '').split(/[,;/]+/).forEach(addClass);
     if (classes.length === 0) throw new Error('Kelas remedial wajib dipilih.');
     const normalizedClasses = classes.map(item => item.toLocaleLowerCase('id-ID')).sort().join(',');
-    const effectiveStudentIds = selectedStudentIds;
+    const effectiveStudentIds = normalizeRemedialStudentIds([
+      ...selectedStudentIds,
+      ...excludedRows.map(row => row.peserta_id)
+    ]);
     const normalizedRatios = normalizeRemedialRatios(options.question_ratios || options.remedial_question_ratios);
     const questionCount = options.question_count !== undefined && options.question_count !== null && options.question_count !== ''
       ? Math.max(1, Math.floor(Number(options.question_count))) : null;

@@ -100,11 +100,14 @@ test('nama yang dipilih guru menjadi pengecualian dan siswa lain tetap boleh mas
     examService.updateUlangan(exam.id, guru.id, { status: 'dibuka' });
     const created = reviewService.createRemedialSession(exam.id, guru.id, {
       classes: ['8A'],
-      student_ids: [tuntasId],
       baseUrl: 'https://contoh.test'
     });
 
-    assert.deepEqual(created.selected_student_ids, [tuntasId]);
+    assert.ok(created.excluded.some(row => row.peserta_id === tuntasId));
+    assert.ok(created.whatsapp_text.includes('Siswa Tuntas (8A)'));
+    assert.ok(JSON.parse(created.session.remedial_student_ids).includes(Number(tuntasId)));
+    // Nilai tuntas tetap dilindungi walau sesi lama belum menyimpan daftar otomatis.
+    db.prepare('UPDATE ulangan_sesi SET remedial_student_ids = NULL WHERE id = ?').run(created.session.id);
     assert.throws(
       () => studentService.startExam(created.session.kode_sesi, 'Siswa Tuntas', '8A'),
       /tidak perlu mengulang/i

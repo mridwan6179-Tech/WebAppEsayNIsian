@@ -465,10 +465,10 @@ const studentService = {
       }
     }
 
-    if (isRemedialSession && activeSesi.remedial_student_ids) {
+    if (isRemedialSession) {
       let excludedStudentIds = [];
       try {
-        const parsed = JSON.parse(activeSesi.remedial_student_ids);
+        const parsed = activeSesi.remedial_student_ids ? JSON.parse(activeSesi.remedial_student_ids) : [];
         excludedStudentIds = Array.isArray(parsed)
           ? parsed.map(Number).filter(id => Number.isInteger(id) && id > 0)
           : [];
@@ -482,6 +482,27 @@ const studentService = {
         `).all(ulanganId, cleanNama, cleanKelas);
         if (matchingParticipants.some(row => excludedStudentIds.includes(Number(row.id)))) {
           throw new Error('Nama ini termasuk daftar siswa yang tidak perlu mengulang pada sesi remedial.');
+        }
+      }
+
+      // Nilai terbaik di atas atau sama dengan KKM selalu menjadi pengecualian,
+      // termasuk pada sesi remedial lama yang dibuat sebelum daftar otomatis ini disimpan.
+      const matchedParticipant = db.prepare(`
+        SELECT id FROM peserta
+        WHERE ulangan_id = ?
+          AND LOWER(TRIM(nama)) = LOWER(TRIM(?))
+          AND LOWER(TRIM(kelas)) = LOWER(TRIM(?))
+        ORDER BY id DESC LIMIT 1
+      `).get(ulanganId, cleanNama, cleanKelas);
+      if (matchedParticipant) {
+        const bestScoreRow = db.prepare(`
+          SELECT MAX(COALESCE(nilai_final, nilai_ai)) AS nilai_tertinggi
+          FROM pengerjaan
+          WHERE ulangan_id = ? AND peserta_id = ? AND status = 'submitted'
+        `).get(ulanganId, matchedParticipant.id);
+        const bestScore = bestScoreRow?.nilai_tertinggi;
+        if (bestScore !== null && bestScore !== undefined && Number(bestScore) >= Number(val.ulangan.kkm || 75)) {
+          throw new Error(`Nilai Anda sudah tuntas (${bestScore} >= KKM ${val.ulangan.kkm || 75}), tidak perlu mengulang.`);
         }
       }
     }
