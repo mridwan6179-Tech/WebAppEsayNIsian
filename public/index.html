@@ -1569,7 +1569,7 @@
       }
 
       // Cek sessionStorage cache dulu (TTL: 30 detik) untuk kurangi network round-trip
-      const cacheKey = `cek_kode_${kode}`;
+      const cacheKey = `cek_kode_v2_${kode}`;
       try {
         const cached = sessionStorage.getItem(cacheKey);
         if (cached) {
