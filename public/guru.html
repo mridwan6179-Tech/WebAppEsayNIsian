@@ -3556,6 +3556,9 @@
           <button id="btn-export-excel" type="button" class="flex-1 sm:flex-initial px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg transition flex items-center justify-center space-x-1 shadow cursor-pointer">
             <span>📥 Download Excel</span>
           </button>
+          <button id="btn-print-non-remedial" type="button" class="flex-1 sm:flex-initial px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white font-semibold text-xs rounded-lg transition flex items-center justify-center space-x-1 shadow cursor-pointer">
+            <span>🖨️ Cetak Tidak Remedial</span>
+          </button>
           <button id="btn-do-print" class="flex-1 sm:flex-initial px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-lg transition flex items-center justify-center space-x-1 shadow cursor-pointer">
             <span>🖨️ Cetak / PDF</span>
           </button>
@@ -10898,6 +10901,43 @@
       window.scrollTo(0, 0);
       window.print();
     };
+
+    document.getElementById('btn-print-non-remedial').onclick = () => {
+      printNonRemedialStudents(currentLaporanData);
+    };
+
+    function printNonRemedialStudents(laporan) {
+      if (!laporan || !laporan.ulangan) {
+        alert('Laporan nilai belum selesai dimuat.');
+        return;
+      }
+      const kkm = Number(laporan.ulangan.kkm || 75);
+      const students = (laporan.peserta || []).filter((row) => {
+        if (row.status !== 'submitted') return false;
+        const rawScore = row.nilai_laporan ?? row.nilai_final ?? row.nilai_ai;
+        const score = Number(rawScore);
+        return rawScore !== null && rawScore !== undefined && rawScore !== '' && Number.isFinite(score) && score >= kkm;
+      });
+      if (students.length === 0) {
+        alert(`Belum ada siswa yang tuntas (nilai minimal ${kkm}) pada filter laporan ini.`);
+        return;
+      }
+      const rows = students.map((row, index) => {
+        const score = row.nilai_laporan ?? row.nilai_final ?? row.nilai_ai;
+        return `<tr><td>${index + 1}</td><td>${escapeHtml(row.nama_siswa || '-')}</td><td>${escapeHtml(row.kelas_siswa || '-')}</td><td>${escapeHtml(String(score))}</td></tr>`;
+      }).join('');
+      const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=900');
+      if (!printWindow) {
+        alert('Jendela cetak diblokir browser. Izinkan pop-up lalu coba lagi.');
+        return;
+      }
+      printWindow.onload = () => {
+        printWindow.focus();
+        printWindow.print();
+      };
+      printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Daftar Siswa Tidak Remedial</title><style>body{font-family:Arial,sans-serif;padding:28px;color:#0f172a}h1{font-size:20px;margin:0 0 6px}p{color:#475569;margin:0 0 18px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left}th{background:#e2e8f0}td:first-child,td:last-child{text-align:center;width:60px}@media print{body{padding:0}}</style></head><body><h1>Daftar Siswa Tidak Perlu Mengikuti Remedial</h1><p>${escapeHtml(laporan.ulangan.judul || '-')} &bull; KKM: ${kkm}</p><table><thead><tr><th>No</th><th>Nama Siswa</th><th>Kelas</th><th>Nilai Terbaik</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+      printWindow.document.close();
+    }
 
     document.getElementById('laporan-filter-kelas').onchange = (e) => {
       if (!activeUlanganId) return;
