@@ -28,7 +28,8 @@ test('sesi remedial menyimpan jumlah dan persentase tipe soal lalu menerapkannya
     mata_pelajaran: 'Matematika',
     tingkat_kelas: '7A',
     kkm: 75,
-    maksimal_percobaan: 1
+    maksimal_percobaan: 1,
+    jumlah_soal_tampil: 6
   });
 
   for (let i = 1; i <= 6; i++) addQuestion(exam.id, i, 'pilihan_ganda');
@@ -47,13 +48,13 @@ test('sesi remedial menyimpan jumlah dan persentase tipe soal lalu menerapkannya
     const created = reviewService.createRemedialSession(exam.id, guru.id, {
       classes: ['7A'],
       baseUrl: 'https://contoh.test',
-      question_count: 6,
+      question_count: 10,
       question_ratios: { pg_biasa: 50, pg_kompleks: 33, essay: 17 },
       waktu_mulai: new Date(Date.now() - 60_000).toISOString(),
       waktu_selesai: new Date(Date.now() + 3_600_000).toISOString()
     });
 
-    assert.equal(created.session.remedial_question_count, 6);
+    assert.equal(created.session.remedial_question_count, 10);
     assert.deepEqual(JSON.parse(created.session.remedial_question_ratios), {
       pg_biasa: 50,
       pg_kompleks: 33,
@@ -62,14 +63,17 @@ test('sesi remedial menyimpan jumlah dan persentase tipe soal lalu menerapkannya
     assert.ok(created.session.waktu_mulai);
     assert.ok(created.session.waktu_selesai);
 
+    const codeCheck = studentService.validateExamCode(created.session.kode_sesi);
+    assert.equal(codeCheck.ulangan.soal_dikerjakan, 10);
+
     const started = studentService.startExam(created.session.kode_sesi, 'Siswa Remedial', '7A');
-    assert.equal(started.soal.length, 6);
+    assert.equal(started.soal.length, 10);
     const counts = started.soal.reduce((acc, soal) => {
       const key = soal.jenis === 'essay' ? 'essay' : (soal.tipe_pg === 'pg_kompleks' ? 'pg_kompleks' : 'pg_biasa');
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
-    assert.deepEqual(counts, { pg_biasa: 3, pg_kompleks: 2, essay: 1 });
+    assert.deepEqual(counts, { pg_biasa: 5, pg_kompleks: 3, essay: 2 });
   } finally {
     db.prepare('DELETE FROM ulangan WHERE id = ?').run(exam.id);
   }

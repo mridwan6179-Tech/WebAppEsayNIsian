@@ -340,9 +340,17 @@ const studentService = {
       }
     }
 
-    const soalDikerjakan = (ulangan.jumlah_soal_tampil && ulangan.jumlah_soal_tampil < stats.total_soal)
-      ? ulangan.jumlah_soal_tampil
-      : stats.total_soal;
+    const remedialQuestionCount = sesiActive && /^remedial\b/i.test(String(sesiActive.nama_sesi || ''))
+      && sesiActive.remedial_question_count !== null
+      && sesiActive.remedial_question_count !== undefined
+      && Number(sesiActive.remedial_question_count) > 0
+      ? Math.min(Number(sesiActive.remedial_question_count), stats.total_soal)
+      : null;
+    const soalDikerjakan = remedialQuestionCount !== null
+      ? remedialQuestionCount
+      : ((ulangan.jumlah_soal_tampil && ulangan.jumlah_soal_tampil < stats.total_soal)
+        ? ulangan.jumlah_soal_tampil
+        : stats.total_soal);
 
     const hasKisiLink = Boolean(ulangan.link_kisi_kisi && String(ulangan.link_kisi_kisi).trim());
     const hasKisiKonten = Boolean(ulangan.konten_kisi_kisi && String(ulangan.konten_kisi_kisi).trim());
