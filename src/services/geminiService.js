@@ -1743,7 +1743,9 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
 
   formatRemedialSessionWhatsApp({ ulangan, session, classes = [], candidates = [], excludedStudents = null, link = '', questionCount = null, questionRatios = null }) {
     const excluded = Array.isArray(excludedStudents) ? excludedStudents : candidates;
-    const names = excluded.slice(0, 20).map(item => `${item.nama_siswa} (${item.kelas_siswa})`).join(', ');
+    const names = excluded.length > 0
+      ? excluded.map((item, index) => `${index + 1}. ${item.nama_siswa} (${item.kelas_siswa})`).join('\n')
+      : '-';
     const lines = [
       '📢 *ULANGAN ULANG / REMEDIAL*',
       '',

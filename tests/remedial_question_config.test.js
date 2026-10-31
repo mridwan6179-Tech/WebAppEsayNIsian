@@ -4,6 +4,7 @@ const db = require('../src/config/database');
 const examService = require('../src/services/examService');
 const reviewService = require('../src/services/reviewService');
 const studentService = require('../src/services/studentService');
+const geminiService = require('../src/services/geminiService');
 
 function addQuestion(examId, number, jenis, extra = {}) {
   return examService.createSoal(examId, {
@@ -161,4 +162,22 @@ test('siswa yang belum ikut ulangan tetap dapat masuk dan daftar nama ditandai s
   } finally {
     db.prepare('DELETE FROM ulangan WHERE id = ?').run(exam.id);
   }
+});
+
+test('sebaran remedial memuat seluruh nama yang tidak perlu mengulang tanpa batas 20 nama', () => {
+  const excludedStudents = Array.from({ length: 25 }, (_, index) => ({
+    nama_siswa: `Siswa Tuntas ${index + 1}`,
+    kelas_siswa: '7A'
+  }));
+  const text = geminiService.formatRemedialSessionWhatsApp({
+    ulangan: { mata_pelajaran: 'Matematika', judul: 'Ulangan 1', kkm: 75 },
+    session: { kode_sesi: 'ABC' },
+    classes: ['7A'],
+    excludedStudents,
+    link: 'https://contoh.test/?kode=ABC'
+  });
+
+  assert.match(text, /Siswa Tuntas 1 \(7A\)/);
+  assert.match(text, /Siswa Tuntas 25 \(7A\)/);
+  assert.equal((text.match(/\*Peserta yang tidak perlu mengulang:\*/g) || []).length, 1);
 });
