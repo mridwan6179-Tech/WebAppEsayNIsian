@@ -913,11 +913,17 @@ app.get('/api/guru/ulangan/:id/laporan', requireGuru, (req, res) => {
 app.post('/api/guru/ulangan/:id/remedial-session', requireGuru, (req, res) => {
   try {
     const rawClasses = Array.isArray(req.body?.classes) ? req.body.classes : [];
+    const rawStudentIds = Array.isArray(req.body?.student_ids) ? req.body.student_ids : [];
     const host = req.get('host') || 'localhost:3000';
     const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
     const baseUrl = `${proto}://${host}`;
     const result = reviewService.createRemedialSession(req.params.id, req.guru.guruId, {
       classes: rawClasses,
+      student_ids: rawStudentIds,
+      question_count: req.body?.question_count,
+      question_ratios: req.body?.question_ratios,
+      waktu_mulai: req.body?.waktu_mulai,
+      waktu_selesai: req.body?.waktu_selesai,
       baseUrl
     });
     res.json({ success: true, data: result });

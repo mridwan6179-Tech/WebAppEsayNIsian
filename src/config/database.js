@@ -873,6 +873,9 @@ function initDatabase() {
           waktu_mulai DATETIME DEFAULT NULL,
           waktu_selesai DATETIME DEFAULT NULL,
           kuota_peserta INTEGER DEFAULT NULL,
+          remedial_question_count INTEGER DEFAULT NULL,
+          remedial_question_ratios TEXT DEFAULT NULL,
+          remedial_student_ids TEXT DEFAULT NULL,
           status TEXT CHECK(status IN ('aktif', 'nonaktif')) DEFAULT 'aktif',
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (ulangan_id) REFERENCES ulangan(id) ON DELETE CASCADE
@@ -884,6 +887,12 @@ function initDatabase() {
       console.warn('⚠️ Gagal inisialisasi tabel ulangan_sesi:', e.message);
     }
   }
+
+  // Konfigurasi tambahan untuk link ulangan ulang. Nullable agar sesi lama
+  // tetap kompatibel dan tidak mengubah pengaturan ulangan utama.
+  safeAddColumn('ulangan_sesi', 'remedial_question_count', 'INTEGER DEFAULT NULL');
+  safeAddColumn('ulangan_sesi', 'remedial_question_ratios', 'TEXT DEFAULT NULL');
+  safeAddColumn('ulangan_sesi', 'remedial_student_ids', 'TEXT DEFAULT NULL');
 
   // Tabel Baru: Multi-Paket Soal & Log Scan Kamera LJK
   if (!existingObjects.has('paket_soal') || !existingObjects.has('omr_scan_log')) {

@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const examService = require('./examService');
+const packageService = require('./packageService');
 const codingGameService = require('./codingGameService');
 const crypto = require('crypto');
 
@@ -365,6 +366,9 @@ const studentService = {
       kelas: sesiActive.kelas,
       waktu_mulai: sesiActive.waktu_mulai,
       waktu_selesai: sesiActive.waktu_selesai,
+      remedial_question_count: sesiActive.remedial_question_count,
+      remedial_question_ratios: sesiActive.remedial_question_ratios,
+      remedial_student_ids: sesiActive.remedial_student_ids,
       waktu_mulai_formatted: sesiActive.waktu_mulai ? examService.formatIndonesianDateTime(sesiActive.waktu_mulai, zw) : null,
       waktu_selesai_formatted: sesiActive.waktu_selesai ? examService.formatIndonesianDateTime(sesiActive.waktu_selesai, zw) : null
     } : null;
@@ -453,6 +457,7 @@ const studentService = {
 
     const isRemedialSession = Boolean(activeSesi && /^remedial\b/i.test(String(activeSesi.nama_sesi || '')));
     const allowRetakeFlow = Boolean(isRetake || isRemedialSession);
+    let remedialAllowedParticipantId = null;
 
     if (activeSesi && activeSesi.kelas && activeSesi.kelas.trim()) {
       const allowedClasses = activeSesi.kelas.split(/[,;/]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
@@ -465,6 +470,21 @@ const studentService = {
     // yang nilai terbaiknya masih di bawah KKM. Nama + kelas dicocokkan tanpa
     // membedakan huruf besar/kecil agar data duplikat tetap aman.
     if (activeSesi && /^remedial\b/i.test(String(activeSesi.nama_sesi || ''))) {
+      let remedialStudentIds = [];
+      try {
+        remedialStudentIds = activeSesi.remedial_student_ids ? JSON.parse(activeSesi.remedial_student_ids).map(Number) : [];
+      } catch (e) { remedialStudentIds = []; }
+      let matchedRemedialStudent = false;
+      if (remedialStudentIds.length > 0) {
+        const matchingRows = db.prepare(`
+          SELECT id FROM peserta WHERE ulangan_id = ?
+            AND LOWER(TRIM(nama)) = LOWER(TRIM(?))
+            AND LOWER(TRIM(kelas)) = LOWER(TRIM(?))
+        `).all(ulanganId, cleanNama, cleanKelas);
+        const matchedRow = matchingRows.find(row => remedialStudentIds.includes(Number(row.id)));
+        matchedRemedialStudent = Boolean(matchedRow);
+        remedialAllowedParticipantId = matchedRow ? Number(matchedRow.id) : null;
+      }
       const previousAttempts = db.prepare(`
         SELECT p.nilai_final, p.nilai_ai
         FROM pengerjaan p
@@ -482,8 +502,11 @@ const studentService = {
       if (highestPreviousScore === null) {
         throw new Error('Data nilai sebelumnya tidak ditemukan. Sesi remedial hanya untuk peserta dari laporan ulangan ini.');
       }
-      if (highestPreviousScore >= remedialKkm) {
+      if (highestPreviousScore >= remedialKkm && !matchedRemedialStudent) {
         throw new Error(`Nilai Anda sudah tuntas (${highestPreviousScore} >= KKM ${remedialKkm}), tidak perlu mengulang.`);
+      }
+      if (remedialStudentIds.length > 0 && !matchedRemedialStudent) {
+        throw new Error('Siswa ini tidak terdaftar pada link ulangan ulang yang dipilih guru.');
       }
     }
 
@@ -563,6 +586,8 @@ const studentService = {
     let peserta;
     if (provedPengerjaan) {
       peserta = db.prepare('SELECT id, ulangan_id, nama, kelas FROM peserta WHERE id = ?').get(provedPengerjaan.peserta_id);
+    } else if (isRemedialSession && remedialAllowedParticipantId) {
+      peserta = db.prepare('SELECT id, ulangan_id, nama, kelas FROM peserta WHERE id = ? AND ulangan_id = ?').get(remedialAllowedParticipantId, ulanganId);
     } else if (!requireExistingSessionToken) {
       // Pemanggilan service internal lama boleh melakukan rejoin berdasarkan
       // identitas. Endpoint HTTP siswa selalu memakai strict mode.
@@ -745,6 +770,21 @@ const studentService = {
         ORDER BY urutan ASC, nomor ASC
       `).all(ulanganId);
 
+      const hasRemedialQuestionConfig = Boolean(
+        activeSesi && /^remedial\b/i.test(String(activeSesi.nama_sesi || ''))
+          && (activeSesi.remedial_question_count || activeSesi.remedial_question_ratios)
+      );
+      if (hasRemedialQuestionConfig) {
+        let ratios = null;
+        if (activeSesi.remedial_question_ratios) {
+          try { ratios = JSON.parse(activeSesi.remedial_question_ratios); } catch (e) { ratios = null; }
+        }
+        const target = activeSesi.remedial_question_count || allQuestions.length;
+        soalList = ratios
+          ? packageService.sampleQuestionsWithRatios(allQuestions, target, ratios, `remedial-${activeSesi.id}-${peserta.id}`)
+          : packageService.sampleQuestionsWithFairRatio(allQuestions, target, `remedial-${activeSesi.id}-${peserta.id}`);
+      }
+
       const limitSoal = ulanganInfo?.jumlah_soal_tampil;
       const targetPg = (ulanganInfo?.jumlah_soal_pg !== undefined && ulanganInfo?.jumlah_soal_pg !== null) ? Math.max(0, Number(ulanganInfo.jumlah_soal_pg)) : null;
       const targetPgKompleks = (ulanganInfo?.jumlah_soal_pg_kompleks !== undefined && ulanganInfo?.jumlah_soal_pg_kompleks !== null) ? Math.max(0, Number(ulanganInfo.jumlah_soal_pg_kompleks)) : null;
@@ -792,7 +832,9 @@ const studentService = {
         return res;
       };
 
-      if (hasListeningLimit) {
+      if (hasRemedialQuestionConfig) {
+        // Sesi remedial sudah memilih soal berdasarkan konfigurasi link.
+      } else if (hasListeningLimit) {
         // Kuota khusus soal listening: pisahkan pool listening dan non-listening
         const listeningPool = allQuestions.filter(q => Number(q.is_listening) === 1);
         const nonListeningPool = allQuestions.filter(q => Number(q.is_listening) !== 1);

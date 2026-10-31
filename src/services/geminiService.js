@@ -1741,7 +1741,7 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
     return lines.join('\n');
   },
 
-  formatRemedialSessionWhatsApp({ ulangan, session, classes = [], candidates = [], link = '' }) {
+  formatRemedialSessionWhatsApp({ ulangan, session, classes = [], candidates = [], link = '', questionCount = null, questionRatios = null, allowlistedTuntas = false }) {
     const names = candidates.slice(0, 20).map(item => `${item.nama_siswa} (${item.kelas_siswa})`).join(', ');
     const lines = [
       '📢 *ULANGAN ULANG / REMEDIAL*',
@@ -1751,6 +1751,12 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
       `*Kelas:* ${classes.join(', ') || '-'}`,
       `*KKM:* ${ulangan.kkm || 75}`,
       `*Token Sesi:* *${session.kode_sesi}*`,
+      questionCount ? `*Jumlah Soal:* ${questionCount}` : '',
+      questionRatios && Object.keys(questionRatios).length > 0
+        ? `*Komposisi:* ${Object.entries(questionRatios).map(([key, value]) => `${key} ${value}%`).join(', ')}`
+        : '',
+      session.waktu_mulai ? `*Mulai:* ${session.waktu_mulai}` : '',
+      session.waktu_selesai ? `*Tutup:* ${session.waktu_selesai}` : '',
       '',
       '*Peserta yang perlu mengulang:*',
       names || '-',
@@ -1759,7 +1765,9 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
       link,
       '',
       'Buka tautan, isi nama dan kelas yang sama seperti ulangan sebelumnya, lalu masukkan token sesi jika diminta.',
-      'Siswa yang sudah mencapai KKM tidak perlu mengulang dan akan ditolak oleh sistem.'
+      allowlistedTuntas
+        ? 'Hanya nama yang tercantum pada daftar sesi ini yang dapat masuk; siswa lain akan ditolak otomatis.'
+        : 'Siswa yang sudah mencapai KKM tidak perlu mengulang dan akan ditolak oleh sistem.'
     ];
     return lines.join('\n');
   },

@@ -205,6 +205,112 @@ const packageService = {
     return selected;
   },
 
+  // Pilih soal remedial berdasarkan persentase tipe soal yang ditentukan guru.
+  // Largest remainder menjaga jumlah akhir tetap sama dengan target, lalu
+  // mengisi kekurangan bila bank soal suatu tipe tidak mencukupi.
+  sampleQuestionsWithRatios(allQuestions, targetCount, ratios = {}, seedStr = 'remedial') {
+    if (!Array.isArray(allQuestions) || allQuestions.length === 0) return [];
+    const safeTarget = Math.max(1, Math.min(allQuestions.length, Number(targetCount) || allQuestions.length));
+    if (!ratios || typeof ratios !== 'object' || Object.keys(ratios).length === 0) {
+      return this.sampleQuestionsWithFairRatio(allQuestions, safeTarget, seedStr);
+    }
+
+    const aliases = {
+      pilihan_ganda: 'pg_biasa',
+      pg: 'pg_biasa',
+      pg_biasa: 'pg_biasa',
+      pg_kompleks: 'pg_kompleks',
+      isian: 'isian',
+      essay: 'essay',
+      koding: 'koding_game',
+      koding_game: 'koding_game'
+    };
+    const requested = {};
+    let totalRequested = 0;
+    for (const [rawKey, rawValue] of Object.entries(ratios)) {
+      const key = aliases[String(rawKey).trim().toLowerCase()];
+      if (!key) throw new Error(`Tipe soal remedial tidak dikenal: ${rawKey}`);
+      if (rawValue === '' || rawValue === null || rawValue === undefined) continue;
+      const value = Number(rawValue);
+      if (!Number.isFinite(value) || value < 0 || value > 100) {
+        throw new Error(`Persentase tipe soal ${rawKey} harus berada di antara 0 dan 100`);
+      }
+      requested[key] = value;
+      totalRequested += value;
+    }
+    if (totalRequested > 100.0001) {
+      throw new Error('Total persentase tipe soal remedial tidak boleh melebihi 100%');
+    }
+
+    const groups = {};
+    allQuestions.forEach(q => {
+      const key = this.getQuestionCategory(q);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(q);
+    });
+    const availableKeys = Object.keys(groups).filter(key => groups[key].length > 0);
+    if (availableKeys.length === 0) return [];
+
+    // Sisa persentase diberikan ke kategori yang tidak diatur guru,
+    // proporsional terhadap isi bank soal. Ini membuat field persentase opsional.
+    const effective = { ...requested };
+    const omitted = availableKeys.filter(key => effective[key] === undefined);
+    const remainingPercent = Math.max(0, 100 - totalRequested);
+    if (omitted.length > 0 && remainingPercent > 0) {
+      const omittedTotal = omitted.reduce((sum, key) => sum + groups[key].length, 0);
+      omitted.forEach(key => {
+        effective[key] = omittedTotal > 0 ? remainingPercent * groups[key].length / omittedTotal : 0;
+      });
+    } else if (remainingPercent > 0) {
+      // Semua kategori tersedia sudah disebutkan tetapi jumlahnya kurang dari
+      // 100%; pertahankan rasio yang dimasukkan dengan menormalkan sisa.
+      const effectiveTotal = availableKeys.reduce((sum, key) => sum + (effective[key] || 0), 0);
+      if (effectiveTotal <= 0) {
+        availableKeys.forEach(key => { effective[key] = 100 / availableKeys.length; });
+      } else {
+        availableKeys.forEach(key => { effective[key] = (effective[key] || 0) * 100 / effectiveTotal; });
+      }
+    }
+
+    const stats = availableKeys.map(key => {
+      const exact = safeTarget * ((effective[key] || 0) / 100);
+      return { key, exact, floor: Math.floor(exact), remainder: exact - Math.floor(exact), capacity: groups[key].length };
+    });
+    const quotas = {};
+    stats.forEach(item => { quotas[item.key] = Math.min(item.floor, item.capacity); });
+    let assigned = Object.values(quotas).reduce((sum, count) => sum + count, 0);
+    const byRemainder = [...stats].sort((a, b) => b.remainder - a.remainder || b.capacity - a.capacity || a.key.localeCompare(b.key));
+    while (assigned < safeTarget) {
+      const donor = byRemainder.find(item => (quotas[item.key] || 0) < item.capacity);
+      if (!donor) break;
+      quotas[donor.key] = (quotas[donor.key] || 0) + 1;
+      assigned++;
+      donor.remainder = -1;
+      byRemainder.sort((a, b) => b.remainder - a.remainder || b.capacity - a.capacity || a.key.localeCompare(b.key));
+    }
+
+    const selected = [];
+    const selectedIds = new Set();
+    for (const key of availableKeys) {
+      const needed = quotas[key] || 0;
+      if (needed <= 0) continue;
+      const pool = seedStr ? this.seededShuffle(groups[key], `${seedStr}-${key}`) : [...groups[key]];
+      for (const question of pool.slice(0, needed)) {
+        selected.push(question);
+        selectedIds.add(question.id);
+      }
+    }
+
+    // Jika kategori yang diminta kurang tersedia, penuhi target dari soal lain
+    // tanpa pernah menggandakan ID soal.
+    if (selected.length < safeTarget) {
+      const remainderPool = allQuestions.filter(q => !selectedIds.has(q.id));
+      const shuffled = seedStr ? this.seededShuffle(remainderPool, `${seedStr}-fill`) : remainderPool;
+      selected.push(...shuffled.slice(0, safeTarget - selected.length));
+    }
+    return seedStr ? this.seededShuffle(selected, `${seedStr}-order`) : selected;
+  },
+
   // Generate / regenerasi paket soal untuk satu ulangan
   generatePackages(ulanganId, options = {}) {
     const ulangan = db.prepare('SELECT * FROM ulangan WHERE id = ?').get(ulanganId);

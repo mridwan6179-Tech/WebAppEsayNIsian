@@ -16,6 +16,37 @@ function scoreOfAttempt(row) {
   return Number.isFinite(number) ? number : null;
 }
 
+function normalizeRemedialRatios(input) {
+  if (input === null || input === undefined || input === '') return null;
+  let raw = input;
+  if (typeof input === 'string') {
+    try { raw = JSON.parse(input); } catch (e) { throw new Error('Format persentase tipe soal remedial tidak valid.'); }
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('Persentase tipe soal remedial harus berupa objek.');
+  }
+  const aliases = { pilihan_ganda: 'pg_biasa', pg: 'pg_biasa', pg_biasa: 'pg_biasa', pg_kompleks: 'pg_kompleks', isian: 'isian', essay: 'essay', koding: 'koding_game', koding_game: 'koding_game' };
+  const normalized = {};
+  let total = 0;
+  for (const [rawKey, rawValue] of Object.entries(raw)) {
+    const key = aliases[String(rawKey).trim().toLowerCase()];
+    if (!key) throw new Error(`Tipe soal remedial tidak dikenal: ${rawKey}`);
+    const value = Number(rawValue);
+    if (!Number.isFinite(value) || value < 0 || value > 100) {
+      throw new Error(`Persentase tipe soal ${rawKey} harus berada di antara 0 dan 100`);
+    }
+    normalized[key] = value;
+    total += value;
+  }
+  if (total > 100.0001) throw new Error('Total persentase tipe soal remedial tidak boleh melebihi 100%.');
+  return Object.fromEntries(Object.entries(normalized).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+function normalizeRemedialStudentIds(input) {
+  if (!Array.isArray(input)) return [];
+  return Array.from(new Set(input.map(Number).filter(value => Number.isInteger(value) && value > 0))).sort((a, b) => a - b);
+}
+
 function mergeDuplicateStudentRows(rows) {
   const merged = new Map();
   for (const row of rows) {
@@ -1109,14 +1140,17 @@ const reviewService = {
     };
   },
 
-  getRemedialCandidates(ulanganId, guruId, classes = null) {
+  getRemedialCandidates(ulanganId, guruId, classes = null, studentIds = null) {
     const laporan = this.getLaporanNilai(ulanganId, guruId);
     const selectedClasses = Array.isArray(classes)
       ? new Set(classes.map(item => String(item || '').trim().toLocaleLowerCase('id-ID')).filter(Boolean))
       : null;
+    const selectedStudentIds = normalizeRemedialStudentIds(studentIds);
+    const selectedStudentSet = selectedStudentIds.length > 0 ? new Set(selectedStudentIds) : null;
     const rows = laporan.peserta.filter(row => {
       if (row.status !== 'submitted') return false;
       if (selectedClasses && selectedClasses.size > 0 && !selectedClasses.has(String(row.kelas_siswa || '').trim().toLocaleLowerCase('id-ID'))) return false;
+      if (selectedStudentSet && !selectedStudentSet.has(Number(row.peserta_id))) return false;
       const score = row.nilai_laporan ?? scoreOfAttempt(row);
       return score !== null;
     }).map(row => ({
@@ -1128,8 +1162,9 @@ const reviewService = {
     return {
       ulangan: laporan.ulangan,
       selected_classes: selectedClasses ? Array.from(selectedClasses) : [],
-      candidates: rows.filter(row => !row.isTuntas),
+      candidates: selectedStudentSet ? rows : rows.filter(row => !row.isTuntas),
       tuntas: rows.filter(row => row.isTuntas),
+      selected_student_ids: selectedStudentIds,
       total: rows.length
     };
   },
@@ -1138,20 +1173,55 @@ const reviewService = {
     const requestedClasses = Array.isArray(options.classes)
       ? options.classes.map(item => String(item || '').trim()).filter(Boolean)
       : [];
-    const candidates = this.getRemedialCandidates(ulanganId, guruId, requestedClasses.length ? requestedClasses : null);
+    const selectedStudentIds = normalizeRemedialStudentIds(options.student_ids || options.peserta_ids);
+    const candidates = this.getRemedialCandidates(
+      ulanganId,
+      guruId,
+      requestedClasses.length ? requestedClasses : null,
+      selectedStudentIds.length ? selectedStudentIds : null
+    );
     if (candidates.candidates.length === 0) {
-      throw new Error('Tidak ada siswa yang belum tuntas pada kelas yang dipilih.');
+      throw new Error(selectedStudentIds.length
+        ? 'Tidak ada siswa terpilih yang memiliki nilai ulangan yang dapat dipakai untuk remedial.'
+        : 'Tidak ada siswa yang belum tuntas pada kelas yang dipilih.');
     }
 
-    const classes = Array.from(new Set(candidates.candidates.map(row => row.kelas_siswa).filter(Boolean)));
+    const selectedRows = candidates.candidates;
+    const classes = Array.from(new Set(selectedRows.map(row => row.kelas_siswa).filter(Boolean)));
     const normalizedClasses = classes.map(item => item.toLocaleLowerCase('id-ID')).sort().join(',');
+    const effectiveStudentIds = normalizeRemedialStudentIds(selectedRows.map(row => row.peserta_id));
+    const normalizedRatios = normalizeRemedialRatios(options.question_ratios || options.remedial_question_ratios);
+    const questionCount = options.question_count !== undefined && options.question_count !== null && options.question_count !== ''
+      ? Math.max(1, Math.floor(Number(options.question_count))) : null;
+    if (options.question_count !== undefined && options.question_count !== null && options.question_count !== '' && !Number.isFinite(Number(options.question_count))) {
+      throw new Error('Jumlah soal remedial harus berupa angka.');
+    }
+    if (options.question_count !== undefined && options.question_count !== null && options.question_count !== '' && Number(options.question_count) <= 0) {
+      throw new Error('Jumlah soal remedial minimal 1.');
+    }
+    const serializedRatios = normalizedRatios ? JSON.stringify(normalizedRatios) : null;
+    const serializedStudentIds = effectiveStudentIds.length ? JSON.stringify(effectiveStudentIds) : null;
+    const exam = db.prepare('SELECT zona_waktu FROM ulangan WHERE id = ? AND guru_id = ?').get(ulanganId, guruId);
+    if (!exam) throw new Error('Ulangan tidak ditemukan atau akses ditolak');
+    const normalizedStart = options.waktu_mulai ? examService.parseIndonesianDateTime(options.waktu_mulai, exam.zona_waktu || 'WIB') : null;
+    const normalizedEnd = options.waktu_selesai ? examService.parseIndonesianDateTime(options.waktu_selesai, exam.zona_waktu || 'WIB') : null;
+    if (options.waktu_mulai && !normalizedStart) throw new Error('Waktu mulai remedial tidak valid.');
+    if (options.waktu_selesai && !normalizedEnd) throw new Error('Waktu selesai remedial tidak valid.');
+    if (normalizedStart && normalizedEnd && new Date(normalizedStart) > new Date(normalizedEnd)) {
+      throw new Error('Waktu mulai remedial tidak boleh melewati waktu selesai.');
+    }
     const existing = db.prepare(`
       SELECT id
       FROM ulangan_sesi
       WHERE ulangan_id = ? AND LOWER(nama_sesi) LIKE 'remedial%'
         AND REPLACE(LOWER(COALESCE(kelas, '')), ', ', ',') = ? AND status = 'aktif'
+        AND COALESCE(remedial_question_count, -1) = COALESCE(?, -1)
+        AND COALESCE(remedial_question_ratios, '') = COALESCE(?, '')
+        AND COALESCE(remedial_student_ids, '') = COALESCE(?, '')
+        AND COALESCE(waktu_mulai, '') = COALESCE(?, '')
+        AND COALESCE(waktu_selesai, '') = COALESCE(?, '')
       ORDER BY id DESC LIMIT 1
-    `).get(ulanganId, normalizedClasses);
+    `).get(ulanganId, normalizedClasses, questionCount, serializedRatios, serializedStudentIds, normalizedStart, normalizedEnd);
 
     let session;
     if (existing) {
@@ -1169,8 +1239,20 @@ const reviewService = {
         waktu_mulai: null,
         waktu_selesai: null,
         kuota_peserta: null,
+        remedial_question_count: questionCount,
+        remedial_question_ratios: normalizedRatios,
+        remedial_student_ids: effectiveStudentIds,
         status: 'aktif'
       });
+      if (normalizedStart || normalizedEnd) {
+        session = examService.updateSesi(session.id, guruId, {
+          waktu_mulai: normalizedStart,
+          waktu_selesai: normalizedEnd,
+          remedial_question_count: questionCount,
+          remedial_question_ratios: serializedRatios,
+          remedial_student_ids: effectiveStudentIds
+        });
+      }
     }
 
     const baseUrl = String(options.baseUrl || '').replace(/\/+$/, '');
@@ -1180,15 +1262,21 @@ const reviewService = {
       ulangan: candidates.ulangan,
       session,
       classes,
-      candidates: candidates.candidates,
-      link
+      candidates: selectedRows,
+      link,
+      questionCount,
+      questionRatios: normalizedRatios,
+      allowlistedTuntas: selectedRows.some(row => row.isTuntas)
     });
 
     return {
       session,
       link,
-      candidates: candidates.candidates,
+      candidates: selectedRows,
       tuntas: candidates.tuntas,
+      selected_student_ids: effectiveStudentIds,
+      question_count: questionCount,
+      question_ratios: normalizedRatios,
       whatsapp_text: whatsappText
     };
   },

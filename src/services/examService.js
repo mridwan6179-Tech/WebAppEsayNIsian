@@ -1505,6 +1505,9 @@ const examService = {
         s.waktu_mulai,
         s.waktu_selesai,
         s.kuota_peserta,
+        s.remedial_question_count,
+        s.remedial_question_ratios,
+        s.remedial_student_ids,
         s.status,
         s.created_at,
         COUNT(p.id) as total_peserta,
@@ -1586,11 +1589,18 @@ const examService = {
       ? Math.max(1, Number(data.kuota_peserta)) 
       : null;
     const status = data.status === 'nonaktif' ? 'nonaktif' : 'aktif';
+    const remedialQuestionCount = data.remedial_question_count !== undefined && data.remedial_question_count !== null && data.remedial_question_count !== ''
+      ? Math.max(1, Math.floor(Number(data.remedial_question_count))) : null;
+    const remedialQuestionRatios = data.remedial_question_ratios
+      ? (typeof data.remedial_question_ratios === 'string' ? data.remedial_question_ratios : JSON.stringify(data.remedial_question_ratios))
+      : null;
+    const remedialStudentIds = Array.isArray(data.remedial_student_ids) && data.remedial_student_ids.length > 0
+      ? JSON.stringify(Array.from(new Set(data.remedial_student_ids.map(Number).filter(Number.isInteger)))) : null;
 
     const info = db.prepare(`
-      INSERT INTO ulangan_sesi (ulangan_id, nama_sesi, kode_sesi, kelas, waktu_mulai, waktu_selesai, kuota_peserta, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(ulanganId, namaSesi, kodeSesi, cleanKelas, cleanMulai, cleanSelesai, kuota, status);
+      INSERT INTO ulangan_sesi (ulangan_id, nama_sesi, kode_sesi, kelas, waktu_mulai, waktu_selesai, kuota_peserta, remedial_question_count, remedial_question_ratios, remedial_student_ids, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(ulanganId, namaSesi, kodeSesi, cleanKelas, cleanMulai, cleanSelesai, kuota, remedialQuestionCount, remedialQuestionRatios, remedialStudentIds, status);
 
     if (typeof db.syncCloud === 'function') {
       try { db.syncCloud(true); } catch (e) {}
@@ -1676,12 +1686,21 @@ const examService = {
       ? ((data.kuota_peserta !== null && data.kuota_peserta !== '') ? Math.max(1, Number(data.kuota_peserta)) : null)
       : existing.kuota_peserta;
     const status = (data.status !== undefined) ? (data.status === 'nonaktif' ? 'nonaktif' : 'aktif') : existing.status;
+    const remedialQuestionCount = data.remedial_question_count !== undefined
+      ? ((data.remedial_question_count !== null && data.remedial_question_count !== '') ? Math.max(1, Math.floor(Number(data.remedial_question_count))) : null)
+      : existing.remedial_question_count;
+    const remedialQuestionRatios = data.remedial_question_ratios !== undefined
+      ? (data.remedial_question_ratios ? (typeof data.remedial_question_ratios === 'string' ? data.remedial_question_ratios : JSON.stringify(data.remedial_question_ratios)) : null)
+      : existing.remedial_question_ratios;
+    const remedialStudentIds = data.remedial_student_ids !== undefined
+      ? (Array.isArray(data.remedial_student_ids) && data.remedial_student_ids.length > 0 ? JSON.stringify(Array.from(new Set(data.remedial_student_ids.map(Number).filter(Number.isInteger)))) : null)
+      : existing.remedial_student_ids;
 
     db.prepare(`
       UPDATE ulangan_sesi
-      SET nama_sesi = ?, kode_sesi = ?, kelas = ?, waktu_mulai = ?, waktu_selesai = ?, kuota_peserta = ?, status = ?
+      SET nama_sesi = ?, kode_sesi = ?, kelas = ?, waktu_mulai = ?, waktu_selesai = ?, kuota_peserta = ?, remedial_question_count = ?, remedial_question_ratios = ?, remedial_student_ids = ?, status = ?
       WHERE id = ?
-    `).run(namaSesi, kodeSesi, cleanKelas, cleanMulai, cleanSelesai, kuota, status, sesiId);
+    `).run(namaSesi, kodeSesi, cleanKelas, cleanMulai, cleanSelesai, kuota, remedialQuestionCount, remedialQuestionRatios, remedialStudentIds, status, sesiId);
 
     // Update nama_sesi di pengerjaan yang tertaut
     try {

@@ -11115,6 +11115,44 @@
                 <input type="checkbox" class="remedial-class-choice rounded border-amber-300 text-amber-600 focus:ring-amber-500" value="${escapeHtml(kelas)}" checked>
                 <span>${escapeHtml(kelas)}</span>
               </label>`).join('')}</div>
+            <div class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <label class="text-[11px] font-semibold text-slate-700">Jumlah soal (opsional)
+                <input id="remedial-question-count" type="number" min="1" max="1000" placeholder="Semua soal" class="mt-1 w-full rounded-lg border border-amber-200 px-2 py-1.5 text-xs">
+              </label>
+              <label class="text-[11px] font-semibold text-slate-700">Buka mulai (opsional)
+                <input id="remedial-start-at" type="datetime-local" class="mt-1 w-full rounded-lg border border-amber-200 px-2 py-1.5 text-xs">
+              </label>
+              <label class="text-[11px] font-semibold text-slate-700">Tutup sampai (opsional)
+                <input id="remedial-end-at" type="datetime-local" class="mt-1 w-full rounded-lg border border-amber-200 px-2 py-1.5 text-xs">
+              </label>
+            </div>
+            <div class="mt-2 p-2 bg-white/70 rounded-lg border border-amber-200">
+              <p class="text-[11px] font-bold text-slate-700">Persentase tipe soal (opsional, total maksimal 100%)</p>
+              <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-1.5">
+                ${[
+                  ['pg_biasa', 'PG biasa'],
+                  ['pg_kompleks', 'PG kompleks'],
+                  ['isian', 'Isian'],
+                  ['essay', 'Essay'],
+                  ['koding_game', 'Koding']
+                ].map(([key, label]) => `
+                  <label class="text-[10px] font-semibold text-slate-600">${label} %
+                    <input id="remedial-ratio-${key}" data-remedial-ratio="${key}" type="number" min="0" max="100" placeholder="-" class="mt-1 w-full rounded border border-slate-200 px-2 py-1 text-xs">
+                  </label>
+                `).join('')}
+              </div>
+            </div>
+            <div class="mt-2 p-2 bg-white/70 rounded-lg border border-amber-200">
+              <p class="text-[11px] font-bold text-slate-700">Siswa tertentu (opsional)</p>
+              <p class="text-[10px] text-slate-500 mb-1">Jika ada yang dicentang, hanya nama yang dicentang yang boleh memakai link ini. Jika kosong, semua siswa di bawah KKM pada kelas terpilih yang wajib mengulang.</p>
+              <div class="max-h-28 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1">
+                ${(peserta || []).filter(p => p.status === 'submitted' && p.peserta_id).map(p => {
+                  const score = p.nilai_laporan ?? p.nilai_final ?? p.nilai_ai;
+                  const label = Number.isFinite(Number(score)) ? `${p.nama_siswa} (${p.kelas_siswa}) - ${score}` : `${p.nama_siswa} (${p.kelas_siswa})`;
+                  return `<label class="inline-flex items-center gap-1 text-[10px] text-slate-600"><input type="checkbox" class="remedial-student-choice rounded border-amber-300 text-amber-600" value="${escapeHtml(String(p.peserta_id))}"><span>${escapeHtml(label)}</span></label>`;
+                }).join('') || '<span class="text-[10px] text-slate-500">Belum ada siswa yang nilainya bisa dipilih.</span>'}
+              </div>
+            </div>
             <div class="flex flex-wrap items-center gap-2 pt-1">
               <button type="button" onclick="createRemedialSessionFromReport()" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold shadow-sm cursor-pointer">Buat Link Ulangan Ulang</button>
               <span class="text-[10px] text-amber-800">Token sesi dibuat otomatis 3 karakter.</span>
@@ -11167,6 +11205,28 @@
         alert('Pilih minimal satu kelas yang belum tuntas.');
         return;
       }
+      const studentIds = Array.from(document.querySelectorAll('.remedial-student-choice:checked')).map(el => Number(el.value)).filter(Number.isInteger);
+      const questionCountRaw = document.getElementById('remedial-question-count')?.value || '';
+      const questionCount = questionCountRaw ? Number(questionCountRaw) : null;
+      if (questionCountRaw && (!Number.isInteger(questionCount) || questionCount < 1)) {
+        alert('Jumlah soal remedial harus berupa bilangan bulat minimal 1.');
+        return;
+      }
+      const questionRatios = {};
+      document.querySelectorAll('[data-remedial-ratio]').forEach(input => {
+        if (input.value !== '') questionRatios[input.dataset.remedialRatio] = Number(input.value);
+      });
+      const ratioTotal = Object.values(questionRatios).reduce((sum, value) => sum + (Number(value) || 0), 0);
+      if (ratioTotal > 100.0001) {
+        alert('Total persentase tipe soal tidak boleh melebihi 100%.');
+        return;
+      }
+      const localStart = document.getElementById('remedial-start-at')?.value || '';
+      const localEnd = document.getElementById('remedial-end-at')?.value || '';
+      if (localStart && localEnd && new Date(localStart) > new Date(localEnd)) {
+        alert('Waktu mulai tidak boleh melewati waktu tutup.');
+        return;
+      }
       const resultEl = document.getElementById('remedial-session-result');
       if (resultEl) {
         resultEl.classList.remove('hidden');
@@ -11176,7 +11236,14 @@
         const res = await guruFetch(`/api/guru/ulangan/${activeUlanganId}/remedial-session`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ classes })
+          body: JSON.stringify({
+            classes,
+            student_ids: studentIds,
+            question_count: questionCount,
+            question_ratios: Object.keys(questionRatios).length > 0 ? questionRatios : null,
+            waktu_mulai: localStart || null,
+            waktu_selesai: localEnd || null
+          })
         });
         const json = await res.json();
         if (!res.ok || !json.success || !json.data) throw new Error(json.message || 'Gagal membuat sesi remedial');
@@ -11187,6 +11254,7 @@
               <p class="text-[11px] font-bold text-emerald-800">✅ Sesi remedial siap dibagikan</p>
               <div class="flex flex-wrap gap-2 text-[11px]">
                 <span class="px-2 py-1 rounded bg-indigo-50 border border-indigo-200 text-indigo-900">Token: <strong class="font-mono tracking-widest">${escapeHtml(data.session.kode_sesi)}</strong></span>
+                <span class="px-2 py-1 rounded bg-amber-50 border border-amber-200 text-amber-900">Soal: <strong>${escapeHtml(String(data.question_count || 'semua'))}</strong></span>
                 <a href="${escapeHtml(data.link)}" target="_blank" rel="noopener" class="px-2 py-1 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 underline break-all">${escapeHtml(data.link)}</a>
               </div>
               <textarea id="remedial-whatsapp-text" readonly class="w-full min-h-32 text-[11px] p-2 rounded-lg border border-slate-200 bg-slate-50">${escapeHtml(data.whatsapp_text || '')}</textarea>
