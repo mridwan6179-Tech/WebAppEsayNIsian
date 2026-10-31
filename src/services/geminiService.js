@@ -1741,8 +1741,9 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
     return lines.join('\n');
   },
 
-  formatRemedialSessionWhatsApp({ ulangan, session, classes = [], candidates = [], link = '', questionCount = null, questionRatios = null, allowlistedTuntas = false }) {
-    const names = candidates.slice(0, 20).map(item => `${item.nama_siswa} (${item.kelas_siswa})`).join(', ');
+  formatRemedialSessionWhatsApp({ ulangan, session, classes = [], candidates = [], excludedStudents = null, link = '', questionCount = null, questionRatios = null }) {
+    const excluded = Array.isArray(excludedStudents) ? excludedStudents : candidates;
+    const names = excluded.slice(0, 20).map(item => `${item.nama_siswa} (${item.kelas_siswa})`).join(', ');
     const lines = [
       '📢 *ULANGAN ULANG / REMEDIAL*',
       '',
@@ -1758,14 +1759,14 @@ FORMAT KELUARAN WAJIB (JSON MURNI TANPA MARKDOWN):
       session.waktu_mulai ? `*Mulai:* ${session.waktu_mulai}` : '',
       session.waktu_selesai ? `*Tutup:* ${session.waktu_selesai}` : '',
       '',
-      '*Peserta yang perlu mengulang:*',
+      '*Peserta yang tidak perlu mengulang:*',
       names || '-',
       '',
       '*Tautan Remedial:*',
       link,
       '',
-      'Buka tautan, isi nama dan kelas yang sama seperti ulangan sebelumnya, lalu masukkan token sesi jika diminta.',
-      'Daftar nama pada pesan ini hanya acuan. Siswa tetap mengisi nama dan kelas sendiri; siswa yang belum mengikuti ulangan utama dapat ikut selama kelas dan jadwal sesuai.'
+      'Buka tautan, lalu isi nama dan kelas sendiri. Siswa yang belum mengikuti ulangan utama juga dapat mengisi identitasnya di sini selama kelas dan jadwal sesuai.',
+      'Nama yang tercantum di atas dikecualikan dari remedial. Siswa lain dari kelas yang dipilih boleh mengikuti, termasuk siswa yang belum mengikuti ulangan utama, selama jadwal sesuai.'
     ];
     return lines.join('\n');
   },

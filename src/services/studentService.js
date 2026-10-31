@@ -465,7 +465,28 @@ const studentService = {
       }
     }
 
-    // Daftar nama pada sesi remedial hanya acuan untuk guru/sebaran.
+    if (isRemedialSession && activeSesi.remedial_student_ids) {
+      let excludedStudentIds = [];
+      try {
+        const parsed = JSON.parse(activeSesi.remedial_student_ids);
+        excludedStudentIds = Array.isArray(parsed)
+          ? parsed.map(Number).filter(id => Number.isInteger(id) && id > 0)
+          : [];
+      } catch (e) {}
+      if (excludedStudentIds.length > 0) {
+        const matchingParticipants = db.prepare(`
+          SELECT id FROM peserta
+          WHERE ulangan_id = ?
+            AND LOWER(TRIM(nama)) = LOWER(TRIM(?))
+            AND LOWER(TRIM(kelas)) = LOWER(TRIM(?))
+        `).all(ulanganId, cleanNama, cleanKelas);
+        if (matchingParticipants.some(row => excludedStudentIds.includes(Number(row.id)))) {
+          throw new Error('Nama ini termasuk daftar siswa yang tidak perlu mengulang pada sesi remedial.');
+        }
+      }
+    }
+
+    // Daftar nama pada sesi remedial adalah pengecualian untuk guru/sebaran.
     // Siswa tetap mengetik identitasnya sendiri; selama kelas dan jadwal valid,
     // siswa yang belum mengikuti ulangan utama juga boleh dibuatkan peserta baru.
     // Cek batas token ujian & kewajiban PIN HANYA jika sistem PIN / token aktif

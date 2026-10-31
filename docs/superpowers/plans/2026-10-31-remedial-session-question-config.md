@@ -22,7 +22,7 @@
 - A remedial link with percentages that round to a non-integer total still selects exactly the requested count.
 - Missing question categories are capped without selecting duplicate questions.
 - A refresh/rejoin returns the same question IDs.
-- A tuntas student is rejected unless explicitly included in the session allowlist.
+- A selected excluded student is rejected with a clear "tidak perlu mengulang" message.
 - Invalid schedule or percentage input returns a clear 400 error without creating a session.
 
 ### Task 1: Schema and session configuration
@@ -41,12 +41,12 @@
 - Apply session configuration only when the session is remedial and no persisted `soal_ids` exist.
 - Persist selected IDs before returning the student sheet; keep existing selection path untouched for regular exams.
 
-### Task 3: Participant allowlist and teacher UI/API
+### Task 3: Participant exclusion list and teacher UI/API
 
 **Files:** `server.js`, `src/services/reviewService.js`, `src/services/studentService.js`, `public/guru.html`, `tests/remedial_question_config.test.js`
 
 - Pass the new options through the endpoint.
-- Treat saved student IDs as broadcast/reference data only; enforce class and schedule while allowing a new participant identity to be created.
+- Treat saved student IDs as an exclusion list for students who do not need to retake; enforce class and schedule while allowing other identities, including new participants, to enter.
 - Add controls for question count, ratios, schedule, and optional student selection to the report card; include the effective configuration in the generated WhatsApp text/result.
 
 ### Task 4: Verification

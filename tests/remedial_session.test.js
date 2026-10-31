@@ -33,7 +33,7 @@ test('remedial mengelompokkan nama dan kelas ganda dengan nilai tertinggi', () =
   assert.equal(result.tuntas.find(item => item.nama_siswa === 'Andi Saputra').nilai_tertinggi, 85);
 });
 
-test('remedial membuat satu sesi bertoken tiga karakter dan memakai daftar nama sebagai acuan', () => {
+test('remedial membuat satu sesi bertoken tiga karakter dan menyimpan daftar pengecualian', () => {
   const guru = db.prepare('SELECT id FROM guru LIMIT 1').get();
   const exam = examService.createUlangan(guru.id, {
     judul: `Remedial link ${Date.now()}`,
@@ -174,6 +174,36 @@ test('siswa yang belum dinilai belum dihitung sebagai peserta remedial', () => {
   const laporan = reviewService.getLaporanNilai(exam.id, guru.id);
   assert.equal(laporan.statistik.belum_tuntas_count, 0);
   assert.equal(reviewService.getRemedialCandidates(exam.id, guru.id).candidates.length, 0);
+});
+
+test('sesi remedial tetap dapat dibuat untuk kelas tanpa riwayat ulangan', () => {
+  const guru = db.prepare('SELECT id FROM guru LIMIT 1').get();
+  const exam = examService.createUlangan(guru.id, {
+    judul: `Remedial new class ${Date.now()}`,
+    mata_pelajaran: 'IPA',
+    tingkat_kelas: '12A',
+    kkm: 75
+  });
+  examService.createSoal(exam.id, {
+    nomor: 1,
+    jenis: 'pilihan_ganda',
+    pertanyaan: 'Satu tambah satu?',
+    opsi_a: '1',
+    opsi_b: '2',
+    kunci_pg: 'B',
+    bobot: 100
+  });
+
+  try {
+    const remedial = reviewService.createRemedialSession(exam.id, guru.id, {
+      classes: ['12A'],
+      baseUrl: 'https://contoh.test'
+    });
+    const started = studentService.startExam(remedial.session.kode_sesi, 'Siswa Baru', '12A');
+    assert.ok(started.pengerjaanId);
+  } finally {
+    db.prepare('DELETE FROM ulangan WHERE id = ?').run(exam.id);
+  }
 });
 
 test('sesi remedial tidak memakai tanggal selesai ulangan utama yang sudah lewat', () => {

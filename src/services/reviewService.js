@@ -1146,11 +1146,9 @@ const reviewService = {
       ? new Set(classes.map(item => String(item || '').trim().toLocaleLowerCase('id-ID')).filter(Boolean))
       : null;
     const selectedStudentIds = normalizeRemedialStudentIds(studentIds);
-    const selectedStudentSet = selectedStudentIds.length > 0 ? new Set(selectedStudentIds) : null;
     const rows = laporan.peserta.filter(row => {
       if (row.status !== 'submitted') return false;
       if (selectedClasses && selectedClasses.size > 0 && !selectedClasses.has(String(row.kelas_siswa || '').trim().toLocaleLowerCase('id-ID'))) return false;
-      if (selectedStudentSet && !selectedStudentSet.has(Number(row.peserta_id))) return false;
       const score = row.nilai_laporan ?? scoreOfAttempt(row);
       return score !== null;
     }).map(row => ({
@@ -1159,11 +1157,14 @@ const reviewService = {
       isTuntas: Number(row.nilai_laporan ?? scoreOfAttempt(row)) >= Number(laporan.ulangan.kkm || 75)
     }));
 
+    const selectedStudentSet = new Set(selectedStudentIds);
+    const excluded = rows.filter(row => selectedStudentSet.has(Number(row.peserta_id)));
     return {
       ulangan: laporan.ulangan,
       selected_classes: selectedClasses ? Array.from(selectedClasses) : [],
-      candidates: selectedStudentSet ? rows : rows.filter(row => !row.isTuntas),
+      candidates: rows.filter(row => !row.isTuntas && !selectedStudentSet.has(Number(row.peserta_id))),
       tuntas: rows.filter(row => row.isTuntas),
+      excluded,
       selected_student_ids: selectedStudentIds,
       total: rows.length
     };
@@ -1174,22 +1175,27 @@ const reviewService = {
       ? options.classes.map(item => String(item || '').trim()).filter(Boolean)
       : [];
     const selectedStudentIds = normalizeRemedialStudentIds(options.student_ids || options.peserta_ids);
-    const candidates = this.getRemedialCandidates(
+    const candidateReport = this.getRemedialCandidates(
       ulanganId,
       guruId,
       requestedClasses.length ? requestedClasses : null,
       selectedStudentIds.length ? selectedStudentIds : null
     );
-    if (candidates.candidates.length === 0) {
-      throw new Error(selectedStudentIds.length
-        ? 'Tidak ada siswa terpilih yang memiliki nilai ulangan yang dapat dipakai untuk remedial.'
-        : 'Tidak ada siswa yang belum tuntas pada kelas yang dipilih.');
-    }
-
-    const selectedRows = candidates.candidates;
-    const classes = Array.from(new Set(selectedRows.map(row => row.kelas_siswa).filter(Boolean)));
+    const selectedRows = candidateReport.candidates;
+    const excludedRows = candidateReport.excluded;
+    const classes = [];
+    const classKeys = new Set();
+    const addClass = (value) => {
+      const display = String(value || '').trim();
+      const key = display.toLocaleLowerCase('id-ID');
+      if (display && !classKeys.has(key)) { classKeys.add(key); classes.push(display); }
+    };
+    if (requestedClasses.length > 0) requestedClasses.forEach(addClass);
+    else selectedRows.concat(excludedRows).forEach(row => addClass(row.kelas_siswa));
+    if (classes.length === 0) String(candidateReport.ulangan.tingkat_kelas || '').split(/[,;/]+/).forEach(addClass);
+    if (classes.length === 0) throw new Error('Kelas remedial wajib dipilih.');
     const normalizedClasses = classes.map(item => item.toLocaleLowerCase('id-ID')).sort().join(',');
-    const effectiveStudentIds = normalizeRemedialStudentIds(selectedRows.map(row => row.peserta_id));
+    const effectiveStudentIds = selectedStudentIds;
     const normalizedRatios = normalizeRemedialRatios(options.question_ratios || options.remedial_question_ratios);
     const questionCount = options.question_count !== undefined && options.question_count !== null && options.question_count !== ''
       ? Math.max(1, Math.floor(Number(options.question_count))) : null;
@@ -1259,21 +1265,22 @@ const reviewService = {
     const link = `${baseUrl}/?kode=${encodeURIComponent(session.kode_sesi)}`;
     const geminiService = require('./geminiService');
     const whatsappText = geminiService.formatRemedialSessionWhatsApp({
-      ulangan: candidates.ulangan,
+      ulangan: candidateReport.ulangan,
       session,
       classes,
       candidates: selectedRows,
+      excludedStudents: excludedRows,
       link,
       questionCount,
       questionRatios: normalizedRatios,
-      allowlistedTuntas: selectedRows.some(row => row.isTuntas)
     });
 
     return {
       session,
       link,
       candidates: selectedRows,
-      tuntas: candidates.tuntas,
+      tuntas: candidateReport.tuntas,
+      excluded: excludedRows,
       selected_student_ids: effectiveStudentIds,
       question_count: questionCount,
       question_ratios: normalizedRatios,
